@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "PING FD300",
+    "model_id": "PING_FD300",
+    "nozzle_diameter": "0.4;0.6",
+    "machine_tech": "FFF",
+    "family": "PING",
+    "bed_model": "",
+    "bed_texture": "ping_buildplate_texture.png",
+    "hotend_model": "",
+    "default_materials": "PING Generic PLA;PING Generic PETG;PING Generic ABS;PING PolyABS;PING SupABS;PING Generic TPU"
+}

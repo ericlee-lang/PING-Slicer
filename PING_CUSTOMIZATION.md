@@ -37,9 +37,18 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 ## 2. 介面預設值 / Defaults  ⬜ (todo)
 - 預設語言 zh_TW、預設選 PING 廠商、預設單位。
 
-## 3. PING 機型 profiles + 圓盤底板 / Profiles  ⬜ (todo)
-- 8 款 delta 機型（FD300/FD300-Pro/FP300/FD450-Pro/FD600-Pro/FF600-Pro/FD800-Pro/FF800-Pro），
-  以 FLSun delta 為範本、圓形 bed、Klipper start/end gcode、Moonraker 送印。
+## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (initial, 待規格確認)
+- `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
+- 8 款 delta 機型（FD300 / FD300-Pro / FP300 / FD450-Pro / FD600-Pro / FF600-Pro / FD800-Pro / FF800-Pro），
+  圓形 `printable_area`、`gcode_flavor=klipper`、`host_type=octoprint`(Moonraker)、PING start/end gcode。
+- 20 個機器(含 0.4/0.6/0.8 噴頭變體)、24 個 process(Fine/Standard/Draft)、PING 材料(PolyABS/SupABS + Generic PLA/PETG/ABS/TPU)。
+- 底板紋理 `ping_buildplate_texture.png`。生成器：`_staging/gen_ping_profiles.py`。
+
+> ⚠️ **待 PING 確認的規格（目前為估計值）**：
+> - **列印高度 printable_height**：FD300類=300、FD450=450、FD600=600、FD800=800（暫=直徑；FLSun V400 同直徑卻為 410，故務必確認）。
+> - **噴頭尺寸**：300/450 類給 0.4/0.6；600/800 類給 0.4/0.6/0.8（需確認各機型實際供應）。
+> - **FD450-Pro**：Klipper 設定本次讀不到，速度/半徑用內插值。
+> - 直徑取自 Klipper print_radius／機型名義值（FD300→Ø300…FD800→Ø800）。
 
 ## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ⬜ (todo)
 - 停用網路外掛下載、隱藏帳號登入、首頁/模型庫中性化。**不打包 Bambu 閉源外掛**。
