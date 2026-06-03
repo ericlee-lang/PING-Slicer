@@ -1,0 +1,15 @@
+{
+    "type": "process",
+    "name": "0.20mm Standard @PING FD450-Pro",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGP011",
+    "inherits": "fdm_process_common",
+    "layer_height": "0.2",
+    "initial_layer_print_height": "0.25",
+    "line_width": "0.32",
+    "compatible_printers": [
+        "PING FD450-Pro 0.4 nozzle",
+        "PING FD450-Pro 0.6 nozzle"
+    ]
+}

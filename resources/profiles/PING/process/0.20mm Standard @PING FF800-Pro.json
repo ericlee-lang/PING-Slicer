@@ -1,0 +1,16 @@
+{
+    "type": "process",
+    "name": "0.20mm Standard @PING FF800-Pro",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGP023",
+    "inherits": "fdm_process_common",
+    "layer_height": "0.2",
+    "initial_layer_print_height": "0.25",
+    "line_width": "0.32",
+    "compatible_printers": [
+        "PING FF800-Pro 0.4 nozzle",
+        "PING FF800-Pro 0.6 nozzle",
+        "PING FF800-Pro 0.8 nozzle"
+    ]
+}

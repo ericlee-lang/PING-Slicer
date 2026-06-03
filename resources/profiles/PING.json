@@ -1,0 +1,290 @@
+{
+    "name": "PING",
+    "version": "01.00.00.00",
+    "force_update": "0",
+    "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
+    "machine_model_list": [
+        {
+            "name": "PING FD300",
+            "sub_path": "machine/PING FD300.json"
+        },
+        {
+            "name": "PING FD300-Pro",
+            "sub_path": "machine/PING FD300-Pro.json"
+        },
+        {
+            "name": "PING FP300",
+            "sub_path": "machine/PING FP300.json"
+        },
+        {
+            "name": "PING FD450-Pro",
+            "sub_path": "machine/PING FD450-Pro.json"
+        },
+        {
+            "name": "PING FD600-Pro",
+            "sub_path": "machine/PING FD600-Pro.json"
+        },
+        {
+            "name": "PING FF600-Pro",
+            "sub_path": "machine/PING FF600-Pro.json"
+        },
+        {
+            "name": "PING FD800-Pro",
+            "sub_path": "machine/PING FD800-Pro.json"
+        },
+        {
+            "name": "PING FF800-Pro",
+            "sub_path": "machine/PING FF800-Pro.json"
+        }
+    ],
+    "process_list": [
+        {
+            "name": "fdm_process_common",
+            "sub_path": "process/fdm_process_common.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FD300",
+            "sub_path": "process/0.12mm Fine @PING FD300.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FD300",
+            "sub_path": "process/0.20mm Standard @PING FD300.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FD300",
+            "sub_path": "process/0.28mm Draft @PING FD300.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FD300-Pro",
+            "sub_path": "process/0.12mm Fine @PING FD300-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FD300-Pro",
+            "sub_path": "process/0.20mm Standard @PING FD300-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FD300-Pro",
+            "sub_path": "process/0.28mm Draft @PING FD300-Pro.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FP300",
+            "sub_path": "process/0.12mm Fine @PING FP300.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FP300",
+            "sub_path": "process/0.20mm Standard @PING FP300.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FP300",
+            "sub_path": "process/0.28mm Draft @PING FP300.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FD450-Pro",
+            "sub_path": "process/0.12mm Fine @PING FD450-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FD450-Pro",
+            "sub_path": "process/0.20mm Standard @PING FD450-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FD450-Pro",
+            "sub_path": "process/0.28mm Draft @PING FD450-Pro.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FD600-Pro",
+            "sub_path": "process/0.12mm Fine @PING FD600-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FD600-Pro",
+            "sub_path": "process/0.20mm Standard @PING FD600-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FD600-Pro",
+            "sub_path": "process/0.28mm Draft @PING FD600-Pro.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FF600-Pro",
+            "sub_path": "process/0.12mm Fine @PING FF600-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FF600-Pro",
+            "sub_path": "process/0.20mm Standard @PING FF600-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FF600-Pro",
+            "sub_path": "process/0.28mm Draft @PING FF600-Pro.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FD800-Pro",
+            "sub_path": "process/0.12mm Fine @PING FD800-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FD800-Pro",
+            "sub_path": "process/0.20mm Standard @PING FD800-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FD800-Pro",
+            "sub_path": "process/0.28mm Draft @PING FD800-Pro.json"
+        },
+        {
+            "name": "0.12mm Fine @PING FF800-Pro",
+            "sub_path": "process/0.12mm Fine @PING FF800-Pro.json"
+        },
+        {
+            "name": "0.20mm Standard @PING FF800-Pro",
+            "sub_path": "process/0.20mm Standard @PING FF800-Pro.json"
+        },
+        {
+            "name": "0.28mm Draft @PING FF800-Pro",
+            "sub_path": "process/0.28mm Draft @PING FF800-Pro.json"
+        }
+    ],
+    "filament_list": [
+        {
+            "name": "fdm_filament_common",
+            "sub_path": "filament/fdm_filament_common.json"
+        },
+        {
+            "name": "fdm_filament_pla",
+            "sub_path": "filament/fdm_filament_pla.json"
+        },
+        {
+            "name": "fdm_filament_abs",
+            "sub_path": "filament/fdm_filament_abs.json"
+        },
+        {
+            "name": "fdm_filament_pet",
+            "sub_path": "filament/fdm_filament_pet.json"
+        },
+        {
+            "name": "fdm_filament_tpu",
+            "sub_path": "filament/fdm_filament_tpu.json"
+        },
+        {
+            "name": "fdm_filament_pa",
+            "sub_path": "filament/fdm_filament_pa.json"
+        },
+        {
+            "name": "fdm_filament_asa",
+            "sub_path": "filament/fdm_filament_asa.json"
+        },
+        {
+            "name": "fdm_filament_pc",
+            "sub_path": "filament/fdm_filament_pc.json"
+        },
+        {
+            "name": "PING Generic PLA",
+            "sub_path": "filament/PING Generic PLA.json"
+        },
+        {
+            "name": "PING Generic PETG",
+            "sub_path": "filament/PING Generic PETG.json"
+        },
+        {
+            "name": "PING Generic ABS",
+            "sub_path": "filament/PING Generic ABS.json"
+        },
+        {
+            "name": "PING Generic TPU",
+            "sub_path": "filament/PING Generic TPU.json"
+        },
+        {
+            "name": "PING PolyABS",
+            "sub_path": "filament/PING PolyABS.json"
+        },
+        {
+            "name": "PING SupABS",
+            "sub_path": "filament/PING SupABS.json"
+        }
+    ],
+    "machine_list": [
+        {
+            "name": "fdm_machine_common",
+            "sub_path": "machine/fdm_machine_common.json"
+        },
+        {
+            "name": "fdm_ping_common",
+            "sub_path": "machine/fdm_ping_common.json"
+        },
+        {
+            "name": "PING FD300 0.4 nozzle",
+            "sub_path": "machine/PING FD300 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FD300 0.6 nozzle",
+            "sub_path": "machine/PING FD300 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FD300-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FD300-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FD300-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FD300-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FP300 0.4 nozzle",
+            "sub_path": "machine/PING FP300 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FP300 0.6 nozzle",
+            "sub_path": "machine/PING FP300 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FD450-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FD450-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FD450-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FD450-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FD600-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FD600-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FD600-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FD600-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FD600-Pro 0.8 nozzle",
+            "sub_path": "machine/PING FD600-Pro 0.8 nozzle.json"
+        },
+        {
+            "name": "PING FF600-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FF600-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FF600-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FF600-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FF600-Pro 0.8 nozzle",
+            "sub_path": "machine/PING FF600-Pro 0.8 nozzle.json"
+        },
+        {
+            "name": "PING FD800-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FD800-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FD800-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FD800-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FD800-Pro 0.8 nozzle",
+            "sub_path": "machine/PING FD800-Pro 0.8 nozzle.json"
+        },
+        {
+            "name": "PING FF800-Pro 0.4 nozzle",
+            "sub_path": "machine/PING FF800-Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "PING FF800-Pro 0.6 nozzle",
+            "sub_path": "machine/PING FF800-Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "PING FF800-Pro 0.8 nozzle",
+            "sub_path": "machine/PING FF800-Pro 0.8 nozzle.json"
+        }
+    ]
+}

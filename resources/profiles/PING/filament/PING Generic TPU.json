@@ -1,0 +1,49 @@
+{
+    "type": "filament",
+    "name": "PING Generic TPU",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGF004",
+    "inherits": "fdm_filament_tpu",
+    "filament_vendor": [
+        "PING"
+    ],
+    "nozzle_temperature": [
+        "230",
+        "230"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "230",
+        "230"
+    ],
+    "hot_plate_temp": [
+        "35",
+        "35"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "35",
+        "35"
+    ],
+    "compatible_printers": [
+        "PING FD300 0.4 nozzle",
+        "PING FD300 0.6 nozzle",
+        "PING FD300-Pro 0.4 nozzle",
+        "PING FD300-Pro 0.6 nozzle",
+        "PING FP300 0.4 nozzle",
+        "PING FP300 0.6 nozzle",
+        "PING FD450-Pro 0.4 nozzle",
+        "PING FD450-Pro 0.6 nozzle",
+        "PING FD600-Pro 0.4 nozzle",
+        "PING FD600-Pro 0.6 nozzle",
+        "PING FD600-Pro 0.8 nozzle",
+        "PING FF600-Pro 0.4 nozzle",
+        "PING FF600-Pro 0.6 nozzle",
+        "PING FF600-Pro 0.8 nozzle",
+        "PING FD800-Pro 0.4 nozzle",
+        "PING FD800-Pro 0.6 nozzle",
+        "PING FD800-Pro 0.8 nozzle",
+        "PING FF800-Pro 0.4 nozzle",
+        "PING FF800-Pro 0.6 nozzle",
+        "PING FF800-Pro 0.8 nozzle"
+    ]
+}

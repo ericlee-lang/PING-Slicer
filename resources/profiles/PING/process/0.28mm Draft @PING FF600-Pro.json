@@ -1,0 +1,16 @@
+{
+    "type": "process",
+    "name": "0.28mm Draft @PING FF600-Pro",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGP018",
+    "inherits": "fdm_process_common",
+    "layer_height": "0.28",
+    "initial_layer_print_height": "0.25",
+    "line_width": "0.42",
+    "compatible_printers": [
+        "PING FF600-Pro 0.4 nozzle",
+        "PING FF600-Pro 0.6 nozzle",
+        "PING FF600-Pro 0.8 nozzle"
+    ]
+}
