@@ -184,7 +184,7 @@ for (nm, base, nt, bt, fan) in MATS:
     filament_list.append({"name": nm, "sub_path": fp})
     w(os.path.join(PINGDIR, fp), {
         "type": "filament", "name": nm, "from": "system", "instantiation": "true",
-        "setting_id": "PINGF%03d" % gf, "inherits": base, "filament_vendor": ["PING"],
+        "setting_id": "PINGF%03d" % gf, "filament_id": "GPING%02d" % gf, "inherits": base, "filament_vendor": ["PING"],
         "nozzle_temperature": [str(nt), str(nt)], "nozzle_temperature_initial_layer": [str(nt), str(nt)],
         "hot_plate_temp": [str(bt), str(bt)], "hot_plate_temp_initial_layer": [str(bt), str(bt)],
         "fan_max_speed": [str(fan), str(fan)],
@@ -195,7 +195,8 @@ for nm, sid, ftype in [("PING PolyABS", "PINGF005", None), ("PING SupABS", "PING
     if os.path.exists(fp):
         d = json.load(open(fp, encoding="utf-8"))
         d.update({"inherits": "fdm_filament_abs", "from": "system", "instantiation": "true",
-                  "setting_id": sid, "filament_vendor": ["PING"], "compatible_printers": all_machines})
+                  "setting_id": sid, "filament_id": "GPING" + sid[-2:], "filament_vendor": ["PING"],
+                  "compatible_printers": all_machines})
         d.pop("version", None)
         if ftype:
             d["filament_type"] = [ftype]

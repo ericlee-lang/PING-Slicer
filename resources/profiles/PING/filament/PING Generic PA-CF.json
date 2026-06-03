@@ -4,6 +4,7 @@
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGF004",
+    "filament_id": "GPING04",
     "inherits": "fdm_filament_pa",
     "filament_vendor": [
         "PING"

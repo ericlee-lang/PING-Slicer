@@ -32,6 +32,7 @@
     ],
     "instantiation": "true",
     "setting_id": "PINGF005",
+    "filament_id": "GPING05",
     "filament_vendor": [
         "PING"
     ],
