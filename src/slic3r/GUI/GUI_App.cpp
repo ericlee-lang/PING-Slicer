@@ -6322,6 +6322,11 @@ bool GUI_App::load_language(wxString language, bool initial)
 	    wxFileTranslationsLoader::AddCatalogLookupPathPrefix(from_u8(localization_dir()));
     	// Get the active language from PrusaSlicer.ini, or empty string if the key does not exist.
         language = app_config->get("language");
+        if (language.empty()) {
+            // PING Slicer: default UI language to Traditional Chinese (zh_TW) on first run.
+            language = "zh_TW";
+            app_config->set("language", "zh_TW");
+        }
         if (! language.empty())
         	BOOST_LOG_TRIVIAL(info) << boost::format("language provided by OrcaSlicer.conf: %1%") % language;
         else {
