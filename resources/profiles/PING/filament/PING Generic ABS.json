@@ -9,41 +9,52 @@
         "PING"
     ],
     "nozzle_temperature": [
-        "255",
-        "255"
+        "250",
+        "250"
     ],
     "nozzle_temperature_initial_layer": [
-        "255",
-        "255"
+        "250",
+        "250"
     ],
     "hot_plate_temp": [
-        "90",
-        "90"
+        "100",
+        "100"
     ],
     "hot_plate_temp_initial_layer": [
-        "90",
-        "90"
+        "100",
+        "100"
+    ],
+    "fan_max_speed": [
+        "30",
+        "30"
     ],
     "compatible_printers": [
+        "PING FD300 0.25 nozzle",
         "PING FD300 0.4 nozzle",
         "PING FD300 0.6 nozzle",
+        "PING FD300 1.0 nozzle",
+        "PING FD300-Pro 0.25 nozzle",
         "PING FD300-Pro 0.4 nozzle",
         "PING FD300-Pro 0.6 nozzle",
+        "PING FD300-Pro 1.0 nozzle",
+        "PING FP300 0.25 nozzle",
         "PING FP300 0.4 nozzle",
         "PING FP300 0.6 nozzle",
+        "PING FP300 1.0 nozzle",
+        "PING FD450-Pro 0.25 nozzle",
         "PING FD450-Pro 0.4 nozzle",
         "PING FD450-Pro 0.6 nozzle",
         "PING FD600-Pro 0.4 nozzle",
         "PING FD600-Pro 0.6 nozzle",
-        "PING FD600-Pro 0.8 nozzle",
+        "PING FD600-Pro 1.0 nozzle",
         "PING FF600-Pro 0.4 nozzle",
         "PING FF600-Pro 0.6 nozzle",
-        "PING FF600-Pro 0.8 nozzle",
+        "PING FF600-Pro 1.0 nozzle",
         "PING FD800-Pro 0.4 nozzle",
         "PING FD800-Pro 0.6 nozzle",
-        "PING FD800-Pro 0.8 nozzle",
+        "PING FD800-Pro 1.0 nozzle",
         "PING FF800-Pro 0.4 nozzle",
         "PING FF800-Pro 0.6 nozzle",
-        "PING FF800-Pro 0.8 nozzle"
+        "PING FF800-Pro 1.0 nozzle"
     ]
 }

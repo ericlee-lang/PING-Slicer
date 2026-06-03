@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Generate PING vendor profiles for OrcaSlicer (PING Slicer V3.5).
-All PING printers are DELTA with circular beds, Klipper firmware (Moonraker host).
-Templated on the built-in FLSun delta vendor + the legacy PING FD300 .orca_printer.
+"""Generate PING vendor profiles for OrcaSlicer (PING Slicer V3.5) — v2.
+Incorporates PING切片參數整理.md: nozzle list (incl 1.0/0.25), layer-height rule
+(lh=0.5*nozzle), material temp table, M6050 dual-material Start/End G-code, skeleton values.
 
-NOTE: printable_height (delta Z) and nozzle availability are BEST-ESTIMATES pending
-PING confirmation. Diameters derive from Klipper print_radius / model nominal size.
+PING printers: DELTA, circular bed, Klipper firmware (Moonraker host),
+single-nozzle + dual-feed (single_extruder_multi_material, T0/T1 via M6050).
+
+STILL PENDING confirmation: printable_height (delta Z) — flagged; prime E values need flow calibration.
 """
 import os, json, math, shutil
 
@@ -16,125 +18,144 @@ STAGE = r"D:\dev\2026claude\20260604 ORCA客製\_staging\FD300_orca"
 GD = r"G:\共用雲端硬碟\07 計劃案\01 關鍵技術\20250403 ORCA軟體客制"
 TEX_SRC = GD + r"\客製資料\底板\ping_buildplate_texture.png"
 
+# clean regen
+if os.path.isdir(PINGDIR):
+    shutil.rmtree(PINGDIR)
 for sub in ("machine", "filament", "process"):
     os.makedirs(os.path.join(PINGDIR, sub), exist_ok=True)
 
-# ---- model specs: name, diameter(mm), height(mm EST), nozzles, max_vel, max_accel, sqv ----
+# name, diameter(mm), height(mm EST/❓), nozzles, max_vel, max_accel
 MODELS = [
-    ("FD300",     300, 300, ["0.4", "0.6"],        400, 5000, 5),
-    ("FD300-Pro", 300, 300, ["0.4", "0.6"],        400, 5000, 5),
-    ("FP300",     300, 300, ["0.4", "0.6"],        400, 5000, 5),
-    ("FD450-Pro", 450, 450, ["0.4", "0.6"],        400, 5000, 5),   # FD450 specs interpolated
-    ("FD600-Pro", 600, 600, ["0.4", "0.6", "0.8"], 400, 5000, 5),
-    ("FF600-Pro", 600, 600, ["0.4", "0.6", "0.8"], 400, 1500, 5),
-    ("FD800-Pro", 800, 800, ["0.4", "0.6", "0.8"], 250, 1500, 40),
-    ("FF800-Pro", 800, 800, ["0.4", "0.6", "0.8"], 250, 1500, 40),
+    ("FD300",     300, 300, ["0.25", "0.4", "0.6", "1.0"], 400, 5000),
+    ("FD300-Pro", 300, 300, ["0.25", "0.4", "0.6", "1.0"], 400, 5000),
+    ("FP300",     300, 300, ["0.25", "0.4", "0.6", "1.0"], 400, 5000),
+    ("FD450-Pro", 450, 450, ["0.25", "0.4", "0.6"],        400, 5000),
+    ("FD600-Pro", 600, 600, ["0.4", "0.6", "1.0"],         400, 5000),
+    ("FF600-Pro", 600, 600, ["0.4", "0.6", "1.0"],         400, 1500),
+    ("FD800-Pro", 800, 800, ["0.4", "0.6", "1.0"],         250, 1500),
+    ("FF800-Pro", 800, 800, ["0.4", "0.6", "1.0"],         250, 1500),
 ]
-
-# shared Klipper start/end gcode (from legacy PING FD300 .orca_printer — proven, dual-tool aware)
-START_GCODE = ("G21\nG90\nM82\nM107 T0\n"
-               "M140 S[bed_temperature_initial_layer_single]\n"
-               "M104 S[nozzle_temperature_initial_layer] T0\n"
-               "M190 S[bed_temperature_initial_layer_single]\n"
-               "M109 S[nozzle_temperature_initial_layer] T0\n\n"
-               "G28 ;Home\n"
-               "G1 F3000 Z1\nG1 X-90 Y0 Z0.4\nG92 E0\n"
-               "G3 X0 Y-90 I90 Z0.3 E20 F2000 ;prime arc\nG92 E0\n")
-END_GCODE = ("M107 T0\nM104 S0\nM140 S0\nG92 E0\nG91\nG1 E-1 F300\n"
-             "G1 Z+5 F6000\nG28\nG90 ;absolute positioning\nM84")
+# per-nozzle: (layer_height, initial_layer_height, prime_line_E)  — 層高=0.5×口徑
+NZ = {"0.25": (0.125, 0.15, 20), "0.4": (0.2, 0.25, 30),
+      "0.6": (0.3, 0.35, 45), "1.0": (0.5, 0.55, 70)}
+# material temp table (nozzle°C, bed°C, fan%)
+MATS = [("PING Generic PLA", "fdm_filament_pla", 210, 60, 100),
+        ("PING Generic PETG", "fdm_filament_pet", 235, 75, 50),
+        ("PING Generic ABS", "fdm_filament_abs", 250, 100, 30),
+        ("PING Generic PA-CF", "fdm_filament_pa", 255, 70, 30)]
 
 
 def circle(R, n=72):
-    pts = []
-    for i in range(n):
-        a = 2 * math.pi * i / n
-        pts.append("%gx%g" % (round(R * math.cos(a), 4), round(R * math.sin(a), 4)))
-    return pts
+    return ["%gx%g" % (round(R*math.cos(2*math.pi*i/n), 4), round(R*math.sin(2*math.pi*i/n), 4)) for i in range(n)]
+
+
+def start_gcode(R, z, E):
+    """Dual-material (T0/T1) prime per PING M6050 spec. Y=-(R-10), 4 lines."""
+    y = R - 10
+    L = ["G28 ;Home", "G90", "M82",
+         "M140 S[bed_temperature_initial_layer_single]",
+         "M104 S[nozzle_temperature_initial_layer] T0",
+         "M190 S[bed_temperature_initial_layer_single]",
+         "M109 S[nozzle_temperature_initial_layer] T0"]
+    seq = [("T0", "X-50", "X50"), ("T1", "X50", "X-50"), ("T0", "X-50", "X50"), ("T1", "X50", "X-50")]
+    for k, (tool, a, b) in enumerate(seq):
+        yy = -(y - 2*k)
+        L += [tool, "G0 F8000 %s Y%g Z%g" % (a, yy, z), "G92 E0",
+              "G1 F800 %s Y%g E%d" % (b, yy, E), "G92 E0"]
+    L += ["G1 Z1 F1200", "G92 E0"]
+    return "\n".join(L)
+
+
+def end_gcode(R, h):
+    y = R - 10
+    ztop = max(50, int(h*0.8))
+    return "\n".join([
+        "M104 S240 ;heat to purge", "G91", "G1 Z10 F3000", "G90",
+        "G1 X0 Y-%g Z%d F3000" % (y, ztop), "G91",
+        "M6050 S0", "G1 E10 F60 ;purge feed-0",
+        "M6050 S1", "G1 E10 F60 ;purge feed-1",
+        "M6050 S0.5", "G1 E40 F60 ;dual purge",
+        "G1 E-500 F12000 ;retract filament out of nozzle", "G4 S3",
+        "M104 S0", "M140 S0", "G90", "G28 X0 Y0", "M84"])
 
 
 def w(path, obj):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=4)
+    json.dump(obj, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=4)
 
 
-# ---- copy base presets from FLSun (each vendor ships its own copies) ----
-copied = []
-for fn in ["fdm_machine_common.json"]:
-    shutil.copyfile(os.path.join(FLSUN, "machine", fn), os.path.join(PINGDIR, "machine", fn)); copied.append("machine/" + fn)
-for fn in ["fdm_process_common.json"]:
-    shutil.copyfile(os.path.join(FLSUN, "process", fn), os.path.join(PINGDIR, "process", fn)); copied.append("process/" + fn)
+# ---- copy base presets from FLSun ----
+shutil.copyfile(os.path.join(FLSUN, "machine", "fdm_machine_common.json"), os.path.join(PINGDIR, "machine", "fdm_machine_common.json"))
+shutil.copyfile(os.path.join(FLSUN, "process", "fdm_process_common.json"), os.path.join(PINGDIR, "process", "fdm_process_common.json"))
 FIL_BASE = ["fdm_filament_common.json", "fdm_filament_pla.json", "fdm_filament_abs.json",
-            "fdm_filament_pet.json", "fdm_filament_tpu.json", "fdm_filament_pa.json",
-            "fdm_filament_asa.json", "fdm_filament_pc.json"]
+            "fdm_filament_pet.json", "fdm_filament_tpu.json", "fdm_filament_pa.json"]
 for fn in FIL_BASE:
-    src = os.path.join(FLSUN, "filament", fn)
-    if os.path.exists(src):
-        shutil.copyfile(src, os.path.join(PINGDIR, "filament", fn)); copied.append("filament/" + fn)
-
-# ---- copy legacy PING materials from staging ----
+    s = os.path.join(FLSUN, "filament", fn)
+    if os.path.exists(s):
+        shutil.copyfile(s, os.path.join(PINGDIR, "filament", fn))
 for fn in ["PING PolyABS.json", "PING SupABS.json"]:
     s = os.path.join(STAGE, "filament", fn)
     if os.path.exists(s):
-        shutil.copyfile(s, os.path.join(PINGDIR, "filament", fn)); copied.append("filament/" + fn)
-
-# ---- copy bed texture ----
+        shutil.copyfile(s, os.path.join(PINGDIR, "filament", fn))
 if os.path.exists(TEX_SRC):
-    shutil.copyfile(TEX_SRC, os.path.join(PINGDIR, "ping_buildplate_texture.png")); copied.append("ping_buildplate_texture.png")
+    shutil.copyfile(TEX_SRC, os.path.join(PINGDIR, "ping_buildplate_texture.png"))
 
-# ---- fdm_ping_common (machine base: klipper + Moonraker + retraction, from legacy PING) ----
-ping_common = {
+# ---- fdm_ping_common (machine base: klipper + Moonraker + skeleton retraction) ----
+w(os.path.join(PINGDIR, "machine", "fdm_ping_common.json"), {
     "type": "machine", "name": "fdm_ping_common", "from": "system", "instantiation": "false",
-    "inherits": "fdm_machine_common",
-    "gcode_flavor": "klipper", "host_type": "octoprint",
+    "inherits": "fdm_machine_common", "gcode_flavor": "klipper", "host_type": "octoprint",
     "use_relative_e_distances": "1", "single_extruder_multi_material": "1",
-    "machine_start_gcode": START_GCODE, "machine_end_gcode": END_GCODE,
-    "machine_pause_gcode": "PAUSE", "change_filament_gcode": "",
-    "nozzle_type": "brass", "z_hop": ["0.4"], "z_hop_types": ["Normal Lift"],
-    "retraction_length": ["1.3"], "retraction_speed": ["30"], "deretraction_speed": ["30"],
-    "retract_when_changing_layer": ["1"], "retraction_minimum_travel": ["1"],
-    "wipe": ["0"], "wipe_distance": ["1"], "retract_before_wipe": ["70%"],
+    "machine_pause_gcode": "PAUSE", "nozzle_type": "brass", "printer_structure": "delta",
+    "z_hop": ["0.5"], "z_hop_types": ["Normal Lift"],
+    "retraction_length": ["2"], "retraction_speed": ["20"], "deretraction_speed": ["20"],
+    "retract_when_changing_layer": ["1"], "retraction_minimum_travel": ["1"], "wipe": ["0"],
     "extruder_clearance_radius": "65", "extruder_clearance_height_to_rod": "36",
-    "extruder_clearance_height_to_lid": "140",
-    "printer_structure": "delta",
+    "extruder_clearance_height_to_lid": "140", "emit_machine_limits_to_gcode": "1",
     "thumbnails": "48x48/PNG,300x300/PNG", "thumbnails_format": "PNG",
-    "emit_machine_limits_to_gcode": "1", "default_filament_profile": ["PING Generic PLA"],
-}
-w(os.path.join(PINGDIR, "machine", "fdm_ping_common.json"), ping_common)
+    "default_filament_profile": ["PING Generic PLA"],
+})
 
-# ---- generate per-model machine_model + machine(s) ----
-gm = 1
-machine_models = []
-machine_list = [{"name": "fdm_machine_common", "sub_path": "machine/fdm_machine_common.json"},
-                {"name": "fdm_ping_common", "sub_path": "machine/fdm_ping_common.json"}]
-all_machine_names = []
-DEF_MAT = "PING Generic PLA;PING Generic PETG;PING Generic ABS;PING PolyABS;PING SupABS;PING Generic TPU"
+# ---- fdm_process_ping_common (process skeleton per spec) ----
+w(os.path.join(PINGDIR, "process", "fdm_process_ping_common.json"), {
+    "type": "process", "name": "fdm_process_ping_common", "from": "system", "instantiation": "false",
+    "inherits": "fdm_process_common",
+    "travel_speed": "250", "initial_layer_speed": "25",
+    "sparse_infill_density": "15%", "sparse_infill_pattern": "zig-zag", "seam_position": "back",
+    "support_threshold_angle": "60", "support_object_xy_distance": "0.3", "support_top_z_distance": "0",
+    "support_interface_top_layers": "2", "enable_prime_tower": "1", "prime_tower_width": "35",
+})
 
-for (model, dia, hgt, nozzles, mv, ma, sqv) in MODELS:
-    R = dia / 2.0
-    mm_name = "PING " + model
-    mm_file = "machine/%s.json" % mm_name
-    machine_models.append({"name": mm_name, "sub_path": mm_file})
-    w(os.path.join(PINGDIR, mm_file), {
-        "type": "machine_model", "name": mm_name,
-        "model_id": "PING_" + model.replace("-", "_"),
+machine_models, machine_list, process_list = [], [
+    {"name": "fdm_machine_common", "sub_path": "machine/fdm_machine_common.json"},
+    {"name": "fdm_ping_common", "sub_path": "machine/fdm_ping_common.json"}], [
+    {"name": "fdm_process_common", "sub_path": "process/fdm_process_common.json"},
+    {"name": "fdm_process_ping_common", "sub_path": "process/fdm_process_ping_common.json"}]
+all_machines = []
+DEF_MAT = "PING Generic PLA;PING Generic PETG;PING Generic ABS;PING Generic PA-CF;PING PolyABS;PING SupABS"
+gm = gp = 1
+
+for (model, dia, hgt, nozzles, mv, ma) in MODELS:
+    R = dia/2.0
+    mm = "PING " + model
+    machine_models.append({"name": mm, "sub_path": "machine/%s.json" % mm})
+    w(os.path.join(PINGDIR, "machine", "%s.json" % mm), {
+        "type": "machine_model", "name": mm, "model_id": "PING_" + model.replace("-", "_"),
         "nozzle_diameter": ";".join(nozzles), "machine_tech": "FFF", "family": "PING",
         "bed_model": "", "bed_texture": "ping_buildplate_texture.png", "hotend_model": "",
-        "default_materials": DEF_MAT,
-    })
+        "default_materials": DEF_MAT})
     area = circle(R)
     for nz in nozzles:
-        m_name = "PING %s %s nozzle" % (model, nz)
-        m_file = "machine/%s.json" % m_name
-        all_machine_names.append(m_name)
-        machine_list.append({"name": m_name, "sub_path": m_file})
-        w(os.path.join(PINGDIR, m_file), {
-            "type": "machine", "name": m_name, "from": "system", "instantiation": "true",
+        lh, ilh, E = NZ[nz]
+        mname = "PING %s %s nozzle" % (model, nz)
+        pname = "%gmm Standard @PING %s (%s)" % (lh, model, nz)
+        all_machines.append(mname)
+        machine_list.append({"name": mname, "sub_path": "machine/%s.json" % mname})
+        w(os.path.join(PINGDIR, "machine", "%s.json" % mname), {
+            "type": "machine", "name": mname, "from": "system", "instantiation": "true",
             "setting_id": "PINGM%03d" % gm, "inherits": "fdm_ping_common",
-            "printer_model": mm_name, "printer_variant": nz,
-            "default_print_profile": "0.20mm Standard @PING %s" % model,
-            "nozzle_diameter": [nz],
-            "printable_area": area, "printable_height": str(hgt),
+            "printer_model": mm, "printer_variant": nz, "default_print_profile": pname,
+            "nozzle_diameter": [nz], "printable_area": area, "printable_height": str(hgt),
             "bed_exclude_area": ["0x0"],
+            "machine_start_gcode": start_gcode(R, ilh, E), "machine_end_gcode": end_gcode(R, hgt),
             "machine_max_speed_x": [str(mv), str(mv)], "machine_max_speed_y": [str(mv), str(mv)],
             "machine_max_speed_z": ["20", "20"], "machine_max_speed_e": ["30", "30"],
             "machine_max_acceleration_x": [str(ma), str(ma)], "machine_max_acceleration_y": [str(ma), str(ma)],
@@ -143,66 +164,50 @@ for (model, dia, hgt, nozzles, mv, ma, sqv) in MODELS:
             "machine_max_acceleration_travel": [str(ma), str(ma)],
             "machine_max_acceleration_retracting": ["5000", "5000"],
             "machine_max_jerk_x": ["9", "9"], "machine_max_jerk_y": ["9", "9"],
-            "machine_max_jerk_z": ["0.2", "0.4"], "machine_max_jerk_e": ["2.5", "2.5"],
-        })
+            "machine_max_jerk_z": ["0.2", "0.4"], "machine_max_jerk_e": ["2.5", "2.5"]})
         gm += 1
-
-# ---- generate processes per model (Standard/Fine/Draft), compatible with that model's machines ----
-process_list = [{"name": "fdm_process_common", "sub_path": "process/fdm_process_common.json"}]
-LAYERS = [("0.12mm Fine", "0.12", "0.18"), ("0.20mm Standard", "0.2", "0.32"), ("0.28mm Draft", "0.28", "0.42")]
-gp = 1
-for (model, dia, hgt, nozzles, mv, ma, sqv) in MODELS:
-    comp = ["PING %s %s nozzle" % (model, nz) for nz in nozzles]
-    for (label, lh, lw) in LAYERS:
-        p_name = "%s @PING %s" % (label, model)
-        p_file = "process/%s.json" % p_name
-        process_list.append({"name": p_name, "sub_path": p_file})
-        w(os.path.join(PINGDIR, p_file), {
-            "type": "process", "name": p_name, "from": "system", "instantiation": "true",
-            "setting_id": "PINGP%03d" % gp, "inherits": "fdm_process_common",
-            "layer_height": lh, "initial_layer_print_height": "0.25",
-            "line_width": lw, "compatible_printers": comp,
-        })
+        process_list.append({"name": pname, "sub_path": "process/%s.json" % pname})
+        w(os.path.join(PINGDIR, "process", "%s.json" % pname), {
+            "type": "process", "name": pname, "from": "system", "instantiation": "true",
+            "setting_id": "PINGP%03d" % gp, "inherits": "fdm_process_ping_common",
+            "layer_height": str(lh), "initial_layer_print_height": str(ilh),
+            "line_width": str(nz), "compatible_printers": [mname]})
         gp += 1
 
-# ---- PING generic filaments (inherit base, compatible with PING) ----
+# ---- filaments (real temps) ----
 filament_list = [{"name": "fdm_filament_common", "sub_path": "filament/fdm_filament_common.json"}]
 for fn in FIL_BASE[1:]:
-    nm = fn.replace(".json", "")
-    filament_list.append({"name": nm, "sub_path": "filament/" + fn})
-GEN_FIL = [("PING Generic PLA", "fdm_filament_pla", "215", "60"),
-           ("PING Generic PETG", "fdm_filament_pet", "240", "75"),
-           ("PING Generic ABS", "fdm_filament_abs", "255", "90"),
-           ("PING Generic TPU", "fdm_filament_tpu", "230", "35")]
+    filament_list.append({"name": fn.replace(".json", ""), "sub_path": "filament/" + fn})
 gf = 1
-for (nm, base, nt, bt) in GEN_FIL:
-    fpath = "filament/%s.json" % nm
-    filament_list.append({"name": nm, "sub_path": fpath})
-    w(os.path.join(PINGDIR, fpath), {
+for (nm, base, nt, bt, fan) in MATS:
+    fp = "filament/%s.json" % nm
+    filament_list.append({"name": nm, "sub_path": fp})
+    w(os.path.join(PINGDIR, fp), {
         "type": "filament", "name": nm, "from": "system", "instantiation": "true",
-        "setting_id": "PINGF%03d" % gf, "inherits": base,
-        "filament_vendor": ["PING"],
-        "nozzle_temperature": [nt, nt], "nozzle_temperature_initial_layer": [nt, nt],
-        "hot_plate_temp": [bt, bt], "hot_plate_temp_initial_layer": [bt, bt],
-        "compatible_printers": all_machine_names,
-    })
+        "setting_id": "PINGF%03d" % gf, "inherits": base, "filament_vendor": ["PING"],
+        "nozzle_temperature": [str(nt), str(nt)], "nozzle_temperature_initial_layer": [str(nt), str(nt)],
+        "hot_plate_temp": [str(bt), str(bt)], "hot_plate_temp_initial_layer": [str(bt), str(bt)],
+        "fan_max_speed": [str(fan), str(fan)],
+        "compatible_printers": all_machines})
     gf += 1
-# legacy PING materials present as copied files
-for nm in ["PING PolyABS", "PING SupABS"]:
-    if os.path.exists(os.path.join(PINGDIR, "filament", nm + ".json")):
+for nm, sid, ftype in [("PING PolyABS", "PINGF005", None), ("PING SupABS", "PINGF006", "HIPS")]:
+    fp = os.path.join(PINGDIR, "filament", nm + ".json")
+    if os.path.exists(fp):
+        d = json.load(open(fp, encoding="utf-8"))
+        d.update({"inherits": "fdm_filament_abs", "from": "system", "instantiation": "true",
+                  "setting_id": sid, "filament_vendor": ["PING"], "compatible_printers": all_machines})
+        d.pop("version", None)
+        if ftype:
+            d["filament_type"] = [ftype]
+        w(fp, d)
         filament_list.append({"name": nm, "sub_path": "filament/%s.json" % nm})
 
-# ---- vendor index PING.json ----
 w(os.path.join(PROF, "PING.json"), {
     "name": "PING", "version": "01.00.00.00", "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
-    "machine_model_list": machine_models,
-    "process_list": process_list,
-    "filament_list": filament_list,
-    "machine_list": machine_list,
-})
+    "machine_model_list": machine_models, "process_list": process_list,
+    "filament_list": filament_list, "machine_list": machine_list})
 
-print("copied base files:", len(copied))
-print("machine_models:", len(machine_models), "machines:", len(all_machine_names),
+print("models:", len(machine_models), "machines:", len(all_machines),
       "processes:", len(process_list), "filaments:", len(filament_list))
 print("DONE")
