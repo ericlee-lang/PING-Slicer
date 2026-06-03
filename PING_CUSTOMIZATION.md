@@ -34,8 +34,9 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - [ ] 停用/改指向 PING 的自動更新器
 - [ ] Linux desktop 整合的 Name/Icon（`DesktopIntegrationDialog.cpp`）
 
-## 2. 介面預設值 / Defaults  ⬜ (todo)
-- 預設語言 zh_TW、預設選 PING 廠商、預設單位。
+## 2. 介面預設值 / Defaults  🔶 (partial)
+- ✅ 預設語言 zh_TW（`GUI_App.cpp` `load_language()`：首次啟動無設定時預設繁中）。
+- ⬜ 啟動精靈預設勾選 PING 廠商（待與移除 Bambu 一起改 `ConfigWizard.cpp`）。
 
 ## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (initial, 待規格確認)
 - `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
@@ -53,6 +54,7 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 ## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ⬜ (todo)
 - 停用網路外掛下載、隱藏帳號登入、首頁/模型庫中性化。**不打包 Bambu 閉源外掛**。
 
-## 5. 文件 / Docs  ⬜ (todo)
-- `PING_CLOUD_PLAN.md`（Bambu 架構解析 + PING 圖庫/生產列印件方案）。
-- 關於頁/README 標註 based on OrcaSlicer + 源碼連結。
+## 5. 文件 / Docs  🔶 (partial)
+- ✅ `PING_CLOUD_PLAN.md`（Bambu 架構解析 + PING 圖庫/生產列印件方案 + Moonraker 路徑）。
+- ✅ `PING_CUSTOMIZATION.md`（本檔，AGPL 修改紀錄）。
+- ⬜ 關於頁/README 標註 based on OrcaSlicer + 源碼連結。
