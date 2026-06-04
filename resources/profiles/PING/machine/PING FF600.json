@@ -1,7 +1,7 @@
 {
     "type": "machine_model",
-    "name": "PING FF600-Pro",
-    "model_id": "PING_FF600_Pro",
+    "name": "PING FF600",
+    "model_id": "PING_FF600",
     "nozzle_diameter": "0.4;0.6;1.0",
     "machine_tech": "FFF",
     "family": "PING",
