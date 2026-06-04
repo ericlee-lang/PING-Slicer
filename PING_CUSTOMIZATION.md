@@ -38,7 +38,7 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - ✅ 預設語言 zh_TW（`GUI_App.cpp` `load_language()`：首次啟動無設定時預設繁中）。
 - ⬜ 啟動精靈預設勾選 PING 廠商（待與移除 Bambu 一起改 `ConfigWizard.cpp`）。
 
-## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v3, 原廠確認)
+## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v4, 原廠確認 + Orca 驗證底稿校準)
 - `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
 - **7 款** delta 機型、**21 機器 / 23 process / 12 filament**（已過官方 C++ 驗證器）。
 - **原廠確認規格**（高度為實際建構值，與直徑無關）：
@@ -59,7 +59,14 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - 圓形 `printable_area`、`gcode_flavor=klipper`、`host_type=octoprint`(Moonraker)、單噴頭多料(SEMM)。生成器：`tools/ping/gen_ping_profiles.py`。
 
 > ⚠️ **仍需校準（非結構問題）**：prime 吐料 E 值（0.2≈16/0.25≈20/0.4≈30/0.6≈45/1.0≈70）與 End `E-500` 需依齒輪比流量實測；FF 四料的 M6050 細節待原廠確認。
-> 🔜 **下一步可選**：解析 3 個舊 Orca 引擎 .3mf 樣本（ABS+SUP / 單料頭_PETG-CF / PLA+TPE），做 Cura↔Orca 參數 key 對照，校準各 process/filament 細項。
+> ✅ **已用 FD300 Orca 驗證底稿（495-key 母檔）校準**：回抽 1.3 / Z-hop 0.4 / firmware retraction；填充 **gyroid 15%**、牆 3 圈、上下殼 4 層/0.8、外牆速 60·加速 2000、內牆 60·5000；支撐 **tree(auto)·門檻 30°·z-distance 0.2**；prime tower 30·vol 45；filament PA 0.12；start gcode 末行對齊 `G1 Z1 E(prime-1)`。
+> ⚠️ 仍需實切校準：prime 吐料 E 值（依齒輪比）、FF 四料 M6050 細節。
+
+## 6. CI 修正 / Build fixes  ✅
+- `build_appimage.sh.in`：Linux 圖示來源改既有檔（修打包失敗）。
+- `build_orca.yml`：Windows 安裝檔上傳 glob → `PING_Slicer*.exe`、輸出/artifact 改 PING 名、PDB 上傳 continue-on-error。
+- `check_profiles.yml`：最終判定只看系統驗證（含 PING），不再因上游測試樣本誤報失敗（停掉 GitHub 失敗通知信）。
+- ⬜ 待辦：Mac `.app` bundle 名與 dmg 檔名仍為 OrcaSlicer（需單獨小心處理）。
 
 ## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ⬜ (todo)
 - 停用網路外掛下載、隱藏帳號登入、首頁/模型庫中性化。**不打包 Bambu 閉源外掛**。
