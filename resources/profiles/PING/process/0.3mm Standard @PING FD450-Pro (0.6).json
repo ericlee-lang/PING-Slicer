@@ -3,7 +3,7 @@
     "name": "0.3mm Standard @PING FD450-Pro (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP015",
+    "setting_id": "PINGP008",
     "inherits": "fdm_process_ping_common",
     "layer_height": "0.3",
     "initial_layer_print_height": "0.35",
