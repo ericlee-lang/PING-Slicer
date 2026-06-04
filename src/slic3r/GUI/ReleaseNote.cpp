@@ -1334,7 +1334,7 @@ void ConfirmBeforeSendDialog::edit_cancel_button_txt(const wxString& txt, bool s
 
     if (switch_green)
     {
-        StateColor btn_bg_green(std::pair<wxColour, int>(wxColour(0, 137, 123), StateColor::Pressed),
+        StateColor btn_bg_green(std::pair<wxColour, int>(wxColour(200, 66, 18), StateColor::Pressed),
                                 std::pair<wxColour, int>(wxColour(38, 166, 154), StateColor::Hovered),
                                 std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
         m_button_cancel->SetBackgroundColor(btn_bg_green);
