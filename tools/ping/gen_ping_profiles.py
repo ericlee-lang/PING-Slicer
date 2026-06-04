@@ -61,7 +61,7 @@ def start_gcode(R, z, E, feeds):
             L.append("T%d" % k)
         L += ["G0 F8000 %s Y%g Z%g" % (a, yy, z), "G92 E0",
               "G1 F800 %s Y%g E%d" % (b, yy, E), "G92 E0"]
-    L += ["G1 Z1 F1200", "G92 E0"]
+    L += ["G1 Z1 E%d" % (E - 1), "G92 E0"]
     return "\n".join(L)
 
 
@@ -109,9 +109,10 @@ w(os.path.join(PINGDIR, "machine", "fdm_ping_common.json"), {
     "inherits": "fdm_machine_common", "gcode_flavor": "klipper", "host_type": "octoprint",
     "use_relative_e_distances": "1", "single_extruder_multi_material": "1",
     "machine_pause_gcode": "PAUSE", "nozzle_type": "brass", "printer_structure": "delta",
-    "z_hop": ["0.5"], "z_hop_types": ["Normal Lift"],
-    "retraction_length": ["2"], "retraction_speed": ["20"], "deretraction_speed": ["20"],
+    "z_hop": ["0.4"], "z_hop_types": ["Normal Lift"],
+    "retraction_length": ["1.3"], "retraction_speed": ["20"], "deretraction_speed": ["20"],
     "retract_when_changing_layer": ["1"], "retraction_minimum_travel": ["1"], "wipe": ["0"],
+    "retract_before_wipe": ["70%"], "retract_length_toolchange": ["2"], "use_firmware_retraction": "1",
     "extruder_clearance_radius": "65", "extruder_clearance_height_to_rod": "36",
     "extruder_clearance_height_to_lid": "140", "emit_machine_limits_to_gcode": "1",
     "thumbnails": "48x48/PNG,300x300/PNG", "thumbnails_format": "PNG",
@@ -120,10 +121,22 @@ w(os.path.join(PINGDIR, "machine", "fdm_ping_common.json"), {
 w(os.path.join(PINGDIR, "process", "fdm_process_ping_common.json"), {
     "type": "process", "name": "fdm_process_ping_common", "from": "system", "instantiation": "false",
     "inherits": "fdm_process_common",
-    "travel_speed": "250", "initial_layer_speed": "25",
-    "sparse_infill_density": "15%", "sparse_infill_pattern": "zig-zag", "seam_position": "back",
-    "support_threshold_angle": "60", "support_object_xy_distance": "0.3", "support_top_z_distance": "0",
-    "support_interface_top_layers": "2", "enable_prime_tower": "1", "prime_tower_width": "35"})
+    "wall_loops": "3", "top_shell_layers": "4", "bottom_shell_layers": "4",
+    "top_shell_thickness": "0.8", "bottom_shell_thickness": "0.8",
+    "outer_wall_speed": "60", "inner_wall_speed": "60", "sparse_infill_speed": "60",
+    "internal_solid_infill_speed": "60", "top_surface_speed": "60", "gap_infill_speed": "60",
+    "travel_speed": "250", "initial_layer_speed": "50", "initial_layer_infill_speed": "50", "bridge_speed": "50",
+    "outer_wall_acceleration": "2000", "inner_wall_acceleration": "5000", "default_acceleration": "5000",
+    "travel_acceleration": "5000", "initial_layer_acceleration": "500", "top_surface_acceleration": "800",
+    "sparse_infill_density": "15%", "sparse_infill_pattern": "gyroid", "infill_direction": "45",
+    "seam_position": "back", "precise_outer_wall": "1", "wall_sequence": "inner wall/outer wall",
+    "detect_overhang_wall": "1", "reduce_crossing_wall": "1", "reduce_infill_retraction": "1", "resolution": "0.012",
+    "brim_type": "outer_only", "brim_width": "5",
+    "enable_support": "1", "support_type": "tree(auto)", "support_threshold_angle": "30",
+    "support_object_xy_distance": "0.3", "support_top_z_distance": "0.2", "support_bottom_z_distance": "0.2",
+    "support_speed": "40", "support_interface_speed": "40",
+    "support_interface_top_layers": "1", "support_interface_bottom_layers": "1", "support_interface_spacing": "0.2",
+    "enable_prime_tower": "1", "prime_tower_width": "30", "prime_volume": "45"})
 
 machine_models, process_list = [], [
     {"name": "fdm_process_common", "sub_path": "process/fdm_process_common.json"},
@@ -188,7 +201,10 @@ for (nm, base, nt, bt, fan) in MATS:
         "setting_id": "PINGF%03d" % gf, "filament_id": "GPING%02d" % gf, "inherits": base, "filament_vendor": ["PING"],
         "nozzle_temperature": [str(nt), str(nt)], "nozzle_temperature_initial_layer": [str(nt), str(nt)],
         "hot_plate_temp": [str(bt), str(bt)], "hot_plate_temp_initial_layer": [str(bt), str(bt)],
-        "fan_max_speed": [str(fan), str(fan)], "compatible_printers": all_machines})
+        "cool_plate_temp": [str(bt), str(bt)], "cool_plate_temp_initial_layer": [str(bt), str(bt)],
+        "fan_max_speed": [str(fan), str(fan)], "fan_min_speed": [str(fan), str(fan)],
+        "enable_pressure_advance": ["1", "1"], "pressure_advance": ["0.12", "0.12"],
+        "compatible_printers": all_machines})
     gf += 1
 for nm, sid, ftype in [("PING PolyABS", "PINGF005", None), ("PING SupABS", "PINGF006", "HIPS")]:
     fp = os.path.join(PINGDIR, "filament", nm + ".json")

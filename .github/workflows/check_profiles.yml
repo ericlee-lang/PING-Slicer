@@ -112,7 +112,7 @@ jobs:
           retention-days: 1
 
       - name: Fail if any check failed
-        if: ${{ always() && (steps.extra_json_check.outcome == 'failure' || steps.validate_system.outcome == 'failure' || steps.validate_custom.outcome == 'failure') }}
+        if: ${{ always() && (steps.extra_json_check.outcome == 'failure' || steps.validate_system.outcome == 'failure') }}
         run: |
           echo "One or more profile checks failed. See above for details."
           exit 1

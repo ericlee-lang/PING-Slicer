@@ -25,9 +25,29 @@
         "100",
         "100"
     ],
+    "cool_plate_temp": [
+        "100",
+        "100"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "100",
+        "100"
+    ],
     "fan_max_speed": [
         "30",
         "30"
+    ],
+    "fan_min_speed": [
+        "30",
+        "30"
+    ],
+    "enable_pressure_advance": [
+        "1",
+        "1"
+    ],
+    "pressure_advance": [
+        "0.12",
+        "0.12"
     ],
     "compatible_printers": [
         "PING FD300 0.25 nozzle",
