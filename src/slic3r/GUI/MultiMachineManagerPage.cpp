@@ -178,7 +178,7 @@ void MultiMachineItem::doRender(wxDC& dc)
             DrawTextWithEllipsis(dc, get_state_device(), FromDIP(DEVICE_LEFT_PRO_INFO), left);
         }
         else if (state_device == 1) {
-            dc.SetTextForeground(wxColour(0,174,66));
+            dc.SetTextForeground(wxColour(234, 78, 22));
             DrawTextWithEllipsis(dc, get_state_device(), FromDIP(DEVICE_LEFT_PRO_INFO), left);
         }
         else if (state_device == 2)
