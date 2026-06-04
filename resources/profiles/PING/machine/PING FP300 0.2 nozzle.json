@@ -89,6 +89,15 @@
     "bed_exclude_area": [
         "0x0"
     ],
+    "default_filament_profile": [
+        "PING PLA"
+    ],
+    "extruder_offset": [
+        "0x0"
+    ],
+    "filament_colors": [
+        "#000000"
+    ],
     "machine_start_gcode": "G28 ;Home\nG90\nM82\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG0 F8000 X-50 Y-140 Z0.13\nG92 E0\nG1 F800 X50 Y-140 E16\nG92 E0\nG1 Z1 E15\nG92 E0",
     "machine_end_gcode": "M104 S240 ;heat to purge\nG91\nG1 Z10 F3000\nG90\nG1 X0 Y-140 Z216 F3000\nG91\nG1 E40 F60 ;purge\nG1 E-500 F12000 ;retract filament out of nozzle\nG4 S3\nM104 S0\nM140 S0\nG90\nG28 X0 Y0\nM84",
     "machine_max_speed_x": [

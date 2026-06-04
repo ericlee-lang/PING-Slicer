@@ -1,53 +1,43 @@
 {
     "type": "filament",
-    "name": "PING Generic ABS",
+    "name": "PING ABS",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGF003",
-    "filament_id": "GPING03",
+    "setting_id": "GPINGABS",
+    "filament_id": "GPINGABS",
     "inherits": "fdm_filament_abs",
     "filament_vendor": [
         "PING"
     ],
+    "filament_type": [
+        "ABS"
+    ],
     "nozzle_temperature": [
-        "250",
         "250"
     ],
     "nozzle_temperature_initial_layer": [
-        "250",
         "250"
     ],
     "hot_plate_temp": [
-        "100",
         "100"
     ],
     "hot_plate_temp_initial_layer": [
-        "100",
         "100"
     ],
     "cool_plate_temp": [
-        "100",
         "100"
     ],
     "cool_plate_temp_initial_layer": [
-        "100",
         "100"
     ],
     "fan_max_speed": [
-        "30",
         "30"
     ],
     "fan_min_speed": [
-        "30",
         "30"
     ],
-    "enable_pressure_advance": [
-        "1",
-        "1"
-    ],
-    "pressure_advance": [
-        "0.12",
-        "0.12"
+    "filament_retraction_length": [
+        "2"
     ],
     "compatible_printers": [
         "PING FD300 0.25 nozzle",

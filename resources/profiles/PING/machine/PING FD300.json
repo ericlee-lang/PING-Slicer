@@ -5,8 +5,8 @@
     "nozzle_diameter": "0.25;0.4;0.6",
     "machine_tech": "FFF",
     "family": "PING",
-    "bed_model": "",
+    "bed_model": "PING_FD300_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture.png",
     "hotend_model": "",
-    "default_materials": "PING Generic PLA;PING Generic PETG;PING Generic ABS;PING Generic PA-CF;PING PolyABS;PING SupABS"
+    "default_materials": "PING PLA;PING PolyABS;PING SupABS;PING SupPLA;PING PETG;PING ABS;PING PA-CF"
 }
