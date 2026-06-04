@@ -1,53 +1,43 @@
 {
     "type": "filament",
-    "name": "PING Generic PLA",
+    "name": "PING PA-CF",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGF001",
-    "filament_id": "GPING01",
-    "inherits": "fdm_filament_pla",
+    "setting_id": "GPINGPACF",
+    "filament_id": "GPINGPACF",
+    "inherits": "fdm_filament_pa",
     "filament_vendor": [
         "PING"
     ],
+    "filament_type": [
+        "PA"
+    ],
     "nozzle_temperature": [
-        "210",
-        "210"
+        "255"
     ],
     "nozzle_temperature_initial_layer": [
-        "210",
-        "210"
+        "255"
     ],
     "hot_plate_temp": [
-        "60",
-        "60"
+        "70"
     ],
     "hot_plate_temp_initial_layer": [
-        "60",
-        "60"
+        "70"
     ],
     "cool_plate_temp": [
-        "60",
-        "60"
+        "70"
     ],
     "cool_plate_temp_initial_layer": [
-        "60",
-        "60"
+        "70"
     ],
     "fan_max_speed": [
-        "100",
-        "100"
+        "30"
     ],
     "fan_min_speed": [
-        "100",
-        "100"
+        "30"
     ],
-    "enable_pressure_advance": [
-        "1",
-        "1"
-    ],
-    "pressure_advance": [
-        "0.12",
-        "0.12"
+    "filament_retraction_length": [
+        "2"
     ],
     "compatible_printers": [
         "PING FD300 0.25 nozzle",

@@ -1,53 +1,43 @@
 {
     "type": "filament",
-    "name": "PING Generic PETG",
+    "name": "PING PLA",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGF002",
-    "filament_id": "GPING02",
-    "inherits": "fdm_filament_pet",
+    "setting_id": "GPINGPLA",
+    "filament_id": "GPINGPLA",
+    "inherits": "fdm_filament_pla",
     "filament_vendor": [
         "PING"
     ],
+    "filament_type": [
+        "PLA"
+    ],
     "nozzle_temperature": [
-        "235",
-        "235"
+        "210"
     ],
     "nozzle_temperature_initial_layer": [
-        "235",
-        "235"
+        "210"
     ],
     "hot_plate_temp": [
-        "75",
-        "75"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "75",
-        "75"
+        "60"
     ],
     "cool_plate_temp": [
-        "75",
-        "75"
+        "60"
     ],
     "cool_plate_temp_initial_layer": [
-        "75",
-        "75"
+        "60"
     ],
     "fan_max_speed": [
-        "50",
-        "50"
+        "100"
     ],
     "fan_min_speed": [
-        "50",
-        "50"
+        "100"
     ],
-    "enable_pressure_advance": [
-        "1",
-        "1"
-    ],
-    "pressure_advance": [
-        "0.12",
-        "0.12"
+    "filament_retraction_length": [
+        "2"
     ],
     "compatible_printers": [
         "PING FD300 0.25 nozzle",

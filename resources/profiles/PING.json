@@ -153,20 +153,12 @@
             "sub_path": "filament/fdm_filament_pa.json"
         },
         {
-            "name": "PING Generic PLA",
-            "sub_path": "filament/PING Generic PLA.json"
+            "name": "PING PLA",
+            "sub_path": "filament/PING PLA.json"
         },
         {
-            "name": "PING Generic PETG",
-            "sub_path": "filament/PING Generic PETG.json"
-        },
-        {
-            "name": "PING Generic ABS",
-            "sub_path": "filament/PING Generic ABS.json"
-        },
-        {
-            "name": "PING Generic PA-CF",
-            "sub_path": "filament/PING Generic PA-CF.json"
+            "name": "PING SupPLA",
+            "sub_path": "filament/PING SupPLA.json"
         },
         {
             "name": "PING PolyABS",
@@ -175,6 +167,18 @@
         {
             "name": "PING SupABS",
             "sub_path": "filament/PING SupABS.json"
+        },
+        {
+            "name": "PING PETG",
+            "sub_path": "filament/PING PETG.json"
+        },
+        {
+            "name": "PING ABS",
+            "sub_path": "filament/PING ABS.json"
+        },
+        {
+            "name": "PING PA-CF",
+            "sub_path": "filament/PING PA-CF.json"
         }
     ],
     "machine_list": [

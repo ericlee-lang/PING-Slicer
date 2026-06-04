@@ -47,8 +47,5 @@
     "extruder_clearance_height_to_lid": "140",
     "emit_machine_limits_to_gcode": "1",
     "thumbnails": "48x48/PNG,300x300/PNG",
-    "thumbnails_format": "PNG",
-    "default_filament_profile": [
-        "PING Generic PLA"
-    ]
+    "thumbnails_format": "PNG"
 }

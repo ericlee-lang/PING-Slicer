@@ -1,41 +1,43 @@
 {
-    "fan_max_speed": [
-        "30"
-    ],
-    "fan_min_speed": [
-        "30"
-    ],
-    "filament_max_volumetric_speed": [
-        "50"
-    ],
-    "filament_minimal_purge_on_wipe_tower": [
-        "30"
-    ],
-    "filament_settings_id": [
-        "PING SupABS"
+    "type": "filament",
+    "name": "PING SupABS",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "GPINGSABS",
+    "filament_id": "GPINGSABS",
+    "inherits": "fdm_filament_abs",
+    "filament_vendor": [
+        "PING"
     ],
     "filament_type": [
         "HIPS"
     ],
-    "from": "system",
+    "nozzle_temperature": [
+        "250"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "250"
+    ],
     "hot_plate_temp": [
         "100"
     ],
     "hot_plate_temp_initial_layer": [
         "100"
     ],
-    "inherits": "fdm_filament_abs",
-    "is_custom_defined": "0",
-    "name": "PING SupABS",
-    "pressure_advance": [
-        "0.12"
+    "cool_plate_temp": [
+        "100"
     ],
-    "type": "filament",
-    "instantiation": "true",
-    "setting_id": "PINGF006",
-    "filament_id": "GPING06",
-    "filament_vendor": [
-        "PING"
+    "cool_plate_temp_initial_layer": [
+        "100"
+    ],
+    "fan_max_speed": [
+        "30"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_retraction_length": [
+        "2"
     ],
     "compatible_printers": [
         "PING FD300 0.25 nozzle",
@@ -59,5 +61,8 @@
         "PING FF800 0.4 nozzle",
         "PING FF800 0.6 nozzle",
         "PING FF800 1.0 nozzle"
+    ],
+    "filament_is_support": [
+        "1"
     ]
 }
