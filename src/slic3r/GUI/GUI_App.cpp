@@ -357,7 +357,7 @@ public:
 
 		// Logo
         BitmapCache bmp_cache;
-        wxBitmap logo_bmp = *bmp_cache.load_svg(is_dark ? "splash_logo_dark" : "splash_logo", width, height);  // use with full width & height
+        wxBitmap logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);  // PING: branded PNG splash
         memDc.DrawBitmap(logo_bmp, 0, 0, true);
 
         // Version
@@ -376,8 +376,8 @@ public:
 
     static wxBitmap MakeBitmap()
     {
-        int width = FromDIP(480, nullptr);
-        int height = FromDIP(480, nullptr);
+        int width = FromDIP(700, nullptr);   // PING: landscape to fit branded splash PNG (923x594)
+        int height = FromDIP(450, nullptr);
 
         wxImage image(width, height);
         wxBitmap new_bmp(image);
