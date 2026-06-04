@@ -301,7 +301,7 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: ${{ github.workspace }}/build
         shell: cmd
-        run: '"C:/Program Files/7-Zip/7z.exe" a -tzip OrcaSlicer_Windows_${{ env.ver }}_portable.zip ${{ github.workspace }}/build/OrcaSlicer'
+        run: '"C:/Program Files/7-Zip/7z.exe" a -tzip PING_Slicer_Windows_${{ env.ver }}_portable.zip ${{ github.workspace }}/build/OrcaSlicer'
 
       - name: Pack PDB
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
@@ -313,18 +313,19 @@ jobs:
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v6
         with:
-          name: OrcaSlicer_Windows_${{ env.ver }}_portable
+          name: PING_Slicer_Windows_${{ env.ver }}_portable
           path: ${{ github.workspace }}/build/OrcaSlicer
 
       - name: Upload artifacts Win installer
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
         uses: actions/upload-artifact@v6
         with:
-          name: OrcaSlicer_Windows_${{ env.ver }}
-          path: ${{ github.workspace }}/build/OrcaSlicer*.exe
+          name: PING_Slicer_Windows_${{ env.ver }}
+          path: ${{ github.workspace }}/build/PING_Slicer*.exe
 
       - name: Upload artifacts Win PDB
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: PDB
