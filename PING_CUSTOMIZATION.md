@@ -38,22 +38,28 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - ✅ 預設語言 zh_TW（`GUI_App.cpp` `load_language()`：首次啟動無設定時預設繁中）。
 - ⬜ 啟動精靈預設勾選 PING 廠商（待與移除 Bambu 一起改 `ConfigWizard.cpp`）。
 
-## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v2, 依《PING切片參數整理》)
+## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v3, 原廠確認)
 - `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
-- 8 款 delta 機型、**27 機器 / 29 process / 12 filament**（已過官方 C++ 驗證器）。
-- 依規格 MD 套用：
-  - **噴頭**：FD300/FP300=0.25/0.4/0.6/1.0；FD450=0.25/0.4/0.6；600/800=0.4/0.6/1.0（**已修正：非 0.8 而是 1.0**）。
-  - **層高規則 lh=0.5×口徑**：0.25→0.125、0.4→0.2、0.6→0.3、1.0→0.5（首層 +0.025~0.05）。
-  - **材料溫度表**：PLA 210/60/100、PETG 235/75/50、ABS 250/100/30、PA-CF 255/70/30。
-  - **M6050 雙料 Start/End G-code**：Start 4 條 prime(T0/T1 交替, Y=-(R-10))；End 含 M6050 S0/S1/S0.5 吐洗 + `E-500` 抽料。
-  - **骨架值**：回抽 2/速度 20/Z-hop 0.5、support 60°·xy0.3、travel 250、首層速 25、infill zig-zag 15%、seam back、prime tower。
-- 圓形 `printable_area`、`gcode_flavor=klipper`、`host_type=octoprint`(Moonraker)、單噴頭+雙料(SEMM)。
-- 生成器：`tools/ping/gen_ping_profiles.py`。
+- **7 款** delta 機型、**21 機器 / 23 process / 12 filament**（已過官方 C++ 驗證器）。
+- **原廠確認規格**（高度為實際建構值，與直徑無關）：
 
-> ⚠️ **仍待 PING 確認（不編造）**：
-> - **列印高度 printable_height**：FD300=300、FD450=450、FD600=600、FD800=800 暫填；**正確值需查 Klipper `[stepper_z] position_max` 或原廠**（同直徑的 FLSun V400 是 410，故必確認）。
-> - **prime 吐料 E 值**（0.25≈20/0.4≈30/0.6≈45/1.0≈70）與 End `E-500`：**需依齒輪比做流量實測校準**。
-> - **FD/FF/FP 命名語意**、各機型實際供應噴頭：待原廠確認（FDW=水冷版已知）。
+  | 機型 | 類型(進料) | Ø | 高度Z | 噴頭 |
+  |------|------|---|---|------|
+  | FD300 | 雙料(2) | 300 | 270 | 0.25/0.4/0.6 |
+  | FP300 | 高速·單料(1) | 300 | 270 | 0.2/0.4/0.6 |
+  | FD450-Pro | 雙料(2) | 450 | 600 | 0.4/0.6/1.0 |
+  | FD600-Pro | 雙料(2) | 600 | 580 | 0.4/0.6/1.0 |
+  | FF600 | 高速·四料(4) | 600 | 580 | 0.4/0.6/1.0 |
+  | FD800-Pro | 雙料(2) | 800 | 600 | 0.4/0.6/1.0 |
+  | FF800 | 高速·四料(4) | 800 | 600 | 0.4/0.6/1.0 |
+
+- 參數邏輯：**層高=0.5×口徑**；材料溫度 PLA 210/60/100、PETG 235/75/50、ABS 250/100/30、PA-CF 255/70/30。
+- **Start/End G-code 依進料數分流**：單料(FP)=無 M6050 單線 prime；雙料(FD)=T0/T1 + `M6050 S0/S1/S0.5`；四料(FF)=T0~T3 + 各 M6050。prime 在 `Y=-(R-10)`，End 以 `E-500` 抽料。
+- 骨架值：回抽 2/Z-hop 0.5、support 60°·xy0.3、travel 250、首層速 25、infill zig-zag 15%、seam back、prime tower。
+- 圓形 `printable_area`、`gcode_flavor=klipper`、`host_type=octoprint`(Moonraker)、單噴頭多料(SEMM)。生成器：`tools/ping/gen_ping_profiles.py`。
+
+> ⚠️ **仍需校準（非結構問題）**：prime 吐料 E 值（0.2≈16/0.25≈20/0.4≈30/0.6≈45/1.0≈70）與 End `E-500` 需依齒輪比流量實測；FF 四料的 M6050 細節待原廠確認。
+> 🔜 **下一步可選**：解析 3 個舊 Orca 引擎 .3mf 樣本（ABS+SUP / 單料頭_PETG-CF / PLA+TPE），做 Cura↔Orca 參數 key 對照，校準各 process/filament 細項。
 
 ## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ⬜ (todo)
 - 停用網路外掛下載、隱藏帳號登入、首頁/模型庫中性化。**不打包 Bambu 閉源外掛**。
