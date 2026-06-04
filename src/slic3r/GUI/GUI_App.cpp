@@ -360,18 +360,18 @@ public:
         wxBitmap logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);  // PING: branded PNG splash
         memDc.DrawBitmap(logo_bmp, 0, 0, true);
 
-        // Version
+        // Version — PING: left-aligned in the dark panel (Pro Slicer / PRECISION gap), orange, clear of the printer render
         memDc.SetFont(m_constant_text.version_font);
-        memDc.SetTextForeground(StateColor::darkModeColorFor(wxColor(134, 134, 134)));
+        memDc.SetTextForeground(wxColour("#EA4E16"));
         wxSize version_ext = memDc.GetTextExtent(m_constant_text.version);
         wxRect version_rect(
-			wxPoint(0, int(height * 0.70)),
-			wxPoint(width, int(height * 0.70) + version_ext.GetHeight())
+			wxPoint(int(width * 0.06), int(height * 0.50)),
+			wxPoint(int(width * 0.52), int(height * 0.50) + version_ext.GetHeight())
 		);
-        memDc.DrawLabel(m_constant_text.version, version_rect, wxALIGN_CENTER);
+        memDc.DrawLabel(m_constant_text.version, version_rect, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
 
-        // Dynamic Text
-        m_action_line_y_position = int(height * 0.83);
+        // Dynamic Text — bottom-left of the dark panel, clear of the printer render
+        m_action_line_y_position = int(height * 0.90);
     }
 
     static wxBitmap MakeBitmap()

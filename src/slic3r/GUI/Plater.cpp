@@ -5445,7 +5445,7 @@ wxColour Plater::get_next_color_for_filament()
     // refs to https://www.ebaomonthly.com/window/photo/lesson/colorList.htm
     wxColour colors[FILAMENT_SYSTEM_COLORS_NUM] = {
         // ORCA updated all color palette
-        wxColour("#00C1AE"),
+        wxColour("#EA4E16"),
         wxColour("#F4E2C1"),
         wxColour("#ED1C24"),
         wxColour("#00FF7F"),
