@@ -758,7 +758,7 @@ file(GLOB L10N_PO_FILES "${BBL_L18N_DIR}/*/OrcaSlicer*.po")
 foreach(po_file ${BBL_L10N_PO_FILES})
     GET_FILENAME_COMPONENT(SECOND_FOLDER_ABSOLUTE ${po_file} DIRECTORY)
     string(REGEX REPLACE ".*/(.*)" "\\1" po_dir "${SECOND_FOLDER_ABSOLUTE}" )
-    SET(mo_file "${L10N_DIR}/${po_dir}/OrcaSlicer.mo")
+    SET(mo_file "${L10N_DIR}/${po_dir}/${SLIC3R_APP_KEY}.mo")
     add_custom_command(
         TARGET gettext_po_to_mo PRE_BUILD
         COMMAND msgfmt ARGS --check-format -o ${mo_file} ${po_file}
