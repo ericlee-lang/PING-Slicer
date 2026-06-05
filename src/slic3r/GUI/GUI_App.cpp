@@ -365,8 +365,8 @@ public:
         memDc.SetTextForeground(wxColour("#EA4E16"));
         wxSize version_ext = memDc.GetTextExtent(m_constant_text.version);
         wxRect version_rect(
-			wxPoint(int(width * 0.06), int(height * 0.50)),
-			wxPoint(int(width * 0.52), int(height * 0.50) + version_ext.GetHeight())
+			wxPoint(int(width * 0.38), int(height * 0.51)),
+			wxPoint(int(width * 0.86), int(height * 0.51) + version_ext.GetHeight())
 		);
         memDc.DrawLabel(m_constant_text.version, version_rect, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL);
 
