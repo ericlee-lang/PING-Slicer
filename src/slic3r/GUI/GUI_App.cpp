@@ -1855,6 +1855,9 @@ bool GUI_App::has_network_update_available() const
 
 void GUI_App::show_network_plugin_download_dialog(bool is_update)
 {
+    // PING: 停用 Bambu 網路外掛下載/提示（不打包閉源 BambuNetwork DLL，AGPL 合規、不連 Bambu 雲端）
+    (void)is_update;
+    return;
     auto load_error = Slic3r::NetworkAgent::get_load_error();
 
     NetworkPluginDownloadDialog::Mode mode;
@@ -3343,7 +3346,9 @@ void GUI_App::copy_network_if_available()
 
 bool GUI_App::on_init_network(bool try_backup)
 {
-    auto should_load_networking_plugin = app_config->get_bool("installed_networking");
+    // PING: 強制不載入 Bambu 網路外掛(BambuNetwork DLL)，即使舊 config 殘留 installed_networking=true
+    //        → 永不連 Bambu 雲端；走下方 L3469「無外掛」路徑。LAN 送印改用內建 PrintHost(Moonraker/Octoprint)
+    auto should_load_networking_plugin = false;  // 原: app_config->get_bool("installed_networking")
 
     std::string config_version = app_config->get_network_plugin_version();
 
@@ -3716,9 +3721,7 @@ void GUI_App::update_publish_status()
 
 bool GUI_App::has_model_mall()
 {
-    if (auto cc = app_config->get_region(); cc == "CNH" || cc == "China" || cc == "")
-        return false;
-    return true;
+    return false;  // PING: 隱藏 Bambu/MakerWorld 模型商城
 }
 
 void GUI_App::update_label_colours()
@@ -4197,6 +4200,7 @@ if (res) {
 }
 
 void GUI_App::ShowDownNetPluginDlg() {
+    return;  // PING: 停用「下載 Bambu Network 外掛」對話框
     try {
         auto iter = std::find_if(dialogStack.begin(), dialogStack.end(), [](auto dialog) {
             return dynamic_cast<DownloadProgressDialog *>(dialog) != nullptr;
@@ -4212,6 +4216,7 @@ void GUI_App::ShowDownNetPluginDlg() {
 
 void GUI_App::ShowUserLogin(bool show)
 {
+    return;  // PING: 移除 Bambu 帳號登入對話框
     // BBS: User Login Dialog
     if (show) {
         try {
