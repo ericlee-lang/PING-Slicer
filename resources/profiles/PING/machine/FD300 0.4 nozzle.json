@@ -9,7 +9,6 @@
     "printer_variant": "0.4",
     "default_print_profile": "0.2mm Standard @FD300 (0.4)",
     "nozzle_diameter": [
-        "0.4",
         "0.4"
     ],
     "printable_area": [
