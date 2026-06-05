@@ -289,7 +289,7 @@ function CreatePrinterBlock(OneModel)
 	'</div>'+
 	'<div style="display: flex;">'+
 	'	<div class="ModelCheckBox" vendor="' +vendor+ '" model="'+OneModel['model']+'"></div>'+
-	'	<div class="PName"><p>'+ vendorName +'</p><p>' + modelName +'</p></div>'+
+	'	<div class="PName"><p>' + modelName +'</p></div>'+
 	'</div>'+
 	'</div>';
 }
