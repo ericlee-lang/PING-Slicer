@@ -9,9 +9,6 @@
     "printer_variant": "1.0",
     "default_print_profile": "0.5mm Standard @FF800 (1.0)",
     "nozzle_diameter": [
-        "1.0",
-        "1.0",
-        "1.0",
         "1.0"
     ],
     "printable_area": [

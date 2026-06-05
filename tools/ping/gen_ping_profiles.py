@@ -9,7 +9,7 @@ import os, json, math, shutil
 
 REPO = r"D:\dev\2026claude\20260604 ORCA客製\PING-Slicer"
 PROF = os.path.join(REPO, "resources", "profiles")
-FLSUN = os.path.join(PROF, "FLSun")
+FLSUN = os.path.join(REPO, "tools", "ping", "base")  # self-contained base presets (no vendor dependency)
 PINGDIR = os.path.join(PROF, "PING")
 
 if os.path.isdir(PINGDIR):
@@ -176,7 +176,7 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
             "type": "machine", "name": mname, "from": "system", "instantiation": "true",
             "setting_id": "PINGM%03d" % gm, "inherits": "fdm_ping_common",
             "printer_model": mm, "printer_variant": nz, "default_print_profile": pname,
-            "nozzle_diameter": [nz] * feeds, "printable_area": area, "printable_height": str(hgt),
+            "nozzle_diameter": [nz], "printable_area": area, "printable_height": str(hgt),
             "bed_exclude_area": ["0x0"],
             "default_filament_profile": DEF_FIL[feeds], "extruder_offset": off, "filament_colors": DEF_COL[feeds],
             "machine_start_gcode": start_gcode(R, ilh, E, feeds),
