@@ -13,7 +13,7 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 
 ---
 
-## 1. 品牌外觀 / Branding  ✅ (in progress)
+## 1. 品牌外觀 / Branding  ✅
 
 | 檔案 | 變更 |
 |------|------|
@@ -26,17 +26,22 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 | `src/slic3r/GUI/DesktopIntegrationDialog.cpp` | StartupWMClass → ping-slicer |
 | `src/OrcaSlicer.cpp` | CLI usage 字串 → ping-slicer |
 | `resources/images/OrcaSlicer*.ico/.png/.icns` | 內容替換為 PING 圖示（**保留檔名**以免動到數十處引用） |
+| `src/libslic3r/libslic3r.h` | `SLIC3R_APP_FULL_NAME` `Orca Slicer` → `PING Slicer`（About/對話框/錯誤訊息 86 處） |
+| **配色** `src/**` + `resources/web/**`（35+ 檔） | OrcaSlicer 青綠色階 → PING 橘色階 **62 處**：`#009688`→`#EA4E16`、hover `#26A69A`→`#F26C3D`、按鈕/圖示色塊 `#52c7b8`→`#EA4E16`、淺底 `#BFE1DE`/`#E5F0EE`→淺橘、暗色模式 `#223C3C`→暗橘、web hover/首頁。**保留語意色**（GCode/線材調色盤、Google 登入圖示、座標軸色） |
+| `resources/images/splash_logo.png` / `_dark.png` + `GUI_App.cpp` | 最終 welcome-screen 圖（內含品牌 + AGPL 合規版權文字）；SplashScreen 700×450；版本「**V3.5**」**白字**置於圖中「Pro Slicer」右側（像素對位 x=22.4% / y=52.7%） |
+| `src/slic3r/GUI/AboutDialog.cpp` + `PING_about.png`/`_dark.png` | About logo → PING（CIS logo_compact）；版權 → LINKIN FACTORY（**保留 OrcaSlicer 版權 + 傳承段落 + Portions copyright**）；連結 → ping3dp.com + GitHub 源碼 |
 
 **待辦 / TODO**
-- [ ] 啟動畫面 `splash_logo.svg` / `splash_logo_dark.svg`（需 PING 向量稿，目前仍為 Orca）
 - [ ] 上方工具列 title logo `OrcaSlicerTitle.png` / `OrcaSlicer_154_title.png`（需 PING 橫式 wordmark）
-- [ ] 關於頁背景 `OrcaSlicer_about*.svg`
-- [ ] 停用/改指向 PING 的自動更新器
-- [ ] Linux desktop 整合的 Name/Icon（`DesktopIntegrationDialog.cpp`）
+- [ ] 停用/改指向 PING 的自動更新器（`check_new_version_sf`）
+- [ ] Mac `.app` bundle 名與 dmg 檔名
 
-## 2. 介面預設值 / Defaults  🔶 (partial)
+## 2. 介面預設值 / Defaults  ✅
 - ✅ 預設語言 zh_TW（`GUI_App.cpp` `load_language()`：首次啟動無設定時預設繁中）。
-- ⬜ 啟動精靈預設勾選 PING 廠商（待與移除 Bambu 一起改 `ConfigWizard.cpp`）。
+- ✅ 繁中翻譯目錄：`CMakeLists.txt` L761 `.mo` 檔名用 `${SLIC3R_APP_KEY}` → build 產 `PINGSlicer.mo`（修「app 找 PINGSlicer.mo、檔卻叫 OrcaSlicer.mo」→ 原生選單英文 fallback）。
+- ✅ wizard 不顯示多餘「PING Family」：machine_model `family` 清空（橘色廠商徽章保留）。
+- ✅ 雙噴頭機型預設 **2 線材槽**：`nozzle_diameter`=進料數 + SEMM=1 + offset 0x0（2 進 1 出共用 1 實體噴頭，G-code 正確）；FF 四噴頭=4 槽、FP 單噴頭=1 槽。
+- ✅ web 簡中→繁中：`resources/web/data/text.js` `TranslatePage()` zh_CN→zh_TW 重導。
 
 ## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v4, 原廠確認 + Orca 驗證底稿校準)
 - `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
@@ -68,10 +73,15 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - `check_profiles.yml`：最終判定只看系統驗證（含 PING），不再因上游測試樣本誤報失敗（停掉 GitHub 失敗通知信）。
 - ⬜ 待辦：Mac `.app` bundle 名與 dmg 檔名仍為 OrcaSlicer（需單獨小心處理）。
 
-## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ⬜ (todo)
-- 停用網路外掛下載、隱藏帳號登入、首頁/模型庫中性化。**不打包 Bambu 閉源外掛**。
+## 4. 移除 Bambu 雲端 / Remove Bambu cloud  ✅
+全部於 `src/slic3r/GUI/GUI_App.cpp`，採「UI early-return + 不載入外掛」最小侵入法（保留抽象層與內建 LAN 代理，編譯安全）：
+- `show_network_plugin_download_dialog()`、`ShowDownNetPluginDlg()` → early-return：不跳「安裝/下載 Bambu Network 外掛」。
+- `ShowUserLogin()` → early-return：移除 Bambu 帳號登入框（v2.3.2 上游已移除帳號鈕/模型商城選單）。
+- `has_model_mall()` → `return false`：隱藏 Bambu/MakerWorld 模型商城。
+- `on_init_network()`：`should_load_networking_plugin` 強制 `false` → 永不載入閉源 `BambuNetwork` DLL、不連 Bambu（走「無外掛」優雅路徑，`m_agent=null` 上游已全程 `if(m_agent)` 保護）。
+- **合規**：不打包/不下載 Bambu 閉源外掛（無散布授權）。**LAN 送印不受影響**：Moonraker/Octoprint 走內建 PrintHost，非 Bambu 外掛。
 
-## 5. 文件 / Docs  🔶 (partial)
+## 5. 文件 / Docs  ✅
 - ✅ `PING_CLOUD_PLAN.md`（Bambu 架構解析 + PING 圖庫/生產列印件方案 + Moonraker 路徑）。
 - ✅ `PING_CUSTOMIZATION.md`（本檔，AGPL 修改紀錄）。
-- ⬜ 關於頁/README 標註 based on OrcaSlicer + 源碼連結。
+- ✅ About 框標註「Based on OrcaSlicer」+ 源碼連結（AGPL §13）+ 保留上游傳承段落與 Portions copyright。
