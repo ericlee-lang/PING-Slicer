@@ -360,9 +360,15 @@ public:
         wxBitmap logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);  // PING: branded PNG splash
         memDc.DrawBitmap(logo_bmp, 0, 0, true);
 
-        // PING 方案B：版本號「V3.5」已直接做進 splash 圖片(splash_logo.png)，
-        // 不再由程式繪製 → splash 100% 為圖片、可隨時替換資料夾內檔案、零跑位。
-        // (原 OrcaSlicer 在此以 memDc.DrawLabel 繪製 m_constant_text.version，已移除)
+        // PING: 版本號「V3.5」白字，置於圖片「Pro Slicer」右側（像素分析定位 x=22.4%、垂直中心52.7%）
+        wxFont ver_font = m_constant_text.version_font;
+        ver_font.SetPixelSize(wxSize(0, int(height * 0.031)));  // 字級對齊圖中 "Pro Slicer"
+        memDc.SetFont(ver_font);
+        memDc.SetTextForeground(wxColour(255, 255, 255));       // 白字
+        wxSize ver_ext = memDc.GetTextExtent(m_constant_text.version);
+        memDc.DrawText(m_constant_text.version,
+                       int(width * 0.224),
+                       int(height * 0.527) - ver_ext.GetHeight() / 2);
 
         // Dynamic Text — 載入狀態文字（Loading configuration...），保留於底部
         m_action_line_y_position = int(height * 0.90);
