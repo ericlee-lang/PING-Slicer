@@ -1,7 +1,7 @@
 {
     "type": "machine_model",
-    "name": "FD300",
-    "model_id": "PING_FD300",
+    "name": "FD300 單噴頭",
+    "model_id": "PING_FD300_單噴頭",
     "nozzle_diameter": "0.25;0.4;0.6",
     "machine_tech": "FFF",
     "family": "",

@@ -17,14 +17,12 @@
     "cooling_tube_length": "0",
     "cooling_tube_retraction": "0",
     "default_filament_colors": [
-        "#000000",
-        "#000000"
+        "#808080"
     ],
     "default_filament_profile": [
-        "PING PLA - 220",
-        "PING SUP - 220"
+        "PING PLA - 220"
     ],
-    "default_print_profile": "0.3mm @FD300 (0.6)",
+    "default_print_profile": "0.3mm @FD300 單噴頭 (0.6)",
     "deretraction_speed": [
         "20",
         "20"
@@ -48,23 +46,16 @@
     "fan_speedup_overhangs": "0",
     "fan_speedup_time": "0",
     "filament_colors": [
-        "#FF8000",
-        "#FFFFFF"
+        "#808080"
     ],
     "filament_ids": [
-        "PLA",
         "PLA"
     ],
     "flush_multiplier": "0",
     "flush_volumes_matrix": [
-        "560",
-        "457",
-        "247",
-        "0"
+        "457"
     ],
     "flush_volumes_vector": [
-        "140",
-        "140",
         "140",
         "140"
     ],
@@ -76,7 +67,7 @@
     "long_retractions_when_cut": [
         "0"
     ],
-    "machine_end_gcode": "M104 S240\nG91\nG1 Z10 F3000\nG90\nG1 X0 Y-140 Z250 F3000\nG91\nM6050 S0\nG1 E10 F60\nG91\nM6050 S1\nG1 E10 F60\nG91\nM6050 S0.5\nG1 E40 F60\nG1 E-500 F12000\nG4 S3\nM104 S0\nM140 S0\nG90\nG28 X0 Y0\nM84",
+    "machine_end_gcode": "M104 S240\nG91\nG1 Z10 F3000\nG90\nG1 X0 Y-140 Z250 F3000\nG91\nG1 E40 F60\nG1 E-500 F12000\nG4 S3\nM104 S0\nM140 S0\nG90\nG28 X0 Y0\nM84",
     "machine_load_filament_time": "0",
     "machine_max_acceleration_e": [
         "5000",
@@ -147,7 +138,7 @@
         "0"
     ],
     "machine_pause_gcode": "PAUSE",
-    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nT0\nG0 F8000 X-50 Y-140 Z0.35\nG92 E0\nG1 F800 X50 Y-140 E45\nG92 E0\nT1\nG0 F800 X50 Y-138 Z0.35\nG92 E0\nG1 F800 X-50 Y-138 E45\nG92 E0\nT0\nG0 F8000 X-50 Y-136 Z0.35\nG92 E0\nG1 F800 X50 Y-136 E45\nG92 E0\nT1\nG0 F800 X50 Y-134 Z0.35\nG92 E0\nG1 F800 X-50 Y-134 E45\nG1 Z1 E44\nG92 E0",
+    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nG0 F8000 X-50 Y-140 Z0.35\nG92 E0\nG1 F800 X50 Y-140 E45\nG92 E0\nG0 F800 X50 Y-138 Z0.35\nG92 E0\nG1 F800 X-50 Y-138 E45\nG1 Z1 E44\nG92 E0",
     "machine_tool_change_time": "0",
     "machine_unload_filament_time": "0",
     "manual_filament_change": "0",
@@ -244,7 +235,7 @@
         "150x-3.67394e-14"
     ],
     "printable_height": "300",
-    "printer_model": "FD300",
+    "printer_model": "FD300 單噴頭",
     "printer_notes": "",
     "printer_structure": "undefine",
     "printer_technology": "FFF",
@@ -297,7 +288,7 @@
     ],
     "scan_first_layer": "0",
     "silent_mode": "0",
-    "single_extruder_multi_material": "1",
+    "single_extruder_multi_material": "0",
     "start_end_points": [
         "30x-3",
         "54x245"
@@ -331,8 +322,8 @@
     ],
     "z_offset": "0",
     "type": "machine",
-    "name": "FD300 0.6 nozzle",
+    "name": "FD300 單噴頭 0.6 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM002"
+    "setting_id": "PINGM005"
 }
