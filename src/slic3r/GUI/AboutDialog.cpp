@@ -230,7 +230,7 @@ AboutDialog::AboutDialog()
 	bool is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
 
     // logo
-    m_logo_bitmap = ScalableBitmap(this, is_dark ? "OrcaSlicer_about_dark" : "OrcaSlicer_about", 125);
+    m_logo_bitmap = ScalableBitmap(this, Slic3r::var(is_dark ? "PING_about_dark.png" : "PING_about.png"), wxBITMAP_TYPE_PNG);  // PING: 品牌 logo(CIS logo_compact)取代 OrcaSlicer 商標
     m_logo = new wxStaticBitmap(this, wxID_ANY, m_logo_bitmap.bmp(), wxDefaultPosition,wxDefaultSize, 0);
     m_logo->SetSizer(vesizer);
 
@@ -315,7 +315,7 @@ AboutDialog::AboutDialog()
 
     copyright_hor_sizer->Add(copyright_ver_sizer, 0, wxLEFT, FromDIP(20));
 
-    wxStaticText *html_text = new wxStaticText(this, wxID_ANY, "Copyright(C) 2026 OrcaSlicer Pte Ltd All Rights Reserved", wxDefaultPosition, wxDefaultSize);
+    wxStaticText *html_text = new wxStaticText(this, wxID_ANY, "(C) 2026 LINKIN FACTORY Co., Ltd. - PING Slicer\nBased on OrcaSlicer (C) OrcaSlicer Pte Ltd - Licensed under GNU AGPL-3.0", wxDefaultPosition, wxDefaultSize);
     html_text->SetForegroundColour(wxColour(107, 107, 107));
 
     copyright_ver_sizer->Add(html_text, 0, wxALL , 0);
@@ -332,7 +332,7 @@ AboutDialog::AboutDialog()
               (boost::format(
               "<html>"
               "<body>"
-              "<p style=\"text-align:left\"><a style=\"color:#EA4E16\" href=\"https://www.orcaslicer.com\">https://www.orcaslicer.com</ a></p>"
+              "<p style=\"text-align:left\"><a style=\"color:#EA4E16\" href=\"https://ping3dp.com\">ping3dp.com</a>&nbsp;&nbsp;|&nbsp;&nbsp;<a style=\"color:#EA4E16\" href=\"https://github.com/ericlee-lang/PING-Slicer\">Source code (AGPL-3.0)</a></p>"
               "</body>"
               "</html>")
             ).str());
