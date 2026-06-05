@@ -47,7 +47,7 @@ html, body {
 .LinkBtn
 {
 	font-size:12px;
-	color: #00ffea;	
+	color: #EA4E16;	
 	cursor: pointer;
 }
 
@@ -118,7 +118,7 @@ body
 
 #DownloadBtn
 {
-	color:#00ffd9;
+	color:#EA4E16;
 }
 
 
@@ -179,12 +179,12 @@ body
 
 .BtnItem:hover
 {
-	background-color: #BFE1DE; /*ORCA color with %25 opacity*/
+	background-color: #FAD7C8; /*ORCA color with %25 opacity*/
 }
 
 .BtnItemSelected
 {
-	background-color: #BFE1DE; /*ORCA color with %25 opacity*/
+	background-color: #FAD7C8; /*ORCA color with %25 opacity*/
 }
 
 .BtnIcon
@@ -254,7 +254,7 @@ body
 .MenuItem:hover
 {
 	border-color: #EA4E16;		/*ORCA color*/
-	background-color: #E5F0EE; /*ORCA color with %25 opacity*/
+	background-color: #FCEAE1; /*ORCA color with %25 opacity*/
 }
 
 .MenuIcon
