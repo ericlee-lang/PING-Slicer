@@ -47,8 +47,8 @@
             and reliability.</p>
     </description>
     <branding>
-        <color type="primary" scheme_preference="light">#009688</color>
-        <color type="primary" scheme_preference="dark">#00695C</color>
+        <color type="primary" scheme_preference="light">#EA4E16</color>
+        <color type="primary" scheme_preference="dark">#A8350A</color>
     </branding>
     <releases>
         <release version="2.3.2-rc" date="2025-03-01">
