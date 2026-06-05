@@ -161,7 +161,7 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
     machine_models.append({"name": mm, "sub_path": "machine/%s.json" % mm})
     w(os.path.join(PINGDIR, "machine", "%s.json" % mm), {
         "type": "machine_model", "name": mm, "model_id": "PING_" + model.replace("-", "_").replace(" ", "_"),
-        "nozzle_diameter": ";".join(nozzles), "machine_tech": "FFF", "family": "PING",
+        "nozzle_diameter": ";".join(nozzles), "machine_tech": "FFF", "family": "",
         "bed_model": bed_stl, "bed_texture": bed_tex, "hotend_model": "",
         "default_materials": DEF_MAT})
     area = circle(R)
@@ -176,9 +176,13 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
             "type": "machine", "name": mname, "from": "system", "instantiation": "true",
             "setting_id": "PINGM%03d" % gm, "inherits": "fdm_ping_common",
             "printer_model": mm, "printer_variant": nz, "default_print_profile": pname,
-            "nozzle_diameter": [nz], "printable_area": area, "printable_height": str(hgt),
+            "nozzle_diameter": [nz] * feeds, "printable_area": area, "printable_height": str(hgt),
             "bed_exclude_area": ["0x0"],
             "default_filament_profile": DEF_FIL[feeds], "extruder_offset": off, "filament_colors": DEF_COL[feeds],
+            "retraction_length": ["1.3"] * feeds, "retraction_speed": ["20"] * feeds, "deretraction_speed": ["20"] * feeds,
+            "retract_before_wipe": ["70%"] * feeds, "retract_length_toolchange": ["2"] * feeds,
+            "retract_when_changing_layer": ["1"] * feeds, "retraction_minimum_travel": ["1"] * feeds,
+            "wipe": ["0"] * feeds, "z_hop": ["0.4"] * feeds, "z_hop_types": ["Normal Lift"] * feeds,
             "machine_start_gcode": start_gcode(R, ilh, E, feeds),
             "machine_end_gcode": end_gcode(R, hgt, feeds),
             "machine_max_speed_x": [str(mv), str(mv)], "machine_max_speed_y": [str(mv), str(mv)],

@@ -4,7 +4,7 @@
     "model_id": "PING_FF800",
     "nozzle_diameter": "0.4;0.6;1.0",
     "machine_tech": "FFF",
-    "family": "PING",
+    "family": "",
     "bed_model": "PING_FD800_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture300.png",
     "hotend_model": "",
