@@ -30,7 +30,7 @@ function GotoNetPluginPage()
 	let bRet=SendStealthModeCheck();
 	
 	if(bRet)
-		window.location.href="../5/index.html";
+		FinishGuide();   // PING: 跳過 Bambu 網路插件頁，直接完成精靈
 }
 
 
