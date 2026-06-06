@@ -149,12 +149,17 @@ def main(src_folder, model_key="FD300"):
             mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                    "setting_id":"PINGM%03d"%gm,"printer_model":model_name,"printer_variant":nz,
                    "default_print_profile":proc_name,"default_filament_profile":DEF_FIL[feeds]})
+            # 註：nozzle_diameter / single_extruder_multi_material 沿用參數人員 .config 原值。
+            # 「選機自動跳 N 槽」需 single_extruder_multi_material=0（GUI_App.cpp:7104 的 ORCA gate），
+            # 但那會改變多材料 G-code 模型，且 change_filament_gcode 目前為空 → 屬參數/硬體人員的多材料架構決定。
             jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
             mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm+=1
             # process 預設（自包含 P keys + 綁機台）
+            # inherits 必須指向有效父 preset：OrcaSlicer 載 vendor config 時看「有無 inherits key」，
+            # 寫 "" 會被當成「找名為空字串的父項」→ can not find inherits → 整包 PING vendor 載入中止。
             proc = dict(b["P"])
             proc.update({"type":"process","name":proc_name,"from":"system","instantiation":"true",
-                    "setting_id":"PINGP%03d"%gp,"inherits":"","compatible_printers":[mac_name]})
+                    "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common","compatible_printers":[mac_name]})
             jdump(os.path.join(PINGDIR,"process","%s.json"%proc_name), proc)
             proc_list.append({"name":proc_name,"sub_path":"process/%s.json"%proc_name}); gp+=1
 

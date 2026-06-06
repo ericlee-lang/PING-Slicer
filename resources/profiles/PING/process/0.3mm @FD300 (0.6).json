@@ -310,7 +310,7 @@
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGP002",
-    "inherits": "",
+    "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 0.6 nozzle"
     ]

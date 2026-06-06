@@ -101,6 +101,13 @@ img.ModelThumbnail
 	height: 100%;
 }
 
+.PImg img	/* PING: 每噴嘴版(3.0) JS 產生的 <img> 無 ModelThumbnail class，需在此限制尺寸避免原圖爆大 */
+{
+	width:  100%;
+	height: 100%;
+	object-fit: contain;
+}
+
 .PName
 {
 	font-weight: 700;
@@ -110,7 +117,7 @@ img.ModelThumbnail
 
 .pNozzel
 {
-	display: none;
+	display: flex;	/* PING: 恢復每噴嘴勾選框顯示(新版Orca改用圖上覆蓋勾選故設為none) */
 	align-items: center;
 	justify-content:flex-start;
 	color: #5A5A5A;	

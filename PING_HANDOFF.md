@@ -9,9 +9,46 @@
 
 **正在做**：恢復設定精靈的「**每噴嘴勾選**」。
 - 已把 3.0 的 `resources/web/guide/21/21.js` + `24/24.js`（每噴嘴版）複製覆蓋新版（Orca 簡化版），並同步到 `D:\PING-Slicer-portable`。
-- **等使用者測試**：(1) 卡片下方出現每個噴嘴勾選框（「0.25mm 噴嘴」…）；(2) 勾噴嘴 → 確定 → 準備頁選得到該機器+噴嘴。
-- **若測 OK** → 接著：① 修 3.0 帶進來的樣式（綠色鈕 `SmallBtn_Green` 改橘）② 嵌入其他機型參數 ③ 線材只留 PING。
-- **若測壞** → web JS 還原：Orca-簡化版在 git 提交 `69b7c750`（含）之前；或 3.0 原版在 `C:\Program Files\PING slicerV3.0\`。
+- **【已修・本 session】「選擇 3D 列印機」頁失效根因 = CSS，不是 JS**。只移植了 3.0 的 JS，CSS 卻留著新版 Orca 的，class 對不上：
+  - `21.css`/`24.css` 的 `.pNozzel { display:none }`（新版改用圖上覆蓋勾選 `ModelCheckBox`）→ **每噴嘴勾選框被藏 → 看不到、無法選 → 頁面「失效」**。
+  - 圖片縮放規則是 `img.ModelThumbnail{100%}`，但 3.0 JS 的 `<img>` **沒有 ModelThumbnail class** → 圖片以原圖尺寸渲染 → **爆大重疊**（截圖那樣）。
+  - **修法**（保留 PING 橘＋深色模式，只補兩處）：`.pNozzel` 改 `display:flex`；新增 `.PImg img { width/height:100%; object-fit:contain }`。`21.css`/`24.css` 皆改，已同步 portable。
+  - 註：失效截圖是 **guide/24**（App 內「確定/取消」對話框），非首次精靈 guide/21；兩頁同 bug、已一起修。翻譯 t11/12/13/38/39（全部/清空/mm 噴嘴/取消/確定）zh_TW 齊全。
+- **CSS 修已驗證成功**：使用者重測，每噴嘴勾選框正常顯示、圖片大小正常、可勾選、可進到線材頁。✅
+
+**【接著揪出第二個更深的 bug・已修・本 session】「勾得到機器卻載不到任何機器」（主畫面列印設備下拉空白）= 製程 profile 的 `inherits` 寫成空字串，害整包 PING vendor 載入中止。**
+- 證據：`%APPDATA%\PINGSlicer\log\debug_*.log` →
+  `PresetBundle::load_vendor_configs_from_json ... can not find inherits  for 0.125mm @FD300 (0.25)`。
+- 機制（`PresetBundle.cpp` L4037-4068）：loader 看「JSON **有沒有 `inherits` key**」，不是值是否為空。`"inherits":""` 會被當成「找名為空字串的父 preset」→ 找不到 → **return 中止整個 vendor 載入** → 所有 PING 機器/製程/線材都不見。
+- 根因：`tools/ping/embed_params.py` L157 產生 FD300 定稿製程時寫死 `"inherits":""`（其他機型骨架是 `fdm_process_ping_common`，所以只有 FD300 那 9 顆中毒）。
+- **修法**（不動參數人員任何數值——定稿檔本來就是 283 鍵完整 config、child 永遠覆蓋 parent）：
+  1. `embed_params.py` L157 `"inherits":""` → `"inherits":"fdm_process_ping_common"`（根治產生器）。
+  2. repo `resources/profiles/PING/process/` 9 顆 FD300 檔同改。
+  3. `PING.json` version `01.00.00.02`→`03`（坑 #4，強制重新複製）。
+  4. 已同步：repo / portable `resources` / `%APPDATA%\PINGSlicer\system\PING`（三處 version=.03、0 空 inherits）。全 bundle 預檢通過（machine/process/filament inherits 全解析、instantiation/filament_id 齊全）。
+- **inherits 修已驗證成功**：使用者重測，FD300/FP300/FD450 Pro 等機台 preset 真的載入、製程/線材帶出、參數可編輯。✅
+
+**【再修兩個使用者回報問題・本 session】**
+
+**問題 A：選 FD300（雙料）沒自動跳 2 卷線材（只 1 槽）。✅根因確定 + 原生 patch 已寫（待 build）。**
+- **用 V3.0 匯出檔比對定案**（使用者提供 `G:\...\切片參數\V3.0\` 的 `.orca_printer` + `.3mf`）：V3.0 可用的 2 料 FD300 是 `nozzle_diameter=['0.4']`（1元素）+ `SEMM=1` + `default_filament_profile=2` + `change_filament_gcode=''`（**空**）+ `filament_settings_id=2`（=槽數來源）。**preset 結構 V3.5 與 V3.0 幾乎一模一樣**（差的鍵都與槽數無關）→ **不是 profile 問題**。
+- **真正機制（坑#13）**：線材槽數 = 專案 `filament_settings_id` 數量，由選機時的初始化決定，**不是** nozzle_diameter（那段 `#if 0` 關掉了）。`GUI_App.cpp::load_current_presets` **L7104** 是 **Orca 2.3.2 原生**（commit `c724a3f5 bump 2.3.2`，非 PING 加的）：`if (ptFFF && !SEMM) set_num_filaments(nozzle數)`——**只對 SEMM=0 同步**。Orca 2.3.2 把 SEMM 機當 AMS 變動數量、不初始化；V3.0 舊版 Orca 會用 `default_filament_profile` 初始化 → 這是**版本行為差異**。
+- **先前走錯路（已還原）**：依坑#9 把 nozzle 改 2 元素 → 無效（只觸發 `extruder_index 2` 錯誤）+ 誤判要改 SEMM=0/補換料 G-code。**全部假設作廢**：nozzle=1、SEMM=1、空 change_filament_gcode 都跟 V3.0 一樣是對的。已 git 還原機台檔與 embed_params.py（僅保留製程 inherits 修）。
+- **修法（已套用・原生・併入下次 build 批次）**：`GUI_App.cpp` L7104 後加 `else if (ptFFF)` 分支——SEMM 機若 `default_filament_profile` 數量 > 目前線材數則 `set_num_filaments(default_filament_profile數)`。**只增不減**，還原 V3.0；FD→2槽、FF→4槽、FP→1槽。`ConfigOptionStrings`/`filament_presets` 在該檔已現成可用。
+- 連帶：槽數變 2 後，製程 `support_filament=2` 變有效 → 「參數已變更」對話框自動消失。（V3.0 用 support_filament=1/interface=2，V3.5 用 2/2，屬參數人員數值差異，不影響功能。）
+- 連帶：製程 `support_filament=2`（支撐用第2料）在只有 1 卷時無效 → 跳「參數已變更」對話框；槽數變 2 後自動消失。
+
+**問題 B：第一次開啟程式沒載入機器 = 前次壞檔狀態殘留，非持續性 bug。**
+- conf（`PINGSlicer.conf`）機器啟用清單存在 **`models`** 區段（非 `vendors`）；現已有 FD300/FD450 Pro/FP300，`firstguide.finish=true`、`presets.machine="FD300 0.6 nozzle"` → **往後開啟會自動載入 FD300**。
+- 之所以「第一次沒機器」：壞檔那輪 vendor 載入失敗 → 作用機台停在 `Default Printer` + `firstguide.finish` 已被設 true（精靈不再自動跳）。修好 vendor + 手動選一次後即恢復。
+- **全新安裝**現在 vendor 能載入、精靈跑完會帶機器，故不會重演。要乾淨重現驗證：清 `%APPDATA%\PINGSlicer`（**保留 OrcaFilamentLibrary**，坑 #2）→ 重開 → 精靈跑一次。
+
+- **本 session 確定可 commit 的**：CSS（每噴嘴勾選+圖片尺寸，已驗證）+ 製程 inherits 修（vendor 載入，已驗證）+ embed_params.py inherits + PING.json version。**不含** nozzle_diameter（已還原）。
+- **下一步（多材料）優先**：先請參數/硬體人員定 FD300 的 SEMM 模型 + 提供換料 G-code，再由軟體端 wire（改 SEMM/補 `change_filament_gcode`/必要時加 `extruder_variant_list` 消除 extruder_index 2 錯誤）。
+- **其餘待辦**：① 樣式收尾（`SmallBtn_Green`「全部」鈕改橘）② 嵌入其他機型參數 ③ 線材只留 PING。
+- **觀察項**：embed_params.py `M["modes"]`「FD300 兩進一出」設 feeds=1，與坑#9「2進1出=feeds 2」字面矛盾，待與參數人員對齊。`PING PLA - 220`/`PING SUP - 220` 是 FD300 預設線材但不在 conf filaments 可見清單（generic「PING PLA」在）。
+- **次要待修**：`printer_preview_.png`（空機型 id）載圖失敗 → 某機型缺封面圖（log warning，不影響功能）。
+- **若仍壞** → web JS/CSS 還原：`69b7c750`（含）之前 / 3.0 原版 `C:\Program Files\PING slicerV3.0\`；profile 還原見 git。
 
 ---
 
@@ -59,6 +96,8 @@
 10. **`build` 顯示 failure 常常只是 `Unit Tests` 那個 job 掛**（既有問題），**各平台編譯其實 success、安裝檔有產出**（artifacts）。別被紅 X 嚇到，去看各 job。
 
 11. **封面圖的「PING」是真實產品照**（機台機身印的 logo，`FD300_cover.png` 等），web wizard 用 `OneModel['cover']` 載入。那個 PING 不是文字、要修圖才能改。
+
+12. **【profile 致命坑】preset 的 `inherits` 寫成空字串 `""` 會讓整包 vendor 載入中止。** OrcaSlicer `PresetBundle.cpp::load_vendor_configs_from_json`（L4037）判斷的是「JSON **有沒有 `inherits` key**」，不是值是否為空：有 key 但值為 `""` → 去找名為空字串的父 preset → `can not find inherits` → **return 中止**，該 vendor 之後所有 preset 全部不載入（症狀：精靈勾得到機器，但主畫面列印設備下拉全空、`presets.machine` 退回 `Default Printer`、conf 無 `[vendors]`）。**規則**：preset 的 `inherits` 要嘛**整個 key 不要寫**（→ 用 Orca default base），要嘛指向**存在的父 preset**（製程用 `fdm_process_ping_common`、線材用 `fdm_filament_common`）；**絕不可留空字串**。`embed_params.py` 已修（L157）。診斷起手式：讀 `%APPDATA%\PINGSlicer\log\debug_*.log` 搜 `load_vendor_configs_from_json`。`machine_model` 型檔（machine_model_list 指向、`FD300.json` 等）不是 preset、本來就沒有 `inherits`/`instantiation`，別誤修。
 
 ---
 
