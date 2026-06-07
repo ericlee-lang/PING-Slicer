@@ -7,7 +7,7 @@
     "inherits": "fdm_ping_common",
     "printer_model": "FF800",
     "printer_variant": "0.4",
-    "default_print_profile": "0.2mm Standard @FF800 (0.4)",
+    "default_print_profile": "0.2mm @FF800 (0.4)",
     "nozzle_diameter": [
         "0.4",
         "0.4",
@@ -231,5 +231,6 @@
     "machine_max_jerk_e": [
         "2.5",
         "2.5"
-    ]
+    ],
+    "alias": "FF800"
 }

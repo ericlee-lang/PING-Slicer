@@ -11,6 +11,9 @@ blib
 xs/buildtmp
 *.o
 *.log
+
+# PING tools — Python bytecode
+tools/ping/__pycache__/
 MANIFEST.bak
 xs/MANIFEST.bak
 xs/assertlib*

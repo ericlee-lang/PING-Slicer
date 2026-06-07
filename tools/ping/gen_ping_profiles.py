@@ -169,13 +169,15 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
     for nz in nozzles:
         lh, ilh, E = NZ[nz]
         mname = "%s %s nozzle" % (model, nz)
-        pname = "%gmm Standard @%s (%s)" % (lh, model, nz)
+        pname = "%gmm @%s (%s)" % (lh, model, nz)   # 命名規範：去 Standard、材料不進製程名
         all_machines.append(mname)
         machine_list.append({"name": mname, "sub_path": "machine/%s.json" % mname})
         w(os.path.join(PINGDIR, "machine", "%s.json" % mname), {
             "type": "machine", "name": mname, "from": "system", "instantiation": "true",
             "setting_id": "PINGM%03d" % gm, "inherits": "fdm_ping_common",
             "printer_model": mm, "printer_variant": nz, "default_print_profile": pname,
+            "alias": mm,   # active 標籤顯示乾淨機型名(無口徑)；口徑走噴嘴 chip
+
             "nozzle_diameter": [nz] * feeds, "printable_area": area, "printable_height": str(hgt),
             "bed_exclude_area": ["0x0"],
             "default_filament_profile": DEF_FIL[feeds], "extruder_offset": off, "filament_colors": DEF_COL[feeds],
@@ -196,11 +198,18 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
             "machine_max_jerk_z": ["0.2", "0.4"], "machine_max_jerk_e": ["2.5", "2.5"]})
         gm += 1
         process_list.append({"name": pname, "sub_path": "process/%s.json" % pname})
+        # 列印加速度規範(2026-06-07)：300機(dia==300)普/內/外=3000、450+=1500；travel兩者皆3000
+        pacc = "3000" if dia == 300 else "1500"
         w(os.path.join(PINGDIR, "process", "%s.json" % pname), {
             "type": "process", "name": pname, "from": "system", "instantiation": "true",
             "setting_id": "PINGP%03d" % gp, "inherits": "fdm_process_ping_common",
             "layer_height": str(lh), "initial_layer_print_height": str(ilh),
-            "line_width": str(nz), "compatible_printers": [mname]})
+            "line_width": str(nz), "compatible_printers": [mname],
+            "default_acceleration": pacc, "outer_wall_acceleration": pacc,
+            "inner_wall_acceleration": pacc, "travel_acceleration": "3000",
+            # Scarf 斜接縫(隱形 Z 接縫)：外牆/起始高10%/長度8mm。Orca 2.3.2 無 "scarf slope gap" key。
+            "seam_slope_type": "external", "has_scarf_joint_seam": "1",
+            "seam_slope_start_height": "10%", "seam_slope_min_length": "8"})
         gp += 1
 
 # filaments (3.0-style minimal)
@@ -221,10 +230,12 @@ for (nm, base, nt, bt, fan, ftype, issup, fid) in FILS:
          "compatible_printers": all_machines}
     if issup:
         d["filament_is_support"] = ["1"]
+    if nm == "PING SupPLA":
+        d["filament_minimal_purge_on_wipe_tower"] = ["60"]   # 支撐料換料塔最小清洗量(2026-06-07)
     w(os.path.join(PINGDIR, fp), d)
 
 w(os.path.join(PROF, "PING.json"), {
-    "name": "PING", "version": "01.00.00.00", "force_update": "0",
+    "name": "PING", "version": "01.00.00.08", "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": machine_models, "process_list": process_list,
     "filament_list": filament_list, "machine_list": machine_list})

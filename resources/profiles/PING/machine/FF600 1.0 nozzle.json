@@ -7,7 +7,7 @@
     "inherits": "fdm_ping_common",
     "printer_model": "FF600",
     "printer_variant": "1.0",
-    "default_print_profile": "0.5mm Standard @FF600 (1.0)",
+    "default_print_profile": "0.5mm @FF600 (1.0)",
     "nozzle_diameter": [
         "1.0",
         "1.0",
@@ -231,5 +231,6 @@
     "machine_max_jerk_e": [
         "2.5",
         "2.5"
-    ]
+    ],
+    "alias": "FF600"
 }

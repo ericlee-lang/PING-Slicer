@@ -7,7 +7,7 @@
     "inherits": "fdm_ping_common",
     "printer_model": "FP300",
     "printer_variant": "0.4",
-    "default_print_profile": "0.2mm Standard @FP300 (0.4)",
+    "default_print_profile": "0.2mm @FP300 (0.4)",
     "nozzle_diameter": [
         "0.4"
     ],
@@ -189,5 +189,6 @@
     "machine_max_jerk_e": [
         "2.5",
         "2.5"
-    ]
+    ],
+    "alias": "FP300"
 }
