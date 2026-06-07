@@ -7,7 +7,7 @@
     "inherits": "fdm_ping_common",
     "printer_model": "FD800 Pro",
     "printer_variant": "0.4",
-    "default_print_profile": "0.2mm Standard @FD800 Pro (0.4)",
+    "default_print_profile": "0.2mm @FD800 Pro (0.4)",
     "nozzle_diameter": [
         "0.4",
         "0.4"
@@ -203,5 +203,6 @@
     "machine_max_jerk_e": [
         "2.5",
         "2.5"
-    ]
+    ],
+    "alias": "FD800 Pro"
 }

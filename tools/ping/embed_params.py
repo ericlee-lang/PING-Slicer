@@ -67,9 +67,9 @@ MODELS = {
         "cover":"FD300_cover.png", "nozzles":["0.25","0.4","0.6"],
         "default_materials":"PING PLA;PING SUP;PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF",
         "modes":[
-            ("PLA+SUP",  "FD300",      2),   # 雙料
-            ("單噴頭",    "FD300 單噴頭", 1),   # 單噴頭（檔名 token = 非 PLA+SUP / 非 single）
-            ("single",   "FD300 兩進一出",1),   # 兩進一出 M6050 S0.5
+            ("PLA+SUP",  "FD300",        2),   # 雙料
+            ("單噴頭",    "FD300 單料頭",  1),   # 單料頭（檔名 token = 非 PLA+SUP / 非 single）
+            ("single",   "FD300 同進",  1),   # 同進 兩進一出 M6050 S0.5（標配口徑 0.4）
         ],
     },
 }
@@ -148,7 +148,9 @@ def main(src_folder, model_key="FD300"):
             mac = dict(b["M"])
             mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                    "setting_id":"PINGM%03d"%gm,"printer_model":model_name,"printer_variant":nz,
-                   "default_print_profile":proc_name,"default_filament_profile":DEF_FIL[feeds]})
+                   "default_print_profile":proc_name,"default_filament_profile":DEF_FIL[feeds],
+                   # alias=機型名 → active 標籤顯示乾淨名(無口徑)；口徑走噴嘴 chip(printer_variant)
+                   "alias":model_name})
             # 註：nozzle_diameter / single_extruder_multi_material 沿用參數人員 .config 原值。
             # 「選機自動跳 N 槽」需 single_extruder_multi_material=0（GUI_App.cpp:7104 的 ORCA gate），
             # 但那會改變多材料 G-code 模型，且 change_filament_gcode 目前為空 → 屬參數/硬體人員的多材料架構決定。
@@ -158,8 +160,16 @@ def main(src_folder, model_key="FD300"):
             # inherits 必須指向有效父 preset：OrcaSlicer 載 vendor config 時看「有無 inherits key」，
             # 寫 "" 會被當成「找名為空字串的父項」→ can not find inherits → 整包 PING vendor 載入中止。
             proc = dict(b["P"])
+            # 列印加速度規範(2026-06-07)：300機(FD300/FP300)=3000、450+=1500；travel兩者皆3000。
+            # 覆寫定稿原值(5000)，與 gen_ping_profiles.py 一致。
+            pacc = "3000" if model_key in ("FD300", "FP300") else "1500"
             proc.update({"type":"process","name":proc_name,"from":"system","instantiation":"true",
-                    "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common","compatible_printers":[mac_name]})
+                    "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common","compatible_printers":[mac_name],
+                    "default_acceleration":pacc,"outer_wall_acceleration":pacc,
+                    "inner_wall_acceleration":pacc,"travel_acceleration":"3000",
+                    # Scarf 斜接縫(隱形 Z 接縫)：外牆/起始高10%/長度8mm。注:Orca 2.3.2 無 "scarf slope gap" key。
+                    "seam_slope_type":"external","has_scarf_joint_seam":"1",
+                    "seam_slope_start_height":"10%","seam_slope_min_length":"8"})
             jdump(os.path.join(PINGDIR,"process","%s.json"%proc_name), proc)
             proc_list.append({"name":proc_name,"sub_path":"process/%s.json"%proc_name}); gp+=1
 

@@ -7,7 +7,7 @@
     "inherits": "fdm_ping_common",
     "printer_model": "FD450 Pro",
     "printer_variant": "1.0",
-    "default_print_profile": "0.5mm Standard @FD450 Pro (1.0)",
+    "default_print_profile": "0.5mm @FD450 Pro (1.0)",
     "nozzle_diameter": [
         "1.0",
         "1.0"
@@ -203,5 +203,6 @@
     "machine_max_jerk_e": [
         "2.5",
         "2.5"
-    ]
+    ],
+    "alias": "FD450 Pro"
 }

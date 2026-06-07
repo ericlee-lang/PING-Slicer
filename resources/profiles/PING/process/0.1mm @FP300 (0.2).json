@@ -1,0 +1,22 @@
+{
+    "type": "process",
+    "name": "0.1mm @FP300 (0.2)",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGP004",
+    "inherits": "fdm_process_ping_common",
+    "layer_height": "0.1",
+    "initial_layer_print_height": "0.13",
+    "line_width": "0.2",
+    "compatible_printers": [
+        "FP300 0.2 nozzle"
+    ],
+    "seam_slope_type": "external",
+    "has_scarf_joint_seam": "1",
+    "seam_slope_start_height": "10%",
+    "seam_slope_min_length": "8",
+    "default_acceleration": "3000",
+    "outer_wall_acceleration": "3000",
+    "inner_wall_acceleration": "3000",
+    "travel_acceleration": "3000"
+}
