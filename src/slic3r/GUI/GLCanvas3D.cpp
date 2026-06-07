@@ -2954,8 +2954,10 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             bool filament_printable = cur_plate->check_filament_printable(full_config_temp, filament_printable_error_msg);
             _set_warning_notification(EWarning::FilamentPrintableError, !filament_printable);
 
-            bool mix_pla_and_petg = cur_plate->check_mixture_of_pla_and_petg(full_config_temp);
-            _set_warning_notification(EWarning::MixUsePLAAndPETG, !mix_pla_and_petg);
+            // PING: 停用「混用 PLA/PETG」警告——原為 Bambu H2D 專屬提示且會連向 bambulab.com wiki；
+            // PLA+SUP 是 PING 雙料機的正常用法，故永不顯示此通知。
+            //bool mix_pla_and_petg = cur_plate->check_mixture_of_pla_and_petg(full_config_temp);
+            _set_warning_notification(EWarning::MixUsePLAAndPETG, false);
 
             bool filament_nozzle_compatible = cur_plate->check_compatible_of_nozzle_and_filament(full_config_temp, wxGetApp().preset_bundle->filament_presets, get_nozzle_filament_incompatible_text());
             _set_warning_notification(EWarning::NozzleFilamentIncompatible, !filament_nozzle_compatible);
