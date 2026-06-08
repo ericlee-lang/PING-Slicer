@@ -67,5 +67,11 @@
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "60"
+    ],
+    "filament_colors": [
+        "#808080"
+    ],
+    "default_filament_colors": [
+        "#808080"
     ]
 }

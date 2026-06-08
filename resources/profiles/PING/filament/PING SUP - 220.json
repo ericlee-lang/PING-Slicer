@@ -272,5 +272,11 @@
     "instantiation": "true",
     "setting_id": "PINGFILSUP220",
     "filament_id": "PINGFILSUP220",
-    "inherits": "fdm_filament_common"
+    "inherits": "fdm_filament_common",
+    "filament_colors": [
+        "#808080"
+    ],
+    "default_filament_colors": [
+        "#808080"
+    ]
 }

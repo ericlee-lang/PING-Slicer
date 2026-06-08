@@ -232,10 +232,14 @@ for (nm, base, nt, bt, fan, ftype, issup, fid) in FILS:
         d["filament_is_support"] = ["1"]
     if nm == "PING SupPLA":
         d["filament_minimal_purge_on_wipe_tower"] = ["60"]   # 支撐料換料塔最小清洗量(2026-06-07)
+    # PING: 線材預設色(2026-06-08 使用者定)：支撐材料=灰 / 其餘=橘
+    _color = "#808080" if issup else "#EA4E16"
+    d["filament_colors"] = [_color]
+    d["default_filament_colors"] = [_color]
     w(os.path.join(PINGDIR, fp), d)
 
 w(os.path.join(PROF, "PING.json"), {
-    "name": "PING", "version": "01.00.00.08", "force_update": "0",
+    "name": "PING", "version": "01.00.00.09", "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": machine_models, "process_list": process_list,
     "filament_list": filament_list, "machine_list": machine_list})
