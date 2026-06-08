@@ -54,6 +54,8 @@
 #include <wx/dialog.h>
 #include <wx/textctrl.h>
 #include <wx/splash.h>
+#include <wx/graphics.h>   // PING: splash per-pixel 合成
+#include "SplashLayered.hpp" // PING: splash 去背(layered window)
 #include <wx/fontutil.h>
 #include <wx/glcanvas.h>
 #include <wx/utils.h>
@@ -315,10 +317,20 @@ public:
         // draw logo and constant info text
         Decorate(m_main_bitmap);
         wxGetApp().UpdateFrameDarkUI(this);
+
+#ifdef __WXMSW__
+        // PING: 啟動畫面去背——以 per-pixel alpha 重繪，桌面透出（取代白底畫布）
+        render_layered();
+#endif
     }
 
     void SetText(const wxString& text)
     {
+        m_action_text = text;   // PING: 記住載入文字，供去背模式重繪用
+#ifdef __WXMSW__
+        // PING: 去背模式——重新合成 (logo + 版本字 + 載入字) 並更新 layered window
+        render_layered();
+#else
         set_bitmap(m_main_bitmap);
         if (!text.empty()) {
             wxBitmap bitmap(m_main_bitmap);
@@ -340,6 +352,7 @@ public:
             wxYield();
 #endif
         }
+#endif // __WXMSW__
     }
 
     void Decorate(wxBitmap& bmp)
@@ -430,6 +443,55 @@ public:
 #endif //__WXMSW__
     }
 
+#ifdef __WXMSW__
+    // PING: 啟動畫面去背渲染——以 wxGraphicsContext 在「透明」點陣圖上合成
+    // (splash_logo + 版本字 + 載入字)，再交給 update_splash_layered() 以 per-pixel alpha
+    // 貼到視窗（桌面透出，取代原本 MakeBitmap 的白底畫布）。
+    void render_layered()
+    {
+        const int width  = m_main_bitmap.GetWidth();
+        const int height = m_main_bitmap.GetHeight();
+        if (width <= 0 || height <= 0)
+            return;
+
+        // 重新載入乾淨 logo（含 alpha，依視窗縮放，與 Decorate 同一張）
+        BitmapCache bmp_cache;
+        bool        is_dark  = wxGetApp().app_config->get("dark_color_mode") == "1";
+        wxBitmap    logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);
+
+        wxBitmap target(width, height, 32);   // 32-bit 含 alpha
+        {
+            wxMemoryDC         mem_dc(target);
+            wxGraphicsContext* gc = wxGraphicsContext::Create(mem_dc);
+            if (gc != nullptr) {
+                gc->SetCompositionMode(wxCOMPOSITION_CLEAR);   // 全清成透明
+                gc->SetBrush(*wxTRANSPARENT_BRUSH);
+                gc->SetPen(*wxTRANSPARENT_PEN);
+                gc->DrawRectangle(0, 0, width, height);
+                gc->SetCompositionMode(wxCOMPOSITION_OVER);
+
+                gc->DrawBitmap(logo_bmp, 0, 0, width, height);   // 保留 per-pixel alpha
+
+                // 版本字「V3.5」白字（位置同 Decorate）
+                gc->SetFont(m_constant_text.version_font, wxColour(255, 255, 255));
+                wxDouble vw = 0, vh = 0, vd = 0, ve = 0;
+                gc->GetTextExtent(m_constant_text.version, &vw, &vh, &vd, &ve);
+                gc->DrawText(m_constant_text.version, width * 0.224, height * 0.527 - vh / 2);
+
+                // 載入狀態字（灰，置中）
+                if (!m_action_text.empty()) {
+                    gc->SetFont(m_action_font, wxColour(144, 144, 144));
+                    wxDouble aw = 0, ah = 0, ad = 0, ae = 0;
+                    gc->GetTextExtent(m_action_text, &aw, &ah, &ad, &ae);
+                    gc->DrawText(m_action_text, (width - aw) / 2.0, m_action_line_y_position);
+                }
+                delete gc;
+            }
+        }
+
+        update_splash_layered(this, target);
+    }
+#endif // __WXMSW__
 
 private:
     wxStaticText* m_staticText_slicer_name;
@@ -439,6 +501,7 @@ private:
 
     wxBitmap    m_main_bitmap;
     wxFont      m_action_font;
+    wxString    m_action_text;            // PING: 目前載入文字（去背重繪用）
     int         m_action_line_y_position;
     float       m_scale {1.0};
 

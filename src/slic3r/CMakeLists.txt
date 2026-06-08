@@ -190,6 +190,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/GLToolbar.hpp
     GUI/ImageDPIFrame.cpp
     GUI/ImageDPIFrame.hpp
+    GUI/SplashLayered.cpp
+    GUI/SplashLayered.hpp
     GUI/GUI_App.cpp
     GUI/GUI_App.hpp
     GUI/GUI_AuxiliaryList.cpp
