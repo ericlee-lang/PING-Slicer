@@ -13,7 +13,8 @@
 ## 0. 立即接續（現況 + 待辦）
 
 **現況（2026-06-08・本 session 大量進展；resources 多已 portable 驗證，原生待 build）**
-- **已發 Release v3.5.0**（見下），但 ⚠ **該安裝版是英文版**（.mo 沒打包，語言 bug 已修待下次 build；坑 #16）。
+- ✅ **已發 Release v3.5.1**（2026-06-08，繁中＋全部修正，給同事）：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.1 （build run `27128055141`・commit `e496f8cf`）。**修好 v3.5.0「只剩英文」**（坑#16；.mo 已打包並實機驗證繁中 OK）。下方「待 build 的 6 commit」+ 停用自動更新器**皆已 build 進此版**。⚠ 內含**已知 bug**：wizard 單料頭↔同進 連動（§4 待辦1，**已確認是真 bug**、已揭露於 release notes、不影響切片）。
+- （舊）~~已發 Release v3.5.0~~ 是英文版（.mo 沒打包，坑 #16）→ 已被 v3.5.1 取代。
 - 選機精靈：已做「**同系列分列**」（FP300 一列、FD300 三模式一列）——**使用者已驗證 ✓**。
 - 機型命名：兩進一出 → **FD300 同進**、單噴頭 → **FD300 單料頭**（全中文；**棄用 Mix50**：四料是 25% 混料非 50%，數字不通用，改全中文。**勿再用 Mix50**）。三台共用 FD300 照片。
 - 切片命名規範（§8）、Scarf 接縫、去金魚 logo、列印加速度規範、SupPLA 清洗量、**線材預設色**——皆已套用（多在下面 commit）。
@@ -123,7 +124,13 @@
 - FD300 定稿參數：3 機台變體 × 3 口徑。
 
 ### ⬜ 待辦（給下一棒・依優先序）
-1. **【最優先・未解】wizard「FD300 單料頭 ↔ 同進」conflation**：使用者回報「選一個、確定後兩個都被選」。已查：`setting_id` 全唯一、AppConfig `set/get_variant` 用**精確機型名**為 key、wizard JS 也按 model 分 → **資料與明顯程式路徑都無 conflation**；config 現兩個都啟用**疑似舊測試殘留**。**待乾淨重現**：選機頁「全部清空」→ 只勾同進 → 確定 → 重開 → 看單料頭是否也被勾。若是真 bug → 深挖 `WebGuideDialog.cpp::apply_config`／`PresetBundle load_presets` 的可見性比對 + 讀 `%APPDATA%\PINGSlicer\log\debug_*.log`。
+1. **【確認真 bug・待修】wizard「FD300 單料頭 ↔ 同進」conflation**（2026-06-08 實機 JS 探針 + 存檔重現 + conf 比對，**已確認**；先前「疑似殘留」的判斷是**錯的**）：
+   - **乾淨重現**：選機頁「全部清空」→ 只勾單料頭（在 `CheckBoxOnclick` 插 `alert` 探針確認 DOM 只有單料頭=true、同進全 false）→ 確定 → 重開 → **同進也被勾**；反向（只勾同進 → 單料頭復活）亦然。`PINGSlicer.conf` 的 `models` 存檔即含兩個。
+   - **已排除（別再查）**：① **JS 點擊乾淨**——探針 2 次證實點單料頭時同進 DOM 不變、反之亦然；② **非「作用中印表機鎖定」**——把非作用中的單料頭整個取消，它仍復活；③ **非同系列連動**——同系列的**基本款 FD300 可正常被移除**，只有單料頭↔同進鎖死。
+   - **連動在 native「確定 → SaveProfile/apply_config 套用」這一步**（JS 送出 `data` 只有同進，conf 卻變兩個）。但讀碼：`SaveProfile`（L610，`set_vendors(empty)` 後只對 `nozzle_selected` 非空的 model 寫 `set_variant`）+ `apply_config`（L880 `app_config->set_vendors(m_appconfig_new)` 整個取代）+ `save_userguide_models`（L425 精確 `compare`）**全部讀起來乾淨**。→ 真因是**隱蔽交互**，疑似 wizard 結束後「重載 active 印表機 preset」把單料頭一起拉回，且似與「同進為作用中」有關。
+   - **下一步（兩條，給下一棒）**：① **免 build**：把 active 印表機換成 FP300/基本款，再測單料頭——確認連動是否綁「同進是作用中」，能縮小修法範圍；② **加 native log + build**：`SaveProfile` 的 set_variant 迴圈 L658/665 **已有 `BOOST_LOG_TRIVIAL(info)`**，但目前 log level 過濾掉 info（`debug_*.log` 只剩 error/warning）→ 需把 log level 開到 info（或改 BOOST 等級）再 build，即可抓到「誰把單料頭寫回 app_config」。同時查 wizard 後 `GUI_App::load_current_presets` / `PresetBundle` 對 active 印表機的 re-enable 邏輯。
+   - **影響**：wizard「啟用清單」連動，**不影響切片**——兩 preset 各自獨立、主畫面選任一個都能正確切片。已於 **v3.5.1 release notes 揭露為已知問題**。
+   - **診斷探針位置**：暫存測試版 `D:\PING-Slicer-v35x-new\resources\web\guide\{21,24}\*.js` 的 `CheckBoxOnclick` 加了 `alert` dump（**repo 乾淨、未動**）；要再測直接看那支或重加。
 2. **湊齊後一次 build + 重發 Release**：上面「待 build」6 個 commit（splash/語言/捷徑/wizard×2/色）一起 build → 重發 v3.5.x（給同事繁中＋全部修正）。⚠ splash 未測，build 後先確認 splash 顯示 OK，可能需微調再 build。`gh workflow run "Build all" --ref ping/v3.5`。
 3. **剩餘 native 待辦**（與上 build 同批做）：macOS bundle 名/dmg、自動更新器停用(`check_new_version_sf`)、工具列 title logo、splash「V3.5」字位(去背後可能要重對)。
 4. **wizard 卡片改模式示意圖**：使用者要把機器照換成「雙料/單料/同進」模式示意圖（目前先保留 FD300 照）。卡片 cover = `resources/profiles/PING/<機型>_cover.png`(坑#11)。
