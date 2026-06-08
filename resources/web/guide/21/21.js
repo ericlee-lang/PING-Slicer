@@ -314,22 +314,21 @@ function FilterModelList(keyword) {
 	TranslatePage();
 }
 
+// PING: 改用 native querySelectorAll + 直接設值，移除 jQuery 逐元素 $(this) 包裝開銷（加速全選/全部清空）
 function SelectPrinterAll(sVendor) {
-    $("input[vendor='"+sVendor+"']").each(function() {
-        $(this).prop("checked", true);
-        let strModel = $(this).attr("model");
-        let strNozzel = $(this).attr("nozzel");
-        SetModelSelect(sVendor, strModel, strNozzel, true);
-    });
+    let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
+    for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = true;
+        SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), true);
+    }
 }
 
 function SelectPrinterNone(sVendor) {
-    $("input[vendor='"+sVendor+"']").each(function() {
-        $(this).prop("checked", false);
-        let strModel = $(this).attr("model");
-        let strNozzel = $(this).attr("nozzel");
-        SetModelSelect(sVendor, strModel, strNozzel, false);
-    });
+    let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
+    for (let i = 0; i < inputs.length; i++) {
+        inputs[i].checked = false;
+        SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), false);
+    }
 }
 
 
