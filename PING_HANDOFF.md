@@ -1,5 +1,9 @@
 # PING Slicer V3.5 — Session Hand-off ＆ 客製化指南
 
+> 🟠 **本專案 repo（git）在：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer`**（分支 `ping/v3.5`）。
+> **請在這個資料夾開 session**，不要開在 G 槽雲端的 `…\20250403 ORCA軟體客制\`（那是舊資料夾，沒有 repo）。
+> 接續指令： `讀 D:\dev\2026claude\20260604 ORCA客製\PING-Slicer\PING_HANDOFF.md 接續`
+>
 > 這份是「接手用」文件：給下一個 Session（或維護者）快速接續 + 避免重踩坑。
 > 搭配 `PING_CUSTOMIZATION.md`（AGPL 修改紀錄）一起看。
 > 最近一次 session 圖文總結：`D:\dev\2026claude\20260604 ORCA客製\PING_session_summary_20260607.html`。
