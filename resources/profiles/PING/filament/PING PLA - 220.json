@@ -272,5 +272,11 @@
     "instantiation": "true",
     "setting_id": "PINGFILPLA220",
     "filament_id": "PINGFILPLA220",
-    "inherits": "fdm_filament_common"
+    "inherits": "fdm_filament_common",
+    "filament_colors": [
+        "#EA4E16"
+    ],
+    "default_filament_colors": [
+        "#EA4E16"
+    ]
 }
