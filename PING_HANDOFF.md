@@ -18,11 +18,14 @@
 - **對話框去金魚 logo**：`OrcaSlicer.svg` + web logo 換成 PING（坑 #14）。
 
 **版本 / commit 狀態**
-- 已 build + commit：`0a626ad5`（CSS 選機頁 + 製程 inherits + 原生線材槽 patch）。
-- **未 commit（純資源・待測 OK 後提交）**：去金魚 logo、機型/製程改名 + 命名規範（含 **Mix50→同進**）、接縫設定、**列印加速度規範 + SupPLA 清洗量**（見下），PING.json version→`01.00.00.08`。已同步 portable + APPDATA。
-  - **列印加速度規範（2026-06-07 使用者定）**：300 機（FD300/單料頭/同進/FP300）普通列印·內牆·外牆 = **3000**；450+ 機（FD450/600/800 Pro·FF600/800）三者 = **1500**；**travel 兩組都 3000**（原 5000 已降）。27 個製程全套用，**生成器已同步**（`gen_ping_profiles.py` 用 `dia==300` 判斷；`embed_params.py` 用 `model_key`）。
-  - **PING SupPLA** 換料塔最小清洗量 `filament_minimal_purge_on_wipe_tower` = **60**（原繼承 15）；只改 SupPLA，SupABS / `PING SUP - 220`(35) 未動。生成器 `gen_ping_profiles.py` 已同步。
-- **未 commit（原生・待下次 build）**：PLA/PETG 混用警告移除（`GLCanvas3D.cpp`，原連 Bambu wiki）。
+- 已 build + commit + **已發 Release v3.5.0**（run 27108286233 → Windows 安裝版公開連結 https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.0）：
+  - `0a626ad5` CSS 選機頁 + 製程 inherits + 原生線材槽 patch
+  - `b762903f` 機型同進改名 + 命名規範 + 列印加速度 + SupPLA + 去金魚 logo + Scarf（純資源，PING.json v08，已同步 portable/APPDATA）
+  - `4eb0162b` GLCanvas3D 停用 PLA/PETG 混用警告（原生）
+  - **列印加速度規範（使用者定）**：300 機（FD300/單料頭/同進/FP300）普/內/外 = **3000**；450+ 機（FD450/600/800 Pro·FF600/800）三者 = **1500**；**travel 兩組 3000**（原 5000 已降）。27 製程全套用，生成器已同步（`gen_ping_profiles.py` 用 `dia==300`；`embed_params.py` 用 `model_key`）。
+  - **PING SupPLA** 換料塔最小清洗量 = **60**（原 15；只此一支，SupABS/SUP-220 未動）。
+- **未 commit / 待下次 build（原生）**：**啟動畫面 per-pixel 去背**（splash 桌面透出，取代白底）——新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow`，windows.h 隔離避免巨集污染）＋ `GUI_App.cpp` 的 `SplashScreen` 加 `render_layered()`／`SetText` MSW 分支／建構子呼叫 ＋ `src/slic3r/CMakeLists.txt` 列入新檔。**僅 MSW**（非 MSW 維持原白底不透明）。⚠ **未經 build 驗證**：per-pixel alpha 有 runtime 風險（wxGraphicsContext→bitmap 的 alpha 保留、premultiplied、layered 視窗序列），可能需一次微調再 build。
+  - 機制：`splash_logo.png` 本身去背；原 `MakeBitmap()` 白底畫布在 MSW 被 layered DIB 蓋過。`render_layered()` 用 wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字 → `update_splash_layered()` 做 premultiplied BGRA + `UpdateLayeredWindow`。
 
 **下一棒待辦** → 見 §4。
 
