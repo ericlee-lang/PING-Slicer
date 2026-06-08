@@ -33,6 +33,8 @@ src/OrcaSlicer-doc/
 .idea/
 /.cache/
 *.mo
+# PING: CI 不跑 gettext_po_to_mo，故把已編好的 i18n .mo 收進 repo 由 build 打包（坑#5 根治）
+!resources/i18n/**/*.mo
 **/process_full/
 **/machine_full/
 **/filament_full/
