@@ -62,6 +62,12 @@
 {
 	padding: 10px 0px; /* ORCA Reduce horizontal paddings to fit 4 items per row */
 	display: flex;
+	flex-direction: column;   /* PING: 改直向堆疊，每個系列各自一列 */
+}
+
+.SeriesRow   /* PING: 同系列卡片排在同一列 */
+{
+	display: flex;
 	flex-wrap: wrap;
 }
 

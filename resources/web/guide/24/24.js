@@ -88,11 +88,15 @@ function HandleModelList( pVal )
 		}
 		
 		let ModelName=OneModel['model'];
-		
+
 		//Collect Html Node Nozzel Html
+		//PING: 依「系列」分組(機型名第一個 token)，使同系列卡片同一列
+		let strSeries=ModelName.split(' ')[0];
 		if( !ModelHtml.hasOwnProperty(strVendor))
-			ModelHtml[strVendor]='';
-			
+			ModelHtml[strVendor]={};
+		if( !ModelHtml[strVendor].hasOwnProperty(strSeries))
+			ModelHtml[strVendor][strSeries]='';
+
 		let NozzleArray=OneModel['nozzle_diameter'].split(';');
 		let HtmlNozzel='';
 		for(let m=0;m<NozzleArray.length;m++)
@@ -100,17 +104,21 @@ function HandleModelList( pVal )
 			let nNozzel=NozzleArray[m];
 			HtmlNozzel += '<div class="pNozzel TextS2"><input type="checkbox" model="' + OneModel['model'] + '" nozzel="' + nNozzel + '" vendor="' + strVendor +'" onclick="CheckBoxOnclick(this)" /><span>'+nNozzel+'</span><span class="trans" tid="t13">mm nozzle</span></div>';
 		}
-		
+
 		let CoverImage=OneModel['cover'];
-		ModelHtml[strVendor]+='<div class="PrinterBlock">'+
+		ModelHtml[strVendor][strSeries]+='<div class="PrinterBlock">'+
 '	<div class="PImg"><img src="'+CoverImage+'"  /></div>'+
 '    <div class="PName">'+OneModel['model']+'</div>'+ HtmlNozzel +'</div>';
 	}
-	
-	//Update Nozzel Html Append
+
+	//Update Nozzel Html Append —— PING: 每個系列包成一個 .SeriesRow（獨立一列）
 	for( let key in ModelHtml )
 	{
-		$(".OneVendorBlock[vendor='"+key+"'] .PrinterArea").append( ModelHtml[key] );
+		let pArea=$(".OneVendorBlock[vendor='"+key+"'] .PrinterArea");
+		for( let series in ModelHtml[key] )
+		{
+			pArea.append('<div class="SeriesRow">'+ModelHtml[key][series]+'</div>');
+		}
 	}
 	
 	
@@ -252,8 +260,12 @@ function FilterModelList(keyword) {
 		}
 
 		//Collect Html Node Nozzel Html
+		//PING: 同 HandleModelList，依系列分組
+		let strSeries = ModelName.split(' ')[0];
 		if (!ModelHtml.hasOwnProperty(strVendor))
-			ModelHtml[strVendor] = '';
+			ModelHtml[strVendor] = {};
+		if (!ModelHtml[strVendor].hasOwnProperty(strSeries))
+			ModelHtml[strVendor][strSeries] = '';
 
 		let NozzleArray = OneModel['nozzle_diameter'].split(';');
 		let HtmlNozzel = '';
@@ -263,16 +275,18 @@ function FilterModelList(keyword) {
 		}
 
 		let CoverImage = OneModel['cover'];
-		ModelHtml[strVendor] += '<div class="PrinterBlock">' +
+		ModelHtml[strVendor][strSeries] += '<div class="PrinterBlock">' +
 			'	<div class="PImg"><img src="' + CoverImage + '"  /></div>' +
 			'    <div class="PName">' + OneModel['model'] + '</div>' + HtmlNozzel + '</div>';
 	}
 
-	//Update Nozzel Html Append
+	//Update Nozzel Html Append —— PING: 系列分列(.SeriesRow)
 	for (let key in ModelHtml) {
 		let obj = $(".OneVendorBlock[vendor='" + key + "'] .PrinterArea");
 		obj.empty();
-		obj.append(ModelHtml[key]);
+		for (let series in ModelHtml[key]) {
+			obj.append('<div class="SeriesRow">' + ModelHtml[key][series] + '</div>');
+		}
 	}
 
 
