@@ -8,26 +8,28 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**現況（2026-06-07・本 session 完成、多數已驗證）**
-- 選機精靈「選擇 3D 列印機」頁正常運作（CSS 修，見坑 #1 註）。
-- **FD300 家族 vendor 載入正常**（製程 inherits 修，坑 #12）；**FD300（雙料）選機自動跳 2 卷線材**（原生 patch，坑 #9）——已 build（run `27049518615`）+ 驗證、混料切片正常（更換線材 30 次）。
-- **機型已改名**：兩進一出 → **FD300 同進**、單噴頭 → **FD300 單料頭**；FD300 / 單料頭 / 同進 **三台共用同一張 FD300 照片**。
-  - ⚠ 命名定案（2026-06-07）：混料機型名用全中文「**同進**」（多料同一噴頭進料），**取代曾用的「Mix50」**。原因：未來「四料」是 25% 混料、非 50%，「50」無法通用；改全中文好理解。下個 session 一律用「同進」，不要再出現 Mix50。
-- **切片命名規範統一**（詳見 §8）：機型名去口徑(`alias`)、製程 `<層高>mm @<機型> (<口徑>)` 去 Standard、材料歸線材 preset。
-- **製程標配 Scarf 斜接縫**（隱形 Z 接縫，坑 #13 機制）。
-- **對話框去金魚 logo**：`OrcaSlicer.svg` + web logo 換成 PING（坑 #14）。
+**現況（2026-06-08・本 session 大量進展；resources 多已 portable 驗證，原生待 build）**
+- **已發 Release v3.5.0**（見下），但 ⚠ **該安裝版是英文版**（.mo 沒打包，語言 bug 已修待下次 build；坑 #16）。
+- 選機精靈：已做「**同系列分列**」（FP300 一列、FD300 三模式一列）——**使用者已驗證 ✓**。
+- 機型命名：兩進一出 → **FD300 同進**、單噴頭 → **FD300 單料頭**（全中文；**棄用 Mix50**：四料是 25% 混料非 50%，數字不通用，改全中文。**勿再用 Mix50**）。三台共用 FD300 照片。
+- 切片命名規範（§8）、Scarf 接縫、去金魚 logo、列印加速度規範、SupPLA 清洗量、**線材預設色**——皆已套用（多在下面 commit）。
 
-**版本 / commit 狀態**
-- 已 build + commit + **已發 Release v3.5.0**（run 27108286233 → Windows 安裝版公開連結 https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.0）：
-  - `0a626ad5` CSS 選機頁 + 製程 inherits + 原生線材槽 patch
-  - `b762903f` 機型同進改名 + 命名規範 + 列印加速度 + SupPLA + 去金魚 logo + Scarf（純資源，PING.json v08，已同步 portable/APPDATA）
-  - `4eb0162b` GLCanvas3D 停用 PLA/PETG 混用警告（原生）
-  - **列印加速度規範（使用者定）**：300 機（FD300/單料頭/同進/FP300）普/內/外 = **3000**；450+ 機（FD450/600/800 Pro·FF600/800）三者 = **1500**；**travel 兩組 3000**（原 5000 已降）。27 製程全套用，生成器已同步（`gen_ping_profiles.py` 用 `dia==300`；`embed_params.py` 用 `model_key`）。
-  - **PING SupPLA** 換料塔最小清洗量 = **60**（原 15；只此一支，SupABS/SUP-220 未動）。
-- **未 commit / 待下次 build（原生）**：**啟動畫面 per-pixel 去背**（splash 桌面透出，取代白底）——新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow`，windows.h 隔離避免巨集污染）＋ `GUI_App.cpp` 的 `SplashScreen` 加 `render_layered()`／`SetText` MSW 分支／建構子呼叫 ＋ `src/slic3r/CMakeLists.txt` 列入新檔。**僅 MSW**（非 MSW 維持原白底不透明）。⚠ **未經 build 驗證**：per-pixel alpha 有 runtime 風險（wxGraphicsContext→bitmap 的 alpha 保留、premultiplied、layered 視窗序列），可能需一次微調再 build。
-  - 機制：`splash_logo.png` 本身去背；原 `MakeBitmap()` 白底畫布在 MSW 被 layered DIB 蓋過。`render_layered()` 用 wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字 → `update_splash_layered()` 做 premultiplied BGRA + `UpdateLayeredWindow`。
+**版本 / commit 狀態（分支 `ping/v3.5`，全部已 push）**
+- **已發 Release v3.5.0**（run 27108286233・commit `4eb0162b`）：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.0
+  - 含：同進改名+命名規範+加速度+SupPLA+去金魚logo+Scarf（`b762903f`，PING.json v08）、GLCanvas3D停PLA/PETG警告（`4eb0162b`）、CSS選機頁+inherits+線材槽patch（`0a626ad5`）。
+  - ⚠ **此 Release 沒有以下**（commit 都在 `4eb0162b` 之後，未進任何 Release）：
+- **待下次 build 的 commit（已 push、未 build）**：
+  - `134bab83` splash per-pixel 去背（**原生・未經 build 驗證**，可能需微調；坑 #15）
+  - `1c85381c` i18n：收進 42 個 .mo → 安裝版有繁中+多國（坑 #16）
+  - `f091d952` 捷徑名加 V3.5（桌面+開始選單，CMakeLists CPack/NSIS）
+  - `f50ada0f` wizard 選機頁同系列分列（web・**已驗證**）
+  - `fc9f8d6a` wizard 全選/清空改 native querySelectorAll（web・**已驗證快**）
+  - `05d852c3` 線材預設色 一般橘 `#EA4E16` / 支撐灰 `#808080`（PING.json **v09**；生成器同步，但 embed_params 的 -220 變體色待補）
+- **參數規範（使用者定）**：加速度 300機普/內/外=3000、450+=1500、travel兩組3000（27製程，生成器同步）；SupPLA 清洗量 60；線材色 橘/灰。
 
-**下一棒待辦** → 見 §4。
+⚠ **重要觀念（避免混淆）**：portable（`D:\PING-Slicer-portable`）的 **binary 是 6/6 舊 build**，我只同步 resources 上去 → portable 能測**資源面**（wizard/profiles/色/.mo），**原生面**（splash/捷徑/語言載入）要 build 才有。安裝版 v3.5.0 是 6/8 新編（原生有，但缺上面那批 resources/native commit）。
+
+**下一棒最優先**：① 確認 wizard「單料頭↔同進 conflation」是真 bug 還是殘留狀態（§4 待辦 1，**未解**）→ ② 湊齊後**一次 build + 重發 Release**（給同事繁中＋全部修正）。其餘待辦見 §4。
 
 ---
 
@@ -86,6 +88,10 @@
 
 14. **對話框 logo = `OrcaSlicer.svg`**（`MsgDialog` 的 `create_scaled_bitmap("OrcaSlicer")`，走 nanosvg）。app 圖示 `.ico/.png` 早已是 PING 橘 P，但 svg 優先載入且先前漏換 → 對話框一直金魚。**nanosvg 不吃 base64 `<image>`**，要用純向量 SVG（可用 PyMuPDF 把官方 `src_compact.pdf` 轉 SVG + 去 clipPath）。web logo 在 `guide/1/index.html` + `homepage/index.html`（方形槽，用橘 P 方圖）。
 
+15. **【i18n 安裝版只剩英文】產 `.mo` 的 `gettext_po_to_mo` 是獨立 custom target、不在預設 build，CI 從不執行 → 安裝版 `resources/i18n` 全空 → 語言清單只剩 English。** CMakeLists L761 命名已是 `${SLIC3R_APP_KEY}.mo`(=PINGSlicer.mo) 是對的，但根本沒被產生。`.po` 在 `localization/i18n/*/`，repo 的 `resources/i18n` 原本 0 個 .mo（被 `.gitignore` `*.mo` 擋）。**解法（坑#16 已用）**：把可用 portable 的 21 種語言 .mo（OrcaSlicer.mo + PINGSlicer.mo 各 21）收進 repo `resources/i18n/`，`.gitignore` 加例外 `!resources/i18n/**/*.mo`，build 直接打包。app key=PINGSlicer → app 找 `PINGSlicer.mo`（坑 #5）。**需 build 才進安裝版**。
+
+16. **splash per-pixel 去背（layered window）機制 + 風險**：白底來源是 `MakeBitmap()` 用 `*wxWHITE` 填滿 700×450 畫布，再疊**去背的** `splash_logo.png`(透明處透出白)。修法（`134bab83`，**僅 MSW・未經 build 驗證**）：新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow` + premultiplied BGRA；`windows.h` 用 `wx/msw/wrapwin.h` **隔離在獨立 TU**，否則 `DrawText` 等巨集會汙染 GUI_App.cpp）；`SplashScreen` 加 `render_layered()`（wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字）+ `SetText`/建構子 MSW 分支；CMakeLists 列入新檔。⚠ **runtime 風險**：wxGraphicsContext→bitmap 的 alpha 是否正確、premultiply 是否雙重、layered 視窗序列——build 後若 splash 不對（黑/全透/邊緣暗）多半是這幾點，需微調。非 MSW 維持原白底（編譯安全）。
+
 ---
 
 ## 3. ✅ 正確的客製化流程
@@ -104,19 +110,24 @@
 
 ### ✅ 已完成
 - 品牌：app 名稱、splash、About 框、配色青綠→橘、預設繁中、移除 Bambu 雲端。
-- **選機精靈頁修復**（CSS）、**vendor 載入修復**（製程 inherits）、**FD300 自動 2 卷**（原生 patch，已 build run 27049518615）。
-- **去金魚 logo**（OrcaSlicer.svg + web logo）。
-- **機型改名 + 切片命名規範統一 + 接縫 Scarf**（見 §8）。
-- FD300 定稿參數：3 機台變體（雙料 FD300 / 單料頭 / 同進）× 3 口徑。
+- 選機精靈頁修復(CSS)、vendor 載入修復(製程 inherits)、FD300 自動 2 卷(原生 patch)。
+- 去金魚 logo、機型改名(同進/單料頭)+切片命名規範+Scarf 接縫(§8)。
+- **列印加速度規範**(300=3000 / 450+=1500 / travel 3000)、**SupPLA 清洗量 60**、**線材預設色**(一般橘/支撐灰)。
+- **i18n .mo 收進 repo**(修安裝版只剩英文；坑 #16)、**捷徑加 V3.5**、**splash per-pixel 去背**(原生・未經 build 驗證；坑 #15)。
+- **wizard 選機頁同系列分列**(FP300一列/FD300三模式一列) + 全選/清空 native 化(皆已驗證)。
+- **清掉測試殘留 user presets**(`FD300 同進 0.25` / `0.125mm @FD300 (0.25) - 複製` / `PING PLA - 210`，本 session 已刪)。
+- FD300 定稿參數：3 機台變體 × 3 口徑。
 
-### ⬜ 待辦（給下一棒）
-1. **commit 已確認批**（去金魚 logo + 機型/製程命名 + 接縫；純資源、免 build）— 待使用者測 OK。
-2. **下次 native build 批**：PLA/PETG 混用警告移除（已寫未 commit）＋ `.mo` 根治（CMakeLists L761）＋ macOS bundle 名 ＋ 自動更新器停用（`check_new_version_sf`）＋ 工具列 title logo ＋ splash V3.5 定位。
-3. **清測試殘留 user presets**：`FD300 0.25 nozzle - 複製`、`-0.173`、`0.125mm @FD300 (0.25) - 複製`（需 App 關閉再刪；線材 `PING PLA - 210` 使用者決定）。
-4. **繼續切片參數**：材料溫度/支撐/速度…（材料相關放 **filament preset**，依 §8；值是參數人員源檔）。
-5. **線材頁只留 PING**：wizard 線材頁 `guide/22` 過濾掉 OrcaFilamentLibrary 廠牌。
-6. **嵌入其他機型參數**：`匯出_3mf\` 的 FD600/FF600/FF800/FP300（先擴充 `embed_params.py` 支援 .3mf 解壓）。
-7. **FP300 口徑對齊**：讀 `切片參數\` 規格 MD 確認 0.2 vs 0.25、有無 0.8（見 §5 開放問題）。
+### ⬜ 待辦（給下一棒・依優先序）
+1. **【最優先・未解】wizard「FD300 單料頭 ↔ 同進」conflation**：使用者回報「選一個、確定後兩個都被選」。已查：`setting_id` 全唯一、AppConfig `set/get_variant` 用**精確機型名**為 key、wizard JS 也按 model 分 → **資料與明顯程式路徑都無 conflation**；config 現兩個都啟用**疑似舊測試殘留**。**待乾淨重現**：選機頁「全部清空」→ 只勾同進 → 確定 → 重開 → 看單料頭是否也被勾。若是真 bug → 深挖 `WebGuideDialog.cpp::apply_config`／`PresetBundle load_presets` 的可見性比對 + 讀 `%APPDATA%\PINGSlicer\log\debug_*.log`。
+2. **湊齊後一次 build + 重發 Release**：上面「待 build」6 個 commit（splash/語言/捷徑/wizard×2/色）一起 build → 重發 v3.5.x（給同事繁中＋全部修正）。⚠ splash 未測，build 後先確認 splash 顯示 OK，可能需微調再 build。`gh workflow run "Build all" --ref ping/v3.5`。
+3. **剩餘 native 待辦**（與上 build 同批做）：macOS bundle 名/dmg、自動更新器停用(`check_new_version_sf`)、工具列 title logo、splash「V3.5」字位(去背後可能要重對)。
+4. **wizard 卡片改模式示意圖**：使用者要把機器照換成「雙料/單料/同進」模式示意圖（目前先保留 FD300 照）。卡片 cover = `resources/profiles/PING/<機型>_cover.png`(坑#11)。
+5. **線材頁只留 PING**：wizard `guide/22` 過濾掉 OrcaFilamentLibrary 廠牌。
+6. **繼續切片參數**：材料溫度/支撐/速度（材料相關放 filament preset，§8；值是參數人員源檔）。
+7. **嵌入其他機型參數**：`匯出_3mf\` 的 FD600/FF600/FF800/FP300（擴 `embed_params.py` 支援 .3mf）。
+8. **FP300 口徑對齊**：規格 MD 確認 0.2 vs 0.25、有無 0.8（§5）。
+9. **embed_params 補線材色**：-220 變體色已設於 profile，但 `embed_params.py` 未加色邏輯（regen 會洗掉；`gen_ping_profiles.py` 已加）。
 
 ---
 
@@ -138,14 +149,17 @@
 ## 6. 主要 git commits
 
 ```
-（本 session・ping/v3.5）
-0a626ad5 CSS選機頁 + 製程inherits修 + 原生線材槽patch(GUI_App.cpp:7104)  ← build run 27049518615
-（更早）
-446b7099 About框PING化(保留致謝)
-e357e7c3 FD300三模式參數嵌入 + embed_params.py轉換器
-69b7c750 web設定精靈:移除PING前綴 + 跳過Bambu插件頁
-（未 commit・純資源）去金魚logo(OrcaSlicer.svg+web) + 機型改名(同進/單料頭) + 製程命名去Standard + alias + 接縫Scarf
-（未 commit・原生）PLA/PETG混用警告移除(GLCanvas3D.cpp)
+（本 session 2026-06-08・ping/v3.5，皆已 push；前 6 個「待下次 build」）
+05d852c3 線材預設色 橘#EA4E16/支撐灰#808080 (PING.json v09)
+fc9f8d6a wizard 全選/清空 改 native querySelectorAll
+f50ada0f wizard 選機頁同系列分列 (已驗證)
+f091d952 捷徑名加 V3.5 (CMakeLists CPack/NSIS)
+1c85381c i18n 收進 42 個 .mo → 安裝版繁中 (坑#16)
+134bab83 splash per-pixel 去背 (原生・未測；坑#15)
+4eb0162b GLCanvas3D 停 PLA/PETG 警告        ← 已進 Release v3.5.0 (build 27108286233)
+b762903f 同進改名+命名規範+加速度+SupPLA+去金魚logo+Scarf  ← 已進 v3.5.0 (PING.json v08)
+0a626ad5 CSS選機頁+製程inherits+原生線材槽patch          ← 已進 v3.5.0 (更早 build 27049518615)
+（更早）446b7099 About框PING化 ｜ e357e7c3 FD300三模式+embed_params ｜ 69b7c750 web精靈去PING前綴+跳Bambu
 ```
 
 ---
