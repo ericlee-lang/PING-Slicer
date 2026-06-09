@@ -12,6 +12,17 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
+**🟢 現況（2026-06-10 — FD300 材料擴充 + FP300 衍生完成、conflation/噴嘴 native bug「接受不修」、⚠ 待 commit）**
+- ✅ **v3.5.1 已發布並安裝驗證**（繁中 OK）。安裝版 `C:\Program Files\PING Slicer V3.5\`；所有 PING app 共用 `%APPDATA%\PINGSlicer\system`。**測試一律用 portable `D:\PING-Slicer-portable`**（Program Files 不可寫，需管理員）。
+- ✅ **End G-code 改正常收尾已 commit（`6b2d126a`）**：27 機台＋產生器，移除退料 `G1 E-500`（退料交韌體；機器端已有退料功能）。與參數端最新交付一致（§五 基本收尾）。
+- 🔚 **conflation 結論＝接受為已知 native bug（不修）**：去空格實驗證明根因是 native「FD300 前綴比對」非空格 → resource 無解。**已 revert 去空格**，FD300 維持三機型（`FD300`／`FD300 同進`／`FD300 單料頭`，**有空格名**）。深查 native（`PresetComboBoxes.cpp:1211` 去重、`WebGuideDialog.cpp:440` 噴嘴存全清單、`Preset.cpp:738`、`PresetBundle.cpp:2927`）→ **主畫面「列印設備」下拉本來就依 printer_model 去重，三模式已能各自選＋各自切噴嘴**（Option A，不需改 native；合併成單一 model 會弄壞 `get_similar_printer_preset` 換噴嘴）。連動（單料頭↔同進）＋噴嘴全選（勾一口徑→三口徑，根因 L440）只影響精靈「啟用清單」、**不影響切片**，使用者**決定接受**。
+- ✅ **FD300 材料擴充（吃參數端 2026-06-09 新 18-config 交付）**：新建 `PING ABS - 250`（type ABS/250/床100；對交付說明 §三，16 值已驗）；雙料 `default_filament_profile`→`[PING PLA - 220, PING SupPLA]`（SupPLA 既有、已是 PETG/210/`GPINGSPLA`、免動）→ FD300 雙料可選 **PLA+SUP/PLA+PLA/ABS+SUP/ABS+ABS**（靠線材槽）；**單料頭/同進製程速度對齊雙料母檔**（travel400→250、填充300→60、support100→40，×3口徑×2模式）；**移除過時 `PING SUP - 220`**（embed_params §3a/DEF_FIL 已同步止血）。
+- ✅ **FP300 衍生（暫定）**：從 FD300 單料頭衍生（0.4/0.6 直接、**0.2 套口徑連動** 層高0.1/首層0.12/線寬0.2/預擠E16）；`printable_height=300`（使用者確認，非骨架的 270）；**高速值未套**（用單料頭正常速，使用者同意），待參數端 FP300 正式定稿再正規嵌。沿用骨架檔名/setting_id、免動 PING.json 結構。
+- 📦 **已 mirror 同步** `%APPDATA%\system` + portable，**PING.json v14**、參照完整性通過。⚠ **尚未 commit**（工作樹 ~21 檔：ABS-250 新增、SUP-220 刪、FD300/FP300/process 改、embed_params、本檔）。
+- ⚠️ **產生器 `embed_params.py` 已對不上新 18-config 交付**（已止血兩行不再洗回 SUP-220，但仍漏 ABS、誤判「同進」檔名為單噴頭）→ **重寫前勿重跑**（任務 B4）。**參數端來源**：`G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slicer V3.5\orca_fd300_定稿\`（18 config＋交付說明）＋ zip `FD300_Orca參數_交付軟體端_20260609.zip`。
+
+---
+
 **現況（2026-06-08・本 session 大量進展；resources 多已 portable 驗證，原生待 build）**
 - ✅ **已發 Release v3.5.1**（2026-06-08，繁中＋全部修正，給同事）：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.1 （build run `27128055141`・commit `e496f8cf`）。**修好 v3.5.0「只剩英文」**（坑#16；.mo 已打包並實機驗證繁中 OK）。下方「待 build 的 6 commit」+ 停用自動更新器**皆已 build 進此版**。⚠ 內含**已知 bug**：wizard 單料頭↔同進 連動（§4 待辦1，**已確認是真 bug**、已揭露於 release notes、不影響切片）。
 - （舊）~~已發 Release v3.5.0~~ 是英文版（.mo 沒打包，坑 #16）→ 已被 v3.5.1 取代。
@@ -34,7 +45,7 @@
 
 ⚠ **重要觀念（避免混淆）**：portable（`D:\PING-Slicer-portable`）的 **binary 是 6/6 舊 build**，我只同步 resources 上去 → portable 能測**資源面**（wizard/profiles/色/.mo），**原生面**（splash/捷徑/語言載入）要 build 才有。安裝版 v3.5.0 是 6/8 新編（原生有，但缺上面那批 resources/native commit）。
 
-**下一棒最優先**：① 確認 wizard「單料頭↔同進 conflation」是真 bug 還是殘留狀態（§4 待辦 1，**未解**）→ ② 湊齊後**一次 build + 重發 Release**（給同事繁中＋全部修正）。其餘待辦見 §4。
+**下一棒最優先（2026-06-09 第二 session 後）**：① **等使用者回報 conflation 測試結果**（resource 變通做法已套用＋同步，測法見 §0 🎯）——✅ 成功＝`git add -A && git commit`（改名去空格＋Mix300移除＋JS正則＋產生器同步，產生器已一致可放心 commit）、併入下次 build；❌ 失敗＝`git checkout -- . && git clean -fd resources/profiles/PING` revert 改名，改走 native log+build（§4 待辦1）。② 湊齊其餘 native 待辦（splash／macOS bundle／自動更新器 title logo）一次 build 重發 Release。**（原 ①「測試」已套用待測、②「End G-code commit＋清 Mix300」已完成＝`6b2d126a`＋已清。2026-06-08 的「下一棒」已過時，保留作背景。）**
 
 ---
 
@@ -160,6 +171,12 @@
 ## 6. 主要 git commits
 
 ```
+（2026-06-09・ping/v3.5，已 push）
+6b2d126a End G-code 改正常收尾（移除退料 G1 E-500；27 機台 preset＋gen_ping_profiles.py）
+cb0c792b docs: 確認 單料頭↔同進 conflation 為真 bug + 發布 v3.5.1 + 升級 playbook
+e496f8cf 停用線上自動更新器 check_new_version_sf
+（⏳ 工作樹未 commit・待 conflation 測試：改名去空格 FD300同進/單料頭＋移除Mix300＋JS正則分組＋embed_params 同步，PING.json v12）
+
 （本 session 2026-06-08・ping/v3.5，皆已 push；前 6 個「待下次 build」）
 05d852c3 線材預設色 橘#EA4E16/支撐灰#808080 (PING.json v09)
 fc9f8d6a wizard 全選/清空 改 native querySelectorAll

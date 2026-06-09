@@ -30,10 +30,10 @@
         "80"
     ],
     "cool_plate_temp": [
-        "60"
+        "100"
     ],
     "cool_plate_temp_initial_layer": [
-        "60"
+        "100"
     ],
     "dont_slow_down_outer_wall": [
         "0"
@@ -48,19 +48,19 @@
         "1"
     ],
     "eng_plate_temp": [
-        "60"
+        "100"
     ],
     "eng_plate_temp_initial_layer": [
-        "60"
+        "100"
     ],
     "fan_cooling_layer_time": [
         "10"
     ],
     "fan_max_speed": [
-        "100"
+        "30"
     ],
     "fan_min_speed": [
-        "100"
+        "30"
     ],
     "filament_cooling_final_speed": [
         "3.4"
@@ -75,7 +75,7 @@
         "850"
     ],
     "filament_density": [
-        "1.24"
+        "1.04"
     ],
     "filament_deretraction_speed": [
         "nil"
@@ -87,7 +87,7 @@
         "; filament end gcode \n"
     ],
     "filament_flow_ratio": [
-        "1"
+        "0.98"
     ],
     "filament_is_support": [
         "0"
@@ -153,7 +153,7 @@
         "nil"
     ],
     "filament_shrink": [
-        "100%"
+        "99.7%"
     ],
     "filament_shrinkage_compensation_z": [
         "100%"
@@ -174,7 +174,7 @@
         "0"
     ],
     "filament_type": [
-        "PLA"
+        "ABS"
     ],
     "filament_unloading_speed": [
         "90"
@@ -201,25 +201,25 @@
         "10"
     ],
     "hot_plate_temp": [
-        "60"
+        "100"
     ],
     "hot_plate_temp_initial_layer": [
-        "60"
+        "100"
     ],
     "idle_temperature": [
         "0"
     ],
     "nozzle_temperature": [
-        "220"
+        "250"
     ],
     "nozzle_temperature_initial_layer": [
-        "220"
+        "250"
     ],
     "nozzle_temperature_range_high": [
-        "230"
+        "270"
     ],
     "nozzle_temperature_range_low": [
-        "190"
+        "240"
     ],
     "overhang_fan_speed": [
         "80"
@@ -252,7 +252,7 @@
         "-1"
     ],
     "temperature_vitrification": [
-        "60"
+        "110"
     ],
     "textured_cool_plate_temp": [
         "40"
@@ -267,16 +267,16 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SUP - 220",
+    "name": "PING ABS - 250",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILSUP220",
-    "filament_id": "PINGFILSUP220",
+    "setting_id": "PINGFILABS250",
+    "filament_id": "PINGFILABS250",
     "inherits": "fdm_filament_common",
     "filament_colors": [
-        "#808080"
+        "#EA4E16"
     ],
     "default_filament_colors": [
-        "#808080"
+        "#EA4E16"
     ]
 }

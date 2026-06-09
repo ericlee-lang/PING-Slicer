@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.09",
+    "version": "01.00.00.14",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -193,6 +193,10 @@
             "sub_path": "filament/PING SupPLA.json"
         },
         {
+            "name": "PING ABS - 250",
+            "sub_path": "filament/PING ABS - 250.json"
+        },
+        {
             "name": "PING PolyABS",
             "sub_path": "filament/PING PolyABS.json"
         },
@@ -215,10 +219,6 @@
         {
             "name": "PING PLA - 220",
             "sub_path": "filament/PING PLA - 220.json"
-        },
-        {
-            "name": "PING SUP - 220",
-            "sub_path": "filament/PING SUP - 220.json"
         }
     ],
     "machine_list": [

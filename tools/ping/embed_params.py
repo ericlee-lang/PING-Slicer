@@ -118,13 +118,14 @@ def main(src_folder, model_key="FD300"):
     fil_presets = []
     if dual:
         bF = split(dual)["F"]
-        for idx,(nm,fid) in enumerate([("PING PLA - 220","PINGFILPLA220"),("PING SUP - 220","PINGFILSUP220")]):
+        # SUP 用既有 PING SupPLA(PETG/210)、ABS 用既有 PING ABS-250，皆不在此新建；只從 dual slot0 萃 PLA-220
+        for idx,(nm,fid) in enumerate([("PING PLA - 220","PINGFILPLA220")]):
             fp = fil_at(bF, idx, 2)
             fp.update({"type":"filament","name":nm,"from":"system","instantiation":"true",
                   "setting_id":fid,"filament_id":fid,"inherits":"fdm_filament_common"})
             jdump(os.path.join(PINGDIR,"filament","%s.json"%nm), fp)
             fil_list.append({"name":nm,"sub_path":"filament/%s.json"%nm}); gf+=1
-    DEF_FIL = {2:["PING PLA - 220","PING SUP - 220"], 1:["PING PLA - 220"]}
+    DEF_FIL = {2:["PING PLA - 220","PING SupPLA"], 1:["PING PLA - 220"]}
 
     # 3b. 每模式 → machine_model + 各口徑 machine/process
     for mode_token, model_name, feeds in M["modes"]:
