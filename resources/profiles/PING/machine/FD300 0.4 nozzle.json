@@ -22,7 +22,7 @@
     ],
     "default_filament_profile": [
         "PING PLA - 220",
-        "PING SUP - 220"
+        "PING SupPLA"
     ],
     "default_print_profile": "0.2mm @FD300 (0.4)",
     "deretraction_speed": [
