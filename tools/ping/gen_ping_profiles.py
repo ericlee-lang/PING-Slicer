@@ -81,19 +81,13 @@ def start_gcode(R, z, E, feeds):
 
 
 def end_gcode(R, h, feeds):
-    y = R - 10
-    ztop = max(50, int(h*0.8))
-    L = ["M104 S240 ;heat to purge", "G91", "G1 Z10 F3000", "G90",
-         "G1 X0 Y-%g Z%d F3000" % (y, ztop), "G91"]
-    if feeds > 1:
-        for i in range(feeds):
-            L += ["M6050 S%d" % i, "G1 E10 F60 ;purge feed-%d" % i]
-        L += (["M6050 S0.5", "G1 E40 F60 ;two-in-one-out purge"] if feeds == 2 else ["G1 E40 F60 ;purge"])
-    else:
-        L += ["G1 E40 F60 ;purge"]
-    L += ["G1 E-500 F12000 ;retract filament out of nozzle", "G4 S3",
-          "M104 S0", "M140 S0", "G90", "G28 X0 Y0", "M84"]
-    return "\n".join(L)
+    # PING: 退料(抽料)移到 Klipper 韌體開關手動控制 → 結束只做正常收尾，
+    #       不再自動退料/清噴頭/回溫。R/h/feeds 保留以維持呼叫相容(各機型結束統一)。
+    return "\n".join([
+        "G91", "G1 Z10 F3000 ; lift nozzle away from print", "G90",
+        "M104 S0 ; hotend off", "M140 S0 ; bed off",
+        "G28 X0 Y0 ; home all axes", "M84 ; disable motors",
+    ])
 
 
 def w(path, obj):
