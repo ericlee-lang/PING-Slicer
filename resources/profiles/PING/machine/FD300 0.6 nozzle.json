@@ -76,7 +76,7 @@
     "long_retractions_when_cut": [
         "0"
     ],
-    "machine_end_gcode": "M104 S240\nG91\nG1 Z10 F3000\nG90\nG1 X0 Y-140 Z250 F3000\nG91\nM6050 S0\nG1 E10 F60\nG91\nM6050 S1\nG1 E10 F60\nG91\nM6050 S0.5\nG1 E40 F60\nG1 E-500 F12000\nG4 S3\nM104 S0\nM140 S0\nG90\nG28 X0 Y0\nM84",
+    "machine_end_gcode": "G91\nG1 Z10 F3000 ; lift nozzle away from print\nG90\nM104 S0 ; hotend off\nM140 S0 ; bed off\nG28 X0 Y0 ; home all axes\nM84 ; disable motors",
     "machine_load_filament_time": "0",
     "machine_max_acceleration_e": [
         "5000",
