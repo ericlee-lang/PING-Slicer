@@ -265,8 +265,8 @@
         "0"
     ],
     "retract_when_changing_layer": [
-        "1",
-        "1"
+        "0",
+        "0"
     ],
     "retraction_distances_when_cut": [
         "18"

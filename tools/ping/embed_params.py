@@ -133,7 +133,8 @@ def filename_tpl(mode_key):
     重量/時間用 PING 佔位符（Print.cpp PrintStatistics：total_weight_str=395g/2.3kg、
     print_time_hm=15m/7h15m/1d8h）——需 B6(run 27262735687) 之後的 binary。"""
     base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode"
-    if mode_key == "dual":  return "{if filament_is_support[1]}易拆{else}雙色{endif}_" + base
+    if mode_key in ("PLA+SUP", "ABS+SUP"): return "易拆_" + base   # 組合別製程→前綴直判，免模板條件式
+    if mode_key in ("PLA+PLA", "ABS+ABS"): return "雙色_" + base
     if mode_key == "同進":  return "Mix_" + base
     if mode_key == "四色":  return "四色_" + base
     return "單料_" + base   # 單料頭 / FP300
@@ -163,13 +164,35 @@ def parse_dir(src_base, dirname):
         body = fn[len(prefix):-len("_project_settings.config")]
         nozzle = body.split("_")[0]
         rest = body[len(nozzle)+1:]
-        if   rest.startswith("PLA+SUP"): mode = "dual"
+        if   rest in ("PLA+SUP","PLA+PLA","ABS+SUP","ABS+ABS"): mode = rest  # 雙料 4 組合各自成製程
         elif rest.startswith("單料頭"):   mode = "單料頭"
         elif rest.startswith("同進"):     mode = "同進"
         elif rest.startswith("四色"):     mode = "四色"
-        else: continue   # PLA+PLA / ABS+SUP / ABS+ABS：線材組合，不產機台/製程
+        else: continue
         out[(nozzle, mode)] = json.load(io.open(os.path.join(d, fn), encoding="utf-8"))
     return out
+
+DUAL_COMBOS = ["PLA+SUP", "PLA+PLA", "ABS+SUP", "ABS+ABS"]
+
+def combo_overrides(combo, layer_height):
+    """V3.0 組合別製程差異復原（2026-06-10 使用者規格＋V3.0「最佳 ABS」定稿實證）：
+    - 支撐介面：有 SUP＝z 距離 0（貼緊、靠支撐料好剝）；無 SUP＝1 層層高（留縫好拆）
+    - Raft：ABS 系＝2 層、PLA 系＝0
+    - ABS+SUP 另套 V3.0 黃金支撐配方（normal/主體料1/界面料2/界面4·2層/間距0.04/xy0.5）"""
+    o = {}
+    if combo.endswith("+SUP"):
+        o.update({"support_top_z_distance": "0", "support_bottom_z_distance": "0"})
+    else:
+        o.update({"support_top_z_distance": layer_height, "support_bottom_z_distance": layer_height})
+    if combo.startswith("ABS"):
+        o["raft_layers"] = "2"
+    if combo == "ABS+SUP":
+        o.update({"support_type": "normal(auto)", "support_base_pattern": "rectilinear",
+                  "support_filament": "1", "support_interface_filament": "2",
+                  "support_interface_top_layers": "4", "support_interface_bottom_layers": "2",
+                  "support_interface_spacing": "0.04", "support_bottom_interface_spacing": "0",
+                  "support_object_xy_distance": "0.5"})
+    return o
 
 # ---------- 4. 主流程 ----------
 def main(src_base):
@@ -188,7 +211,7 @@ def main(src_base):
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
         if kind == "dual":
-            modes = [("dual", base, DEF_FIL_DUAL, False),
+            modes = [("PLA+SUP", base, DEF_FIL_DUAL, False),   # 雙料機母檔=PLA+SUP；製程另出 4 組合
                      ("單料頭", base + " 單料頭", DEF_FIL_SINGLE, True),
                      ("同進",   base + " 同進",   DEF_FIL_SINGLE, True)]
         elif kind == "single":
@@ -205,27 +228,39 @@ def main(src_base):
                 c = cfgs[(nz, mode_key)]
                 b = split(c)
                 lh = c.get("layer_height", "0.2")
-                mac_name  = "%s %s nozzle" % (model, nz)
-                proc_name = "%smm @%s (%s)" % (lh, model, nz)
-                # machine
+                mac_name = "%s %s nozzle" % (model, nz)
+                # 雙料機：製程依 4 組合各出一支（V3.0 行為復原，2026-06-10）；其餘一機一製程
+                is_dual_machine = (kind == "dual" and mode_key == "PLA+SUP")
+                combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
+                def pname(cb):
+                    return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
+                        else ("%smm @%s (%s)" % (lh, model, nz))
+                # machine（雙料取 PLA+SUP 母檔）
                 mac = dict(b["M"])
+                # PING(2026-06-10)：換層回抽=關（全機型）——花瓶模式換層縫線明顯（使用者規格）
+                if isinstance(mac.get("retract_when_changing_layer"), list):
+                    mac["retract_when_changing_layer"] = ["0"] * len(mac["retract_when_changing_layer"])
                 mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                     "setting_id":"PINGM%03d"%gm,"printer_model":model,"printer_variant":nz,
-                    "default_print_profile":proc_name,
+                    "default_print_profile":pname(combos[0]),
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
                 mac["default_filament_profile"] = def_fil if def_fil else def_fil_ff(nz)
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
-                # process（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
-                proc = dict(b["P"])
-                proc.update(proc_overrides(kind, base, is_single))
-                proc.update({"type":"process","name":proc_name,"from":"system","instantiation":"true",
-                    "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
-                    "compatible_printers":[mac_name],
-                    "filename_format": filename_tpl(mode_key)})
-                jdump(os.path.join(PINGDIR,"process","%s.json"%proc_name), proc)
-                proc_list.append({"name":proc_name,"sub_path":"process/%s.json"%proc_name}); gp += 1
+                # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
+                for cb in combos:
+                    pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
+                    proc = dict(pb)
+                    proc.update(proc_overrides(kind, base, is_single))
+                    if is_dual_machine:
+                        proc.update(combo_overrides(cb, lh))
+                    proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
+                        "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
+                        "compatible_printers":[mac_name],
+                        "filename_format": filename_tpl(cb)})
+                    jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
+                    proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
 
             # machine_model（每個 printer_model 一檔）
             mm = {"type":"machine_model","name":model,
