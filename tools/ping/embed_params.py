@@ -130,9 +130,9 @@ def tier_of(base):
 def filename_tpl(mode_key):
     """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
     雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
-    TODO(B6 build 後)：{total_weight}g→{total_weight_str}、{print_time}→{print_time_hm}
-    （新佔位符在 Print.cpp 已加，舊 binary 不認得會匯出報錯，故 build 完成後才切換）。"""
-    base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight}g_{print_time}.gcode"
+    重量/時間用 PING 佔位符（Print.cpp PrintStatistics：total_weight_str=395g/2.3kg、
+    print_time_hm=15m/7h15m/1d8h）——需 B6(run 27262735687) 之後的 binary。"""
+    base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode"
     if mode_key == "dual":  return "{if filament_is_support[1]}易拆{else}雙色{endif}_" + base
     if mode_key == "同進":  return "Mix_" + base
     if mode_key == "四色":  return "四色_" + base
