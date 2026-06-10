@@ -310,6 +310,6 @@
     "name": "FD300 Pro 同進 0.6 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM017",
+    "setting_id": "PINGM020",
     "alias": "FD300 Pro 同進"
 }

@@ -293,7 +293,7 @@
     "name": "0.2mm @FD450 Pro 同進 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP024",
+    "setting_id": "PINGP027",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD450 Pro 同進 0.4 nozzle"

@@ -293,7 +293,7 @@
     "name": "0.3mm @FD300 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP002",
+    "setting_id": "PINGP005",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 0.6 nozzle"

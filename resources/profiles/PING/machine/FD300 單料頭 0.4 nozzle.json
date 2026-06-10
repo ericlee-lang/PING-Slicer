@@ -310,6 +310,6 @@
     "name": "FD300 單料頭 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM004",
+    "setting_id": "PINGM007",
     "alias": "FD300 單料頭"
 }

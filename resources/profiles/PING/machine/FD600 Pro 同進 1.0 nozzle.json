@@ -310,6 +310,6 @@
     "name": "FD600 Pro 同進 1.0 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM035",
+    "setting_id": "PINGM038",
     "alias": "FD600 Pro 同進"
 }
