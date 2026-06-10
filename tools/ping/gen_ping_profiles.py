@@ -231,8 +231,8 @@ for (nm, base, nt, bt, fan, ftype, issup, fid) in FILS:
          "compatible_printers": all_machines}
     if issup:
         d["filament_is_support"] = ["1"]
-    # 換料塔最小清理量(2026-06-10 使用者定)：flush 矩陣倍數=0 停用，改由每料此值控制——支撐材=60、主體材=30
-    d["filament_minimal_purge_on_wipe_tower"] = ["60" if issup else "30"]
+    # 換料塔最小清理量(2026-06-10 二修)：倍數=0 停用矩陣，每料此值控制——SupPLA=30、其餘(含SupABS)=15(最佳ABS 15/15 實證)
+    d["filament_minimal_purge_on_wipe_tower"] = ["30" if nm == "PING SupPLA" else "15"]
     # PING: 線材預設色(2026-06-08 使用者定)：支撐材料=灰 / 其餘=橘
     _color = "#808080" if issup else "#EA4E16"
     d["filament_colors"] = [_color]
