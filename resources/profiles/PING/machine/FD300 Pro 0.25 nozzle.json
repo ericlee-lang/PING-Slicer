@@ -313,6 +313,6 @@
     "name": "FD300 Pro 0.25 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM018",
+    "setting_id": "PINGM009",
     "alias": "FD300 Pro"
 }

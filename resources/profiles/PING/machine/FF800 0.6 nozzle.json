@@ -318,6 +318,6 @@
     "name": "FF800 0.6 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM071",
+    "setting_id": "PINGM050",
     "alias": "FF800"
 }

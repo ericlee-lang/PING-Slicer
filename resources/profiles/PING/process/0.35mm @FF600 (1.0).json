@@ -293,7 +293,7 @@
     "name": "0.35mm @FF600 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP070",
+    "setting_id": "PINGP049",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF600 1.0 nozzle"
