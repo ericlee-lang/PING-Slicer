@@ -3539,6 +3539,31 @@ DynamicConfig PrintStatistics::config() const
     config.set_key_value("total_wipe_tower_cost",     new ConfigOptionFloat(this->total_wipe_tower_cost));
     config.set_key_value("total_wipe_tower_filament", new ConfigOptionFloat(this->total_wipe_tower_filament));
     config.set_key_value("initial_tool",              new ConfigOptionInt(static_cast<int>(this->initial_tool)));
+    // PING(2026-06-10) 檔名格式化佔位符（規格：使用者定）：
+    //   print_time_hm    時間去秒、階梯顯示——<1h:「15m」/ <1d:「7h15m」/ ≥1d:「1d8h」
+    //   total_weight_str 重量——<1kg:「395g」(整數) / ≥1kg:「2.3kg」(一位小數)
+    {
+        int td = 0, th = 0, tm = 0, v = 0; bool has = false;
+        for (char c : normal_print_time) {
+            if (c >= '0' && c <= '9') { v = v * 10 + (c - '0'); has = true; }
+            else {
+                if (!has) { v = 0; continue; }
+                if      (c == 'd') td = v;
+                else if (c == 'h') th = v;
+                else if (c == 'm') tm = v;
+                v = 0; has = false;   // 's' 秒直接捨棄
+            }
+        }
+        char buf[32];
+        if      (td > 0) snprintf(buf, sizeof buf, "%dd%dh", td, th);
+        else if (th > 0) snprintf(buf, sizeof buf, "%dh%dm", th, tm);
+        else             snprintf(buf, sizeof buf, "%dm", tm > 0 ? tm : 1);
+        config.set_key_value("print_time_hm", new ConfigOptionString(buf));
+        const double w = this->total_weight;
+        if (w >= 1000.) snprintf(buf, sizeof buf, "%.1fkg", w / 1000.);
+        else            snprintf(buf, sizeof buf, "%dg", (int) std::lround(w));
+        config.set_key_value("total_weight_str", new ConfigOptionString(buf));
+    }
     return config;
 }
 
@@ -3548,6 +3573,7 @@ DynamicConfig PrintStatistics::placeholders()
     for (const std::string key : {
         "print_time", "normal_print_time", "silent_print_time",
         "used_filament", "extruded_volume", "total_cost", "total_weight",
+        "print_time_hm", "total_weight_str",   // PING 檔名格式化佔位符
         "initial_tool", "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament"})
         config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
     return config;
