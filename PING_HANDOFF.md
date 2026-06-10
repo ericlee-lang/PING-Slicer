@@ -12,7 +12,17 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🟢🟢 現況（2026-06-10 第二波 — B4 完整 F 系列 136-config 重嵌完成：25 機型/73 機台/73 製程，PING.json v19，待使用者測）**
+**🏁 現況（2026-06-10 收工 — v3.5.2 已發布；B5 native build 全數驗證通過；wizard 連動真因根治）**
+- ✅ **Release v3.5.2 已發**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.2 （build run `27251862431`・commit `8e24ea73`；Windows/macOS 編譯成功，Linux/Flatpak 失敗=Docker Hub 網路 flake 無關）。**新 portable 已部署 `D:\PING-Slicer-portable`**（舊版備份 `D:\PING-Slicer-portable-old-0606build`）。
+- 🎯 **wizard 連動「真因」根治（兩 session 懸案結案）**：`WebGuideDialog.cpp::save_userguide_models` 用 **wxString 隱式轉碼（系統 locale）比對機型名 → 含中文(UTF-8)名在 CP950 下轉換失敗成空字串 → 任兩中文機型名相等 → 跨家族互相連動**。先前「FD300 前綴比對」結論作廢（使用者發現「勾任一單料頭/同進→全部跨家族連動、純英數名不受影響」的決定性規律；1in/2mix 改名實驗驗證理論後修正）。修法：`std::string` 位元組比對＋`nozzle_selected` 改用 JS 送來的實際勾選口徑（順帶根治「勾一口徑→全口徑啟用」）。`8df074a8`。
+- ✅ **B5 實機驗證全過（2026-06-10）**：繁中✓、精靈勾選各自獨立＋口徑精確✓、切機線材槽數自動 1/2/4（`03610af9` Tab.cpp+GUI_App.cpp 完全同步）✓、FF/FD 大機床板滿版（`8e24ea73` 床 STL 依直徑 450/600/800 縮放）✓。
+- ⬜ **splash 仍黑底（使用者選「先收工」，列後續）**：素材 PNG 是去背的（RGBA、27%透明已驗），黑底=native 合成鏈 alpha 丟失（wxGraphicsContext/wxBitmap MSW 轉換）。下次修法方向：跳過 wxGraphicsContext，直接從 PNG 組 premultiplied BGRA buffer 餵 UpdateLayeredWindow；動態文字（版本/載入中）用「已知底色區塊」貼入避開 alpha。雙螢幕觀察（副螢幕透出背景）= alpha 半生效的佐證。
+- 🔍 **FD 雙料/FF 四色切片偶發閃退**：無法穩定重現、**未定根因**（「Invalid T command (T1)」僅為候選）。已揭露於 release notes。每次閃退記操作步驟→查 `%APPDATA%\PINGSlicer\log` 對時間點，累積規律再修。
+- 📋 **下一棒優先**：① splash 真透明（上方修法）；② 閃退觀察；③ 參數端修正清單②③（Scarf/單料頭速度——源檔仍未套，embed override 暫補著，套了之後可拿掉 override）；④ FF 換色洗料量（實機 120 vs 30/60 規則）待裁定；⑤ macOS bundle 名/dmg 等剩餘 native 待辦。
+
+---
+
+**🟢🟢 背景（2026-06-10 第二波 — B4 完整 F 系列 136-config 重嵌完成：25 機型/73 機台/73 製程，PING.json v19，待使用者測）**
 - ✅ **embed_params.py 全面重寫（v2）**：吃參數端正式交付 `G:\...\PING Slicer V3.5\F系列參數\`（11 機型夾、136 config）。結構：7 個 FD 雙料家族（FD300/E/Pro/E Pro/450/600/800 Pro）×3 模式（雙料=家族名/單料頭/同進）×3 口徑 ＋ FP300/FP300 E（單料 0.2/0.4/0.6）＋ FF600/FF800（四進一出四色 0.6/1.0，preset 名不帶 Pro）。雙料 4 組合共用機台/製程（取 PLA+SUP 母檔），靠線材選擇。**printer_model 去「PING 」前綴**（延續既有命名）。
 - ✅ **FF 高流量線材**：4 個口徑別子 preset `PING PLA/SupPLA - 高流量 @FF 0.6/1.0`（alias 顯示母名；FF600/FF800 共用已驗證同值；0.6/1.0 流量/溫度/PA 不同故分開；清洗量維持實機 120——FF 換色洗料量待裁定，FD 的 30/60 不適用）。
 - ✅ **參數端已套修正清單①④**：源檔加速度（300=3000/450+=1500/travel=3000，**FF 也套了 1500**）＋倍數 0。**②Scarf ③單料頭速度源檔未套** → embed override 補（FD/FP：scarf external/10%/8＋單料頭模式 250/60/40；FF 不 override 維持實機）。**注意 2.3.2 無 `has_scarf_joint_seam` key，scarf 以 `seam_slope_type=external` 啟用**；機台/製程不再嵌專案層 key（修掉啟動 log incorrect keys 噪音）。
