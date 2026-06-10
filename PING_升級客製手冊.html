@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PING Slicer 客製化升級手冊 — 基於 OrcaSlicer 再做一套的完整指南</title>
+<style>
+  :root{
+    --orange:#EA4E16; --ink:#202221; --gray:#EFEFEF; --gray2:#F7F7F7; --line:#DDD;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:"Noto Sans TC","Source Han Sans TC","Microsoft JhengHei",sans-serif;
+    color:var(--ink); background:#fff; line-height:1.75; font-size:15px;
+    max-width:1080px; margin:0 auto; padding:48px 56px 80px;
+  }
+  h1,h2,h3{font-family:"Noto Serif TC","Source Han Serif TC","PMingLiU",serif;}
+  h1{font-size:30px; letter-spacing:.5px; margin-bottom:4px;}
+  .sub{color:#666; font-size:14px; margin-bottom:28px;}
+  .sub b{color:var(--orange); font-weight:600;}
+  h2{font-size:21px; margin:44px 0 14px; padding-left:12px; border-left:4px solid var(--orange);}
+  h3{font-size:16.5px; margin:26px 0 8px; color:#333;}
+  p{margin:8px 0;}
+  table{border-collapse:collapse; width:100%; margin:12px 0 18px; font-size:13.5px;}
+  th{background:var(--gray); text-align:left; padding:8px 12px; font-weight:600; border:1px solid var(--line);}
+  td{padding:7px 12px; border:1px solid var(--line); vertical-align:top;}
+  tr:nth-child(even) td{background:var(--gray2);}
+  code{font-family:Consolas,"Courier New",monospace; font-size:12.5px; background:var(--gray2);
+       border:1px solid var(--line); border-radius:3px; padding:1px 5px; word-break:break-all;}
+  td code{background:#fff;}
+  .model{font-family:"Rexlia",Consolas,monospace; letter-spacing:.3px;}
+  .tag{display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:10px; border:1px solid var(--orange);
+       color:var(--orange); margin-right:4px; white-space:nowrap;}
+  .tagx{display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:10px; border:1px solid #999;
+        color:#666; margin-right:4px; white-space:nowrap;}
+  .cards{display:flex; gap:14px; margin:20px 0 6px; flex-wrap:wrap;}
+  .card{flex:1; min-width:150px; border:1px solid var(--line); border-radius:8px; padding:14px 18px; background:#fff;}
+  .card .n{font-size:26px; font-weight:700; color:var(--orange); font-family:Consolas,monospace;}
+  .card .t{font-size:12.5px; color:#666;}
+  .note{border-left:3px solid var(--orange); background:var(--gray2); padding:10px 16px; margin:14px 0; font-size:13.5px;}
+  .warn{border-left:3px solid #B33; background:#FBF5F4; padding:10px 16px; margin:14px 0; font-size:13.5px;}
+  ol,ul{margin:8px 0 8px 24px;}
+  li{margin:5px 0;}
+  .step{counter-reset:none; margin:14px 0; padding:14px 18px; border:1px solid var(--line); border-radius:8px;}
+  .step b.no{color:var(--orange); font-family:Consolas,monospace; margin-right:8px;}
+  .toc{columns:2; column-gap:40px; background:var(--gray2); border:1px solid var(--line);
+       border-radius:8px; padding:16px 24px; margin:18px 0; font-size:14px;}
+  .toc a{color:var(--ink); text-decoration:none;}
+  .toc a:hover{color:var(--orange);}
+  .footer{margin-top:56px; padding-top:16px; border-top:1px solid var(--line); color:#888; font-size:12.5px;}
+  .ok{color:#2A7; font-weight:600;} .todo{color:#B33; font-weight:600;}
+</style>
+</head>
+<body>
+
+<h1>PING Slicer 客製化升級手冊</h1>
+<p class="sub">基於 <b>OrcaSlicer</b> 再做一套客製版（升級版）的完整指南 ｜ 現行：PING Slicer <b>V3.5</b>（base OrcaSlicer v2.3.2，AGPL-3.0）｜ 2026-06-10 整理</p>
+
+<div class="cards">
+  <div class="card"><div class="n">47</div><div class="t">客製 commit（疊在 v2.3.2 上）</div></div>
+  <div class="card"><div class="n">18</div><div class="t">機型（52 機台 / 52 製程 / 19 線材）</div></div>
+  <div class="card"><div class="n">4</div><div class="t">客製層（品牌 / 去Bambu / 參數系統 / 功能修正）</div></div>
+  <div class="card"><div class="n">~50<span style="font-size:14px">分</span></div><div class="t">一次 CI build（無本機編譯環境）</div></div>
+</div>
+
+<div class="toc">
+  <b>目錄</b><br>
+  <a href="#layers">0. 客製分層總覽</a><br>
+  <a href="#a">A. 品牌識別</a><br>
+  <a href="#b">B. 移除 Bambu 雲端與精簡</a><br>
+  <a href="#c">C. 機型參數系統（核心資產）</a><br>
+  <a href="#d">D. Native 功能修正</a><br>
+  <a href="#e">E. Web 設定精靈客製</a><br>
+  <a href="#upgrade">★ 升級流程：再做一套的步驟</a><br>
+  <a href="#verify">驗證清單</a><br>
+  <a href="#pit">關鍵坑 Top 10</a><br>
+  <a href="#todo">已知未解與待辦</a><br>
+  <a href="#agpl">AGPL 合規要點</a><br>
+  <a href="#loc">資源位置速查</a>
+</div>
+
+<h2 id="layers">0. 客製分層總覽</h2>
+<table>
+<tr><th style="width:16%">層</th><th>內容</th><th style="width:13%">改動位置</th><th style="width:11%">需 build？</th></tr>
+<tr><td><b>品牌識別</b></td><td>App 名稱／圖示／splash／配色（62 處青綠→橘）／About／對話框圖示／捷徑</td><td>native + 圖檔</td><td>名稱配色要；圖檔免</td></tr>
+<tr><td><b>去 Bambu</b></td><td>不載入網路外掛、登入／商城／更新器停用、精靈跳 Bambu 頁</td><td>native + web</td><td>native 要</td></tr>
+<tr><td><b>參數系統</b></td><td>18 機型 profiles、嵌入產生器、封面、床模型、檔名模板</td><td>resources + tools</td><td><b>全部免</b></td></tr>
+<tr><td><b>功能修正</b></td><td>精靈連動、線材槽數、metadata 頁首、檔名佔位符…</td><td>native</td><td>要</td></tr>
+</table>
+<div class="note"><b>核心觀念（坑 #3）</b>：先判斷改的是「資源檔」還是「原生 code」。資源檔（<code>resources/profiles/**</code>、<code>resources/web/**</code>、<code>resources/images/**</code>、<code>resources/i18n/**</code>）改完同步 portable 立即可測、<b>免 build</b>；原生（<code>src/**</code>、<code>version.inc</code>、<code>CMakeLists.txt</code>）要 CI build 約 50 分鐘。<b>效率原則：native 改動批次化、湊齊一次 build。</b></div>
+
+<h2 id="a">A. 品牌識別</h2>
+<table>
+<tr><th style="width:34%">項目</th><th>位置／做法</th></tr>
+<tr><td>App 名稱 / 執行檔 / 版本</td><td><code>version.inc</code>（SLIC3R_APP_NAME=PING Slicer、APP_KEY=PINGSlicer）、<code>libslic3r.h</code>（FULL_NAME，86 處引用）、<code>src/CMakeLists.txt</code>（ping-slicer.exe）、<code>OrcaSlicer.rc.in</code>、desktop 檔</td></tr>
+<tr><td>主題配色 青綠→PING 橘</td><td>62 處：<code>#009688</code>→<code>#EA4E16</code>、hover <code>#26A69A</code>→<code>#F26C3D</code>、含暗色模式與 web（35+ 檔）。<b>保留語意色</b>（G-code 調色盤／座標軸）。commit <code>734eee51</code>/<code>68204648</code></td></tr>
+<tr><td>App 圖示</td><td><code>resources/images/OrcaSlicer*.ico/.png/.icns</code> <b>換內容、保留檔名</b>（避免改數十處引用）</td></tr>
+<tr><td>對話框 logo（金魚清除）</td><td>① <code>OrcaSlicer.svg</code>→PING P 向量（nanosvg <b>不吃 base64</b>，要純向量）② <code>OrcaSlicer_192px_grayscale.png</code>→PING 灰階 ③ <code>info.svg</code>/<code>question.svg</code>→橘圈+i/?（彈窗圖示，原為鯨魚）</td></tr>
+<tr><td>splash 啟動圖</td><td><code>splash_logo.png/_dark.png</code>（含 AGPL 版權字）+ <code>GUI_App.cpp</code> 版本字定位。<span class="todo">真透明未解</span>（<code>SplashLayered.cpp</code> 嘗試中，目前深色矩形）</td></tr>
+<tr><td>About 框</td><td><code>AboutDialog.cpp</code>＋<code>PING_about.png</code>：PING 品牌＋<b>保留</b> OrcaSlicer 版權／傳承段落／Portions copyright＋源碼連結（AGPL）</td></tr>
+<tr><td>側欄機型縮圖</td><td><code>resources/images/printer_preview_{model_id}.png</code> ×18（缺檔=黑方塊；由 embed 產生器自動生成）</td></tr>
+<tr><td>安裝捷徑 / 套件名</td><td><code>CMakeLists.txt</code> CPack/NSIS：捷徑「PING Slicer V3.5」、套件名、registry key</td></tr>
+<tr><td>預設繁中 + .mo 命名</td><td><code>GUI_App.cpp load_language()</code> 預設 zh_TW；<b>坑 #5/#16</b>：app 找 <code>PINGSlicer.mo</code>，CI 不產 .mo → 已把 42 個編譯好的 .mo 收進 repo <code>resources/i18n/</code>（.gitignore 加例外）</td></tr>
+</table>
+
+<h2 id="b">B. 移除 Bambu 雲端與精簡</h2>
+<table>
+<tr><th style="width:34%">項目</th><th>位置／做法</th></tr>
+<tr><td>永不載入 Bambu 網路外掛</td><td><code>GUI_App.cpp on_init_network()</code>：<code>should_load_networking_plugin=false</code>（走「無外掛」路徑，<code>m_agent=null</code> 上游全程保護；<b>LAN 送印不受影響</b>＝內建 PrintHost）</td></tr>
+<tr><td>登入 / 商城 / 外掛下載框</td><td><code>ShowUserLogin()</code>、<code>show_network_plugin_download_dialog()</code>、<code>ShowDownNetPluginDlg()</code> early-return；<code>has_model_mall()</code> return false</td></tr>
+<tr><td>自動更新器停用</td><td><code>check_new_version_sf</code>（commit <code>e496f8cf</code>）——不再連 Orca 官方查更新</td></tr>
+<tr><td>精靈跳過 Bambu 頁</td><td>web：<code>guide/4orca/4orca.js</code> 跳網路插件頁；<code>guide/22/22.js GotoNetPluginPage()</code> 直接 FinishGuide（跳 Stealth Mode 頁）</td></tr>
+<tr><td>雜項</td><td>GLCanvas3D 停「混用 PLA/PETG」警告（<code>4eb0162b</code>）；web 簡中→繁中重導（<code>text.js</code>）</td></tr>
+</table>
+
+<h2 id="c">C. 機型參數系統（核心資產，全部免 build）</h2>
+<h3>資料流</h3>
+<p>參數端交付（單一真實來源）→ 嵌入產生器 → slicer 內建 profiles：</p>
+<table>
+<tr><th style="width:30%">環節</th><th>內容</th></tr>
+<tr><td>參數端正式交付</td><td><code>G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slicer V3.5\F系列參數\</code>（11 機型夾、136 個 <code>project_settings.config</code>＋交付總說明）。<b>參數值歸參數端管</b>，值有錯請對方改源檔重交付</td></tr>
+<tr><td>嵌入產生器（重寫 v2）</td><td><code>tools/ping/embed_params.py</code>：吃 136-config → 拆 machine/process（依 <code>Preset.cpp</code> 權威 key 分類）→ 產出全部 preset＋PING.json＋封面＋縮圖。<b>跑一次即重生全部</b></td></tr>
+<tr><td>產出</td><td><code>resources/profiles/PING.json</code>＋<code>PING/{machine,process,filament}/</code>：<span class="model">FP300</span>｜<span class="model">FD300</span>/<span class="model">Pro</span>/<span class="model">450</span>/<span class="model">600</span>/<span class="model">800 Pro</span>（各含 單料頭/同進）｜<span class="model">FF600</span>/<span class="model">FF800</span> 四色</td></tr>
+<tr><td>舊骨架產生器</td><td><code>tools/ping/gen_ping_profiles.py</code>＝<b>DEPRECATED</b>（誤跑會覆蓋正式 preset，需 <code>PING_FORCE_GEN=1</code>）</td></tr>
+</table>
+<h3>embed 內建的「軟體端裁定」（源檔尚未套用時的 override）</h3>
+<ul>
+<li>加速度規範：300 級=3000／450+ 級=1500／travel=3000（源檔已套 → no-op）</li>
+<li>Scarf 斜接縫：<code>seam_slope_type=external</code>／10%／min_length 8（2.3.2 <b>無</b> has_scarf key）</li>
+<li>單料頭/同進製程速度對齊雙料母檔：travel 250／填充 60／support 40</li>
+<li>檔名模板：模式前綴（易拆/雙色 依槽2是否支撐材自動判｜Mix｜四色｜單料）＋重量＋時間</li>
+<li>FF 不套 override（維持實機值）</li>
+</ul>
+<h3>周邊資產（embed 自動維護）</h3>
+<ul>
+<li><b>封面</b> <code>{機型}_cover.png</code>：家族卡=機器照、單料頭/同進卡=透明空白（坑 #11：以機型名解析）</li>
+<li><b>側欄縮圖</b> <code>printer_preview_{model_id}.png</code> ×18（模式變體共用家族照）</li>
+<li><b>床模型</b>：300 原盤 STL 依直徑 XY 縮放出 450/600/800（修大機床板不滿版）</li>
+<li><b>線材</b>：PING PLA-220／SupPLA（PETG 標籤 210）／ABS-250／高流量 @FF 0.6/1.0（口徑別子 preset、alias 顯母名）；清洗量 支撐 60／主體 30（FF 維持實機 120）；預設色 橘 #EA4E16／支撐灰 #808080</li>
+<li><b>命名規範</b>：機型不帶口徑（口徑走噴嘴 chip、preset 加 <code>alias</code>）；製程 <code>0.2mm @FD300 (0.4)</code>（下拉只顯示 @ 之前）</li>
+</ul>
+
+<h2 id="d">D. Native 功能修正（要 build）</h2>
+<table>
+<tr><th style="width:26%">修正</th><th style="width:34%">位置</th><th>說明</th></tr>
+<tr><td>精靈勾選連動（真因）</td><td><code>WebGuideDialog.cpp::save_userguide_models</code></td><td>機型比對原用 wxString 隱式轉碼（系統 locale）——含中文名在 CP950 轉換失敗成空字串→任兩中文名「相等」→跨家族連動。改 <code>std::string</code> 位元組比對。<code>8df074a8</code></td></tr>
+<tr><td>勾一口徑→全口徑</td><td>同上</td><td><code>nozzle_selected</code> 改用 JS 送來的實際勾選清單（原硬塞機型全口徑）</td></tr>
+<tr><td>線材槽數同步 1/2/4</td><td><code>Tab.cpp::select_preset</code>＋<code>GUI_App.cpp::load_current_presets</code></td><td>切機/啟動一律同步 <code>default_filament_profile</code> 數量（修快照還原「慢一拍」；原 PING patch 只增不減）。<code>03610af9</code></td></tr>
+<tr><td>SEMM 槽數初始化</td><td><code>GUI_App.cpp</code> L7104 區 ORCA gate 後</td><td>2.3.2 對 SEMM 機不同步槽數→PING 雙料選機只剩 1 槽；補 else-if。<code>0a626ad5</code></td></tr>
+<tr><td>監控 metadata 識別</td><td><code>utils.cpp::header_slic3r_generated</code></td><td>gcode 頁首加「(based on OrcaSlicer)」——Moonraker 靠頁首認切片器，認不得就整包 metadata 不解析（監控頁全空）</td></tr>
+<tr><td>檔名佔位符</td><td><code>Print.cpp PrintStatistics::config()</code></td><td><code>print_time_hm</code>（去秒：15m→7h15m→1d8h）＋<code>total_weight_str</code>（395g／2.3kg）</td></tr>
+<tr><td>vendor 載入中止（坑 #12）</td><td>規則而非 code</td><td>preset 的 <code>inherits</code> 寫空字串 <code>""</code> → 整包 vendor 不載入。要嘛不寫 key、要嘛指向存在的父 preset</td></tr>
+<tr><td>splash 去背（未成）</td><td><code>SplashLayered.cpp</code>（新檔）</td><td>UpdateLayeredWindow＋premultiplied BGRA；目前黑底＝合成鏈 alpha 丟失，修法見待辦</td></tr>
+</table>
+
+<h2 id="e">E. Web 設定精靈客製</h2>
+<div class="note"><b>最大坑（#1）</b>：設定精靈是 <b>WEB 網頁</b>不是原生 ConfigWizard.cpp——「選擇 3D 列印機／線材／網路插件」都在 <code>resources/web/guide/</code>（HTML/JS），<b>免 build</b>。</div>
+<table>
+<tr><th style="width:34%">項目</th><th>位置／做法</th></tr>
+<tr><td>選機頁修復</td><td><code>guide/{21,24}/*.css</code>：<code>.pNozzel→display:flex</code>＋<code>.PImg img</code> contain（移植 3.0 JS 時 CSS 沒跟上→勾選框被藏、圖爆大）</td></tr>
+<tr><td>每噴嘴勾選</td><td>3.0 的 per-nozzle checkbox JS 移植；native handler <code>WebGuideDialog.cpp::save_userguide_models</code></td></tr>
+<tr><td>家族分列</td><td><code>strSeries=ModelName.replace(/\s*(單料頭|同進)$/,'')</code> → 每家族一列（基本/單料頭/同進 三卡）；排序＝PING.json 順序（單料→雙料→四料、小→大）</td></tr>
+<tr><td>全選/清空提速</td><td>改 native <code>querySelectorAll</code>（去 jQuery 逐元素開銷）</td></tr>
+<tr><td>跳過 Bambu / Stealth 頁</td><td><code>4orca/4orca.js</code>、<code>22/22.js</code> → 直接 FinishGuide</td></tr>
+</table>
+
+<h2 id="upgrade">★ 升級流程：基於新版 OrcaSlicer 再做一套</h2>
+<div class="note">總原則：<b>資源與工具鏈整包搬（幾乎零成本），native 改動逐類重套（行號會漂移，用函式名定位）</b>。預估工時：resources 半天可跑起來；native 視上游變動 1–3 天＋數輪 build。</div>
+
+<div class="step"><b class="no">STEP 1</b><b>建 repo 與分支</b>：fork 新版 OrcaSlicer（如 v2.4.x）→ 開 <code>ping/v4.0</code> 分支 → 立刻把 <code>PING_CUSTOMIZATION.md</code>、<code>PING_HANDOFF.md</code>、本手冊複製過去。</div>
+
+<div class="step"><b class="no">STEP 2</b><b>資源整包搬（免 build、先讓參數系統活起來）</b>
+<ul>
+<li><code>resources/profiles/PING.json</code>＋<code>resources/profiles/PING/</code> 整夾（含床 STL、封面、貼圖）</li>
+<li><code>resources/images/</code> 的 PING 資產：<code>OrcaSlicer*.ico/.png/.svg</code>（換內容保檔名）、<code>printer_preview_PING_*.png</code>、<code>splash_logo*</code>、<code>PING_about*</code>、<code>info.svg</code>、<code>question.svg</code></li>
+<li><code>resources/web/</code> 客製：<code>guide/21,22,24,4orca</code>、<code>data/text.js</code>、homepage logo</li>
+<li><code>resources/i18n/**/*.mo</code>（含 PINGSlicer.mo 副本）＋ <code>.gitignore</code> 例外 <code>!resources/i18n/**/*.mo</code></li>
+<li><code>tools/ping/</code> 整夾（embed_params.py 等）→ 跑 <code>python tools/ping/embed_params.py</code> 重生驗證</li>
+<li>⚠ <b>保留上游 <code>OrcaFilamentLibrary.json</code></b>（啟動必需，坑 #2）；移除其他廠商 vendor 時別動它</li></ul></div>
+
+<div class="step"><b class="no">STEP 3</b><b>品牌 native（第一輪 build 前）</b>：<code>version.inc</code>／<code>libslic3r.h</code>／<code>CMakeLists.txt</code>(CPack/捷徑)／<code>src/CMakeLists.txt</code>(執行檔名)／<code>OrcaSlicer.rc.in</code>／desktop 檔。配色 62 處：對新版重新全域搜 <code>#009688</code>/<code>#26A69A</code>/<code>#52c7b8</code> 等青綠色值替換（上游可能加了新 UI，處數會變）。</div>
+
+<div class="step"><b class="no">STEP 4</b><b>去 Bambu native</b>：<code>GUI_App.cpp</code> 四處 early-return＋<code>on_init_network</code>＋更新器。<b>注意上游可能重構過這些函式</b>——用函式名搜，照 B 節語意重套。</div>
+
+<div class="step"><b class="no">STEP 5</b><b>功能修正 native 重套</b>（D 節表格逐條）：嘗試 <code>git cherry-pick 8df074a8 03610af9 5a191f95 dd1242e9 e496f8cf 4eb0162b</code>…，衝突的用「函式名＋關鍵字」人工定位重寫。<b>先確認上游是否已自修</b>（例如新版 Orca 若已修 wxString 比對或槽數同步，就不用套）。</div>
+
+<div class="step"><b class="no">STEP 6</b><b>CI workflow</b>：<code>build_orca.yml</code>（PING_Slicer 檔名 glob／artifact 名）、<code>check_profiles.yml</code>（只看系統驗證）、<code>build_appimage.sh.in</code>（圖示）。</div>
+
+<div class="step"><b class="no">STEP 7</b><b>build 與驗證</b>：<code>gh workflow run "Build all" --ref ping/v4.0</code>（~50 分；<b>坑 #10</b>：Unit Tests 紅 X 是既有問題、Linux/Flatpak 偶發 Docker flake——看各平台編譯 success 即可）→ <code>gh run download</code> 取 portable → 跑下方驗證清單。</div>
+
+<div class="step"><b class="no">STEP 8</b><b>發布</b>：<code>gh release create vX.Y.Z</code> 附 installer＋繁中 release notes；同步更新 <code>PING_CUSTOMIZATION.md</code>（AGPL §5 要求記錄修改）。</div>
+
+<h2 id="verify">驗證清單（每輪 build 後）</h2>
+<table>
+<tr><th style="width:30%">項目</th><th>預期</th></tr>
+<tr><td>啟動</td><td>splash PING 圖＋V 版號；預設繁中；無 Bambu 登入/外掛彈窗</td></tr>
+<tr><td>設定精靈</td><td>家族分列（單料→雙料→四料）；<b>勾選各自獨立</b>（單料頭/同進不連動）；<b>只啟用實際勾選口徑</b>；無 Bambu/Stealth 頁</td></tr>
+<tr><td>切換機器</td><td>線材槽數立即 1/2/4（FP/FD/FF）；噴嘴 chip 正常；側欄縮圖=機器照</td></tr>
+<tr><td>床板</td><td>FF600/FD600/FD800 黑色貼圖盤滿版</td></tr>
+<tr><td>切片＋檔名</td><td>各機型能切；檔名=<code>易拆_名稱_PLA_395g_15m.gcode</code> 格式（模式/重量/時間）</td></tr>
+<tr><td>LAN 上傳</td><td>OctoPrint/Moonraker 測試連線成功（PING 圖示彈窗）；監控頁 metadata（層高/耗材/時間）齊全、切片≠Unknown</td></tr>
+<tr><td>About / 對話框</td><td>PING 品牌＋AGPL 標註；無金魚（info/question/灰階 logo）</td></tr>
+</table>
+
+<h2 id="pit">關鍵坑 Top 10（完整 16 坑見 PING_HANDOFF.md §2）</h2>
+<ol>
+<li><b>設定精靈是 WEB</b>（<code>resources/web/guide/</code>），不是 ConfigWizard.cpp。</li>
+<li><b>OrcaFilamentLibrary.json 是啟動必需檔</b>——刪了會崩潰。</li>
+<li><b>資源免 build／原生要 build</b>——native 批次化一次 build。</li>
+<li><b>改 profile 要 PING.json version +1</b>，且同步兩處（portable resources＋<code>%APPDATA%\PINGSlicer\system</code>）。</li>
+<li><b>中文機型名 ≠ wxString</b>：native 比對一律 <code>std::string</code>（locale 轉碼會把中文變空字串）。</li>
+<li><b><code>inherits</code> 絕不可空字串</b>——整包 vendor 載入中止。</li>
+<li><b>app 找 <code>PINGSlicer.mo</code></b>，CI 不產 .mo——編譯好的 .mo 要收進 repo。</li>
+<li><b>封面/縮圖以機型名與 model_id 解析檔名</b>——機型改名要同步改圖檔名。</li>
+<li><b>中文路徑會讓 shell 亂碼</b>——批次處理用 Python。</li>
+<li><b>build 紅 X 先看哪個 job</b>——Unit Tests 既有失敗、Docker Hub 偶發 flake，各平台編譯 success 就能用。</li>
+</ol>
+
+<h2 id="todo">已知未解與待辦（接手詳見 PING_HANDOFF.md §0）</h2>
+<ul>
+<li><span class="todo">splash 真透明</span>：素材是去背的；黑底＝native 合成鏈 alpha 丟失。修法方向：跳過 wxGraphicsContext，PNG 直組 premultiplied BGRA 餵 UpdateLayeredWindow，動態文字用已知底色區塊貼入。</li>
+<li><span class="todo">FD 雙料/FF 四色偶發閃退</span>：未定根因（「Invalid T command」僅候選）；每次發生記操作步驟對 log。</li>
+<li><span class="todo">B7 批次</span>：實體列印設備預設名帶機型（PhysicalPrinterDialog「- 複製」）／對話框大 logo 改小放左上／主機類型清單瘦身（只留 Octo/Klipper＋Moonraker）／參數端套 Scarf＋單料頭速度後移除 embed override。</li>
+<li><span class="todo">麥金塔</span>：.app bundle 名與 dmg 檔名仍為 OrcaSlicer。</li>
+<li><span class="todo">工具列 title logo</span>：<code>OrcaSlicerTitle.png</code> 需 PING 橫式 wordmark。</li>
+</ul>
+
+<h2 id="agpl">AGPL 合規要點（每一版都要守）</h2>
+<ul>
+<li>保留 <code>LICENSE.txt</code>（AGPL-3.0 不變）；About 標註「Based on OrcaSlicer」＋源碼公開連結（§13）。</li>
+<li><code>PING_CUSTOMIZATION.md</code> 記錄所有修改（§5「prominent notices」）；保留上游版權與傳承段落。</li>
+<li><b>不可</b>寫 "All Rights Reserved"；<b>不打包／不下載</b> Bambu 閉源 DLL（無散布授權）。</li>
+</ul>
+
+<h2 id="loc">資源位置速查</h2>
+<table>
+<tr><th style="width:34%">用途</th><th>路徑</th></tr>
+<tr><td>Repo（分支 ping/v3.5）</td><td><code>D:\dev\2026claude\20260604 ORCA客製\PING-Slicer</code>（GitHub：ericlee-lang/PING-Slicer）</td></tr>
+<tr><td>測試 portable</td><td><code>D:\PING-Slicer-portable</code>（binary 只有 build 會變；resources 用同步腳本）</td></tr>
+<tr><td>設定快取（全 PING app 共用）</td><td><code>%APPDATA%\PINGSlicer</code>（profiles 在 <code>system\</code>；log 在 <code>log\</code>）</td></tr>
+<tr><td>參數端交付（單一真實來源）</td><td><code>G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slicer V3.5\F系列參數\</code></td></tr>
+<tr><td>品牌文宣品（機器照/型錄/規格表）</td><td><code>G:\我的雲端硬碟\2026claude\20260530 公司網站\20260518 品牌文宣品</code>（已登錄 ping-master 索引）</td></tr>
+<tr><td>接手文件 / 客製紀錄</td><td>repo 內 <code>PING_HANDOFF.md</code>（現況+16 坑）／<code>PING_CUSTOMIZATION.md</code>（AGPL 紀錄）</td></tr>
+</table>
+
+<div class="footer">
+PING Slicer 客製化升級手冊 ｜ 聯造實業有限公司 LINKIN FACTORY Co., LTD. ｜ 2026-06-10<br>
+Based on OrcaSlicer (AGPL-3.0) — source: github.com/ericlee-lang/PING-Slicer ｜ 本檔離線可開、單檔自含。
+</div>
+
+</body>
+</html>
