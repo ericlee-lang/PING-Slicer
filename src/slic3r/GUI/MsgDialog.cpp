@@ -202,10 +202,13 @@ void MsgDialog::apply_style(long style)
     if (style & wxNO)       add_button(wxID_NO, false,_L("No"));
     if (style & wxCANCEL)   add_button(wxID_CANCEL, false, _L("Cancel"));
 
+    // PING(2026-06-10)：品牌 logo（寬版 wordmark）由 64 縮為 40——左上角小標誌即可，
+    // 不當對話框主視覺（使用者規格）；提示類圖示(completed/info/question/exclamation)維持 64。
+    const bool is_brand_logo = !(style & (wxAPPLY | wxICON_WARNING | wxICON_INFORMATION | wxICON_QUESTION));
     logo->SetBitmap( create_scaled_bitmap(style & wxAPPLY        ? "completed" :
                                           style & wxICON_WARNING        ? "exclamation" : // ORCA "exclamation" used for dialogs "obj_warning" used for 16x16 areas
                                           style & wxICON_INFORMATION    ? "info"        :
-                                          style & wxICON_QUESTION       ? "question"    : "OrcaSlicer", this, 64, style & wxICON_ERROR));
+                                          style & wxICON_QUESTION       ? "question"    : "OrcaSlicer", this, is_brand_logo ? 40 : 64, style & wxICON_ERROR));
 }
 
 void MsgDialog::finalize()
@@ -355,7 +358,8 @@ ErrorDialog::ErrorDialog(wxWindow *parent, const wxString &temp_msg, bool monosp
     add_msg_content(this, content_sizer, msg, monospaced_font);
 
 	// Use a small bitmap with monospaced font, as the error text will not be wrapped.
-	logo->SetBitmap(create_scaled_bitmap("OrcaSlicer_192px_grayscale.png", this, monospaced_font ? 48 : /*1*/84));
+	// PING(2026-06-10)：錯誤對話框 logo 84→48（左上角小標誌，使用者規格）
+	logo->SetBitmap(create_scaled_bitmap("OrcaSlicer_192px_grayscale.png", this, monospaced_font ? 40 : 48));
 
     SetMaxSize(MSG_DLG_MAX_SIZE);
 

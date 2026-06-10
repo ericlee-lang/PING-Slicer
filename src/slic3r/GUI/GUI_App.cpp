@@ -454,42 +454,63 @@ public:
         if (width <= 0 || height <= 0)
             return;
 
-        // 重新載入乾淨 logo（含 alpha，依視窗縮放，與 Decorate 同一張）
-        BitmapCache bmp_cache;
-        bool        is_dark  = wxGetApp().app_config->get("dark_color_mode") == "1";
-        wxBitmap    logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);
+        // v2(2026-06-10)：全程 wxImage 合成。v1 用 wxBitmap+wxGraphicsContext 合成後
+        // ConvertToImage——MSW 下 MemoryDC 來源的 bitmap 轉回 image 會丟 alpha →
+        // 透明處變不透明黑（黑底矩形）。改法：PNG 以 wxImage 載入（自帶 alpha、Scale 保留），
+        // 文字以「不透明貼片」蓋在圖中深色面板上（取樣既有底色），alpha 全程不經 DC/GC。
+        const bool is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
+        wxImage img(from_u8(Slic3r::var(is_dark ? "splash_logo_dark.png" : "splash_logo.png")), wxBITMAP_TYPE_PNG);
+        if (!img.IsOk())
+            return;
+        if (img.GetWidth() != width || img.GetHeight() != height)
+            img = img.Scale(width, height, wxIMAGE_QUALITY_HIGH);
+        if (!img.HasAlpha())
+            img.InitAlpha();
 
-        wxBitmap target(width, height, 32);   // 32-bit 含 alpha
-        {
-            wxMemoryDC         mem_dc(target);
-            wxGraphicsContext* gc = wxGraphicsContext::Create(mem_dc);
-            if (gc != nullptr) {
-                gc->SetCompositionMode(wxCOMPOSITION_CLEAR);   // 全清成透明
-                gc->SetBrush(*wxTRANSPARENT_BRUSH);
-                gc->SetPen(*wxTRANSPARENT_PEN);
-                gc->DrawRectangle(0, 0, width, height);
-                gc->SetCompositionMode(wxCOMPOSITION_OVER);
-
-                gc->DrawBitmap(logo_bmp, 0, 0, width, height);   // 保留 per-pixel alpha
-
-                // 版本字「V3.5」白字（位置同 Decorate）
-                gc->SetFont(m_constant_text.version_font, wxColour(255, 255, 255));
-                wxDouble vw = 0, vh = 0, vd = 0, ve = 0;
-                gc->GetTextExtent(m_constant_text.version, &vw, &vh, &vd, &ve);
-                gc->DrawText(m_constant_text.version, width * 0.224, height * 0.527 - vh / 2);
-
-                // 載入狀態字（灰，置中）
-                if (!m_action_text.empty()) {
-                    gc->SetFont(m_action_font, wxColour(144, 144, 144));
-                    wxDouble aw = 0, ah = 0, ad = 0, ae = 0;
-                    gc->GetTextExtent(m_action_text, &aw, &ah, &ad, &ae);
-                    gc->DrawText(m_action_text, (width - aw) / 2.0, m_action_line_y_position);
+        auto blit_text = [&img](const wxString &text, const wxFont &font, const wxColour &fg,
+                                int x /* -1=水平置中 */, int y, bool y_is_center) {
+            if (text.empty())
+                return;
+            wxBitmap   measure_bmp(8, 8);
+            wxMemoryDC mdc(measure_bmp);
+            mdc.SetFont(font);
+            const wxSize ext = mdc.GetTextExtent(text);
+            mdc.SelectObject(wxNullBitmap);
+            if (ext.x <= 0 || ext.y <= 0)
+                return;
+            if (x < 0)
+                x = (img.GetWidth() - ext.x) / 2;
+            if (y_is_center)
+                y -= ext.y / 2;
+            if (x < 0 || y < 0 || x + ext.x > img.GetWidth() || y + ext.y > img.GetHeight())
+                return;
+            // 底色取貼片中心既有像素（文字落在圖中不透明深色面板區）
+            const int      sx = x + ext.x / 2, sy = y + ext.y / 2;
+            const wxColour bg(img.GetRed(sx, sy), img.GetGreen(sx, sy), img.GetBlue(sx, sy));
+            wxBitmap   patch(ext.x, ext.y, 24);
+            wxMemoryDC pdc(patch);
+            pdc.SetBackground(wxBrush(bg));
+            pdc.Clear();
+            pdc.SetFont(font);
+            pdc.SetTextForeground(fg);
+            pdc.DrawText(text, 0, 0);
+            pdc.SelectObject(wxNullBitmap);
+            const wxImage pimg = patch.ConvertToImage();   // 24bpp RGB，無 alpha 需求
+            for (int dy = 0; dy < ext.y; ++dy)
+                for (int dx = 0; dx < ext.x; ++dx) {
+                    img.SetRGB(x + dx, y + dy, pimg.GetRed(dx, dy), pimg.GetGreen(dx, dy), pimg.GetBlue(dx, dy));
+                    img.SetAlpha(x + dx, y + dy, 255);
                 }
-                delete gc;
-            }
-        }
+        };
 
-        update_splash_layered(this, target);
+        // 版本字「V3.5」白字（位置同 Decorate：x=22.4%、垂直中心 52.7%）
+        blit_text(m_constant_text.version, m_constant_text.version_font, *wxWHITE,
+                  int(width * 0.224), int(height * 0.527), true);
+        // 載入狀態字（灰，水平置中，y=頂端 m_action_line_y_position）
+        blit_text(m_action_text, m_action_font, wxColour(144, 144, 144),
+                  -1, m_action_line_y_position, false);
+
+        update_splash_layered(this, img);
     }
 #endif // __WXMSW__
 

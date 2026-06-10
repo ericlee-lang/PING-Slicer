@@ -11,24 +11,21 @@
 
 namespace Slic3r { namespace GUI {
 
-void update_splash_layered(wxWindow* win, const wxBitmap& argb)
+void update_splash_layered(wxWindow* win, const wxImage& img)
 {
-    if (win == nullptr || !argb.IsOk())
+    // v2(2026-06-10)：直接收 wxImage（呼叫端全程 wxImage 合成、alpha 不經 DC/GC）。
+    // 原版收 wxBitmap 再 ConvertToImage——MSW 下 MemoryDC 來源的 bitmap 轉回 image 會丟
+    // alpha → InitAlpha 全補 255 → 透明處變不透明黑（黑底矩形），即先前 splash 黑底的真因。
+    if (win == nullptr || !img.IsOk())
         return;
-
-    wxImage img = argb.ConvertToImage();
-    if (!img.IsOk())
-        return;
-    if (!img.HasAlpha())
-        img.InitAlpha();
 
     const int width  = img.GetWidth();
     const int height = img.GetHeight();
     if (width <= 0 || height <= 0)
         return;
 
-    const unsigned char* rgb   = img.GetData();    // RGBRGB...（無 alpha 交錯）
-    const unsigned char* alpha = img.GetAlpha();   // 單獨 alpha plane
+    const unsigned char* rgb   = img.GetData();                              // RGBRGB...（無 alpha 交錯）
+    const unsigned char* alpha = img.HasAlpha() ? img.GetAlpha() : nullptr;  // 單獨 alpha plane（無則視為全不透明）
 
     // 建立 32-bit top-down DIB（biHeight 負值 = top-down）
     BITMAPINFO bi;
@@ -96,9 +93,9 @@ void update_splash_layered(wxWindow* win, const wxBitmap& argb)
 #else // !__WXMSW__
 
 class wxWindow;
-class wxBitmap;
+class wxImage;
 namespace Slic3r { namespace GUI {
-void update_splash_layered(wxWindow*, const wxBitmap&) {}
+void update_splash_layered(wxWindow*, const wxImage&) {}
 }} // namespace Slic3r::GUI
 
 #endif // __WXMSW__
