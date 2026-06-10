@@ -1,13 +1,9 @@
 {
     "name": "PING",
-    "version": "01.00.00.18",
+    "version": "01.00.00.19",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
-        {
-            "name": "FP300",
-            "sub_path": "machine/FP300.json"
-        },
         {
             "name": "FD300",
             "sub_path": "machine/FD300.json"
@@ -21,20 +17,88 @@
             "sub_path": "machine/FD300 同進.json"
         },
         {
+            "name": "FD300 E",
+            "sub_path": "machine/FD300 E.json"
+        },
+        {
+            "name": "FD300 E 單料頭",
+            "sub_path": "machine/FD300 E 單料頭.json"
+        },
+        {
+            "name": "FD300 E 同進",
+            "sub_path": "machine/FD300 E 同進.json"
+        },
+        {
+            "name": "FD300 Pro",
+            "sub_path": "machine/FD300 Pro.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭",
+            "sub_path": "machine/FD300 Pro 單料頭.json"
+        },
+        {
+            "name": "FD300 Pro 同進",
+            "sub_path": "machine/FD300 Pro 同進.json"
+        },
+        {
+            "name": "FD300 E Pro",
+            "sub_path": "machine/FD300 E Pro.json"
+        },
+        {
+            "name": "FD300 E Pro 單料頭",
+            "sub_path": "machine/FD300 E Pro 單料頭.json"
+        },
+        {
+            "name": "FD300 E Pro 同進",
+            "sub_path": "machine/FD300 E Pro 同進.json"
+        },
+        {
             "name": "FD450 Pro",
             "sub_path": "machine/FD450 Pro.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭",
+            "sub_path": "machine/FD450 Pro 單料頭.json"
+        },
+        {
+            "name": "FD450 Pro 同進",
+            "sub_path": "machine/FD450 Pro 同進.json"
         },
         {
             "name": "FD600 Pro",
             "sub_path": "machine/FD600 Pro.json"
         },
         {
-            "name": "FF600",
-            "sub_path": "machine/FF600.json"
+            "name": "FD600 Pro 單料頭",
+            "sub_path": "machine/FD600 Pro 單料頭.json"
+        },
+        {
+            "name": "FD600 Pro 同進",
+            "sub_path": "machine/FD600 Pro 同進.json"
         },
         {
             "name": "FD800 Pro",
             "sub_path": "machine/FD800 Pro.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭",
+            "sub_path": "machine/FD800 Pro 單料頭.json"
+        },
+        {
+            "name": "FD800 Pro 同進",
+            "sub_path": "machine/FD800 Pro 同進.json"
+        },
+        {
+            "name": "FP300",
+            "sub_path": "machine/FP300.json"
+        },
+        {
+            "name": "FP300 E",
+            "sub_path": "machine/FP300 E.json"
+        },
+        {
+            "name": "FF600",
+            "sub_path": "machine/FF600.json"
         },
         {
             "name": "FF800",
@@ -49,78 +113,6 @@
         {
             "name": "fdm_process_ping_common",
             "sub_path": "process/fdm_process_ping_common.json"
-        },
-        {
-            "name": "0.1mm @FP300 (0.2)",
-            "sub_path": "process/0.1mm @FP300 (0.2).json"
-        },
-        {
-            "name": "0.2mm @FP300 (0.4)",
-            "sub_path": "process/0.2mm @FP300 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FP300 (0.6)",
-            "sub_path": "process/0.3mm @FP300 (0.6).json"
-        },
-        {
-            "name": "0.2mm @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm @FD450 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm @FD450 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm @FD450 Pro (1.0).json"
-        },
-        {
-            "name": "0.2mm @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm @FD600 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm @FD600 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm @FD600 Pro (1.0).json"
-        },
-        {
-            "name": "0.2mm @FF600 (0.4)",
-            "sub_path": "process/0.2mm @FF600 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FF600 (0.6)",
-            "sub_path": "process/0.3mm @FF600 (0.6).json"
-        },
-        {
-            "name": "0.5mm @FF600 (1.0)",
-            "sub_path": "process/0.5mm @FF600 (1.0).json"
-        },
-        {
-            "name": "0.2mm @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm @FD800 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm @FD800 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm @FD800 Pro (1.0).json"
-        },
-        {
-            "name": "0.2mm @FF800 (0.4)",
-            "sub_path": "process/0.2mm @FF800 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FF800 (0.6)",
-            "sub_path": "process/0.3mm @FF800 (0.6).json"
-        },
-        {
-            "name": "0.5mm @FF800 (1.0)",
-            "sub_path": "process/0.5mm @FF800 (1.0).json"
         },
         {
             "name": "0.125mm @FD300 (0.25)",
@@ -157,6 +149,262 @@
         {
             "name": "0.3mm @FD300 同進 (0.6)",
             "sub_path": "process/0.3mm @FD300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E (0.25)",
+            "sub_path": "process/0.125mm @FD300 E (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E (0.4)",
+            "sub_path": "process/0.2mm @FD300 E (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E (0.6)",
+            "sub_path": "process/0.3mm @FD300 E (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E 單料頭 (0.25)",
+            "sub_path": "process/0.125mm @FD300 E 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD300 E 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD300 E 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E 同進 (0.25)",
+            "sub_path": "process/0.125mm @FD300 E 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD300 E 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD300 E 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm @FD300 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD300 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 Pro 單料頭 (0.25)",
+            "sub_path": "process/0.125mm @FD300 Pro 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD300 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD300 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm @FD300 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD300 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD300 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E Pro (0.25)",
+            "sub_path": "process/0.125mm @FD300 E Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E Pro (0.4)",
+            "sub_path": "process/0.2mm @FD300 E Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E Pro (0.6)",
+            "sub_path": "process/0.3mm @FD300 E Pro (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E Pro 單料頭 (0.25)",
+            "sub_path": "process/0.125mm @FD300 E Pro 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD300 E Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD300 E Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm @FD300 E Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm @FD300 E Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @FD300 E Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD300 E Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 E Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD300 E Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.2mm @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD450 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD450 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD450 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD450 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD450 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD450 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD450 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD450 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm @FD450 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD600 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD600 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD600 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD600 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD600 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD600 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD600 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm @FD600 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD800 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD800 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD800 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD800 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm @FD800 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD800 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm @FD800 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD800 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm @FD800 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm @FP300 (0.2)",
+            "sub_path": "process/0.1mm @FP300 (0.2).json"
+        },
+        {
+            "name": "0.2mm @FP300 (0.4)",
+            "sub_path": "process/0.2mm @FP300 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FP300 (0.6)",
+            "sub_path": "process/0.3mm @FP300 (0.6).json"
+        },
+        {
+            "name": "0.1mm @FP300 E (0.2)",
+            "sub_path": "process/0.1mm @FP300 E (0.2).json"
+        },
+        {
+            "name": "0.2mm @FP300 E (0.4)",
+            "sub_path": "process/0.2mm @FP300 E (0.4).json"
+        },
+        {
+            "name": "0.3mm @FP300 E (0.6)",
+            "sub_path": "process/0.3mm @FP300 E (0.6).json"
+        },
+        {
+            "name": "0.3mm @FF600 (0.6)",
+            "sub_path": "process/0.3mm @FF600 (0.6).json"
+        },
+        {
+            "name": "0.35mm @FF600 (1.0)",
+            "sub_path": "process/0.35mm @FF600 (1.0).json"
+        },
+        {
+            "name": "0.3mm @FF800 (0.6)",
+            "sub_path": "process/0.3mm @FF800 (0.6).json"
+        },
+        {
+            "name": "0.35mm @FF800 (1.0)",
+            "sub_path": "process/0.35mm @FF800 (1.0).json"
         }
     ],
     "filament_list": [
@@ -219,6 +467,22 @@
         {
             "name": "PING PLA - 220",
             "sub_path": "filament/PING PLA - 220.json"
+        },
+        {
+            "name": "PING PLA - 高流量 @FF 0.6",
+            "sub_path": "filament/PING PLA - 高流量 @FF 0.6.json"
+        },
+        {
+            "name": "PING SupPLA - 高流量 @FF 0.6",
+            "sub_path": "filament/PING SupPLA - 高流量 @FF 0.6.json"
+        },
+        {
+            "name": "PING PLA - 高流量 @FF 1.0",
+            "sub_path": "filament/PING PLA - 高流量 @FF 1.0.json"
+        },
+        {
+            "name": "PING SupPLA - 高流量 @FF 1.0",
+            "sub_path": "filament/PING SupPLA - 高流量 @FF 1.0.json"
         }
     ],
     "machine_list": [
@@ -229,78 +493,6 @@
         {
             "name": "fdm_ping_common",
             "sub_path": "machine/fdm_ping_common.json"
-        },
-        {
-            "name": "FP300 0.2 nozzle",
-            "sub_path": "machine/FP300 0.2 nozzle.json"
-        },
-        {
-            "name": "FP300 0.4 nozzle",
-            "sub_path": "machine/FP300 0.4 nozzle.json"
-        },
-        {
-            "name": "FP300 0.6 nozzle",
-            "sub_path": "machine/FP300 0.6 nozzle.json"
-        },
-        {
-            "name": "FD450 Pro 0.4 nozzle",
-            "sub_path": "machine/FD450 Pro 0.4 nozzle.json"
-        },
-        {
-            "name": "FD450 Pro 0.6 nozzle",
-            "sub_path": "machine/FD450 Pro 0.6 nozzle.json"
-        },
-        {
-            "name": "FD450 Pro 1.0 nozzle",
-            "sub_path": "machine/FD450 Pro 1.0 nozzle.json"
-        },
-        {
-            "name": "FD600 Pro 0.4 nozzle",
-            "sub_path": "machine/FD600 Pro 0.4 nozzle.json"
-        },
-        {
-            "name": "FD600 Pro 0.6 nozzle",
-            "sub_path": "machine/FD600 Pro 0.6 nozzle.json"
-        },
-        {
-            "name": "FD600 Pro 1.0 nozzle",
-            "sub_path": "machine/FD600 Pro 1.0 nozzle.json"
-        },
-        {
-            "name": "FF600 0.4 nozzle",
-            "sub_path": "machine/FF600 0.4 nozzle.json"
-        },
-        {
-            "name": "FF600 0.6 nozzle",
-            "sub_path": "machine/FF600 0.6 nozzle.json"
-        },
-        {
-            "name": "FF600 1.0 nozzle",
-            "sub_path": "machine/FF600 1.0 nozzle.json"
-        },
-        {
-            "name": "FD800 Pro 0.4 nozzle",
-            "sub_path": "machine/FD800 Pro 0.4 nozzle.json"
-        },
-        {
-            "name": "FD800 Pro 0.6 nozzle",
-            "sub_path": "machine/FD800 Pro 0.6 nozzle.json"
-        },
-        {
-            "name": "FD800 Pro 1.0 nozzle",
-            "sub_path": "machine/FD800 Pro 1.0 nozzle.json"
-        },
-        {
-            "name": "FF800 0.4 nozzle",
-            "sub_path": "machine/FF800 0.4 nozzle.json"
-        },
-        {
-            "name": "FF800 0.6 nozzle",
-            "sub_path": "machine/FF800 0.6 nozzle.json"
-        },
-        {
-            "name": "FF800 1.0 nozzle",
-            "sub_path": "machine/FF800 1.0 nozzle.json"
         },
         {
             "name": "FD300 0.25 nozzle",
@@ -337,6 +529,262 @@
         {
             "name": "FD300 同進 0.6 nozzle",
             "sub_path": "machine/FD300 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E 0.25 nozzle",
+            "sub_path": "machine/FD300 E 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E 0.4 nozzle",
+            "sub_path": "machine/FD300 E 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E 0.6 nozzle",
+            "sub_path": "machine/FD300 E 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E 單料頭 0.25 nozzle",
+            "sub_path": "machine/FD300 E 單料頭 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD300 E 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD300 E 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E 同進 0.25 nozzle",
+            "sub_path": "machine/FD300 E 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E 同進 0.4 nozzle",
+            "sub_path": "machine/FD300 E 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E 同進 0.6 nozzle",
+            "sub_path": "machine/FD300 E 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 0.25 nozzle",
+            "sub_path": "machine/FD300 Pro 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 0.4 nozzle",
+            "sub_path": "machine/FD300 Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 0.6 nozzle",
+            "sub_path": "machine/FD300 Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭 0.25 nozzle",
+            "sub_path": "machine/FD300 Pro 單料頭 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD300 Pro 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD300 Pro 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 同進 0.25 nozzle",
+            "sub_path": "machine/FD300 Pro 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 同進 0.4 nozzle",
+            "sub_path": "machine/FD300 Pro 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 同進 0.6 nozzle",
+            "sub_path": "machine/FD300 Pro 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 0.25 nozzle",
+            "sub_path": "machine/FD300 E Pro 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 0.4 nozzle",
+            "sub_path": "machine/FD300 E Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 0.6 nozzle",
+            "sub_path": "machine/FD300 E Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 單料頭 0.25 nozzle",
+            "sub_path": "machine/FD300 E Pro 單料頭 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD300 E Pro 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD300 E Pro 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 同進 0.25 nozzle",
+            "sub_path": "machine/FD300 E Pro 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 同進 0.4 nozzle",
+            "sub_path": "machine/FD300 E Pro 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 E Pro 同進 0.6 nozzle",
+            "sub_path": "machine/FD300 E Pro 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 0.4 nozzle",
+            "sub_path": "machine/FD450 Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 0.6 nozzle",
+            "sub_path": "machine/FD450 Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 1.0 nozzle",
+            "sub_path": "machine/FD450 Pro 1.0 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD450 Pro 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD450 Pro 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭 1.0 nozzle",
+            "sub_path": "machine/FD450 Pro 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進 0.4 nozzle",
+            "sub_path": "machine/FD450 Pro 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進 0.6 nozzle",
+            "sub_path": "machine/FD450 Pro 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進 1.0 nozzle",
+            "sub_path": "machine/FD450 Pro 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 0.4 nozzle",
+            "sub_path": "machine/FD600 Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 0.6 nozzle",
+            "sub_path": "machine/FD600 Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 1.0 nozzle",
+            "sub_path": "machine/FD600 Pro 1.0 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD600 Pro 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD600 Pro 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 單料頭 1.0 nozzle",
+            "sub_path": "machine/FD600 Pro 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進 0.4 nozzle",
+            "sub_path": "machine/FD600 Pro 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進 0.6 nozzle",
+            "sub_path": "machine/FD600 Pro 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進 1.0 nozzle",
+            "sub_path": "machine/FD600 Pro 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 0.4 nozzle",
+            "sub_path": "machine/FD800 Pro 0.4 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 0.6 nozzle",
+            "sub_path": "machine/FD800 Pro 0.6 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 1.0 nozzle",
+            "sub_path": "machine/FD800 Pro 1.0 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭 0.4 nozzle",
+            "sub_path": "machine/FD800 Pro 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭 0.6 nozzle",
+            "sub_path": "machine/FD800 Pro 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭 1.0 nozzle",
+            "sub_path": "machine/FD800 Pro 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進 0.4 nozzle",
+            "sub_path": "machine/FD800 Pro 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進 0.6 nozzle",
+            "sub_path": "machine/FD800 Pro 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進 1.0 nozzle",
+            "sub_path": "machine/FD800 Pro 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FP300 0.2 nozzle",
+            "sub_path": "machine/FP300 0.2 nozzle.json"
+        },
+        {
+            "name": "FP300 0.4 nozzle",
+            "sub_path": "machine/FP300 0.4 nozzle.json"
+        },
+        {
+            "name": "FP300 0.6 nozzle",
+            "sub_path": "machine/FP300 0.6 nozzle.json"
+        },
+        {
+            "name": "FP300 E 0.2 nozzle",
+            "sub_path": "machine/FP300 E 0.2 nozzle.json"
+        },
+        {
+            "name": "FP300 E 0.4 nozzle",
+            "sub_path": "machine/FP300 E 0.4 nozzle.json"
+        },
+        {
+            "name": "FP300 E 0.6 nozzle",
+            "sub_path": "machine/FP300 E 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 0.6 nozzle",
+            "sub_path": "machine/FF600 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 1.0 nozzle",
+            "sub_path": "machine/FF600 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 0.6 nozzle",
+            "sub_path": "machine/FF800 0.6 nozzle.json"
+        },
+        {
+            "name": "FF800 1.0 nozzle",
+            "sub_path": "machine/FF800 1.0 nozzle.json"
         }
     ]
 }

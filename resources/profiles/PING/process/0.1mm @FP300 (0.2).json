@@ -3,7 +3,6 @@
     "accel_to_decel_enable": "1",
     "accel_to_decel_factor": "50%",
     "alternate_extra_wall": "0",
-    "bbl_calib_mark_logo": "1",
     "bottom_shell_layers": "4",
     "bottom_shell_thickness": "0.8",
     "bottom_solid_infill_flow_ratio": "1",
@@ -20,7 +19,6 @@
     "brim_type": "outer_only",
     "brim_width": "5",
     "counterbore_hole_bridging": "none",
-    "curr_bed_type": "High Temp Plate",
     "default_acceleration": "3000",
     "default_jerk": "40",
     "detect_narrow_internal_solid_infill": "1",
@@ -40,9 +38,6 @@
     "extra_perimeters_on_overhangs": "0",
     "filename_format": "{input_filename_base}_{filament_type[initial_tool]}_{print_time}.gcode",
     "filter_out_gap_fill": "0",
-    "first_layer_print_sequence": [
-        "0"
-    ],
     "flush_into_infill": "0",
     "flush_into_objects": "0",
     "flush_into_support": "0",
@@ -55,7 +50,6 @@
     "gcode_add_line_number": "0",
     "gcode_comments": "0",
     "gcode_label_objects": "0",
-    "has_scarf_joint_seam": "1",
     "hole_to_polyhole": "0",
     "hole_to_polyhole_threshold": "0.01",
     "hole_to_polyhole_twisted": "1",
@@ -120,10 +114,6 @@
     "only_one_wall_first_layer": "0",
     "only_one_wall_top": "0",
     "ooze_prevention": "0",
-    "other_layers_print_sequence": [
-        "0"
-    ],
-    "other_layers_print_sequence_nums": "0",
     "outer_wall_acceleration": "3000",
     "outer_wall_jerk": "40",
     "outer_wall_line_width": "0.2",
@@ -285,12 +275,6 @@
     "wipe_tower_max_purge_speed": "90",
     "wipe_tower_no_sparse_layers": "0",
     "wipe_tower_rotation_angle": "0",
-    "wipe_tower_x": [
-        "116"
-    ],
-    "wipe_tower_y": [
-        "146"
-    ],
     "wiping_volumes_extruders": [
         "70",
         "70",
@@ -309,7 +293,7 @@
     "name": "0.1mm @FP300 (0.2)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP004",
+    "setting_id": "PINGP063",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FP300 0.2 nozzle"

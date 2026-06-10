@@ -5,7 +5,14 @@
 3.0 filament lineup (PING PLA/SupPLA/PolyABS/SupABS + PETG/ABS/PA-CF), round bed_model, covers.
 Slicing values from validated FD300 Orca 底稿; Start/End use newer M6050 multi-feed spec.
 """
-import os, json, math, shutil
+import os, json, math, shutil, sys
+
+# ⚠ DEPRECATED(2026-06-10)：機台/製程已改由 embed_params.py 從「F系列參數」正式交付嵌入
+#   （25 機型/73 機台/73 製程）。本骨架產生器重跑會【刪除並覆蓋】正式 preset＋PING.json。
+#   僅在重建 fdm 基底/骨架時使用：set PING_FORCE_GEN=1 再跑。
+if os.environ.get("PING_FORCE_GEN") != "1":
+    sys.exit("[DEPRECATED] gen_ping_profiles 會覆蓋 embed_params 的正式 F系列 preset。"
+             "確定要跑請先 set PING_FORCE_GEN=1（詳見檔頭註解）")
 
 REPO = r"D:\dev\2026claude\20260604 ORCA客製\PING-Slicer"
 PROF = os.path.join(REPO, "resources", "profiles")

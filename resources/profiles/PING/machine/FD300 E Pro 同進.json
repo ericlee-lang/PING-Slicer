@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "FD300 E Pro 同進",
+    "model_id": "PING_FD300_E_Pro_同進",
+    "nozzle_diameter": "0.25;0.4;0.6",
+    "machine_tech": "FFF",
+    "family": "",
+    "bed_model": "PING_FD300_buildplate_model.stl",
+    "bed_texture": "ping_buildplate_texture.png",
+    "hotend_model": "",
+    "default_materials": "PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF"
+}
