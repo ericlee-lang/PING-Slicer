@@ -147,7 +147,9 @@ def proc_overrides(kind, base, is_single_mode):
          "outer_wall_acceleration": acc, "travel_acceleration": "3000",
          # Scarf 斜接縫(§8)：2.3.2 以 seam_slope_type=external 啟用（無 has_scarf key）
          "seam_slope_type": "external", "seam_slope_start_height": "10%",
-         "seam_slope_min_length": "8"}
+         "seam_slope_min_length": "8",
+         # 接縫位置=對齊（2026-06-10 使用者「最佳 ABS」定稿；源檔為 back）
+         "seam_position": "aligned"}
     if is_single_mode:
         # 單料頭/同進/FP 源檔 PA-CF 殘值 → 對齊雙料母檔(2026-06-10 裁定)
         o.update({"travel_speed": "250", "sparse_infill_speed": "60", "support_speed": "40"})
