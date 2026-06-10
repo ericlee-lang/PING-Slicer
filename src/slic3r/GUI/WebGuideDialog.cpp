@@ -434,10 +434,18 @@ void GuideFrame::OnScriptMessage(wxWebViewEvent &evt)
                 for (auto it = MSelected.begin(); it != MSelected.end(); ++it) {
                     json OneSelect = it.value();
 
-                    wxString s1 = TmpModel["model"];
-                    wxString s2 = OneSelect["model"];
-                    if (s1.compare(s2) == 0) {
-                        m_ProfileJson["model"][m]["nozzle_selected"] = m_ProfileJson["model"][m]["nozzle_diameter"];
+                    // PING(2026-06-10) 修「勾任一單料頭/同進→全部互相連動」真因：原版 wxString 隱式
+                    // 轉碼(系統 locale)——含中文(UTF-8)機型名在 CP950 下轉換失敗成空字串，任兩個中文
+                    // 機型名比對皆相等。改 std::string 位元組比對(UTF-8 安全、跨平台一致)。
+                    std::string s1 = TmpModel["model"];
+                    std::string s2 = OneSelect["model"];
+                    if (s1 == s2) {
+                        // PING(2026-06-10) 修「勾一口徑→全部口徑被啟用」：JS 已送使用者實際勾選的
+                        // 口徑清單(分號分隔)，照用之；原版誤寫入機型「全部」口徑清單。
+                        if (OneSelect.contains("nozzle_diameter") && OneSelect["nozzle_diameter"].is_string())
+                            m_ProfileJson["model"][m]["nozzle_selected"] = OneSelect["nozzle_diameter"];
+                        else
+                            m_ProfileJson["model"][m]["nozzle_selected"] = m_ProfileJson["model"][m]["nozzle_diameter"];
                         break;
                     }
                 }
