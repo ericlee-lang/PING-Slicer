@@ -96,3 +96,9 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
   1. 機型比對由 `wxString`（隱式依系統 locale 轉碼，含中文 UTF-8 名在 CP950 轉換失敗成空字串→任兩中文名相等）改為 `std::string` 位元組比對——修「勾任一 單料頭/同進 → 所有含中文機型跨家族連動」（先前誤判為前綴比對，去空格實驗無效的真正原因）。
   2. `nozzle_selected` 改用 JS 送來的「實際勾選口徑清單」——修「勾一口徑 → 該機全部口徑被啟用」。
 - ⬜ 未 build（湊 B5 一次 build）。
+
+## 8. B7 批次（native）2026-06-10
+- `PhysicalPrinterDialog.cpp`：①另存實體設備預設名＝機型名(printer_model)，取代「{preset} - 複製」；②主機類型清單只留 Octo/Klipper(host_type 一律 htOctoPrint)；③設備代理只留 Moonraker(id 防呆過濾)。
+- `MsgDialog.cpp`：品牌 logo 對話框 64→40、錯誤框 84→48（左上角小標誌，不當主視覺）。
+- splash 去背 v2：`SplashLayered` 介面改收 wxImage、`GUI_App.cpp render_layered()` 全程 wxImage 合成（v1 經 MemoryDC 的 ConvertToImage 丟 alpha＝黑底真因）；文字以取樣底色之不透明貼片蓋上。
+- `utils.cpp`：gcode 頁首改「OrcaSlicer 2.3.2 (PING Slicer …)」開頭（Moonraker regex 識別）。

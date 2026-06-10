@@ -60,7 +60,17 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent) :
     m_presets = tab->get_presets();
     const Preset &sel_preset  = m_presets->get_selected_preset();
     std::string suffix = _CTX_utf8(L_CONTEXT("Copy", "PresetName"), "PresetName");
-    std::string   preset_name = sel_preset.is_default ? "Untitled" : sel_preset.is_system ? (boost::format(("%1% - %2%")) % sel_preset.name % suffix).str() : sel_preset.name;
+    // PING(2026-06-10)：系統 preset 另存實體列印設備時，預設名直接帶機型（如「FD300 同進」），
+    // 取代「FD300 同進 0.25 nozzle - 複製」（使用者規格）；printer_model 缺值時退回原邏輯。
+    std::string   preset_name;
+    if (sel_preset.is_default)
+        preset_name = "Untitled";
+    else if (sel_preset.is_system) {
+        preset_name = sel_preset.config.opt_string("printer_model");
+        if (preset_name.empty())
+            preset_name = (boost::format(("%1% - %2%")) % sel_preset.name % suffix).str();
+    } else
+        preset_name = sel_preset.name;
 
     auto input_sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -155,6 +165,13 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     if (wxGetApp().getAgent() != nullptr) {
         auto agents = NetworkAgentFactory::get_registered_printer_agents();
 
+        // PING(2026-06-10)：設備代理只留 Moonraker（PING 機種=Klipper；Bambu/Qidi/Snapmaker/Orca
+        // 代理不適用，清單瘦身——使用者規格）。若 id 不存在則不過濾（防呆）。
+        if (std::any_of(agents.begin(), agents.end(), [](const auto &a) { return a.id == "moonraker"; }))
+            agents.erase(std::remove_if(agents.begin(), agents.end(),
+                                        [](const auto &a) { return a.id != "moonraker"; }),
+                         agents.end());
+
         if (!agents.empty()) {
             // Create a fake enum option to force a Choice widget instead of TextCtrl
             // (printer_agent is coString in config, but we need a dropdown)
@@ -176,7 +193,8 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             std::string selected_agent = m_config->opt_string("printer_agent");
             auto it = std::find_if(agents.begin(), agents.end(), [&selected_agent](const auto& a) { return a.id == selected_agent; });
             if (it == agents.end()) {
-                selected_agent = ORCA_PRINTER_AGENT_ID;
+                // PING：預設取清單第一個（過濾後＝Moonraker；未過濾時為原 Orca 預設順位）
+                selected_agent = agents.front().id;
                 it = std::find_if(agents.begin(), agents.end(), [&selected_agent](const auto& a) { return a.id == selected_agent; });
             }
 
@@ -719,29 +737,19 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
     if (m_config == nullptr)
         return;
     Field* ht = m_optgroup->get_field("host_type");
+    // PING(2026-06-10)：主機類型只留「Octo/Klipper」（PING 機種全為 Klipper/OctoPrint；
+    // 原本十餘種品牌主機選項不適用，清單瘦身——使用者規格）。host_type 一律寫回 htOctoPrint。
     wxArrayString types;
-    int last_in_conf = m_config->option("host_type")->getInt(); //  this is real position in last choice
-
-    // Append localized enum_labels
-    assert(ht->m_opt.enum_labels.size() == ht->m_opt.enum_values.size());
-    for (size_t i = 0; i < ht->m_opt.enum_labels.size(); ++ i) {
-        wxString label = _(ht->m_opt.enum_labels[i]);
-        types.Add(label);
-    }
+    int octo_idx = 0;
+    for (size_t i = 0; i < ht->m_opt.enum_values.size(); ++i)
+        if (ht->m_opt.enum_values[i] == "octoprint") { octo_idx = (int) i; break; }
+    types.Add(_(ht->m_opt.enum_labels[octo_idx]));
 
     Choice* choice = dynamic_cast<Choice*>(ht);
     choice->set_values(types);
-    int index_in_choice = (printer_change ? std::clamp(last_in_conf - ((int)ht->m_opt.enum_values.size() - (int)types.size()), 0, (int)ht->m_opt.enum_values.size() - 1) : last_in_conf);
-    choice->set_value(index_in_choice);
-    if ("prusalink" == ht->m_opt.enum_values.at(index_in_choice))
-        m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaLink));
-    else if ("prusaconnect" == ht->m_opt.enum_values.at(index_in_choice))
-        m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaConnect));
-    else {
-        int host_type = std::clamp(index_in_choice + ((int)ht->m_opt.enum_values.size() - (int)types.size()), 0, (int)ht->m_opt.enum_values.size() - 1);
-        PrintHostType type = static_cast<PrintHostType>(host_type);
-        m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(type));
-    }
+    choice->set_value(0);
+    m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htOctoPrint));
+    (void) printer_change;
 }
 
 void PhysicalPrinterDialog::update_printer_agent_type()
