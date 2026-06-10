@@ -12,7 +12,18 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🟢 現況（2026-06-10 — FD300 材料擴充 + FP300 衍生完成、conflation/噴嘴 native bug「接受不修」、⚠ 待 commit）**
+**🟢🟢 現況（2026-06-10 第二波 — B4 完整 F 系列 136-config 重嵌完成：25 機型/73 機台/73 製程，PING.json v19，待使用者測）**
+- ✅ **embed_params.py 全面重寫（v2）**：吃參數端正式交付 `G:\...\PING Slicer V3.5\F系列參數\`（11 機型夾、136 config）。結構：7 個 FD 雙料家族（FD300/E/Pro/E Pro/450/600/800 Pro）×3 模式（雙料=家族名/單料頭/同進）×3 口徑 ＋ FP300/FP300 E（單料 0.2/0.4/0.6）＋ FF600/FF800（四進一出四色 0.6/1.0，preset 名不帶 Pro）。雙料 4 組合共用機台/製程（取 PLA+SUP 母檔），靠線材選擇。**printer_model 去「PING 」前綴**（延續既有命名）。
+- ✅ **FF 高流量線材**：4 個口徑別子 preset `PING PLA/SupPLA - 高流量 @FF 0.6/1.0`（alias 顯示母名；FF600/FF800 共用已驗證同值；0.6/1.0 流量/溫度/PA 不同故分開；清洗量維持實機 120——FF 換色洗料量待裁定，FD 的 30/60 不適用）。
+- ✅ **參數端已套修正清單①④**：源檔加速度（300=3000/450+=1500/travel=3000，**FF 也套了 1500**）＋倍數 0。**②Scarf ③單料頭速度源檔未套** → embed override 補（FD/FP：scarf external/10%/8＋單料頭模式 250/60/40；FF 不 override 維持實機）。**注意 2.3.2 無 `has_scarf_joint_seam` key，scarf 以 `seam_slope_type=external` 啟用**；機台/製程不再嵌專案層 key（修掉啟動 log incorrect keys 噪音）。
+- ✅ **wizard 分組改「家族」**：guide/{21,24} `strSeries=ModelName.replace(/\s*(單料頭|同進)$/,'')` → 11 家族各一列（FD300 一列 3 卡、FD300 E 一列 3 卡…）。**16 張新封面**沿用家族照（cover 以機型名解析，坑#11）。
+- ✅ **gen_ping_profiles.py 加防呆**：DEPRECATED，重跑會覆蓋正式 preset，需 `set PING_FORCE_GEN=1`。
+- ✅ **參照完整性全驗證通過**＋已同步 %APPDATA%/portable（**PING.json v19**）。⚠ 已知：FD 雙料/FF 四色切片可能觸發「Invalid T command」閃退（native，B5 修——SEMM=1 下 T 指令驗證用擠出機數而非線材數）；精靈 單料頭↔同進 連動＋勾一口徑全口徑啟用（native，已接受）。
+- 📋 機型命名空間注意：FD300 家族 12 個 model 共用「FD300」前綴，精靈連動 bug 可能擴大到 E/Pro 變體間（同類無害瑕疵）。
+
+---
+
+**（背景）2026-06-10 第一波 — FD300 材料擴充 + FP300 衍生（已被上方 B4 取代部分內容）**
 - ✅ **v3.5.1 已發布並安裝驗證**（繁中 OK）。安裝版 `C:\Program Files\PING Slicer V3.5\`；所有 PING app 共用 `%APPDATA%\PINGSlicer\system`。**測試一律用 portable `D:\PING-Slicer-portable`**（Program Files 不可寫，需管理員）。
 - ✅ **End G-code 改正常收尾已 commit（`6b2d126a`）**：27 機台＋產生器，移除退料 `G1 E-500`（退料交韌體；機器端已有退料功能）。與參數端最新交付一致（§五 基本收尾）。
 - 🔚 **conflation 結論＝接受為已知 native bug（不修）**：去空格實驗證明根因是 native「FD300 前綴比對」非空格 → resource 無解。**已 revert 去空格**，FD300 維持三機型（`FD300`／`FD300 同進`／`FD300 單料頭`，**有空格名**）。深查 native（`PresetComboBoxes.cpp:1211` 去重、`WebGuideDialog.cpp:440` 噴嘴存全清單、`Preset.cpp:738`、`PresetBundle.cpp:2927`）→ **主畫面「列印設備」下拉本來就依 printer_model 去重，三模式已能各自選＋各自切噴嘴**（Option A，不需改 native；合併成單一 model 會弄壞 `get_similar_printer_preset` 換噴嘴）。連動（單料頭↔同進）＋噴嘴全選（勾一口徑→三口徑，根因 L440）只影響精靈「啟用清單」、**不影響切片**，使用者**決定接受**。

@@ -90,8 +90,8 @@ function HandleModelList( pVal )
 		let ModelName=OneModel['model'];
 
 		//Collect Html Node Nozzel Html
-		//PING: 依「系列」分組(機型名第一個 token，如 FD300/FP300/FD450)，使同系列卡片同一列
-		let strSeries=ModelName.split(' ')[0];
+		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
+		let strSeries=ModelName.replace(/\s*(單料頭|同進)$/,'');
 		if( !ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor]={};
 		if( !ModelHtml[strVendor].hasOwnProperty(strSeries))
@@ -260,8 +260,8 @@ function FilterModelList(keyword) {
 		}
 
 		//Collect Html Node Nozzel Html
-		//PING: 同 HandleModelList，依系列分組
-		let strSeries = ModelName.split(' ')[0];
+		//PING: 同 HandleModelList，依家族分組(去模式字尾)
+		let strSeries = ModelName.replace(/\s*(單料頭|同進)$/,'');
 		if (!ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor] = {};
 		if (!ModelHtml[strVendor].hasOwnProperty(strSeries))

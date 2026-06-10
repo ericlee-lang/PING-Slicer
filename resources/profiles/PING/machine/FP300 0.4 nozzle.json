@@ -48,17 +48,6 @@
     "filament_colors": [
         "#808080"
     ],
-    "filament_ids": [
-        "PLA"
-    ],
-    "flush_multiplier": "0",
-    "flush_volumes_matrix": [
-        "457"
-    ],
-    "flush_volumes_vector": [
-        "140",
-        "140"
-    ],
     "gcode_flavor": "klipper",
     "head_wrap_detect_zone": [],
     "high_current_on_filament_swap": "0",
@@ -67,7 +56,7 @@
     "long_retractions_when_cut": [
         "0"
     ],
-    "machine_end_gcode": "G91\nG1 Z10 F3000 ; lift nozzle away from print\nG90\nM104 S0 ; hotend off\nM140 S0 ; bed off\nG28 X0 Y0 ; home all axes\nM84 ; disable motors",
+    "machine_end_gcode": "G91\nG1 Z10 F3000\nG90\nM104 S0\nM140 S0\nG28 X0 Y0\nM84",
     "machine_load_filament_time": "0",
     "machine_max_acceleration_e": [
         "5000",
@@ -178,7 +167,7 @@
         "38.8229x144.889",
         "26.0472x147.721",
         "13.0734x149.429",
-        "9.18485e-15x150",
+        "0x150",
         "-13.0734x149.429",
         "-26.0472x147.721",
         "-38.8229x144.889",
@@ -196,7 +185,7 @@
         "-144.889x38.8229",
         "-147.721x26.0472",
         "-149.429x13.0734",
-        "-150x1.83697e-14",
+        "-150x0",
         "-149.429x-13.0734",
         "-147.721x-26.0472",
         "-144.889x-38.8229",
@@ -214,7 +203,7 @@
         "-38.8229x-144.889",
         "-26.0472x-147.721",
         "-13.0734x-149.429",
-        "-2.75546e-14x-150",
+        "-0x-150",
         "13.0734x-149.429",
         "26.0472x-147.721",
         "38.8229x-144.889",
@@ -232,7 +221,7 @@
         "144.889x-38.8229",
         "147.721x-26.0472",
         "149.429x-13.0734",
-        "150x-3.67394e-14"
+        "150x-0"
     ],
     "printable_height": "300",
     "printer_model": "FP300",
@@ -289,10 +278,6 @@
     "scan_first_layer": "0",
     "silent_mode": "0",
     "single_extruder_multi_material": "0",
-    "start_end_points": [
-        "30x-3",
-        "54x245"
-    ],
     "support_air_filtration": "1",
     "support_chamber_temp_control": "1",
     "support_multi_bed_types": "0",
@@ -325,6 +310,6 @@
     "name": "FP300 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM005",
+    "setting_id": "PINGM064",
     "alias": "FP300"
 }
