@@ -268,6 +268,20 @@ def main(src_base):
             shutil.copy2(os.path.join(PINGDIR, cover_src[key]), dst)
             print("  cover: %s_cover.png <- %s" % (model, cover_src[key]))
 
+    # 4c-2. 側欄印表機縮圖 printer_preview_{model_id}.png（Plater.cpp:3969；缺檔=黑方塊）
+    #       全部用「家族機器照」（模式變體同實機）；240x240 RGBA 同上游規格
+    from PIL import Image
+    img_dir = os.path.join(REPO, "resources", "images")
+    for model in nozzles_of:
+        family_cover = cover_src[max((k for k in cover_src if model.startswith(k)), key=len)]
+        mm_path = os.path.join(PINGDIR, "machine", "%s.json" % model)
+        model_id = json.load(io.open(mm_path, encoding="utf-8"))["model_id"]
+        im = Image.open(os.path.join(PINGDIR, family_cover)).convert("RGBA")
+        im.thumbnail((240, 240), Image.LANCZOS)
+        canvas = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
+        canvas.paste(im, ((240-im.width)//2, (240-im.height)//2), im)
+        canvas.save(os.path.join(img_dir, "printer_preview_%s.png" % model_id))
+
     # 4d. PING.json 重建（machine/process 全量重建；filament 保留既有＋新增 FF）
     pj_path = os.path.join(PROF, "PING.json")
     pj = json.load(io.open(pj_path, encoding="utf-8"))
