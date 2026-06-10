@@ -187,6 +187,8 @@ def combo_overrides(combo, layer_height):
         o.update({"support_top_z_distance": layer_height, "support_bottom_z_distance": layer_height})
     if combo.startswith("ABS"):
         o["raft_layers"] = "2"
+        # ABS 首層線寬 1.5×口徑（「最佳ABS(更新後)」定稿 0.4 噴嘴=0.6；百分比隨口徑縮放）
+        o["initial_layer_line_width"] = "150%"
     if combo == "ABS+SUP":
         o.update({"support_type": "normal(auto)", "support_base_pattern": "rectilinear",
                   "support_filament": "1", "support_interface_filament": "2",
