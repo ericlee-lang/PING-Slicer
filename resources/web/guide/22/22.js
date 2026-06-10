@@ -574,10 +574,9 @@ function ReturnPreviewPage()
 
 function GotoNetPluginPage()
 {
-	let bRet=ResponseFilamentResult();
-	
-	if(bRet)
-		window.location.href="../4orca/index.html";
+	// PING: 跳過 Stealth Mode 頁（Bambu 雲端隱私設定——PING 已停用 Bambu 網路外掛，
+	// 此設定無作用且顯示非本公司名稱）。FinishGuide 內含 ResponseFilamentResult。
+	FinishGuide();
 }
 
 function FinishGuide()
