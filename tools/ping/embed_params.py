@@ -145,10 +145,9 @@ def proc_overrides(kind, base, is_single_mode):
     acc = "3000" if tier_of(base) == "300" else "1500"
     o = {"default_acceleration": acc, "inner_wall_acceleration": acc,
          "outer_wall_acceleration": acc, "travel_acceleration": "3000",
-         # Scarf 斜接縫(§8)：2.3.2 以 seam_slope_type=external 啟用（無 has_scarf key）
-         "seam_slope_type": "external", "seam_slope_start_height": "10%",
-         "seam_slope_min_length": "8",
-         # 接縫位置=對齊（2026-06-10 使用者「最佳 ABS」定稿；源檔為 back）
+         # 接縫（2026-06-10 使用者實測定稿）：斜拼接縫=無——原 §8 scarf 規範(external/10%/8)
+         # 來自網路參考、實測不佳，廢除；位置=對齊（源檔為 back）
+         "seam_slope_type": "none",
          "seam_position": "aligned"}
     if is_single_mode:
         # 單料頭/同進/FP 源檔 PA-CF 殘值 → 對齊雙料母檔(2026-06-10 裁定)
