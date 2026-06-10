@@ -7171,12 +7171,13 @@ void GUI_App::load_current_presets(bool active_preset_combox/*= false*/, bool ch
             preset_bundle->set_num_filaments(nozzle_diameter->values.size());
         }
     }
-    // PING: 2進1出 / 多進1出 的 SEMM 多材料機（FD=2料、FF=4料）依 default_filament_profile 數量初始化線材槽，
+    // PING: SEMM 多材料機（FD=2料、FF=4料）依 default_filament_profile 數量初始化線材槽，
     // 還原 PING Slicer V3.0 行為。Orca 2.3.2 預設對 single_extruder_multi_material 機種不同步槽數（視為 AMS 變動數量），
-    // 導致 nozzle_diameter=1 + SEMM=1 的 PING 雙料機選機後只剩 1 槽。只「增不減」，不影響使用者後續手動增減料。
+    // 導致 nozzle_diameter=1 + SEMM=1 的 PING 雙料機選機後只剩 1 槽。
+    // 2026-06-10 改「完全同步」（原為只增不減）：啟動載入即吻合該機 1/2/4 規格，不沿用舊快照數量。
     else if (printer_technology == ptFFF) {
         auto* def_fil = edited_printer_preset.config.option<ConfigOptionStrings>("default_filament_profile");
-        if (def_fil && def_fil->values.size() > preset_bundle->filament_presets.size()) {
+        if (def_fil && def_fil->values.size() >= 1 && def_fil->values.size() != preset_bundle->filament_presets.size()) {
             preset_bundle->set_num_filaments((unsigned int) def_fil->values.size());
         }
     }

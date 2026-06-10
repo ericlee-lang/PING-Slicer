@@ -5941,6 +5941,17 @@ bool Tab::select_preset(
             m_preset_bundle->update_selections(*wxGetApp().app_config);
             wxGetApp().plater()->sidebar().on_filament_count_change(m_preset_bundle->filament_presets.size());
         }
+        // PING: 切換印表機時，線材槽數一律跟該機 default_filament_profile 走（FP=1 / FD=2 / FF=4），
+        // 不沿用上一台機器或 conf 舊快照的數量（修「慢一拍」：快照還原會把前一台的槽數帶過來）。
+        // 增減皆同步；切換後使用者仍可手動 +/-（下次切換機器時再重新同步）。2026-06-10 規格。
+        if (m_type == Preset::TYPE_PRINTER) {
+            const auto *def_fil = m_presets->get_edited_preset().config.option<ConfigOptionStrings>("default_filament_profile");
+            const size_t n_def  = def_fil ? def_fil->values.size() : 0;
+            if (n_def >= 1 && m_preset_bundle->filament_presets.size() != n_def) {
+                m_preset_bundle->set_num_filaments((unsigned int) n_def);
+                wxGetApp().plater()->sidebar().on_filament_count_change(n_def);
+            }
+        }
         load_current_preset();
 
 
