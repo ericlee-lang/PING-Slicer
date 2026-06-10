@@ -1208,7 +1208,9 @@ std::string string_printf(const char *format, ...)
 
 std::string header_slic3r_generated()
 {
-	return std::string(SLIC3R_APP_NAME " " SoftFever_VERSION);
+	// PING(2026-06-10)：保留「OrcaSlicer」字樣讓 Moonraker/Fluidd/Mainsail 的 metadata
+	// 解析器識別切片器（否則整包 gcode metadata 不解析→監控頁層高/耗材/時間全空、切片=Unknown）。
+	return std::string(SLIC3R_APP_NAME " " SoftFever_VERSION " (based on OrcaSlicer)");
 }
 
 std::string header_gcodeviewer_generated()

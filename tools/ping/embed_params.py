@@ -127,6 +127,15 @@ def bed_for(model):
 def tier_of(base):
     return "300" if base.startswith(("FD300","FP300")) else "450"
 
+def filename_tpl(mode_key):
+    """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量g_時間。
+    雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色。"""
+    base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight}g_{print_time}.gcode"
+    if mode_key == "dual":  return "{if filament_is_support[1]}易拆{else}雙色{endif}_" + base
+    if mode_key == "同進":  return "Mix_" + base
+    if mode_key == "四色":  return "四色_" + base
+    return base   # 單料頭 / FP300
+
 def proc_overrides(kind, base, is_single_mode):
     """軟體端裁定值 override（FF 不套——加速度/scarf 未裁定，維持實機）"""
     if kind == "ff": return {}
@@ -211,7 +220,8 @@ def main(src_base):
                 proc.update(proc_overrides(kind, base, is_single))
                 proc.update({"type":"process","name":proc_name,"from":"system","instantiation":"true",
                     "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
-                    "compatible_printers":[mac_name]})
+                    "compatible_printers":[mac_name],
+                    "filename_format": filename_tpl(mode_key)})
                 jdump(os.path.join(PINGDIR,"process","%s.json"%proc_name), proc)
                 proc_list.append({"name":proc_name,"sub_path":"process/%s.json"%proc_name}); gp += 1
 
