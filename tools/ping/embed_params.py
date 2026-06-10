@@ -114,7 +114,15 @@ def def_fil_ff(nz):
     return ["PING PLA - 高流量 @FF %s" % nz]*3 + ["PING SupPLA - 高流量 @FF %s" % nz]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
                         "PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF")
-BED = ("PING_FD300_buildplate_model.stl", "ping_buildplate_texture.png")
+# 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
+BED_TEXTURE = "ping_buildplate_texture.png"
+BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
+           "FD450":"PING_FD450_buildplate_model.stl",
+           "FD600":"PING_FD600_buildplate_model.stl","FF600":"PING_FD600_buildplate_model.stl",
+           "FD800":"PING_FD800_buildplate_model.stl","FF800":"PING_FD800_buildplate_model.stl"}
+def bed_for(model):
+    key = max((k for k in BED_STL if model.startswith(k)), key=len)
+    return BED_STL[key]
 
 def tier_of(base):
     return "300" if base.startswith(("FD300","FP300")) else "450"
@@ -211,7 +219,7 @@ def main(src_base):
             mm = {"type":"machine_model","name":model,
                   "model_id":"PING_"+model.replace(" ","_"),
                   "nozzle_diameter":";".join(nzs),"machine_tech":"FFF","family":"",
-                  "bed_model":BED[0],"bed_texture":BED[1],"hotend_model":"",
+                  "bed_model":bed_for(model),"bed_texture":BED_TEXTURE,"hotend_model":"",
                   "default_materials": (";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1]))
                                         if kind=="ff" else DEFAULT_MATERIALS_FD)}
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
