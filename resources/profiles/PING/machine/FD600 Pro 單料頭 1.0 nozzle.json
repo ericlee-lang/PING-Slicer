@@ -310,6 +310,6 @@
     "name": "FD600 Pro 單料頭 1.0 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM050",
+    "setting_id": "PINGM032",
     "alias": "FD600 Pro 單料頭"
 }

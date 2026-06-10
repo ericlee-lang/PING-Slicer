@@ -97,17 +97,16 @@ def jdump(path, obj):
 # (交付夾名, preset 機型名, kind)；kind: dual=雙料機3模式 / single=單料機 / ff=四進一出
 FAMS = [
     ("FD300",       "FD300",       "dual"),
-    ("FD300 E",     "FD300 E",     "dual"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
-    ("FD300 E Pro", "FD300 E Pro", "dual"),
     ("FD450 Pro",   "FD450 Pro",   "dual"),
     ("FD600 Pro",   "FD600 Pro",   "dual"),
     ("FD800 Pro",   "FD800 Pro",   "dual"),
     ("FP300",       "FP300",       "single"),
-    ("FP300 E",     "FP300 E",     "single"),
     ("FF600 Pro",   "FF600",       "ff"),
     ("FF800 Pro",   "FF800",       "ff"),
 ]
+# 資安版 E 機型（FD300 E / FD300 E Pro / FP300 E）不上 slicer 精靈——2026-06-10 使用者定
+# （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
 DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
 DEF_FIL_SINGLE = ["PING PLA - 220"]
 def def_fil_ff(nz):
@@ -239,16 +238,25 @@ def main(src_base):
             jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
             fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
 
-    # 4c. 封面：新機型沿用家族照片（cover 以機型名解析——坑#11）
+    # 4c. 封面（cover 以機型名解析——坑#11）：
+    #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     cover_src = {"FD300":"FD300_cover.png","FP300":"FP300_cover.png",
                  "FD450":"FD450 Pro_cover.png","FD600":"FD600 Pro_cover.png",
                  "FD800":"FD800 Pro_cover.png","FF600":"FF600_cover.png","FF800":"FF800_cover.png"}
+    def blank_png(path):
+        from PIL import Image
+        Image.new("RGBA", (600, 600), (0, 0, 0, 0)).save(path)
+    for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面
+        if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of:
+            os.remove(os.path.join(PINGDIR, f)); print("  cover 移除(孤兒):", f)
     for model in nozzles_of:
         dst = os.path.join(PINGDIR, "%s_cover.png" % model)
-        if os.path.exists(dst): continue
-        key = next(k for k in cover_src if model.startswith(k))
-        shutil.copy2(os.path.join(PINGDIR, cover_src[key]), dst)
-        print("  cover: %s_cover.png <- %s" % (model, cover_src[key]))
+        if model.endswith(("單料頭", "同進")):
+            blank_png(dst)                   # 模式卡固定空白（每次重生覆寫，確保不殘留照片）
+        elif not os.path.exists(dst):
+            key = next(k for k in cover_src if model.startswith(k))
+            shutil.copy2(os.path.join(PINGDIR, cover_src[key]), dst)
+            print("  cover: %s_cover.png <- %s" % (model, cover_src[key]))
 
     # 4d. PING.json 重建（machine/process 全量重建；filament 保留既有＋新增 FF）
     pj_path = os.path.join(PROF, "PING.json")
