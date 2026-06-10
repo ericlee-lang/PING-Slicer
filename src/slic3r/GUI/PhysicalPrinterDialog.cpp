@@ -747,7 +747,8 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
 
     Choice* choice = dynamic_cast<Choice*>(ht);
     choice->set_values(types);
-    choice->set_value(0);
+    int sel_idx = 0;   // 字面值 0 對 set_value 多載有歧義(C2668)，用 int 變數
+    choice->set_value(sel_idx);
     m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htOctoPrint));
     (void) printer_change;
 }
