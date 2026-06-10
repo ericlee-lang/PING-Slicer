@@ -90,3 +90,9 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - `src/slic3r/GUI/Tab.cpp::select_preset`：切換印表機後，線材槽數一律同步為該機 `default_filament_profile` 數量（FP=1/FD=2/FF=4），修「慢一拍」（Orca `remember_printer_config` 快照還原會沿用前一台槽數）。
 - `src/slic3r/GUI/GUI_App.cpp::load_current_presets`：PING SEMM 槽數初始化由「只增不減」改「完全同步」。
 - ⬜ 未 build（湊 B5 一次 build）。
+
+## 7. wizard 連動真因修正（native）2026-06-10
+- `src/slic3r/GUI/WebGuideDialog.cpp::save_userguide_models`：
+  1. 機型比對由 `wxString`（隱式依系統 locale 轉碼，含中文 UTF-8 名在 CP950 轉換失敗成空字串→任兩中文名相等）改為 `std::string` 位元組比對——修「勾任一 單料頭/同進 → 所有含中文機型跨家族連動」（先前誤判為前綴比對，去空格實驗無效的真正原因）。
+  2. `nozzle_selected` 改用 JS 送來的「實際勾選口徑清單」——修「勾一口徑 → 該機全部口徑被啟用」。
+- ⬜ 未 build（湊 B5 一次 build）。
