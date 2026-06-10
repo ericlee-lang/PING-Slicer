@@ -1,9 +1,13 @@
 {
     "name": "PING",
-    "version": "01.00.00.20",
+    "version": "01.00.00.21",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
+        {
+            "name": "FP300",
+            "sub_path": "machine/FP300.json"
+        },
         {
             "name": "FD300",
             "sub_path": "machine/FD300.json"
@@ -65,10 +69,6 @@
             "sub_path": "machine/FD800 Pro 同進.json"
         },
         {
-            "name": "FP300",
-            "sub_path": "machine/FP300.json"
-        },
-        {
             "name": "FF600",
             "sub_path": "machine/FF600.json"
         },
@@ -85,6 +85,18 @@
         {
             "name": "fdm_process_ping_common",
             "sub_path": "process/fdm_process_ping_common.json"
+        },
+        {
+            "name": "0.1mm @FP300 (0.2)",
+            "sub_path": "process/0.1mm @FP300 (0.2).json"
+        },
+        {
+            "name": "0.2mm @FP300 (0.4)",
+            "sub_path": "process/0.2mm @FP300 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FP300 (0.6)",
+            "sub_path": "process/0.3mm @FP300 (0.6).json"
         },
         {
             "name": "0.125mm @FD300 (0.25)",
@@ -267,18 +279,6 @@
             "sub_path": "process/0.5mm @FD800 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.1mm @FP300 (0.2)",
-            "sub_path": "process/0.1mm @FP300 (0.2).json"
-        },
-        {
-            "name": "0.2mm @FP300 (0.4)",
-            "sub_path": "process/0.2mm @FP300 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FP300 (0.6)",
-            "sub_path": "process/0.3mm @FP300 (0.6).json"
-        },
-        {
             "name": "0.3mm @FF600 (0.6)",
             "sub_path": "process/0.3mm @FF600 (0.6).json"
         },
@@ -381,6 +381,18 @@
         {
             "name": "fdm_ping_common",
             "sub_path": "machine/fdm_ping_common.json"
+        },
+        {
+            "name": "FP300 0.2 nozzle",
+            "sub_path": "machine/FP300 0.2 nozzle.json"
+        },
+        {
+            "name": "FP300 0.4 nozzle",
+            "sub_path": "machine/FP300 0.4 nozzle.json"
+        },
+        {
+            "name": "FP300 0.6 nozzle",
+            "sub_path": "machine/FP300 0.6 nozzle.json"
         },
         {
             "name": "FD300 0.25 nozzle",
@@ -561,18 +573,6 @@
         {
             "name": "FD800 Pro 同進 1.0 nozzle",
             "sub_path": "machine/FD800 Pro 同進 1.0 nozzle.json"
-        },
-        {
-            "name": "FP300 0.2 nozzle",
-            "sub_path": "machine/FP300 0.2 nozzle.json"
-        },
-        {
-            "name": "FP300 0.4 nozzle",
-            "sub_path": "machine/FP300 0.4 nozzle.json"
-        },
-        {
-            "name": "FP300 0.6 nozzle",
-            "sub_path": "machine/FP300 0.6 nozzle.json"
         },
         {
             "name": "FF600 0.6 nozzle",

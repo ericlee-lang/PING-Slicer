@@ -95,13 +95,14 @@ def jdump(path, obj):
 
 # ---------- 2. 機型家族定義 ----------
 # (交付夾名, preset 機型名, kind)；kind: dual=雙料機3模式 / single=單料機 / ff=四進一出
+# 順序＝精靈顯示順序（2026-06-10 使用者定）：單料 → 雙料 → 四料；同類依列印範圍小→大
 FAMS = [
+    ("FP300",       "FP300",       "single"),
     ("FD300",       "FD300",       "dual"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
     ("FD450 Pro",   "FD450 Pro",   "dual"),
     ("FD600 Pro",   "FD600 Pro",   "dual"),
     ("FD800 Pro",   "FD800 Pro",   "dual"),
-    ("FP300",       "FP300",       "single"),
     ("FF600 Pro",   "FF600",       "ff"),
     ("FF800 Pro",   "FF800",       "ff"),
 ]
@@ -240,7 +241,8 @@ def main(src_base):
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
-    cover_src = {"FD300":"FD300_cover.png","FP300":"FP300_cover.png",
+    # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
+    cover_src = {"FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png","FP300":"FP300_cover.png",
                  "FD450":"FD450 Pro_cover.png","FD600":"FD600 Pro_cover.png",
                  "FD800":"FD800 Pro_cover.png","FF600":"FF600_cover.png","FF800":"FF800_cover.png"}
     def blank_png(path):
@@ -254,7 +256,7 @@ def main(src_base):
         if model.endswith(("單料頭", "同進")):
             blank_png(dst)                   # 模式卡固定空白（每次重生覆寫，確保不殘留照片）
         elif not os.path.exists(dst):
-            key = next(k for k in cover_src if model.startswith(k))
+            key = max((k for k in cover_src if model.startswith(k)), key=len)
             shutil.copy2(os.path.join(PINGDIR, cover_src[key]), dst)
             print("  cover: %s_cover.png <- %s" % (model, cover_src[key]))
 

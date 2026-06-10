@@ -293,7 +293,7 @@
     "name": "0.2mm @FD600 Pro 單料頭 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP030",
+    "setting_id": "PINGP033",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD600 Pro 單料頭 0.4 nozzle"

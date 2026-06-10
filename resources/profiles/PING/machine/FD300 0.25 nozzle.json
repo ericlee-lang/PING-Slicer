@@ -313,6 +313,6 @@
     "name": "FD300 0.25 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM000",
+    "setting_id": "PINGM003",
     "alias": "FD300"
 }
