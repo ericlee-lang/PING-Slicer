@@ -36,7 +36,7 @@
     "ensure_vertical_shell_thickness": "ensure_moderate",
     "exclude_object": "0",
     "extra_perimeters_on_overhangs": "0",
-    "filename_format": "{if filament_is_support[1]}易拆{else}雙色{endif}_{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode",
+    "filename_format": "易拆_{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode",
     "filter_out_gap_fill": "0",
     "flush_into_infill": "0",
     "flush_into_objects": "0",
@@ -203,7 +203,7 @@
     "support_base_pattern": "rectilinear",
     "support_base_pattern_spacing": "2.5",
     "support_bottom_interface_spacing": "0.5",
-    "support_bottom_z_distance": "0.2",
+    "support_bottom_z_distance": "0",
     "support_critical_regions_only": "0",
     "support_expansion": "1",
     "support_filament": "2",
@@ -222,7 +222,7 @@
     "support_speed": "40",
     "support_style": "default",
     "support_threshold_angle": "30",
-    "support_top_z_distance": "0.2",
+    "support_top_z_distance": "0",
     "support_type": "tree(auto)",
     "thick_bridges": "0",
     "thick_internal_bridges": "1",
@@ -290,12 +290,12 @@
     "xy_contour_compensation": "0",
     "xy_hole_compensation": "0",
     "type": "process",
-    "name": "0.2mm @FD450 Pro (0.4)",
+    "name": "0.2mm PLA+SUP @FD600 Pro (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP021",
+    "setting_id": "PINGP057",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
-        "FD450 Pro 0.4 nozzle"
+        "FD600 Pro 0.4 nozzle"
     ]
 }
