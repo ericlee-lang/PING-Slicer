@@ -6340,7 +6340,9 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Flush multiplier");
     def->tooltip = L("The actual flushing volumes is equal to the flush multiplier multiplied by the flushing volumes in the table.");
     //def->sidetext = "";
-    def->set_default_value(new ConfigOptionFloats{0.3});
+    // PING(2026-06-11)：預設 0.3→0——裁定「倍數=0 停用矩陣」，換料沖刷量改由
+    // filament_minimal_purge_on_wipe_tower 下限控制（主體15/SupPLA30；FF 高流量 120）
+    def->set_default_value(new ConfigOptionFloats{0});
 
     // BBS
     def = this->add("prime_volume", coFloat);

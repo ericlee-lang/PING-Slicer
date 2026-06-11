@@ -358,7 +358,9 @@ void AppConfig::set_defaults()
     }
 
     if (get("auto_calculate_flush").empty()){
-        set("auto_calculate_flush","all");
+        // PING(2026-06-11)：預設停用沖刷量自動計算——裁定「倍數=0 停用矩陣」，
+        // 換料沖刷量由線材層 filament_minimal_purge_on_wipe_tower 控制（主體15/SupPLA30）
+        set("auto_calculate_flush","disabled");
     }
 
     if (get("show_canvas_zoom_button").empty()) {
