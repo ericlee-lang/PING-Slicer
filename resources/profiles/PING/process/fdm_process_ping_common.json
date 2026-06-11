@@ -50,5 +50,6 @@
     "support_interface_spacing": "0.2",
     "enable_prime_tower": "1",
     "prime_tower_width": "30",
-    "prime_volume": "45"
+    "prime_volume": "45",
+    "wipe_tower_max_idle_layers": "1"
 }

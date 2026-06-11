@@ -20898,3 +20898,16 @@ msgstr ""
 #, c-format, boost-format
 #~ msgid "The selected preset: %s is not found."
 #~ msgstr "找不到所選的預設：%s"
+
+#. PING: wipe_tower_max_idle_layers label
+msgid "Purge idle filaments every"
+msgstr "閒置線材沖刷間隔"
+
+#. PING: wipe_tower_max_idle_layers tooltip
+msgid ""
+"For shared-nozzle multi-material hotends (2-in-1-out / 4-in-1-out), filaments that "
+"are not being printed keep sitting in the hot end and degrade over time. "
+"When set to a value N greater than zero, every filament used by this print is purged "
+"on the prime tower after sitting idle for N layers, even on layers where it does not "
+"print anything. Set to 1 to refresh every filament on every layer. 0 disables this."
+msgstr "兩進一出／四進一出共用噴頭的多色列印中，未在列印的線材會持續停留在噴頭內並隨時間劣化。設為大於 0 的數值 N 時，本次列印使用的每一支線材只要連續閒置 N 層，就會在換料塔上沖刷一次（即使該層沒有使用它）。設為 1 表示每一層更新所有線材；0 表示停用。"

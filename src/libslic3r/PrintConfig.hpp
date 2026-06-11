@@ -1334,6 +1334,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                manual_filament_change))
     ((ConfigOptionBool,                single_extruder_multi_material_priming))
     ((ConfigOptionBool,                wipe_tower_no_sparse_layers))
+    // PING: purge filaments idle for N layers on the wipe tower (0 = off, 1 = every layer)
+    ((ConfigOptionInt,                 wipe_tower_max_idle_layers))
     ((ConfigOptionString,              change_filament_gcode))
     ((ConfigOptionString,              change_extrusion_role_gcode))
     ((ConfigOptionFloat,               travel_speed))
