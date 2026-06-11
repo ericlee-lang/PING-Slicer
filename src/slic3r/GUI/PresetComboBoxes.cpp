@@ -1570,7 +1570,12 @@ void TabPresetComboBox::OnSelect(wxCommandEvent &evt)
 
 wxString TabPresetComboBox::get_preset_name(const Preset& preset)
 {
-    return from_u8(preset.label(true));
+    // PING(2026-06-12)：製程下拉顯示 alias（「@機型 (口徑)」前段，如「0.125mm PLA+SUP」）——
+    // 機型與口徑跟上方「列印設備」區重複（使用者規格：名稱保留、顯示截短）。
+    // 同 alias 多口徑不混淆：清單僅列當前機台相容製程；選擇回填靠 Tab.cpp 以
+    // get_preset_name_by_alias 解析回真名（含相容性過濾）。機型/線材維持全名
+    // （per-nozzle 與 @FF 口徑變體同 alias，必須全名區分）。
+    return from_u8(preset.label(m_type != Preset::TYPE_PRINT));
 }
 
 // Update the choice UI from the list of presets.

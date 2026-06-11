@@ -216,7 +216,10 @@ void Tab::create_preset_tab()
 
                 // select preset
                 std::string preset_name = m_presets_choice->GetString(selection).ToUTF8().data();
-                select_preset(Preset::remove_suffix_modified(preset_name));
+                preset_name = Preset::remove_suffix_modified(preset_name);
+                // PING(2026-06-12)：製程 combo 顯示 alias → 先解析回真名（找不到原樣回傳，全名相容）
+                preset_name = m_presets->get_preset_name_by_alias(preset_name);
+                select_preset(preset_name);
             }
         });
     }
