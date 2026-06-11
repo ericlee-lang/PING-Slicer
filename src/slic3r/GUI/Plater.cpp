@@ -808,9 +808,11 @@ struct DynamicFilamentList : DynamicList
         auto presets = wxGetApp().preset_bundle->filament_presets;
         for (int i = 0; i < presets.size(); ++i) {
             wxString str;
-            std::string type;
-            wxGetApp().preset_bundle->filaments.find_preset(presets[i])->get_filament_type(type);
-            str << type;
+            // PING(2026-06-11)：顯示線材名稱（alias 優先）而非 filament type——
+            // type 與線材槽顯示的名稱對不上（如 SupPLA 顯示成 PETG），使用者無法辨識是哪支料
+            Preset *preset = wxGetApp().preset_bundle->filaments.find_preset(presets[i]);
+            if (preset)
+                str = from_u8(preset->alias.empty() ? preset->name : preset->alias);
             items.push_back({str, i < icons.size() ? icons[i] : nullptr});
         }
         DynamicList::update();
@@ -855,9 +857,11 @@ struct DynamicFilamentList1Based : DynamicFilamentList
         auto presets = wxGetApp().preset_bundle->filament_presets;
         for (int i = 0; i < presets.size(); ++i) {
             wxString str;
-            std::string type;
-            wxGetApp().preset_bundle->filaments.find_preset(presets[i])->get_filament_type(type);
-            str << type;
+            // PING(2026-06-11)：顯示線材名稱（alias 優先）而非 filament type——
+            // type 與線材槽顯示的名稱對不上（如 SupPLA 顯示成 PETG），使用者無法辨識是哪支料
+            Preset *preset = wxGetApp().preset_bundle->filaments.find_preset(presets[i]);
+            if (preset)
+                str = from_u8(preset->alias.empty() ? preset->name : preset->alias);
             items.push_back({str, i < icons.size() ? icons[i] : nullptr});
         }
         DynamicList::update();
