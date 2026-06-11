@@ -131,13 +131,16 @@ def filename_tpl(mode_key):
     """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
     雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
     重量/時間用 PING 佔位符（Print.cpp PrintStatistics：total_weight_str=395g/2.3kg、
-    print_time_hm=15m/7h15m/1d8h）——需 B6(run 27262735687) 之後的 binary。"""
+    print_time_hm=15m/7h15m/1d8h）——需 B6(run 27262735687) 之後的 binary。
+    ⚠ 前綴一律包進 code block 字串字面值 {"X_"}：PlaceholderParser 模板的 rule 邊界
+    （開頭、} 之後）遇非 ASCII 即 throw（pre-skip skipper）、裸中文前綴會炸
+    「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
     base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode"
-    if mode_key in ("PLA+SUP", "ABS+SUP"): return "易拆_" + base   # 組合別製程→前綴直判，免模板條件式
-    if mode_key in ("PLA+PLA", "ABS+ABS"): return "雙色_" + base
-    if mode_key == "同進":  return "Mix_" + base
-    if mode_key == "四色":  return "四色_" + base
-    return "單料_" + base   # 單料頭 / FP300
+    if mode_key in ("PLA+SUP", "ABS+SUP"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
+    if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
+    if mode_key == "同進":  return '{"Mix_"}' + base
+    if mode_key == "四色":  return '{"四色_"}' + base
+    return '{"單料_"}' + base   # 單料頭 / FP300
 
 def proc_overrides(kind, base, is_single_mode):
     """軟體端裁定值 override（FF 不套——加速度/scarf 未裁定，維持實機）"""
