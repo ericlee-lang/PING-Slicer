@@ -39,27 +39,6 @@
     "filament_retraction_length": [
         "2"
     ],
-    "compatible_printers": [
-        "FD300 0.25 nozzle",
-        "FD300 0.4 nozzle",
-        "FD300 0.6 nozzle",
-        "FP300 0.2 nozzle",
-        "FP300 0.4 nozzle",
-        "FP300 0.6 nozzle",
-        "FD450 Pro 0.4 nozzle",
-        "FD450 Pro 0.6 nozzle",
-        "FD450 Pro 1.0 nozzle",
-        "FD600 Pro 0.4 nozzle",
-        "FD600 Pro 0.6 nozzle",
-        "FD600 Pro 1.0 nozzle",
-        "FF600 0.6 nozzle",
-        "FF600 1.0 nozzle",
-        "FD800 Pro 0.4 nozzle",
-        "FD800 Pro 0.6 nozzle",
-        "FD800 Pro 1.0 nozzle",
-        "FF800 0.6 nozzle",
-        "FF800 1.0 nozzle"
-    ],
     "filament_colors": [
         "#EA4E16"
     ],
