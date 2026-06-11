@@ -24,7 +24,7 @@
         "PING PLA - 220",
         "PING SupPLA"
     ],
-    "default_print_profile": "0.5mm PLA+SUP @FD450 Pro (1.0)",
+    "default_print_profile": "0.5mm PLA+SUP 高流量 @FD450 Pro (1.0)",
     "deretraction_speed": [
         "20",
         "20"

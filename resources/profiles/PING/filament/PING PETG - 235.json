@@ -1,0 +1,80 @@
+{
+    "type": "filament",
+    "name": "PING PETG - 235",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "GPINGPETG235",
+    "filament_id": "GPINGPETG235",
+    "inherits": "fdm_filament_pet",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "PETG"
+    ],
+    "nozzle_temperature": [
+        "235"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "235"
+    ],
+    "nozzle_temperature_range_low": [
+        "220"
+    ],
+    "nozzle_temperature_range_high": [
+        "260"
+    ],
+    "hot_plate_temp": [
+        "75"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "75"
+    ],
+    "cool_plate_temp": [
+        "75"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "75"
+    ],
+    "fan_max_speed": [
+        "50"
+    ],
+    "fan_min_speed": [
+        "50"
+    ],
+    "filament_density": [
+        "1.27"
+    ],
+    "temperature_vitrification": [
+        "80"
+    ],
+    "filament_retraction_length": [
+        "2"
+    ],
+    "compatible_printers": [
+        "FD300 0.25 nozzle",
+        "FD300 0.4 nozzle",
+        "FD300 0.6 nozzle",
+        "FP300 0.2 nozzle",
+        "FP300 0.4 nozzle",
+        "FP300 0.6 nozzle",
+        "FD450 Pro 0.4 nozzle",
+        "FD450 Pro 0.6 nozzle",
+        "FD450 Pro 1.0 nozzle",
+        "FD600 Pro 0.4 nozzle",
+        "FD600 Pro 0.6 nozzle",
+        "FD600 Pro 1.0 nozzle",
+        "FD800 Pro 0.4 nozzle",
+        "FD800 Pro 0.6 nozzle",
+        "FD800 Pro 1.0 nozzle"
+    ],
+    "filament_colors": [
+        "#EA4E16"
+    ],
+    "default_filament_colors": [
+        "#EA4E16"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "15"
+    ]
+}
