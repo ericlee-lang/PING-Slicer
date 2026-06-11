@@ -12,7 +12,32 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁 現況（2026-06-10 深夜收工 — 26 commit 全 push；B8 最終 build 進行中＝下一棒第一件事）**
+**🏁🏁🏁 現況（2026-06-11 收工 — Release v3.5.3 已發、B12 已換裝、全日 10 commit 全 push）**
+
+- ✅ **Release v3.5.3 已發**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.3 （build B12=run `27353221446`・commit `438ee102`；Windows installer + **首發 Mac dmg**，繁中 notes）。**portable=B12 binary + profiles v37** 已換裝；`%APPDATA%` v37 同步。備份：`D:\PING-Slicer-portable-old-b8`/`-old-b10`（可刪）。
+- ✅ **B8 六項總驗收全過**（使用者實測）：splash 透明✓ 主機清單瘦身✓ Fluidd metadata✓（estimated_time/M73 解析正常）檔名格式✓（修復後）對話框 logo✓（B10 改標題列後）線材清單✓（白名單修復後）。設備預設名一項未明測（程式在，無回報問題）。
+- ✅ **本日完成（10 commit，74629eb9..438ee102）**：
+  1. **閒置線材沖刷**（新功能，使用者需求「每層每支料都洗」）：`wipe_tower_max_idle_layers`（process、預設0；PING common=1）→ `ToolOrdering::insert_idle_purge_extruders()` 把閒置 N 層的線材插入該層工具序列→塔上照常規 toolchange 沖刷。首印層跳過（priming 已涵蓋）、單線材自動短路、UI 多線材頁+zh_TW 翻譯（`74629eb9`）。**已實測**：FD300 0.25 雙料 388 次換料、塔料 12.9g>模型——小口徑代價大，間隔規範值待定（調 5 可大幅回落）。
+  2. **檔名模板 Non-ASCII 修**（B8 驗收抓到、匯出全炸）：模板「開頭/`}` 後」裸中文觸發 PlaceholderParser throw → 前綴包進字串字面值 `{"雙色_"}`（坑#17）。97 支 process+filename_tpl() 同步（`49fd9ee5`）。
+  3. **對話框 logo→標題列左上**（使用者驗收回饋）：MsgDialog SetIcon(mainframe icon)+內容區品牌 logo 隱藏（語意圖示保留 64）；ErrorDialog 灰階圖移除（`38ee8805`）＋傳送框 Cancel 翻譯 L→_L（`0c648cbb`）。
+  4. **線材選擇下拉顯示名稱**（支撐/筏層「2 PETG」對不上「PING SupPLA」）：DynamicFilamentList×2 改 alias/name（`9b84c293`）。
+  5. **吃 6/11 參數端交付×2 波**（總說明 09:32 與 14:38 版）：速度兩線定稿進源檔（雙料/FP 60-80-150、單料頭/同進 50-60-150、首層25）→ **proc_overrides 大清理**（加速度/scarf/單料速度 override 拿掉、僅留 seam aligned）；SupPLA 210→220；SupABS 對值（type ABS/密度1.04/玻轉110/240-270/收縮99.7%/flow0.98）；**PING PETG - 235 新建**（48 檔指向；製程零差異→純線材切換、parse_dir 跳 _PETG）；**FF600 新增 0.4 口徑**（未實測！首件請驗）（`efb7eb22`/`3381b887`）。
+  6. **高流量：兩級→收斂按噴頭一級**（★節「每口徑兩支」做完 191 支後使用者現場裁定「參數太多」推翻）：FD300 系/FP=只一般流量、FD450/600/800 Pro=整支高流量（75/100/150/75、唯一一級不帶尾碼）、FF 實機。製程回 98 支。HF_SPEED 口徑可調表保留——Q 值出來「哪口徑調多少」改一格重產（`438ee102`）。**此裁定與參數端★節規格不同，需轉達**。
+  7. **flush 預設歸零三處**（FD300 同料仍跳 84=0.3×280；flush 參數是專案層 preset 帶不動）：AppConfig auto_calculate_flush 預設 disabled、PrintConfig flush_multiplier 0.3→0、GLCanvas3D「沖洗體積為0」警告停用（歸零=設計常態）。沖刷量=min purge 下限（主體15/SupPLA30）（`438ee102`）。
+  8. **線材白名單廢除**（FD300 Pro 線材消失——8 支手維護線材 compatible_printers 是 B4 前舊清單）：手維護線材全機相容（封閉生態）、FF 高流量子 preset 維持口徑配對（`ba24317d`）。
+  9. **新工具**：`verify_profiles.py`（參照完整性+檔名模板邊界防回歸，每次 regen 後跑）、`mo_patch.py`（新 UI 字串注入預存 .mo，坑#16 配套）、`monitor_print_time.py`（Moonraker 列印時間估計監測）、`diff_audit.py`。
+  10. **「時間爆炸」客訴定案**（FD300 客戶端螢幕 7-8h 一直漲 vs 預估 2h30）：實測數據鏈完整——切片器預估極準（17.9 實測 vs 17.8 預估）、M73/metadata 全正常；爆炸=KlipperScreen 預設 auto 估計混「檔案進度外推」，前期灌水後收斂。**修法=機器端 KlipperScreen.conf `[main]` 加 `print_estimate_method: slicer`**（轉達工程端進出貨 image；客戶端同）。
+- 🆕 **規則變更（新增）**：
+  7. **高流量=按噴頭一級**（見上 6；★節兩級規格作廢）
+  8. **flush 預設歸零**：倍數 0/自動計算停用/警告移除——沖刷量由 filament_minimal_purge_on_wipe_tower 控制
+  9. **手維護線材不設 compatible_printers**（新機型永不漏）；FF 高流量子 preset 例外（口徑配對）
+  10. **閒置沖刷預設=每層**（fdm_process_ping_common `wipe_tower_max_idle_layers=1`）；間隔規範值待與參數端定
+- 📋 **轉達參數端**（新清單）：①6/11 交付已全吃進（速度/SupPLA220/SupABS/PETG-235/FF600 0.4）✓ ②**高流量規格收斂**：兩級→按噴頭一級（FD450+ 唯一高流量、FD300 系不出高流量），請更新★節規格表 ③SupPLA 物性 config 兩欄與 PLA 同值（密度1.24/玻轉60）——是否刻意？ ④閒置沖刷間隔規範值待裁定（小口徑每層代價大） ⑤Q 值出來後「哪口徑哪級調多少」→軟體端改 HF_SPEED 一格重產。**轉達工程端**：KlipperScreen 出貨 image 加 `print_estimate_method: slicer`。
+- 📌 **下一棒待辦**：① FF600 0.4 首件實機驗證（參數端標未實測）② 閒置沖刷間隔規範值 ③ FD 雙料/FF 四色偶發閃退繼續觀察 ④ Mac dmg 交同事實測（首發、未簽名）⑤ E 版上架時 FAMS 加回 ⑥ `D:\PING-Slicer-portable-old-b8/-old-b10` 可清。
+
+---
+
+**🏁🏁 背景（2026-06-10 深夜收工 — 26 commit 全 push；B8 build 進行中）〔已全數完成，見上〕**
 
 - 🔴 **下一棒最優先：B8 build（run `27314114488`）收尾**。B7 因 `PhysicalPrinterDialog.cpp set_value(0)` C2668 失敗、已修（`3262e208`）重發為 B8。B8 完成後依序：
   1. `gh run view 27314114488` 確認 build_windows success（坑#10：Unit Tests/Flatpak 紅 X 不算）
@@ -148,7 +173,15 @@
 
 15. **【i18n 安裝版只剩英文】產 `.mo` 的 `gettext_po_to_mo` 是獨立 custom target、不在預設 build，CI 從不執行 → 安裝版 `resources/i18n` 全空 → 語言清單只剩 English。** CMakeLists L761 命名已是 `${SLIC3R_APP_KEY}.mo`(=PINGSlicer.mo) 是對的，但根本沒被產生。`.po` 在 `localization/i18n/*/`，repo 的 `resources/i18n` 原本 0 個 .mo（被 `.gitignore` `*.mo` 擋）。**解法（坑#16 已用）**：把可用 portable 的 21 種語言 .mo（OrcaSlicer.mo + PINGSlicer.mo 各 21）收進 repo `resources/i18n/`，`.gitignore` 加例外 `!resources/i18n/**/*.mo`，build 直接打包。app key=PINGSlicer → app 找 `PINGSlicer.mo`（坑 #5）。**需 build 才進安裝版**。
 
-16. **splash per-pixel 去背（layered window）機制 + 風險**：白底來源是 `MakeBitmap()` 用 `*wxWHITE` 填滿 700×450 畫布，再疊**去背的** `splash_logo.png`(透明處透出白)。修法（`134bab83`，**僅 MSW・未經 build 驗證**）：新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow` + premultiplied BGRA；`windows.h` 用 `wx/msw/wrapwin.h` **隔離在獨立 TU**，否則 `DrawText` 等巨集會汙染 GUI_App.cpp）；`SplashScreen` 加 `render_layered()`（wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字）+ `SetText`/建構子 MSW 分支；CMakeLists 列入新檔。⚠ **runtime 風險**：wxGraphicsContext→bitmap 的 alpha 是否正確、premultiply 是否雙重、layered 視窗序列——build 後若 splash 不對（黑/全透/邊緣暗）多半是這幾點，需微調。非 MSW 維持原白底（編譯安全）。
+16-2.【檔名/gcode 模板鐵則】**PlaceholderParser 模板的「rule 邊界」（開頭、`}` 之後）不可出現裸非 ASCII 字元**——pre-skip skipper 遇 char<0 直接 throw「Non-ASCII7 characters...」，匯出即炸。text 區「中段」中文沒事（lexeme）、**字串字面值內中文合法**（`raw[lexeme['"'...utf8char...]]`，PlaceholderParser.cpp L2245）→ 中文前綴一律寫成 `{"雙色_"}` 形式。`verify_profiles.py` 已含此防回歸檢查。
+
+17. **app 開著時「不可」同步 `%APPDATA%\PINGSlicer\system`**——robocopy /MIR 換檔瞬間與 app 記憶體狀態不一致，會切出「鬼參數」結果（實案：塔完全沒洗料、整支純色；重開 app 即恢復）。**同步 profiles 跟換 portable 一樣：先關 app**。
+
+18. **機器螢幕「時間一直漲」不是切片器問題**：KlipperScreen 預設（auto）混「檔案進度外推」（duration/file_progress），列印前期因首層慢+換料塔，外推灌水到 7-8h 且持續上升、過半才收斂。切片器 estimated_time/M73 都正常（實測誤差 <1%）。修法=機器端 `KlipperScreen.conf` `[main]` 加 `print_estimate_method: slicer`。診斷工具：`tools/ping/monitor_print_time.py <host>`。
+
+19. **flush（沖刷矩陣/倍數）是「專案層」參數，preset 帶不動**（SKIP 清單實證：flush_volumes_matrix/flush_multiplier 進 machine preset 會被剝除）。要改預設只能動 native：AppConfig（auto_calculate_flush）+ PrintConfig（flush_multiplier default）——B12 已歸零。同理可推：任何 SKIP 清單裡的 key 都別想用 preset 交付。
+
+20. **splash per-pixel 去背（layered window）機制 + 風險**：白底來源是 `MakeBitmap()` 用 `*wxWHITE` 填滿 700×450 畫布，再疊**去背的** `splash_logo.png`(透明處透出白)。修法（`134bab83`，**僅 MSW・未經 build 驗證**）：新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow` + premultiplied BGRA；`windows.h` 用 `wx/msw/wrapwin.h` **隔離在獨立 TU**，否則 `DrawText` 等巨集會汙染 GUI_App.cpp）；`SplashScreen` 加 `render_layered()`（wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字）+ `SetText`/建構子 MSW 分支；CMakeLists 列入新檔。⚠ **runtime 風險**：wxGraphicsContext→bitmap 的 alpha 是否正確、premultiply 是否雙重、layered 視窗序列——build 後若 splash 不對（黑/全透/邊緣暗）多半是這幾點，需微調。非 MSW 維持原白底（編譯安全）。
 
 ---
 
@@ -213,6 +246,18 @@
 ## 6. 主要 git commits
 
 ```
+（2026-06-11・ping/v3.5，全部已 push；Release v3.5.3 = 438ee102）
+438ee102 高流量收斂按噴頭一級 + flush 預設歸零（AppConfig/PrintConfig/GLCanvas3D）
+ba24317d 手維護線材移除機台白名單（修 FD300 Pro 線材消失）
+3381b887 ★品質兩級製程 + PETG-235 + FF600 0.4（後被 438ee102 收斂）
+9b84c293 線材選擇下拉顯示線材名稱（alias）取代 filament type
+efb7eb22 吃 6/11 參數端交付——速度兩線定稿 + SupPLA 220 + SupABS 對值
+0c648cbb 傳送對話框 Cancel 翻譯 L→_L
+38ee8805 對話框品牌 logo 移至標題列左上角（app icon）
+49fd9ee5 檔名模板中文前綴包進字串字面值——修 Non-ASCII7 匯出炸錯
+74629eb9 換料塔閒置線材定期沖刷 wipe_tower_max_idle_layers
+3c3df21c docs(handoff): 2026-06-10 深夜收工
+
 （2026-06-09・ping/v3.5，已 push）
 6b2d126a End G-code 改正常收尾（移除退料 G1 E-500；27 機台 preset＋gen_ping_profiles.py）
 cb0c792b docs: 確認 單料頭↔同進 conflation 為真 bug + 發布 v3.5.1 + 升級 playbook
