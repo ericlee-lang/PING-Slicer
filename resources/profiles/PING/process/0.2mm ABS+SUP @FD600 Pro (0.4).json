@@ -293,7 +293,7 @@
     "name": "0.2mm ABS+SUP @FD600 Pro (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP059",
+    "setting_id": "PINGP118",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD600 Pro 0.4 nozzle"

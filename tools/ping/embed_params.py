@@ -113,7 +113,7 @@ DEF_FIL_SINGLE = ["PING PLA - 220"]
 def def_fil_ff(nz):
     return ["PING PLA - 高流量 @FF %s" % nz]*3 + ["PING SupPLA - 高流量 @FF %s" % nz]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
-                        "PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF")
+                        "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 BED_TEXTURE = "ping_buildplate_texture.png"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
@@ -150,6 +150,20 @@ def proc_overrides(kind, base, is_single_mode):
     if kind == "ff": return {}
     return {"seam_position": "aligned"}   # 2026-06-10 使用者定稿：接縫位置=對齊
 
+# ★ 品質兩級（2026-06-11 交付總說明★節）：每口徑兩支製程「一般流量／高流量」。
+# 一般流量＝config 現值（零換算）；高流量＝下表 4 組 key。預設按出廠噴頭：
+# FD450/600/800 Pro=高流量、FD300 系/FP300=一般流量；FF 四色不分級（實機另立）。
+# ★「速度＝口徑×噴頭流量上限的函數，60/75 只是暫定」——Q 值實測後會逐口徑調，
+# 表按口徑留獨立 entry（調某口徑＝改/加該格重產），勿寫死單一速度套全口徑。
+HF_SPEED = {  # 口徑 -> (外牆, 內牆, 填充, 實心/頂面/gap)
+    "default": ("75", "100", "150", "75"),
+    # "0.6": ("100", "120", "150", "90"),   # ←例：Q 值出來「0.6 高流量調 100」就加這行重產
+}
+def hf_overrides(nz):
+    o, i, s, t = HF_SPEED.get(nz, HF_SPEED["default"])
+    return {"outer_wall_speed": o, "inner_wall_speed": i, "sparse_infill_speed": s,
+            "internal_solid_infill_speed": t, "top_surface_speed": t, "gap_infill_speed": t}
+
 # ---------- 3. 交付檔解析 ----------
 def parse_dir(src_base, dirname):
     """回傳 {(nozzle, mode): config}；mode ∈ {dual, 單料頭, 同進, 四色}（dual=PLA+SUP 母檔）"""
@@ -161,6 +175,9 @@ def parse_dir(src_base, dirname):
         body = fn[len(prefix):-len("_project_settings.config")]
         nozzle = body.split("_")[0]
         rest = body[len(nozzle)+1:]
+        # PETG 檔（單料頭/同進_PETG，2026-06-11 補 48 檔）：與 PLA 版差異 100% 在 filament 層
+        # （235/床75/風扇50/密度1.27，已驗證製程 key 零差異）→ 不出製程，只建 PING PETG - 235 線材
+        if "PETG" in rest: continue
         if   rest in ("PLA+SUP","PLA+PLA","ABS+SUP","ABS+ABS"): mode = rest  # 雙料 4 組合各自成製程
         elif rest.startswith("單料頭"):   mode = "單料頭"
         elif rest.startswith("同進"):     mode = "同進"
@@ -231,17 +248,22 @@ def main(src_base):
                 # 雙料機：製程依 4 組合各出一支（V3.0 行為復原，2026-06-10）；其餘一機一製程
                 is_dual_machine = (kind == "dual" and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
-                def pname(cb):
-                    return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
-                        else ("%smm @%s (%s)" % (lh, model, nz))
+                # ★ 品質兩級（2026-06-11）：FD/FP 每口徑兩支（一般流量=無尾碼／高流量=尾碼）；FF 不分級
+                hf_levels = (False, True) if kind != "ff" else (False,)
+                def pname(cb, hf=False):
+                    tag = " 高流量" if hf else ""
+                    return ("%smm %s%s @%s (%s)" % (lh, cb, tag, model, nz)) if is_dual_machine \
+                        else ("%smm%s @%s (%s)" % (lh, tag, model, nz))
                 # machine（雙料取 PLA+SUP 母檔）
                 mac = dict(b["M"])
                 # PING(2026-06-10)：換層回抽=關（全機型）——花瓶模式換層縫線明顯（使用者規格）
                 if isinstance(mac.get("retract_when_changing_layer"), list):
                     mac["retract_when_changing_layer"] = ["0"] * len(mac["retract_when_changing_layer"])
+                # 預設製程按出廠噴頭（★節）：450+ 級=高流量、300 級（FD300 系/FP300）=一般流量
+                hf_default = (tier_of(base) != "300") and (kind != "ff")
                 mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                     "setting_id":"PINGM%03d"%gm,"printer_model":model,"printer_variant":nz,
-                    "default_print_profile":pname(combos[0]),
+                    "default_print_profile":pname(combos[0], hf_default),
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
                 mac["default_filament_profile"] = def_fil if def_fil else def_fil_ff(nz)
@@ -249,17 +271,20 @@ def main(src_base):
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
                 # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
                 for cb in combos:
-                    pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
-                    proc = dict(pb)
-                    proc.update(proc_overrides(kind, base, is_single))
-                    if is_dual_machine:
-                        proc.update(combo_overrides(cb, lh))
-                    proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
-                        "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
-                        "compatible_printers":[mac_name],
-                        "filename_format": filename_tpl(cb)})
-                    jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
-                    proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
+                    for hf in hf_levels:
+                        pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
+                        proc = dict(pb)
+                        proc.update(proc_overrides(kind, base, is_single))
+                        if is_dual_machine:
+                            proc.update(combo_overrides(cb, lh))
+                        if hf:
+                            proc.update(hf_overrides(nz))
+                        proc.update({"type":"process","name":pname(cb, hf),"from":"system","instantiation":"true",
+                            "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
+                            "compatible_printers":[mac_name],
+                            "filename_format": filename_tpl(cb)})
+                        jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb, hf)), proc)
+                        proc_list.append({"name":pname(cb, hf),"sub_path":"process/%s.json"%pname(cb, hf)}); gp += 1
 
             # machine_model（每個 printer_model 一檔）
             mm = {"type":"machine_model","name":model,
@@ -271,12 +296,19 @@ def main(src_base):
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
             mm_list.append({"name":model,"sub_path":"machine/%s.json"%model})
 
-    # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 共用，已驗證同值）
+    # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
+    #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
     fil_new = []
-    ff800 = parse_dir(src_base, "FF800 Pro")
-    ff_machines = lambda nz: ["FF600 %s nozzle"%nz, "FF800 %s nozzle"%nz]
-    for nz in sorted({n for (n,mk) in ff800 if mk=="四色"}, key=float):
-        F = split(ff800[(nz,"四色")])["F"]
+    existing_machines = {m["name"] for m in mac_list}
+    ff_cfg = {}   # nz -> 四色 config（FF800 優先；FF800 缺的口徑用 FF600 補，如 0.4）
+    for fam in ("FF800 Pro", "FF600 Pro"):
+        for (nz, mk), c in parse_dir(src_base, fam).items():
+            if mk == "四色":
+                ff_cfg.setdefault(nz, c)
+    for nz in sorted(ff_cfg, key=float):
+        F = split(ff_cfg[nz])["F"]
+        machines = [m for m in ("FF600 %s nozzle" % nz, "FF800 %s nozzle" % nz)
+                    if m in existing_machines]
         sfx = nz.replace(".","")   # 0.6 -> 06
         for slot, mat, fid_p, alias, color, sup in (
                 (0, "PLA",    "PINGFILHFPLA", "PING PLA - 高流量",    "#EA4E16", False),
@@ -286,7 +318,7 @@ def main(src_base):
             fid = fid_p + sfx
             fp.update({"type":"filament","name":name,"alias":alias,"from":"system",
                 "instantiation":"true","setting_id":fid,"filament_id":fid,
-                "inherits":"fdm_filament_pla","compatible_printers":ff_machines(nz),
+                "inherits":"fdm_filament_pla","compatible_printers":machines,
                 "filament_colors":[color],"default_filament_colors":[color]})
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；FD 的 30/60 規則不適用，待裁定）

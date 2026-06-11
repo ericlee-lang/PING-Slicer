@@ -293,7 +293,7 @@
     "name": "0.2mm PLA+PLA @FD450 Pro (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP040",
+    "setting_id": "PINGP080",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD450 Pro 0.4 nozzle"
