@@ -20,6 +20,8 @@
 #include <cassert>
 #include <limits>
 #include <algorithm>
+#include <map>
+#include <set>
 #include <unordered_map>
 
 #include <libslic3r.h>
@@ -326,6 +328,54 @@ bool ToolOrdering::insert_wipe_tower_extruder()
     return changed;
 }
 
+// PING: with a shared-nozzle multi-material hotend (2-in-1-out / 4-in-1-out) the filaments not
+// being printed keep sitting in the merged melt zone and degrade over time. When
+// wipe_tower_max_idle_layers = N > 0, every filament used by this print gets purged on the wipe
+// tower after sitting idle for N layers: the stale filament is appended to that layer's tool
+// sequence, so plan_toolchange()/tool_change() emit a regular purge for it even though it does
+// not print any object extrusion on that layer. N = 1 refreshes every filament on every layer.
+bool ToolOrdering::insert_idle_purge_extruders()
+{
+    if (!m_print_config_ptr || !m_print_config_ptr->enable_prime_tower)
+        return false;
+    const int max_idle = m_print_config_ptr->wipe_tower_max_idle_layers.value;
+    if (max_idle <= 0)
+        return false;
+
+    // All filaments used by this print (extruder ids are zero based at this point).
+    std::set<unsigned int> all_extruders;
+    for (const LayerTools &lt : m_layer_tools)
+        all_extruders.insert(lt.extruders.begin(), lt.extruders.end());
+    if (all_extruders.size() < 2)
+        return false;
+
+    bool changed = false;
+    // Consecutive layers each filament has been sitting unused. Counting starts after the first
+    // printing layer: all filaments of a multi-material print are primed when the print starts.
+    std::map<unsigned int, int> idle_layers;
+    for (unsigned int extruder : all_extruders)
+        idle_layers[extruder] = 0;
+    bool seen_first_printing_layer = false;
+    for (LayerTools &lt : m_layer_tools) {
+        if (lt.extruders.empty())
+            continue;
+        if (! seen_first_printing_layer) {
+            seen_first_printing_layer = true;
+            continue;
+        }
+        for (auto &[extruder, idle] : idle_layers) {
+            if (lt.has_extruder(extruder))
+                idle = 0;
+            else if (++ idle >= max_idle) {
+                lt.extruders.emplace_back(extruder);
+                idle = 0;
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
+
 void ToolOrdering::sort_and_build_data(const Print& print, unsigned int first_extruder, bool prime_multi_material)
 {
     // if first extruder is -1, we can decide the first layer tool order before doing reorder function
@@ -349,7 +399,9 @@ void ToolOrdering::sort_and_build_data(const Print& print, unsigned int first_ex
     max_layer_height = calc_max_layer_height(print.config(), max_layer_height);
 
     this->fill_wipe_tower_partitions(print.config(), object_bottom_z, max_layer_height);
-    if (this->insert_wipe_tower_extruder()) {
+    bool tools_changed = this->insert_wipe_tower_extruder();
+    tools_changed |= this->insert_idle_purge_extruders();
+    if (tools_changed) {
         reorder_extruders_for_minimum_flush_volume(reorder_first_layer);
         this->fill_wipe_tower_partitions(print.config(), object_bottom_z, max_layer_height);
     }
@@ -368,7 +420,9 @@ void ToolOrdering::sort_and_build_data(const PrintObject& object , unsigned int 
     double max_layer_height = calc_max_layer_height(object.print()->config(), object.config().layer_height);
 
     this->fill_wipe_tower_partitions(object.print()->config(), object.layers().front()->print_z - object.layers().front()->height, max_layer_height);
-    if (this->insert_wipe_tower_extruder()) {
+    bool tools_changed = this->insert_wipe_tower_extruder();
+    tools_changed |= this->insert_idle_purge_extruders();
+    if (tools_changed) {
         reorder_extruders_for_minimum_flush_volume(reorder_first_layer);
         this->fill_wipe_tower_partitions(object.print()->config(), object.layers().front()->print_z - object.layers().front()->height, max_layer_height);
     }

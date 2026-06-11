@@ -5514,6 +5514,18 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionBool(true));
 
 
+    def = this->add("wipe_tower_max_idle_layers", coInt);
+    def->label = L("Purge idle filaments every");
+    def->tooltip = L("For shared-nozzle multi-material hotends (2-in-1-out / 4-in-1-out), filaments that "
+                     "are not being printed keep sitting in the hot end and degrade over time. "
+                     "When set to a value N greater than zero, every filament used by this print is purged "
+                     "on the prime tower after sitting idle for N layers, even on layers where it does not "
+                     "print anything. Set to 1 to refresh every filament on every layer. 0 disables this.");
+    def->sidetext = L("layers");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionInt(0));
+
     def = this->add("wipe_tower_no_sparse_layers", coBool);
     def->label = L("No sparse layers (beta)");
     def->tooltip = L("If enabled, the wipe tower will not be printed on layers with no tool changes. "
