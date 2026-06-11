@@ -150,9 +150,10 @@ def proc_overrides(kind, base, is_single_mode):
     if kind == "ff": return {}
     return {"seam_position": "aligned"}   # 2026-06-10 使用者定稿：接縫位置=對齊
 
-# ★ 品質兩級（2026-06-11 交付總說明★節）：每口徑兩支製程「一般流量／高流量」。
-# 一般流量＝config 現值（零換算）；高流量＝下表 4 組 key。預設按出廠噴頭：
-# FD450/600/800 Pro=高流量、FD300 系/FP300=一般流量；FF 四色不分級（實機另立）。
+# ★ 高流量（2026-06-11 ★節 + 同日使用者現場裁定收斂）：「參數太多」——
+# 不做兩級並存：FD300 系/FP300＝只有一般流量（config 現值；小口徑高速無意義）；
+# FD450/600/800 Pro＝只有高流量（出廠標配高流量噴頭，不放一般流量檔）；FF 維持實機。
+# 製程「每口徑每組合一支」、名稱不帶流量尾碼。
 # ★「速度＝口徑×噴頭流量上限的函數，60/75 只是暫定」——Q 值實測後會逐口徑調，
 # 表按口徑留獨立 entry（調某口徑＝改/加該格重產），勿寫死單一速度套全口徑。
 HF_SPEED = {  # 口徑 -> (外牆, 內牆, 填充, 實心/頂面/gap)
@@ -248,22 +249,20 @@ def main(src_base):
                 # 雙料機：製程依 4 組合各出一支（V3.0 行為復原，2026-06-10）；其餘一機一製程
                 is_dual_machine = (kind == "dual" and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
-                # ★ 品質兩級（2026-06-11）：FD/FP 每口徑兩支（一般流量=無尾碼／高流量=尾碼）；FF 不分級
-                hf_levels = (False, True) if kind != "ff" else (False,)
-                def pname(cb, hf=False):
-                    tag = " 高流量" if hf else ""
-                    return ("%smm %s%s @%s (%s)" % (lh, cb, tag, model, nz)) if is_dual_machine \
-                        else ("%smm%s @%s (%s)" % (lh, tag, model, nz))
+                # 高流量（2026-06-11 使用者裁定收斂）：450+ 級製程「整支就是高流量」（唯一一級、
+                # 名稱不帶尾碼）；300 級/FP=一般流量；FF 維持實機值
+                apply_hf = (tier_of(base) != "300") and (kind != "ff")
+                def pname(cb):
+                    return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
+                        else ("%smm @%s (%s)" % (lh, model, nz))
                 # machine（雙料取 PLA+SUP 母檔）
                 mac = dict(b["M"])
                 # PING(2026-06-10)：換層回抽=關（全機型）——花瓶模式換層縫線明顯（使用者規格）
                 if isinstance(mac.get("retract_when_changing_layer"), list):
                     mac["retract_when_changing_layer"] = ["0"] * len(mac["retract_when_changing_layer"])
-                # 預設製程按出廠噴頭（★節）：450+ 級=高流量、300 級（FD300 系/FP300）=一般流量
-                hf_default = (tier_of(base) != "300") and (kind != "ff")
                 mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
                     "setting_id":"PINGM%03d"%gm,"printer_model":model,"printer_variant":nz,
-                    "default_print_profile":pname(combos[0], hf_default),
+                    "default_print_profile":pname(combos[0]),
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
                 mac["default_filament_profile"] = def_fil if def_fil else def_fil_ff(nz)
@@ -271,20 +270,19 @@ def main(src_base):
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
                 # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
                 for cb in combos:
-                    for hf in hf_levels:
-                        pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
-                        proc = dict(pb)
-                        proc.update(proc_overrides(kind, base, is_single))
-                        if is_dual_machine:
-                            proc.update(combo_overrides(cb, lh))
-                        if hf:
-                            proc.update(hf_overrides(nz))
-                        proc.update({"type":"process","name":pname(cb, hf),"from":"system","instantiation":"true",
-                            "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
-                            "compatible_printers":[mac_name],
-                            "filename_format": filename_tpl(cb)})
-                        jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb, hf)), proc)
-                        proc_list.append({"name":pname(cb, hf),"sub_path":"process/%s.json"%pname(cb, hf)}); gp += 1
+                    pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
+                    proc = dict(pb)
+                    proc.update(proc_overrides(kind, base, is_single))
+                    if is_dual_machine:
+                        proc.update(combo_overrides(cb, lh))
+                    if apply_hf:
+                        proc.update(hf_overrides(nz))
+                    proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
+                        "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
+                        "compatible_printers":[mac_name],
+                        "filename_format": filename_tpl(cb)})
+                    jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
+                    proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
 
             # machine_model（每個 printer_model 一檔）
             mm = {"type":"machine_model","name":model,

@@ -293,7 +293,7 @@
     "name": "0.35mm @FF800 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP190",
+    "setting_id": "PINGP097",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 1.0 nozzle"

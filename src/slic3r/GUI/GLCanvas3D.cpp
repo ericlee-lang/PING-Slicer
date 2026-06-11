@@ -9799,6 +9799,11 @@ void GLCanvas3D::_set_warning_notification(EWarning warning, bool state)
 
 bool GLCanvas3D::is_flushing_matrix_error() {
 
+    // PING(2026-06-11)：停用「沖洗體積為 0」警告——裁定 flush_multiplier 預設=0（停用矩陣），
+    // 換料沖刷量由 filament_minimal_purge_on_wipe_tower 下限控制（主體15/SupPLA30），
+    // 「矩陣為 0」是設計常態而非錯誤；比照 MixUsePLAAndPETG 停用先例。
+    return false;
+
     // Flushing volumes only apply to single-extruder multi-material (SEMM) and BBL printers
     if (!Sidebar::should_show_SEMM_buttons())
         return false;
