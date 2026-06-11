@@ -13,10 +13,10 @@
         "PETG"
     ],
     "nozzle_temperature": [
-        "210"
+        "220"
     ],
     "nozzle_temperature_initial_layer": [
-        "210"
+        "220"
     ],
     "hot_plate_temp": [
         "60"
@@ -52,13 +52,11 @@
         "FD600 Pro 0.4 nozzle",
         "FD600 Pro 0.6 nozzle",
         "FD600 Pro 1.0 nozzle",
-        "FF600 0.4 nozzle",
         "FF600 0.6 nozzle",
         "FF600 1.0 nozzle",
         "FD800 Pro 0.4 nozzle",
         "FD800 Pro 0.6 nozzle",
         "FD800 Pro 1.0 nozzle",
-        "FF800 0.4 nozzle",
         "FF800 0.6 nozzle",
         "FF800 1.0 nozzle"
     ],

@@ -10,13 +10,34 @@
         "PING"
     ],
     "filament_type": [
-        "HIPS"
+        "ABS"
     ],
     "nozzle_temperature": [
         "250"
     ],
     "nozzle_temperature_initial_layer": [
         "250"
+    ],
+    "filament_density": [
+        "1.04"
+    ],
+    "temperature_vitrification": [
+        "110"
+    ],
+    "nozzle_temperature_range_low": [
+        "240"
+    ],
+    "nozzle_temperature_range_high": [
+        "270"
+    ],
+    "filament_shrink": [
+        "99.7%"
+    ],
+    "filament_flow_ratio": [
+        "0.98"
+    ],
+    "filament_max_volumetric_speed": [
+        "30"
     ],
     "hot_plate_temp": [
         "100"
@@ -52,13 +73,11 @@
         "FD600 Pro 0.4 nozzle",
         "FD600 Pro 0.6 nozzle",
         "FD600 Pro 1.0 nozzle",
-        "FF600 0.4 nozzle",
         "FF600 0.6 nozzle",
         "FF600 1.0 nozzle",
         "FD800 Pro 0.4 nozzle",
         "FD800 Pro 0.6 nozzle",
         "FD800 Pro 1.0 nozzle",
-        "FF800 0.4 nozzle",
         "FF800 0.6 nozzle",
         "FF800 1.0 nozzle"
     ],

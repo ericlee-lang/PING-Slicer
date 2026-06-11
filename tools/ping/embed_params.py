@@ -143,19 +143,12 @@ def filename_tpl(mode_key):
     return '{"單料_"}' + base   # 單料頭 / FP300
 
 def proc_overrides(kind, base, is_single_mode):
-    """軟體端裁定值 override（FF 不套——加速度/scarf 未裁定，維持實機）"""
+    """軟體端裁定值 override（FF 不套）。
+    2026-06-11 大清理（吃當日交付驗證）：加速度(3000/1500)、scarf=none、速度兩線新裁定
+    （雙料/FP 60-80-150、單料頭/同進 50-60-150、口徑連動填充）——源檔已全套→override 拿掉
+    （「源檔套完→拿掉 embed override」原則）。僅 seam_position 源檔部分檔仍 back→保留。"""
     if kind == "ff": return {}
-    acc = "3000" if tier_of(base) == "300" else "1500"
-    o = {"default_acceleration": acc, "inner_wall_acceleration": acc,
-         "outer_wall_acceleration": acc, "travel_acceleration": "3000",
-         # 接縫（2026-06-10 使用者實測定稿）：斜拼接縫=無——原 §8 scarf 規範(external/10%/8)
-         # 來自網路參考、實測不佳，廢除；位置=對齊（源檔為 back）
-         "seam_slope_type": "none",
-         "seam_position": "aligned"}
-    if is_single_mode:
-        # 單料頭/同進/FP 源檔 PA-CF 殘值 → 對齊雙料母檔(2026-06-10 裁定)
-        o.update({"travel_speed": "250", "sparse_infill_speed": "60", "support_speed": "40"})
-    return o
+    return {"seam_position": "aligned"}   # 2026-06-10 使用者定稿：接縫位置=對齊
 
 # ---------- 3. 交付檔解析 ----------
 def parse_dir(src_base, dirname):
