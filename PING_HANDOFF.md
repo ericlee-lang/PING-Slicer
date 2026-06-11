@@ -6,13 +6,34 @@
 >
 > 這份是「接手用」文件：給下一個 Session（或維護者）快速接續 + 避免重踩坑。
 > 搭配 `PING_CUSTOMIZATION.md`（AGPL 修改紀錄）一起看。
-> 最近一次 session 圖文總結：`D:\dev\2026claude\20260604 ORCA客製\PING_session_summary_20260607.html`。
+> 最近一次 session 圖文總結：`D:\dev\2026claude\20260604 ORCA客製\PING_session_summary_20260610.html`（前次：`..._20260607.html`）。
 
 ---
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁 現況（2026-06-10 收工 — v3.5.2 已發布；B5 native build 全數驗證通過；wizard 連動真因根治）**
+**🏁🏁 現況（2026-06-10 深夜收工 — 26 commit 全 push；B8 最終 build 進行中＝下一棒第一件事）**
+
+- 🔴 **下一棒最優先：B8 build（run `27314114488`）收尾**。B7 因 `PhysicalPrinterDialog.cpp set_value(0)` C2668 失敗、已修（`3262e208`）重發為 B8。B8 完成後依序：
+  1. `gh run view 27314114488` 確認 build_windows success（坑#10：Unit Tests/Flatpak 紅 X 不算）
+  2. `gh run download 27314114488 -n PING_Slicer_Windows_V3.5.0_portable -D <暫存>` → app 關閉 → 換 `D:\PING-Slicer-portable`（舊版先 mv 備份）→ **repo `resources/profiles/PING` 重新 mirror 上去**（artifact resources=commit 當下，本地 v31 較新需確認一致）
+  3. **總驗收**：①重切+上傳→Fluidd 監控頁 metadata 齊全、切片≠Unknown（gcode 頁首已改 `OrcaSlicer 2.3.2 (PING Slicer…)` 開頭）②splash **邊角透出桌面**（v2 wxImage 全程合成；若仍黑＝再戰）③實體列印設備預設名=機型 ④主機類型只剩 Octo/Klipper、代理只剩 Moonraker ⑤對話框 logo 變小 ⑥檔名 `易拆_名_ABS_6g_1h10m` 格式
+  4. **下載 Mac**：artifact `PING_Slicer_Mac_universal_*`（.app/dmg/磁碟區已 PING 化、bundle id=com.ping3dp）→ 交使用者（Mac 未簽名：第一次右鍵→打開）
+  5. **發 Release v3.5.3**：Windows installer + Mac dmg + 繁中 notes（v3.5.2 已過時：缺下午全部）
+- ✅ **本日完成（26 commit，cb0c792b..3262e208）**：B4 完整 F 系列 136-config 重嵌（18 機型/52 機台/97 製程）→ E 版下架＋排序＋FD300 Pro 照片＋床板縮放 → wizard 連動真因根治（wxString locale）＋槽數同步 ＋檔名格式（模式/重量/時間佔位符）＋監控 metadata 頁首 ×2 修 → 雙料製程恢復 V3.0 組合維度＋組合別參數（SUP z=0/無SUP 1層/ABS raft2+首層線寬150%/ABS+SUP 黃金支撐配方）→ 接縫定稿＋清理量二修＋換層回抽關 → B7 四項 native（splash v2/設備名/清單瘦身/logo）→ Mac 出貨 PING 化 → Stealth 頁移除＋縮圖×18＋info/question 去魚 → 升級手冊 HTML。
+- 🆕 **規則變更（推翻舊鐵則，勿沿用！）**：
+  1. **§8 Scarf 斜拼接縫規範廢除**（external/10%/8 來自網路參考、實測不佳）→ **斜拼=無、接縫位置=對齊**（最佳ABS定稿）
+  2. **清理量 30/60 作廢** → **主體=15、SupPLA=30**（SupABS=15；FF 高流量維持 120 換色用）；倍數=0 停用矩陣
+  3. **換層回抽=關**（全機型機台層，花瓶縫線）
+  4. **製程維度：口徑 → 口徑×材料組合**（雙料每口徑 4 支：PLA+SUP/PLA+PLA/ABS+SUP/ABS+ABS，恢復 V3.0）
+  5. **檔名規格**：`{模式}_{名}_{線材}_{重量}_{時間}`；模式=單料/易拆/雙色/Mix/四色（組合直判）；重量 395g/≥1kg→2.3kg；時間 15m/7h15m/1d8h（佔位符 `total_weight_str`/`print_time_hm`，Print.cpp）
+  6. **gcode 頁首必須以 OrcaSlicer 開頭**（`OrcaSlicer 2.3.2 (PING Slicer …)`——Moonraker regex 識別，升級 base 時更新版號）
+- ⚠️ **刻意狀態（別「修」掉）**：gen_ping_profiles=DEPRECATED 鎖（PING_FORCE_GEN=1 才能跑）；E 版 config 留在參數端交付夾（上架=FAMS 加回）；FF 清理量 120 是故意；`D:\PING-Slicer-portable-old-b5`=B5 備份可刪；v3.5.2 Release 過時勿再發給人。
+- 📋 **轉達參數端**（清單累計）：①加速度已套✓ ②scarf 作廢（維持源檔 none） ③單料頭/同進速度殘值仍未套（embed override 撐著） ④清理量→主體15/SupPLA30 ⑤組合別製程差異（SUP z0/無SUP 1層/ABS raft2+首層150%/黃金支撐）進源檔 ⑥換層回抽=0 ⑦接縫位置=aligned。源檔套完→拿掉 embed override。
+
+---
+
+**🏁 背景（2026-06-10 下午 — v3.5.2 發布時點；以下內容部分已被上方推翻）**
 - ✅ **Release v3.5.2 已發**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.2 （build run `27251862431`・commit `8e24ea73`；Windows/macOS 編譯成功，Linux/Flatpak 失敗=Docker Hub 網路 flake 無關）。**新 portable 已部署 `D:\PING-Slicer-portable`**（舊版備份 `D:\PING-Slicer-portable-old-0606build`）。
 - 🎯 **wizard 連動「真因」根治（兩 session 懸案結案）**：`WebGuideDialog.cpp::save_userguide_models` 用 **wxString 隱式轉碼（系統 locale）比對機型名 → 含中文(UTF-8)名在 CP950 下轉換失敗成空字串 → 任兩中文機型名相等 → 跨家族互相連動**。先前「FD300 前綴比對」結論作廢（使用者發現「勾任一單料頭/同進→全部跨家族連動、純英數名不受影響」的決定性規律；1in/2mix 改名實驗驗證理論後修正）。修法：`std::string` 位元組比對＋`nozzle_selected` 改用 JS 送來的實際勾選口徑（順帶根治「勾一口徑→全口徑啟用」）。`8df074a8`。
 - ✅ **B5 實機驗證全過（2026-06-10）**：繁中✓、精靈勾選各自獨立＋口徑精確✓、切機線材槽數自動 1/2/4（`03610af9` Tab.cpp+GUI_App.cpp 完全同步）✓、FF/FD 大機床板滿版（`8e24ea73` 床 STL 依直徑 450/600/800 縮放）✓。
@@ -223,7 +244,8 @@ b762903f 同進改名+命名規範+加速度+SupPLA+去金魚logo+Scarf  ← 已
 
 ---
 
-## 8. 切片命名規範（本 session 訂定）
+## 8. 切片命名規範
+> 🆕 **2026-06-10 變更**：①本節 Scarf 接縫規範**已廢除**（實測不佳）→ 斜拼=無、位置=對齊；②製程命名升級為「口徑×組合」：雙料=`0.2mm PLA+SUP @FD300 (0.4)`（下拉顯示 `0.2mm PLA+SUP`）。以下原文供歷史參照。
 
 **三層命名，材料維度與品質維度分開（對齊 Bambu 慣例）：**
 
