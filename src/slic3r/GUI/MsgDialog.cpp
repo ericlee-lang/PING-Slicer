@@ -37,6 +37,11 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
     SetFont(wxGetApp().normal_font());
     CenterOnParent();
 
+    // PING(2026-06-11)：品牌標誌掛對話框標題列左上角（使用者規格——「logo 放左上角」），
+    // 與主視窗同一 app icon；內容區不再放大型品牌圖（見 apply_style）。
+    if (wxGetApp().mainframe && wxGetApp().mainframe->GetIcon().IsOk())
+        SetIcon(wxGetApp().mainframe->GetIcon());
+
     auto *main_sizer = new wxBoxSizer(wxVERTICAL);
 	auto *topsizer = new wxBoxSizer(wxHORIZONTAL);
 	auto *rightsizer = new wxBoxSizer(wxVERTICAL);
@@ -202,13 +207,20 @@ void MsgDialog::apply_style(long style)
     if (style & wxNO)       add_button(wxID_NO, false,_L("No"));
     if (style & wxCANCEL)   add_button(wxID_CANCEL, false, _L("Cancel"));
 
-    // PING(2026-06-10)：品牌 logo（寬版 wordmark）由 64 縮為 40——左上角小標誌即可，
-    // 不當對話框主視覺（使用者規格）；提示類圖示(completed/info/question/exclamation)維持 64。
+    // PING(2026-06-11)：品牌 logo 不再放內容區（06-10 曾 64→40 仍嫌大、位置不對），
+    // 改掛標題列 app icon（建構子 SetIcon）；內容區只保留提示類語意圖示
+    // (completed/info/question/exclamation 維持 64)。error 的灰階品牌圖屬品牌類、一併移除。
     const bool is_brand_logo = !(style & (wxAPPLY | wxICON_WARNING | wxICON_INFORMATION | wxICON_QUESTION));
-    logo->SetBitmap( create_scaled_bitmap(style & wxAPPLY        ? "completed" :
+    if (is_brand_logo) {
+        logo->Hide();
+        if (wxSizer *ts = logo->GetContainingSizer()) {
+            ts->GetItem((size_t)0)->AssignSpacer(FromDIP(5), 0);   // 內容左邊距，原 LOGO_SPACING=35
+            ts->GetItem((size_t)2)->AssignSpacer(0, 0);            // 原 LOGO_GAP=20
+        }
+    } else
+        logo->SetBitmap( create_scaled_bitmap(style & wxAPPLY        ? "completed" :
                                           style & wxICON_WARNING        ? "exclamation" : // ORCA "exclamation" used for dialogs "obj_warning" used for 16x16 areas
-                                          style & wxICON_INFORMATION    ? "info"        :
-                                          style & wxICON_QUESTION       ? "question"    : "OrcaSlicer", this, is_brand_logo ? 40 : 64, style & wxICON_ERROR));
+                                          style & wxICON_INFORMATION    ? "info"        : "question", this, 64));
 }
 
 void MsgDialog::finalize()
@@ -357,9 +369,7 @@ ErrorDialog::ErrorDialog(wxWindow *parent, const wxString &temp_msg, bool monosp
 {
     add_msg_content(this, content_sizer, msg, monospaced_font);
 
-	// Use a small bitmap with monospaced font, as the error text will not be wrapped.
-	// PING(2026-06-10)：錯誤對話框 logo 84→48（左上角小標誌，使用者規格）
-	logo->SetBitmap(create_scaled_bitmap("OrcaSlicer_192px_grayscale.png", this, monospaced_font ? 40 : 48));
+	// PING(2026-06-11)：灰階品牌圖移除——品牌標誌已掛標題列（基底 apply_style 統一隱藏內容區品牌 logo）
 
     SetMaxSize(MSG_DLG_MAX_SIZE);
 
