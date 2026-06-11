@@ -830,7 +830,10 @@ void GCodeViewer::SequentialView::GCodeWindow::render(float top, float bottom, f
     ImGui::SetNextWindowSize(ImVec2(required_width, wnd_height), ImGuiCond_Always);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f * m_scale); // ORCA add window rounding to modernize / match style
     ImGui::SetNextWindowBgAlpha(0.8f);
-    imgui.begin(std::string("G-code"), ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
+    // PING(2026-06-12)：加 NoBringToFrontOnFocus——點過 G-code 視窗後它會浮到最上層，
+    // 壓住右下角「切片完成」等通知的關閉鈕（使用者回饋「沒辦法打叉」）。通知在主
+    // render 流程最後繪製、天然在上層；此旗標讓本視窗互動時不再搶前景。
+    imgui.begin(std::string("G-code"), ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
     // center the text in the window by pushing down the first line
     const float f_lines_count = static_cast<float>(lines_count);
