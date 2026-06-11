@@ -169,6 +169,43 @@ void Tab::set_type()
     else                                { m_type = Slic3r::Preset::TYPE_INVALID; assert(false); }
 }
 
+// PING(2026-06-12)：雙料「組合製程」→ 線材槽自動連動（使用者規格）。
+// 製程名形如「0.125mm PLA+SUP @FD300 (0.25)」——取 @ 前最後一個 token 當組合，
+// 對應預設用料（值=參數端組合定稿）。僅在使用者「手動點選製程」那一刻觸發
+// （載專案／切機台不走 Tab combo 的 selection_changed，不會蓋掉專案線材）。
+static void ping_apply_combo_filaments(const std::string &process_name)
+{
+    size_t at = process_name.find('@');
+    if (at == std::string::npos || at == 0) return;
+    std::string head = process_name.substr(0, at);
+    while (!head.empty() && head.back() == ' ') head.pop_back();
+    size_t sp = head.find_last_of(' ');
+    if (sp == std::string::npos) return;
+    const std::string combo = head.substr(sp + 1);
+    static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS = {
+        {"PLA+SUP", {"PING PLA - 220", "PING SupPLA"}},
+        {"PLA+PLA", {"PING PLA - 220", "PING PLA - 220"}},
+        {"ABS+SUP", {"PING ABS - 250", "PING SupABS"}},
+        {"ABS+ABS", {"PING ABS - 250", "PING ABS - 250"}},
+    };
+    auto it = COMBO_FILAMENTS.find(combo);
+    if (it == COMBO_FILAMENTS.end()) return;
+    PresetBundle *bundle = wxGetApp().preset_bundle;
+    if (bundle->filament_presets.size() < 2) return;   // 雙料機限定（單料/四色不套）
+    // 兩支目標線材都存在才動手
+    if (!bundle->filaments.find_preset(it->second.first, false) ||
+        !bundle->filaments.find_preset(it->second.second, false)) return;
+    bundle->set_filament_preset(0, it->second.first);
+    bundle->set_filament_preset(1, it->second.second);
+    bundle->export_selections(*wxGetApp().app_config);
+    if (Plater *plater = wxGetApp().plater()) {
+        plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
+        plater->update_project_dirty_from_presets();
+        plater->on_filament_change(0);
+        plater->on_filament_change(1);
+    }
+}
+
 // sub new
 //BBS: GUI refactor, change tab to fit into ParamsPanel
 void Tab::create_preset_tab()
@@ -220,6 +257,9 @@ void Tab::create_preset_tab()
                 // PING(2026-06-12)：製程 combo 顯示 alias → 先解析回真名（找不到原樣回傳，全名相容）
                 preset_name = m_presets->get_preset_name_by_alias(preset_name);
                 select_preset(preset_name);
+                // PING(2026-06-12)：組合製程連動線材（select_preset 成功落地才觸發）
+                if (m_type == Preset::TYPE_PRINT && m_presets->get_selected_preset().name == preset_name)
+                    ping_apply_combo_filaments(preset_name);
             }
         });
     }
