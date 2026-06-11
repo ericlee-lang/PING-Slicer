@@ -177,7 +177,7 @@ void PrintHostSendDialog::init()
     //     });
     // }
 
-    add_button(wxID_CANCEL,false, L("Cancel"));
+    add_button(wxID_CANCEL,false, _L("Cancel"));   // PING(2026-06-11)：L→_L，傳送對話框 Cancel 未翻譯
     finalize();
 
 #ifdef __linux__
