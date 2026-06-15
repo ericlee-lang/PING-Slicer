@@ -140,7 +140,10 @@ def bed_for(model):
 #     → 平移 50mm 至 -90/-88（落在半徑100 內，門關著也不撞）。X±50 在範圍內不動。
 # 床 STL 沿用 FD300（視覺略大、過渡機可接受）。
 BED_OVERRIDE = {
-    "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50},
+    # bed_texture：P200+ 專屬床貼圖——在門開列印範圍 250 內多畫一圈「門關 200」橘色標示
+    #（P200+_buildplate_texture.png＝原圖＋直徑200橘圈，0.8×網格半徑；使用者 2026-06-15 要求）
+    "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50,
+              "bed_texture": "P200+_buildplate_texture.png"},
 }
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
@@ -329,7 +332,8 @@ def main(src_base):
             mm = {"type":"machine_model","name":model,
                   "model_id":"PING_"+model.replace(" ","_"),
                   "nozzle_diameter":";".join(nzs),"machine_tech":"FFF","family":"",
-                  "bed_model":bed_for(model),"bed_texture":BED_TEXTURE,"hotend_model":"",
+                  "bed_model":bed_for(model),
+                  "bed_texture":BED_OVERRIDE.get(model,{}).get("bed_texture",BED_TEXTURE),"hotend_model":"",
                   "default_materials": (";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1]))
                                         if kind=="ff" else DEFAULT_MATERIALS_FD)}
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)

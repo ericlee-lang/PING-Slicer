@@ -542,7 +542,7 @@ private:
             // title
             //title = wxGetApp().is_editor() ? SLIC3R_APP_FULL_NAME : GCODEVIEWER_APP_NAME;
 
-            // PING: 啟動畫面用品牌短版號「V3.5」（關於頁仍用 format_display_version() 顯示完整 3.5.0）
+            // PING: 啟動畫面用品牌短版號「V3.5」（關於頁仍用 format_display_version() 顯示完整 3.5.x）
             version = "V3.5";
 
             // credits infornation
