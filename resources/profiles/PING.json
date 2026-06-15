@@ -19,10 +19,6 @@
             "sub_path": "process/fdm_process_ping_common.json"
         },
         {
-            "name": "0.1mm @P200+ (0.2)",
-            "sub_path": "process/0.1mm @P200+ (0.2).json"
-        },
-        {
             "name": "0.2mm @P200+ (0.4)",
             "sub_path": "process/0.2mm @P200+ (0.4).json"
         },
@@ -105,10 +101,6 @@
         {
             "name": "fdm_ping_common",
             "sub_path": "machine/fdm_ping_common.json"
-        },
-        {
-            "name": "P200+ 0.2 nozzle",
-            "sub_path": "machine/P200+ 0.2 nozzle.json"
         },
         {
             "name": "P200+ 0.4 nozzle",

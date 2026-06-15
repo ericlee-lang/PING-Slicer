@@ -143,7 +143,8 @@ BED_OVERRIDE = {
     # bed_texture：P200+ 專屬床貼圖——在門開列印範圍 250 內多畫一圈「門關 200」橘色標示
     #（P200+_buildplate_texture.png＝原圖＋直徑200橘圈，0.8×網格半徑；使用者 2026-06-15 要求）
     "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50,
-              "bed_texture": "P200+_buildplate_texture.png"},
+              "bed_texture": "P200+_buildplate_texture.png",
+              "nozzles": ["0.4", "0.6"]},   # 去掉 0.2、只留 0.4/0.6（使用者 2026-06-15）
 }
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
@@ -281,6 +282,9 @@ def main(src_base):
 
         for mode_key, model, def_fil, is_single in modes:
             nzs = sorted({nz for (nz, mk) in cfgs if mk == mode_key}, key=float)
+            _only_nz = BED_OVERRIDE.get(model, {}).get("nozzles")   # 衍生機型限定口徑（P200+ 去 0.2）
+            if _only_nz:
+                nzs = [n for n in nzs if n in _only_nz]
             if not nzs:
                 print("  !! %s 缺 %s config" % (dirname, mode_key)); continue
             nozzles_of[model] = nzs
