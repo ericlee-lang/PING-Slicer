@@ -2,7 +2,7 @@
     "type": "machine_model",
     "name": "P200+",
     "model_id": "PING_P200+",
-    "nozzle_diameter": "0.2;0.4;0.6",
+    "nozzle_diameter": "0.4;0.6",
     "machine_tech": "FFF",
     "family": "",
     "bed_model": "PING_FD300_buildplate_model.stl",
