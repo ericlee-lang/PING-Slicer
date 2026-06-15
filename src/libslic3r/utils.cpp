@@ -1212,7 +1212,14 @@ std::string header_slic3r_generated()
 	// regex 要求名稱後緊接空白（OrcaSlicer\s(.*)\son）——故 OrcaSlicer 必須開頭、
 	// PING 身分放括號。識別失敗＝整包 metadata 不解析（監控頁全空、切片=Unknown）。
 	// ⚠ 升級上游 base 版本時，下方「2.3.2」要同步更新。
-	return std::string("OrcaSlicer 2.3.2 (" SLIC3R_APP_NAME " " SoftFever_VERSION ")");
+	// PING(2026-06-15)：app 名稱「PING Slicer V3.5」已含大版號 V3.5，與後面的精確版號
+	// SoftFever_VERSION（3.5.x）重複 → 頁首去掉名稱尾端「 V3.5」，只留「PING Slicer <版號>」。
+	std::string app_name = SLIC3R_APP_NAME;
+	const std::string dup_tag = " V3.5";   // ⚠ 升級大版本時同步改（如 " V3.6"）
+	if (app_name.size() >= dup_tag.size() &&
+	    app_name.compare(app_name.size() - dup_tag.size(), dup_tag.size(), dup_tag) == 0)
+		app_name.erase(app_name.size() - dup_tag.size());
+	return std::string("OrcaSlicer 2.3.2 (") + app_name + " " + SoftFever_VERSION + ")";
 }
 
 std::string header_gcodeviewer_generated()
