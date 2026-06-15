@@ -97,6 +97,7 @@ def jdump(path, obj):
 # (交付夾名, preset 機型名, kind)；kind: dual=雙料機3模式 / single=單料機 / ff=四進一出
 # 順序＝精靈顯示順序（2026-06-10 使用者定）：單料 → 雙料 → 四料；同類依列印範圍小→大
 FAMS = [
+    ("FP300",       "FP200",       "single"),   # 過渡版 P200+：讀 FP300 config、生成 FP200、床 override(直徑250/高200)
     ("FP300",       "FP300",       "single"),
     ("FD300",       "FD300",       "dual"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
@@ -117,6 +118,7 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 BED_TEXTURE = "ping_buildplate_texture.png"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
+           "FP200":"PING_FD300_buildplate_model.stl",
            "FD450":"PING_FD450_buildplate_model.stl",
            "FD600":"PING_FD600_buildplate_model.stl","FF600":"PING_FD600_buildplate_model.stl",
            "FD800":"PING_FD800_buildplate_model.stl","FF800":"PING_FD800_buildplate_model.stl"}
@@ -124,8 +126,37 @@ def bed_for(model):
     key = max((k for k in BED_STL if model.startswith(k)), key=len)
     return BED_STL[key]
 
+# PING(2026-06-12)：衍生機型——吃別人的 G槽 config，只改「列印範圍」（床/高/預擠位置）。
+# FP200（過渡版 P200+）：套 FP300 全套參數，床改直徑250/高200。⚠FP300 預擠線 Y-140/-138
+# 在半徑125的250床會超界（半徑125 < 140）→ 往床心平移 25mm 至 -115/-113（與 FP300 同
+# 距前緣10mm）。床 STL 沿用 FD300（250 vs 300 視覺略大、過渡機可接受）。
+BED_OVERRIDE = {
+    "FP200": {"diameter": 250.0, "height": "200", "prime_y_shift": 25},
+}
+def scale_circle_area(area_pts, target_diameter):
+    """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
+    s = (target_diameter / 2.0) / 150.0
+    out = []
+    for p in area_pts:
+        x, y = p.split("x")
+        out.append("%gx%g" % (round(float(x) * s, 4), round(float(y) * s, 4)))
+    return out
+def apply_bed_override(model, mac):
+    ov = BED_OVERRIDE.get(model)
+    if not ov:
+        return
+    if isinstance(mac.get("printable_area"), list):
+        mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["diameter"])
+    mac["printable_height"] = ov["height"]
+    sg = mac.get("machine_start_gcode")
+    if isinstance(sg, str):   # 預擠線 Y 往床心平移，避免超出縮小後的床
+        mac["machine_start_gcode"] = re.sub(
+            r"Y(-1[34][0-9])", lambda m: "Y%d" % (int(m.group(1)) + ov["prime_y_shift"]), sg)
+
 def tier_of(base):
-    return "300" if base.startswith(("FD300","FP300")) else "450"
+    # 300 級＝加速度3000＋一般流量（小機單/雙噴頭）；450+＝1500＋高流量（大機標配高流量噴頭）
+    # FP200（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
+    return "300" if base.startswith(("FD300","FP300","FP200")) else "450"
 
 def filename_tpl(mode_key):
     """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
@@ -266,6 +297,7 @@ def main(src_base):
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
                 mac["default_filament_profile"] = def_fil if def_fil else def_fil_ff(nz)
+                apply_bed_override(model, mac)   # 衍生機型改列印範圍（FP200：床250/高200/預擠內移）
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
                 # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
@@ -326,7 +358,8 @@ def main(src_base):
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
-    cover_src = {"FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png","FP300":"FP300_cover.png",
+    cover_src = {"FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png",
+                 "FP300":"FP300_cover.png","FP200":"FP300_cover.png",
                  "FD450":"FD450 Pro_cover.png","FD600":"FD600 Pro_cover.png",
                  "FD800":"FD800 Pro_cover.png","FF600":"FF600_cover.png","FF800":"FF800_cover.png"}
     def blank_png(path):

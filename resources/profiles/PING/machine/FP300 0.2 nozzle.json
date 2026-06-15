@@ -310,6 +310,6 @@
     "name": "FP300 0.2 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM000",
+    "setting_id": "PINGM003",
     "alias": "FP300"
 }

@@ -293,7 +293,7 @@
     "name": "0.5mm ABS+ABS @FD450 Pro (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP050",
+    "setting_id": "PINGP053",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD450 Pro 1.0 nozzle"

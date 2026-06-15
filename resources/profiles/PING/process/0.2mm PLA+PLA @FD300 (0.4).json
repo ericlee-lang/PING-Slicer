@@ -293,7 +293,7 @@
     "name": "0.2mm PLA+PLA @FD300 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP008",
+    "setting_id": "PINGP011",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 0.4 nozzle"
