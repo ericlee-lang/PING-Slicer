@@ -374,8 +374,9 @@ def main(src_base):
     def blank_png(path):
         from PIL import Image
         Image.new("RGBA", (600, 600), (0, 0, 0, 0)).save(path)
+    cover_sources = set(cover_src.values())  # 保留被引用的來源圖（如 P200+ 借 FP300_cover）
     for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面
-        if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of:
+        if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of and f not in cover_sources:
             os.remove(os.path.join(PINGDIR, f)); print("  cover 移除(孤兒):", f)
     for model in nozzles_of:
         dst = os.path.join(PINGDIR, "%s_cover.png" % model)
