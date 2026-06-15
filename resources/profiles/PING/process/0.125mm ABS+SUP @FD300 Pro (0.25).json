@@ -293,7 +293,7 @@
     "name": "0.125mm ABS+SUP @FD300 Pro (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP026",
+    "setting_id": "PINGP023",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 0.25 nozzle"

@@ -313,6 +313,6 @@
     "name": "FD450 Pro 1.0 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM026",
+    "setting_id": "PINGM023",
     "alias": "FD450 Pro"
 }

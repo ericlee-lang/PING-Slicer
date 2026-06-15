@@ -1,13 +1,9 @@
 {
     "name": "PING",
-    "version": "01.00.00.40",
+    "version": "01.00.00.41",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
-        {
-            "name": "FP200",
-            "sub_path": "machine/FP200.json"
-        },
         {
             "name": "FP300",
             "sub_path": "machine/FP300.json"
@@ -89,18 +85,6 @@
         {
             "name": "fdm_process_ping_common",
             "sub_path": "process/fdm_process_ping_common.json"
-        },
-        {
-            "name": "0.1mm @FP200 (0.2)",
-            "sub_path": "process/0.1mm @FP200 (0.2).json"
-        },
-        {
-            "name": "0.2mm @FP200 (0.4)",
-            "sub_path": "process/0.2mm @FP200 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FP200 (0.6)",
-            "sub_path": "process/0.3mm @FP200 (0.6).json"
         },
         {
             "name": "0.1mm @FP300 (0.2)",
@@ -593,18 +577,6 @@
         {
             "name": "fdm_ping_common",
             "sub_path": "machine/fdm_ping_common.json"
-        },
-        {
-            "name": "FP200 0.2 nozzle",
-            "sub_path": "machine/FP200 0.2 nozzle.json"
-        },
-        {
-            "name": "FP200 0.4 nozzle",
-            "sub_path": "machine/FP200 0.4 nozzle.json"
-        },
-        {
-            "name": "FP200 0.6 nozzle",
-            "sub_path": "machine/FP200 0.6 nozzle.json"
         },
         {
             "name": "FP300 0.2 nozzle",

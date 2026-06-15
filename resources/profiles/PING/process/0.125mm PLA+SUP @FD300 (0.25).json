@@ -293,7 +293,7 @@
     "name": "0.125mm PLA+SUP @FD300 (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP006",
+    "setting_id": "PINGP003",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 0.25 nozzle"

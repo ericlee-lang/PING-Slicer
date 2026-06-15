@@ -293,7 +293,7 @@
     "name": "0.3mm ABS+ABS @FD300 Pro (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP035",
+    "setting_id": "PINGP032",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 0.6 nozzle"
