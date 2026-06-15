@@ -25,7 +25,7 @@ PING 參數嵌入器 v2 — 完整 F 系列（11 機型家族、136 config）
   （注意 2.3.2 無 has_scarf_joint_seam key，external 即啟用）
 - 單料頭/同進/FP 製程速度(2026-06-10 裁定)：travel 250 / 填充 60 / support 40
 """
-import re, json, os, sys, io, shutil
+import re, json, os, sys, io, shutil, glob
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PINGDIR = os.path.join(REPO, "resources", "profiles", "PING")
@@ -97,7 +97,6 @@ def jdump(path, obj):
 # (交付夾名, preset 機型名, kind)；kind: dual=雙料機3模式 / single=單料機 / ff=四進一出
 # 順序＝精靈顯示順序（2026-06-10 使用者定）：單料 → 雙料 → 四料；同類依列印範圍小→大
 FAMS = [
-    ("FP300",       "FP200",       "single"),   # 過渡版 P200+：讀 FP300 config、生成 FP200、床 override(直徑250/高200)
     ("FP300",       "FP300",       "single"),
     ("FD300",       "FD300",       "dual"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
@@ -107,6 +106,14 @@ FAMS = [
     ("FF600 Pro",   "FF600",       "ff"),
     ("FF800 Pro",   "FF800",       "ff"),
 ]
+# PING(2026-06-12)：P200+（過渡版）是「客戶專屬」機型，不進通用版 FAMS。
+# 客戶精簡交付：環境變數 PING_ONLY=P200+ → FAMS 換成只剩 P200+ 這一台（其餘全砍、
+# FF 線材也跳過）→ 產出「只有這台機器」的客戶版 build（讀 FP300 config + 床 override）。
+PING_ONLY = os.environ.get("PING_ONLY", "").strip()
+if PING_ONLY == "P200+":
+    FAMS = [("FP300", "P200+", "single")]
+elif PING_ONLY:
+    raise SystemExit("不支援的 PING_ONLY=%r（目前僅 P200+）" % PING_ONLY)
 # 資安版 E 機型（FD300 E / FD300 E Pro / FP300 E）不上 slicer 精靈——2026-06-10 使用者定
 # （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
 DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
@@ -118,7 +125,7 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 BED_TEXTURE = "ping_buildplate_texture.png"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
-           "FP200":"PING_FD300_buildplate_model.stl",
+           "P200+":"PING_FD300_buildplate_model.stl",
            "FD450":"PING_FD450_buildplate_model.stl",
            "FD600":"PING_FD600_buildplate_model.stl","FF600":"PING_FD600_buildplate_model.stl",
            "FD800":"PING_FD800_buildplate_model.stl","FF800":"PING_FD800_buildplate_model.stl"}
@@ -127,11 +134,13 @@ def bed_for(model):
     return BED_STL[key]
 
 # PING(2026-06-12)：衍生機型——吃別人的 G槽 config，只改「列印範圍」（床/高/預擠位置）。
-# FP200（過渡版 P200+）：套 FP300 全套參數，床改直徑250/高200。⚠FP300 預擠線 Y-140/-138
-# 在半徑125的250床會超界（半徑125 < 140）→ 往床心平移 25mm 至 -115/-113（與 FP300 同
-# 距前緣10mm）。床 STL 沿用 FD300（250 vs 300 視覺略大、過渡機可接受）。
+# P200+（過渡版，名稱沿用客戶端既有名）：套 FP300 全套參數。
+#   - printable_area＝直徑250（門打開的最大列印範圍）、printable_height＝200
+#   - ⚠預擠線位置用「門關」常態直徑200（半徑100）計算：FP300 Y-140/-138（距前緣10mm）
+#     → 平移 50mm 至 -90/-88（落在半徑100 內，門關著也不撞）。X±50 在範圍內不動。
+# 床 STL 沿用 FD300（視覺略大、過渡機可接受）。
 BED_OVERRIDE = {
-    "FP200": {"diameter": 250.0, "height": "200", "prime_y_shift": 25},
+    "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50},
 }
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
@@ -146,17 +155,17 @@ def apply_bed_override(model, mac):
     if not ov:
         return
     if isinstance(mac.get("printable_area"), list):
-        mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["diameter"])
+        mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
     mac["printable_height"] = ov["height"]
     sg = mac.get("machine_start_gcode")
-    if isinstance(sg, str):   # 預擠線 Y 往床心平移，避免超出縮小後的床
+    if isinstance(sg, str):   # 預擠線 Y 往床心平移（門關直徑計），避免門關時超出床
         mac["machine_start_gcode"] = re.sub(
             r"Y(-1[34][0-9])", lambda m: "Y%d" % (int(m.group(1)) + ov["prime_y_shift"]), sg)
 
 def tier_of(base):
     # 300 級＝加速度3000＋一般流量（小機單/雙噴頭）；450+＝1500＋高流量（大機標配高流量噴頭）
-    # FP200（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
-    return "300" if base.startswith(("FD300","FP300","FP200")) else "450"
+    # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
+    return "300" if base.startswith(("FD300","FP300","P200+")) else "450"
 
 def filename_tpl(mode_key):
     """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
@@ -331,7 +340,7 @@ def main(src_base):
     fil_new = []
     existing_machines = {m["name"] for m in mac_list}
     ff_cfg = {}   # nz -> 四色 config（FF800 優先；FF800 缺的口徑用 FF600 補，如 0.4）
-    for fam in ("FF800 Pro", "FF600 Pro"):
+    for fam in ("FF800 Pro", "FF600 Pro") if any(f[2] == "ff" for f in FAMS) else ():
         for (nz, mk), c in parse_dir(src_base, fam).items():
             if mk == "四色":
                 ff_cfg.setdefault(nz, c)
@@ -359,7 +368,7 @@ def main(src_base):
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
     cover_src = {"FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png",
-                 "FP300":"FP300_cover.png","FP200":"FP300_cover.png",
+                 "FP300":"FP300_cover.png","P200+":"FP300_cover.png",
                  "FD450":"FD450 Pro_cover.png","FD600":"FD600 Pro_cover.png",
                  "FD800":"FD800 Pro_cover.png","FF600":"FF600_cover.png","FF800":"FF800_cover.png"}
     def blank_png(path):
@@ -403,6 +412,11 @@ def main(src_base):
                           + proc_list)
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in fil_new if x["name"] not in have]
+    # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
+    if PING_ONLY:
+        pj["filament_list"] = [x for x in pj["filament_list"] if "@FF" not in x["name"]]
+        for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
+            os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))

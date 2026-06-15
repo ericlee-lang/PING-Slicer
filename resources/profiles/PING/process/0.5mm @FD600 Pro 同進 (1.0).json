@@ -293,7 +293,7 @@
     "name": "0.5mm @FD600 Pro 同進 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP077",
+    "setting_id": "PINGP074",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD600 Pro 同進 1.0 nozzle"
