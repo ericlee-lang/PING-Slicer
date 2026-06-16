@@ -12,7 +12,36 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁 現況（2026-06-11 收工 — Release v3.5.3 已發、B12 已換裝、全日 10 commit 全 push）**
+**🏁🏁🏁🏁 現況（2026-06-16 收工 — v3.5.3 通用版＋P200+ 客戶版雙線發布；本 session 跨 6/11–6/16、主線 23 commit＋p200plus 分支 4 commit 全 push）**
+
+- ✅ **通用版 Release v3.5.3**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.3 已**更新到最新 build**（run `27539330060`・commit `88ca79af`；Windows installer＋Mac dmg，版本對齊 3.5.3）。本機 portable 已換裝（`-old-b14` 備份）。
+- ✅ **P200+ 客戶專屬 Release**（獨立 prerelease，不在通用版）：https://github.com/ericlee-lang/PING-Slicer/releases/tag/p200plus （Mac dmg，分支 `ping/p200plus`・commit `eb8a365a`）。**過渡機客戶交付專用、與通用版分線維護。**
+- ✅ **本 session 後續完成（6/12–6/16）**：
+  1. **製程下拉截短**（@機型(口徑) 隱藏）：TabPresetComboBox TYPE_PRINT 用 alias（label(false)）、Tab.cpp 選擇回填走 get_preset_name_by_alias（`c720402a`）。**機型/線材維持全名**（per-nozzle/＠FF 同 alias 必須全名區分）。
+  2. **首層速度 25→40**（參數端修 V2.1 容器堆疊取 global 25 而非 E0 蓋寫 40）（`a243ab26`）。
+  3. **頂底實心填充交叉 45,135**（`solid_infill_rotate_template`，原垂直單向）（`e3774cd8`）。
+  4. **組合製程連動線材**（手選製程→雙料兩槽自動配對：PLA+SUP→PLA-220+SupPLA 等；只在 Tab combo selection_changed 觸發、載專案不蓋）＋ **G-code 行視窗 NoBringToFrontOnFocus**（不再壓住「切片完成」通知關閉鈕）（`53a4412c`）。
+  5. **gcode 頁首去重複 + 版本對齊**：`(PING Slicer V3.5 3.5.0)`→`(PING Slicer 3.5.3)`（header 去 app 名稱「 V3.5」＋ SoftFever_VERSION 3.5.0→3.5.3）（`95ed906e`/`88ca79af`）。
+  6. **P200+ 完整客戶版**（衍生機型機制，主線 embed 邏輯＋ `ping/p200plus` 分支精簡）：床門開250/門關預擠200算(Y-90)/高200/套FP300/口徑0.4-0.6（去0.2）/命名「P200+」非FP200／床貼圖門關200橘圈／底板STL縮250切齊網格。`PING_ONLY=P200+` 環境變數觸發精簡 regen（只此一台、FF 線材砍）（`fc1ce2b9`→`53a7e610`→`18bbe8ff`→`bb29e1da`→`5e199c31`；分支 `0edca788`→`eb8a365a`）。
+  7. **支撐通用優化**（全機型，fdm_process_ping_common）：`tree_support_wall_count=1`（1圈外牆）＋`support_base_pattern=hollow`（主體空心省料好拆）（`5e199c31`）。⚠ **通用版此改動待下次 build 才進安裝檔。**
+  8. **DL1016（Dowell 第三方 XY 大機）本機注入**：XY 矩形床 1000×1600×600/單噴頭/2.85mm PLA/口徑0.8-1.2-1.6。`tools/ping/add_dl1016.py` 讀廠商 .3mf 注入本機 portable＋%APPDATA%，**不碰 repo、不上 release**（`6e77e978`）。⚠ **每次換新 portable 後需重跑 add_dl1016.py 重新注入。**
+  9. **切片規則同步回報**（PM 6/15 協定）：本 session 確立的切片規則已 send_message 給「0615 切片參數 V3」session 收進 ping-slicer skill。
+- 🆕 **規則變更（6/16 新增/確認）**：
+  7. **支撐通用預設＝牆數1＋主體空心**（fdm_process_ping_common，全機型）。若只要某機型 override 到製程層。
+  8. **P200+ 命名鐵則**：用「P200+」不用 FP200（客戶端既有名、要一致）；客戶專屬不進通用版（`PING_ONLY` 觸發）。
+  9. **衍生機型機制**（BED_OVERRIDE）：吃他機 config 改列印範圍（area_diameter 縮 printable_area／prime_y_shift 移預擠／nozzles 限口徑／bed_texture 專屬貼圖）；床盤 STL 用 binary 縮放（XY 置中×scale、Z 厚不變）。
+  10. **切片規則同步協定**（PM 定）：ORCA 收工碰切片規則→回報切片參數 session；動切片前先載 ping-slicer skill。
+- 📌 **下一棒待辦（依優先序）**：
+  1. 🔴 **Apple Mac 簽名**（Eric 決定辦公司帳號）：等 Eric 申請 D-U-N-S（1-2週）→辦 Apple Developer→產憑證→設 7 個 GitHub Secrets→**通知後我改 `build_orca.yml` L166 條件**（`github.repository=='OrcaSlicer/OrcaSlicer'`→`'ericlee-lang/PING-Slicer'`、ref 條件放寬 PING 分支）啟用簽名+公證。指南：`D:\dev\2026claude\20260604 ORCA客製\Apple簽名設定指南.html`。等待事項已寫 `待確認\`。
+  2. **通用版支撐改動**（牆數1+空心）下次發版 build 才生效——累積到下批一起 build。
+  3. FF600 0.4 首件實機驗（參數端標未實測）；閒置沖刷間隔規範值（與參數端）。
+  4. 轉達工程端：KlipperScreen 出貨 image 加 `print_estimate_method: slicer`。
+  5. DL1016 切片預覽若有異常回報（廠商參數未實機驗）。
+  6. 舊 portable 備份 `-old-b8/b10/b12/b14` 確認穩定後清。
+
+---
+
+**🏁🏁🏁 背景（2026-06-11 收工 — Release v3.5.3 已發、B12 已換裝、全日 10 commit 全 push）**
 
 - ✅ **Release v3.5.3 已發**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.3 （build B12=run `27353221446`・commit `438ee102`；Windows installer + **首發 Mac dmg**，繁中 notes）。**portable=B12 binary + profiles v37** 已換裝；`%APPDATA%` v37 同步。備份：`D:\PING-Slicer-portable-old-b8`/`-old-b10`（可刪）。
 - ✅ **B8 六項總驗收全過**（使用者實測）：splash 透明✓ 主機清單瘦身✓ Fluidd metadata✓（estimated_time/M73 解析正常）檔名格式✓（修復後）對話框 logo✓（B10 改標題列後）線材清單✓（白名單修復後）。設備預設名一項未明測（程式在，無回報問題）。
@@ -180,6 +209,10 @@
 18. **機器螢幕「時間一直漲」不是切片器問題**：KlipperScreen 預設（auto）混「檔案進度外推」（duration/file_progress），列印前期因首層慢+換料塔，外推灌水到 7-8h 且持續上升、過半才收斂。切片器 estimated_time/M73 都正常（實測誤差 <1%）。修法=機器端 `KlipperScreen.conf` `[main]` 加 `print_estimate_method: slicer`。診斷工具：`tools/ping/monitor_print_time.py <host>`。
 
 19. **flush（沖刷矩陣/倍數）是「專案層」參數，preset 帶不動**（SKIP 清單實證：flush_volumes_matrix/flush_multiplier 進 machine preset 會被剝除）。要改預設只能動 native：AppConfig（auto_calculate_flush）+ PrintConfig（flush_multiplier default）——B12 已歸零。同理可推：任何 SKIP 清單裡的 key 都別想用 preset 交付。
+
+20. **【衍生機型床渲染】床有三層、各自獨立**：①`printable_area`（多邊形）→白網格邊界 ②`bed_texture`（PNG，machine_model 層）→床面貼圖、**鋪滿 printable_area 的 bounding box**（`3DBed.cpp` tex_coords=(床點−bbox_min)/bbox_size）③`bed_model`（STL）→3D 床盤、可比 printable_area 大。**P200+ 案例**：白網格250(printable_area)＋深灰盤300(借 FD300 STL)不一致→使用者要切齊。**畫床標示圈**（如門關200橘圈）＝改 bed_texture：圓床貼圖鋪滿 bbox，直徑D的圈在貼圖中心半徑 (D/bbox)×全寬（200/250=0.8）。**縮床盤**＝binary STL 縮放（80byte header＋uint32 count＋每三角形50byte；XY 各頂點(x−cx)×scale 置中縮放、**Z 厚度不縮**）。`P200+_buildplate_texture.png`/`P200+_buildplate_model.stl` 即此法產出。BED_OVERRIDE 統一掛 bed_texture/nozzles/area_diameter/prime_y_shift。
+
+21. **【Mac 簽名 CI 已內建、只缺憑證】** `.github/workflows/build_orca.yml` L165–217 有完整 codesign＋notarytool＋staple 流程，但 `if: github.repository=='OrcaSlicer/OrcaSlicer' && (main||release/)` **鎖死只在原版跑** → PING fork 走 L219「不簽名」路徑。啟用＝①Eric 辦 Apple Developer 公司帳號（需 D-U-N-S，免費1-2週）②設 7 個 Secrets（BUILD_CERTIFICATE_BASE64/P12_PASSWORD/KEYCHAIN_PASSWORD/MACOS_CERTIFICATE_ID/APPLE_DEV_ACCOUNT/TEAM_ID/APP_PWD）③改 L166 條件成 PING repo＋ref 放寬。指南：`..\Apple簽名設定指南.html`。未簽名過渡＝教同事「右鍵→打開」一次裝（別雙擊）。
 
 20. **splash per-pixel 去背（layered window）機制 + 風險**：白底來源是 `MakeBitmap()` 用 `*wxWHITE` 填滿 700×450 畫布，再疊**去背的** `splash_logo.png`(透明處透出白)。修法（`134bab83`，**僅 MSW・未經 build 驗證**）：新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow` + premultiplied BGRA；`windows.h` 用 `wx/msw/wrapwin.h` **隔離在獨立 TU**，否則 `DrawText` 等巨集會汙染 GUI_App.cpp）；`SplashScreen` 加 `render_layered()`（wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字）+ `SetText`/建構子 MSW 分支；CMakeLists 列入新檔。⚠ **runtime 風險**：wxGraphicsContext→bitmap 的 alpha 是否正確、premultiply 是否雙重、layered 視窗序列——build 後若 splash 不對（黑/全透/邊緣暗）多半是這幾點，需微調。非 MSW 維持原白底（編譯安全）。
 
