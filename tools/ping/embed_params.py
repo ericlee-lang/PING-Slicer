@@ -320,6 +320,11 @@ def main(src_base):
                 for cb in combos:
                     pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
                     proc = dict(pb)
+                    # PING 支撐通用（2026-06-16）：攤平母檔會夾帶 Orca 原始預設 support_base_pattern=rectilinear
+                    # 與 tree_support_wall_count=0，蓋掉 fdm_process_ping_common 的「空心／樹狀牆1」→ 先移除讓葉檔
+                    # 繼承 common。ABS+SUP 的 V3.0 黃金支撐配方在 combo_overrides 之後另行覆寫，不受影響。
+                    proc.pop("support_base_pattern", None)
+                    proc.pop("tree_support_wall_count", None)
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh))
