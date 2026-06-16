@@ -48,6 +48,8 @@
     "support_interface_top_layers": "1",
     "support_interface_bottom_layers": "1",
     "support_interface_spacing": "0.2",
+    "tree_support_wall_count": "1",
+    "support_base_pattern": "hollow",
     "enable_prime_tower": "1",
     "prime_tower_width": "30",
     "prime_volume": "45",
