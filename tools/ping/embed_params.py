@@ -313,6 +313,11 @@ def main(src_base):
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
                 mac["default_filament_profile"] = def_fil if def_fil else def_fil_ff(nz)
+                # PING(2026-06-16)：max_layer_height 隨口徑連動＝0.75×口徑（OrcaSlicer 慣例）。
+                # 修源檔把 0.35 一律套全機型、把 1.0 口徑標準層高 0.5 夾成 0.35 的 bug（陣列長度保留）。
+                _mlh = "%g" % round(0.75 * float(nz), 4)
+                _old_mlh = mac.get("max_layer_height")
+                mac["max_layer_height"] = [_mlh] * (len(_old_mlh) if isinstance(_old_mlh, list) and _old_mlh else 1)
                 apply_bed_override(model, mac)   # 衍生機型改列印範圍（FP200：床250/高200/預擠內移）
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
