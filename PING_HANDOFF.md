@@ -12,6 +12,28 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
+**🏁🏁🏁🏁 現況（2026-06-29 收工 — 支撐/層高雙修正已發版；FF 同進/3in1 建於 portable；FF800 同進切片崩潰待查）**
+
+### ✅ 已完成並發版（v3.5.3 + p200plus 重 build 重發 Release）
+- **支撐預設修正**（v3.5 `76112998`／p200plus `54ba8dd6`）：葉檔攤平值夾帶 `rectilinear`/`tree_support_wall_count=0` 蓋掉 common 的「空心／樹狀牆1」→ 產生器 `embed_params.py` 組 proc 時 pop 這兩 key + 修現有葉檔；**ABS+SUP 黃金配方(normal/rectilinear)刻意不動**。
+- **max_layer_height 全庫歸一＝0.75×口徑**（v3.5 `09eecb43`／p200plus `4371b5db`）：源檔一律塞 0.35,把 1.0 口徑標準層高 0.5 被 OrcaSlicer 自動 Reset 成 0.35（`ConfigManipulation.cpp:215`）。FD450/600/800 Pro 1.0（9 台）受惠。產生器機器產出時 `max_layer_height=0.75×口徑`。
+- **已 push＋CI build（Build all, workflow_dispatch 手動觸發）＋更新 Release**。⚠ build 整體常顯示 failure（Flatpak/Unit Tests），看 **build_windows job 綠燈＋有 artifact** 才算成功（坑#10）。
+- **官網下載方案規劃**（未動工）：`官網下載架構建議.html`。安裝檔放外部(GitHub Releases 過渡→Cloudflare R2 `download.ping3dp.com` 長期;ping3dp.com DNS 已在 Cloudflare),下載頁放 Vercel。**Google 雲端收納夾 `G:\我的雲端硬碟\2026claude\PING Slicer\`**（`PingSlicer-Windows.exe`/`PingSlicer-macOS.dmg` 穩定檔名、覆蓋更新→網站連結不變;`版本資訊.txt`）。下載頁原型 `下載頁_PingSlicer.html`。**之後新 build 好→覆蓋這兩檔＋更新版本資訊/下載頁版本號SHA**。R2 待 Eric 之後弄。
+- 雜項：flush 自動計算彈窗→Eric 自行在 偏好設定 把 `auto_calculate_flush` 設 disabled。
+
+### 🟡 FF 同進/3in1（★只在 portable + %APPDATA%,未進 repo/產生器！）
+- 依「FF四料規格 V3.5_20260628」(`FF四料_3in1_同進_參數規格_V3.5_20260628.html`,切片參數線交付)建:**FF800 0.4 四色 + FF600/800 × {同進,3in1} × {0.4,0.6,1.0}**。
+- 裝在 `D:\PING-Slicer-portable\resources\profiles\PING` 並同步 `%APPDATA%\PingSlicer\system\PING`（★★ **app 實際讀 %APPDATA%、非 portable resources**——見記憶 pingslicer-profiles-read-from-appdata）。
+- ⚠ **尚未編進產生器 `embed_params.py`**→重產會消失。**確認全部可用後才正式編進產生器出貨。** FF800 機型 model 的 nozzle_diameter 已補 0.4。
+- 建機器三個坑(已解、見記憶)：①註冊進 PING.json 的 machine_model_list/machine_list/process_list ②高流量線材 `compatible_printers` 要含新機型名(否則選了不顯示) ③加新機器會重置「已選印表機」→跳設定精靈,重選即可。
+- 規格待校準(不擋):同進速度上限(Q值)、prime line E量、T4/T5 End-gcode 各噴頭吐洗、1.0 層高規格 0.5 vs 現有四色 0.35、介面密度/洗料塔 30/75/purge120 的 Orca 對應。
+
+### 🔴 待查（最優先）：FF800 同進切片崩潰「非法存取」
+- 症狀：FF800 同進切圓柱,**連正常切片(不勾花瓶)都在「產生 G-code 第400層 80%」閃退**。
+- 決定性隔離(同一圓柱)：**FD800 Pro 同進 ✅／FF800 四色 ✅／FF800 同進 ❌**。
+- 已排除：模型、FF800 床/硬體、FD 同進結構、高流量線材(換 PLA-220 也崩)、T5 起始 gcode(拿掉也崩)、per-extruder 陣列(機器+製程都已用 FD800 同進結構重建)。
+- 結論：「FF800 × 同進」殘留某個**極小差異**＋引擎敏感(對應 OrcaSlicer #8292 spiral-vase 越界家族)。**下一棒：對 FF800 同進 vs FD800 Pro 同進 做 machine+process byte 級全 diff 找最後差異;或上 RelWithDebInfo debug build,在 `GCode.cpp:3567/3668 EXTRUDER_CONFIG(nozzle_diameter)`、`Config.hpp:617 get_at` 下中斷點抓越界。** portable 留了 `.bak*` 備份(8 machine/6 process)。
+
 **🏁🏁🏁🏁 現況（2026-06-16 收工 — v3.5.3 通用版＋P200+ 客戶版雙線發布；本 session 跨 6/11–6/16、主線 23 commit＋p200plus 分支 4 commit 全 push）**
 
 - ✅ **通用版 Release v3.5.3**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.3 已**更新到最新 build**（run `27539330060`・commit `88ca79af`；Windows installer＋Mac dmg，版本對齊 3.5.3）。本機 portable 已換裝（`-old-b14` 備份）。
