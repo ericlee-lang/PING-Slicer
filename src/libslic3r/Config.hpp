@@ -11,7 +11,6 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
-#include <typeinfo>
 #include <vector>
 #include "libslic3r.h"
 #include "clonable_ptr.hpp"
@@ -617,15 +616,7 @@ public:
 
     const T& get_at(size_t i) const
     {
-        // PING-DIAG (FF800 同進崩潰追查): 原本空 vector 會落到 values.front() → release 版非法存取。
-        // 改成記 log + 回傳 static 預設值，讓切片跑完並收集所有空取用，不再閃退。
-        // 正常 config 永不會走到這（否則早就崩），故對正常流程零影響。追完根因後移除。
-        if (this->values.empty()) {
-            static const T s_ping_diag_default {};
-            BOOST_LOG_TRIVIAL(error) << "[PING-DIAG] ConfigOptionVector::get_at on EMPTY vector, T="
-                                     << typeid(T).name() << ", i=" << i;
-            return s_ping_diag_default;
-        }
+        assert(! this->values.empty());
         return (i < this->values.size()) ? this->values[i] : this->values.front();
     }
 
