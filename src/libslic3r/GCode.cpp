@@ -1572,17 +1572,8 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
 
     const std::vector<std::string> ColorPrintColors::Colors = { "#C0392B", "#E67E22", "#F1C40F", "#27AE60", "#1ABC9C", "#2980B9", "#9B59B6" };
 
-// PING-DIAG (FF800 同進崩潰追查): 路由 EXTRUDER/FILAMENT_CONFIG 取值，空 vector 時記下「哪個參數名」+ id。
-// 搭配 Config.hpp get_at 的空 vector 守衛一起用：那邊防崩，這邊指名。追完根因後移除。
-template<class CFGOPT>
-static inline decltype(auto) ping_diag_cfg_get(const CFGOPT& opt, size_t id, const char* name)
-{
-    if (opt.empty())
-        BOOST_LOG_TRIVIAL(error) << "[PING-DIAG] CONFIG(" << name << ") on EMPTY vector, id=" << id;
-    return opt.get_at(id);
-}
-#define EXTRUDER_CONFIG(OPT) ping_diag_cfg_get(m_config.OPT, m_writer.filament()->extruder_id(), #OPT)
-#define FILAMENT_CONFIG(OPT) ping_diag_cfg_get(m_config.OPT, m_writer.filament()->id(), #OPT)
+#define EXTRUDER_CONFIG(OPT) m_config.OPT.get_at(m_writer.filament()->extruder_id())
+#define FILAMENT_CONFIG(OPT) m_config.OPT.get_at(m_writer.filament()->id())
 
 void GCode::PlaceholderParserIntegration::reset()
 {

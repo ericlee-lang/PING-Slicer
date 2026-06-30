@@ -5383,8 +5383,14 @@ void GCodeProcessor::process_T(const std::string_view command)
                 BOOST_LOG_TRIVIAL(error) << "Invalid T command (" << command << ").";
         }
         else {
-            if (eid >= m_result.filaments_count)
-                BOOST_LOG_TRIVIAL(error) << "Invalid T command (" << command << ").";
+            if (eid >= m_result.filaments_count) {
+                // PING: 無效的 T 工具序號（如 FF800 同進 start_gcode 的 T5 co-feed 巨集，
+                // slicer 只認得 0..filaments_count-1）。上游 bug：印了錯誤卻仍以越界 id 呼叫
+                // process_filament_change → m_filament_maps[id] 越界 → 切片中閃退（非法存取）。
+                // 改為記錄後直接 return：T 指令照常輸出給韌體，slicer 不再以無效 id 索引。
+                BOOST_LOG_TRIVIAL(error) << "Invalid T command (" << command << "), skip filament-change processing.";
+                return;
+            }
             process_filament_change(eid);
         }
     }
