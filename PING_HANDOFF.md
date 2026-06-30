@@ -1,5 +1,7 @@
 # PING Slicer V3.5 — Session Hand-off ＆ 客製化指南
 
+> 🧭 **加機型／動切片引擎前，先讀 `D:\dev\2026claude\20260604 ORCA客製\SOP_加機型.md`**（跨棒永久標準：機型＝多檔 preset bundle 結構、加機型步驟、`extruder_id 越界`/FF800 同進崩潰的已驗證真因與修法都在 §2.5）。
+>
 > 🟠 **本專案 repo（git）在：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer`**（分支 `ping/v3.5`）。
 > **請在這個資料夾開 session**，不要開在 G 槽雲端的 `…\20250403 ORCA軟體客制\`（那是舊資料夾，沒有 repo）。
 > 接續指令： `讀 D:\dev\2026claude\20260604 ORCA客製\PING-Slicer\PING_HANDOFF.md 接續`
@@ -11,6 +13,41 @@
 ---
 
 ## 0. 立即接續（現況 + 待辦）
+
+**🏁🏁🏁🏁🏁 現況（2026-06-30 收工 — FF800 同進崩潰已修+驗證；FF 模式定義大整理；3in1 部分凍結等 Klipper）**
+
+### ✅ FF800 同進切片崩潰 — 根因查實並修復、Eric 實測通過
+- 真因＝**start_gcode 的 `T5`（FF 自訂進料巨集）被 slicer 當「切到第5噴頭」→ `GCodeProcessor::process_T`(`GCodeProcessor.cpp:5364`) 偵測 `eid>=filaments_count` 印 "Invalid T" 卻沒 return → `process_filament_change`→`m_filament_maps[eid]` 越界**。非 config、非 get_at（診斷 build 反證）。
+- 修法 commit **`c9b4f8d7`**（ping/v3.5）：process_T 偵測無效 T 直接 return（T 仍輸出給韌體）。一次根治 0.4/0.6/1.0。**build run 28416466362**、Eric 實測 FF800 同進 0.4+0.6 圓柱切完不崩。**詳見 `SOP_加機型.md §2.5`（已回填正確真因）。**
+- portable 已換裝此 build binary（舊備份 `D:\PING-Slicer-portable\_fixbuild_bak`、診斷版 `_prediag_bak`）。
+
+### ✅ FF 模式定義大整理（材料數/層高/prime/support）— Eric 2026-06-30 逐項定
+> ⚠ **以下 FF profile 改動全部只在 `%APPDATA%\PingSlicer\system\PING` + `D:\PING-Slicer-portable\resources\profiles\PING`，未進 repo / `embed_params.py` 產生器 → 重產會消失，驗收 OK 後務必編進產生器。** 各檔有 `.bak-*` 備份。
+- **材料數定義**：四色＝**4 料**(4色PLA)；同進(四進一)＝**1 料**；3in1＝**2 料**(前三同動 body + 第四 SUP)。
+- **四色**：預設 4 槽不同色 PLA(紅/綠/藍/琥珀 `#FF0000/#00B050/#0070C0/#FFC000`)；參數＝**PLA+PLA**（`support_z`=**0.3**）；prime **4 條**(T0~T3)。
+- **3in1**：料槽 `[PLA,PLA,PLA,SupPLA]`；參數＝**PLA+SUP**（`support_z`=0）；層高 0.25/0.35/0.45；prime **2 條**＝**T4(前三同動)擠body + T3(第四)擠SUP**。
+- **同進**：1 料；層高 0.25/0.35/0.45；prime **2 條**(T5)。**修了 FF800 同進 0.4 的 bug**(原誤用 T0/T1 雙噴頭 dance→改 T5)。
+- **層高**(同進+3in1)：0.4→0.25/首0.3、0.6→0.35/首0.4、1.0→0.45/首0.5；製程**已改名**對齊(`0.25mm/0.35mm/0.45mm @...`，PING.json+機器引用同步、0斷鏈)。
+- prime 幾何：FF800 Y-359、FF600 Y-280、X±100、每條 Y+2；同進 E60/條、3in1 E100/條(沿用原值，實機可調)。
+
+### ✅ FF600-3in1 / FF800-3in1 模式加入 + wizard 修正
+- 3in1 machine/process/PING.json 三處註冊本就齊全→確認可用。
+- **wizard 家族分組修正**：`resources/web/guide/**21.js + 24.js**` 的 `strSeries` regex 原只去 `單料頭|同進`、漏 `3in1|單噴頭`→補上(repo+portable 都改)。**改 guide JS 後要清 `%LOCALAPPDATA%\PINGSlicer\EBWebView\{Cache,Code Cache}` 才生效**(重啟不夠)。詳見記憶 ping-machine-build-checklist。
+- **machine_model_list 重排**：同型號變體相鄰(FF600 base/同進/3in1、FF800 同上、DL1016 殿後)；規則記進 **ping-ux LAY-11**。
+- **FF800 單噴頭移除**(暫無此模式)：三處註冊移除、檔案改 `.bak-removed`。
+
+### 🔒 凍結中（等 Klipper 韌體 session：「Blend mode implementation」/「Machine 192.168.2.135 anomaly」，可能動 Klipper C）
+- **真機列印當掉**：T 同動模式下回抽是否真四顆同步(G10/G11 ALL_SYNC)＝韌體層問題，非 slicer。slicer 越界修正是獨立安全網、已生效。
+- **3in1 收成「2 槽」**(目前 config 仍 4 槽[3PLA+1SUP])、**T4→T012 / T5→T0123 命名標準化**、**同進/3in1 觸發改 M-code vs 留 T** — 全等韌體方向定案再一起做。
+- T4/T5 Klipper 巨集定義(前三同動/四全同動)在 `G:\我的雲端硬碟\2026claude\20260530 Klipper\...\Macro_T0_T1_T2_T3_T4_T7_T8.cfg`；雙料混色＝`M6050/M6051 S<比例>`(`Macro_M6050_for2.cfg`)。
+
+### 📋 待辦（下一棒/跨 session）
+- FF 模式定義已 send 給「0628 切片參數」session 同步進 ping-slicer。
+- FF profile（含 prime/層高/材料/4色/3in1）驗收 OK 後**編進 embed_params.py 產生器**＋同步 repo resources。
+- 韌體方向定案後：3in1→2槽+T012、prime 的 T 命名替換、決定同進/3in1 用 T 或 M-code。
+- 此 GCodeProcessor 修正併入正式 Release（現只在 ping/v3.5 build 好未發版）。
+
+---
 
 **🏁🏁🏁🏁 現況（2026-06-29 收工 — 支撐/層高雙修正已發版；FF 同進/3in1 建於 portable；FF800 同進切片崩潰待查）**
 
