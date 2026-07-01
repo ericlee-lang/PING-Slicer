@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cctype>
 
 namespace Slic3r {
@@ -55,6 +56,12 @@ static void normalize_mix(const double in[4], double min_flow, double out[4])
     double free = 1.0 - 4.0 * min_flow;
     if (ex_sum <= 1e-9) { out[0] = out[1] = out[2] = out[3] = 0.25; return; }
     for (int i = 0; i < 4; ++i) out[i] = min_flow + (excess[i] / ex_sum) * free;
+}
+
+// 公開包裝（編輯器低流量切換時整條曲線重新正規化）
+void normalize_quad_mix(const double in[4], double min_flow, double out[4])
+{
+    normalize_mix(in, min_flow, out);
 }
 
 // —— 四料取樣：對應 quad.ts sampleQuadMix —— //
@@ -202,6 +209,180 @@ int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::strin
         if (cmd != last) { out.push_back('\n'); out += cmd; last = cmd; ++count; }
     }
     return count;
+}
+
+// —— 預設配方 —— //
+Recipe default_recipe(MixKind kind)
+{
+    Recipe r;
+    r.kind = kind;
+    r.mode = CurveMode::Linear;
+    if (kind == MixKind::Quad)
+        r.qstops = { {0.0, {0.25, 0.25, 0.25, 0.25}}, {1.0, {0.25, 0.25, 0.25, 0.25}} };
+    else
+        r.stops = { {0.0, 0.5}, {1.0, 0.5} };
+    return r;
+}
+
+// —— 顏色（移植 web quad.ts mixRgb / curveEditor.ts lerpHex）—— //
+static int hex_digit(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+void parse_hex_color(const std::string& hex, int out_rgb[3])
+{
+    out_rgb[0] = out_rgb[1] = out_rgb[2] = 136; // web fallback #888888
+    size_t start = (!hex.empty() && hex[0] == '#') ? 1 : 0;
+    size_t n = hex.size() - start;
+    if (n == 3) { // #rgb → #rrggbb（三位全合法才回填，與 6 碼分支一致）
+        int tmp[3];
+        for (int i = 0; i < 3; ++i) {
+            int d = hex_digit(hex[start + i]);
+            if (d < 0) return;
+            tmp[i] = d * 17;
+        }
+        out_rgb[0] = tmp[0]; out_rgb[1] = tmp[1]; out_rgb[2] = tmp[2];
+    } else if (n >= 6) {
+        int tmp[3];
+        for (int i = 0; i < 3; ++i) {
+            int hi = hex_digit(hex[start + 2 * i]);
+            int lo = hex_digit(hex[start + 2 * i + 1]);
+            if (hi < 0 || lo < 0) return;
+            tmp[i] = hi * 16 + lo;
+        }
+        out_rgb[0] = tmp[0]; out_rgb[1] = tmp[1]; out_rgb[2] = tmp[2];
+    }
+}
+
+void dual_color(double ratio_e1, const int c1[3], const int c2[3], int out_rgb[3])
+{
+    // web lerpHex(c2, c1, r)：逐通道 c2 + (c1-c2)*r、round 到整數
+    for (int i = 0; i < 3; ++i) {
+        double v = c2[i] + (c1[i] - c2[i]) * ratio_e1;
+        out_rgb[i] = (int)std::lround(clampd(v, 0.0, 255.0));
+    }
+}
+
+void quad_color(const double mix[4], const int colors[4][3], int out_rgb[3])
+{
+    // web mixRgb：gamma 純冪次 2.2（非分段 sRGB），linear 加權平均 → clamp → 轉回 sRGB
+    double lin[3] = {0, 0, 0};
+    for (int i = 0; i < 4; ++i)
+        for (int c = 0; c < 3; ++c)
+            lin[c] += mix[i] * std::pow(colors[i][c] / 255.0, 2.2);
+    for (int c = 0; c < 3; ++c) {
+        double srgb = std::pow(clampd(lin[c], 0.0, 1.0), 1.0 / 2.2);
+        out_rgb[c] = (int)std::lround(clampd(srgb * 255.0, 0.0, 255.0));
+    }
+}
+
+// —— 配方序列化 —— //
+std::string recipe_to_string(const Recipe& recipe)
+{
+    char buf[128];
+    std::string s = recipe.mode == CurveMode::Step ? "step" : (recipe.mode == CurveMode::Smooth ? "smooth" : "linear");
+    s += ';';
+    if (recipe.kind == MixKind::Quad) {
+        // 四料要保留 min_flow（低流量 0.05／預設 0.10）——影響 Smooth normalize 與拖曳 clamp
+        std::snprintf(buf, sizeof(buf), "mf=%.3f;", recipe.min_flow);
+        s += buf;
+    }
+    if (recipe.kind == MixKind::Quad) {
+        for (size_t i = 0; i < recipe.qstops.size(); ++i) {
+            const QuadStop& q = recipe.qstops[i];
+            std::snprintf(buf, sizeof(buf), "%s%.4f:%.4f|%.4f|%.4f|%.4f", i ? "," : "",
+                          q.pos, q.mix[0], q.mix[1], q.mix[2], q.mix[3]);
+            s += buf;
+        }
+    } else {
+        for (size_t i = 0; i < recipe.stops.size(); ++i) {
+            std::snprintf(buf, sizeof(buf), "%s%.4f:%.4f", i ? "," : "", recipe.stops[i].pos, recipe.stops[i].ratio);
+            s += buf;
+        }
+    }
+    return s;
+}
+
+bool recipe_from_string(const std::string& s, Recipe& recipe)
+{
+    size_t semi = s.find(';');
+    if (semi == std::string::npos) return false;
+    std::string mode_s = s.substr(0, semi);
+    CurveMode mode;
+    if (mode_s == "linear") mode = CurveMode::Linear;
+    else if (mode_s == "step") mode = CurveMode::Step;
+    else if (mode_s == "smooth") mode = CurveMode::Smooth;
+    else return false;
+
+    std::vector<Stop> stops;
+    std::vector<QuadStop> qstops;
+    size_t pos = semi + 1;
+
+    // 選配欄位 mf=<min_flow>;（四料低流量持久化；舊格式沒有此欄位＝沿用預設）
+    double min_flow = recipe.min_flow;
+    if (s.compare(pos, 3, "mf=") == 0) {
+        size_t semi2 = s.find(';', pos);
+        if (semi2 == std::string::npos) return false;
+        char* end = nullptr;
+        const double v = std::strtod(s.c_str() + pos + 3, &end);
+        if (end == s.c_str() + pos + 3) return false;
+        if (v > 0.0 && v <= 0.25) min_flow = v;
+        pos = semi2 + 1;
+    }
+
+    while (pos < s.size()) {
+        size_t comma = s.find(',', pos);
+        std::string tok = s.substr(pos, comma == std::string::npos ? std::string::npos : comma - pos);
+        size_t colon = tok.find(':');
+        if (colon == std::string::npos) return false;
+        char* end = nullptr;
+        double p = std::strtod(tok.c_str(), &end);
+        if (end != tok.c_str() + colon) return false;
+        std::string vals = tok.substr(colon + 1);
+        if (recipe.kind == MixKind::Quad) {
+            QuadStop q; q.pos = p;
+            const char* vp = vals.c_str();
+            for (int i = 0; i < 4; ++i) {
+                q.mix[i] = std::strtod(vp, &end);
+                if (end == vp) return false;
+                vp = end;
+                if (i < 3) { if (*vp != '|') return false; ++vp; }
+            }
+            qstops.push_back(q);
+        } else {
+            Stop st; st.pos = p;
+            st.ratio = std::strtod(vals.c_str(), &end);
+            if (end == vals.c_str()) return false;
+            stops.push_back(st);
+        }
+        if (comma == std::string::npos) break;
+        pos = comma + 1;
+    }
+    // 值域消毒（AppConfig 可能被手改/損壞；正常編輯器路徑本來就恆合法）
+    if (recipe.kind == MixKind::Quad) {
+        if (qstops.size() < 2) return false;
+        for (QuadStop& q : qstops) {
+            q.pos = clampd(q.pos, 0.0, 1.0);
+            double fixed[4];
+            normalize_mix(q.mix, min_flow, fixed);   // 保證每料 ≥ min_flow、和=1
+            for (int k = 0; k < 4; ++k) q.mix[k] = fixed[k];
+        }
+        recipe.qstops = std::move(qstops);
+        recipe.min_flow = min_flow;
+    } else {
+        if (stops.size() < 2) return false;
+        for (Stop& st : stops) {
+            st.pos = clampd(st.pos, 0.0, 1.0);
+            st.ratio = clampd(st.ratio, MIN_S, MAX_S);
+        }
+        recipe.stops = std::move(stops);
+    }
+    recipe.mode = mode;
+    return true;
 }
 
 } // namespace PingMix

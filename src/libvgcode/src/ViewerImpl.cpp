@@ -1525,6 +1525,16 @@ Color ViewerImpl::get_vertex_color(const PathVertex& v) const
         return v.is_travel() ? get_option_color(move_type_to_option(v.type)) :
             m_layer_time_range[1].get_color_at(m_layers.get_layer_time(m_settings.time_mode, static_cast<size_t>(v.layer_id)));
     }
+    // PING: 混色模式——依 move 所在層查 per-layer 色表（色表空時回 dummy 灰）
+    case EViewType::PingColorMix:
+    {
+        if (v.is_travel())
+            return get_option_color(move_type_to_option(v.type));
+        if (m_ping_mix_layer_colors.empty())
+            return DUMMY_COLOR;
+        const size_t lid = std::min(static_cast<size_t>(v.layer_id), m_ping_mix_layer_colors.size() - 1);
+        return m_ping_mix_layer_colors[lid];
+    }
     case EViewType::Tool:
     {
         assert(static_cast<size_t>(v.extruder_id) < m_tool_colors.size());
@@ -1551,6 +1561,13 @@ void ViewerImpl::set_tool_colors(const Palette& colors)
 void ViewerImpl::set_color_print_colors(const Palette& colors)
 {
     m_color_print_colors = colors;
+    m_settings.update_colors = true;
+}
+
+// PING: 混色 per-layer 色表（設定後下一幀觸發 update_colors 重上色）
+void ViewerImpl::set_ping_mix_layer_colors(const Palette& colors)
+{
+    m_ping_mix_layer_colors = colors;
     m_settings.update_colors = true;
 }
 

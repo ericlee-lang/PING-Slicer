@@ -198,9 +198,10 @@ std::string BackgroundSlicingProcess::output_filepath_for_project(const boost::f
 // ---- PING 混色漸層：同進機型切片後對輸出 gcode 逐層插入混色指令 ----
 // 咽喉點＝export/upload 從 m_temp_output_path 複製「之前」，對這個「export 與 upload 共用的母檔」
 // 就地後處理。build_mixed_gcode 會先剝既有 M605x（含 start_gcode 的 M6050 S0.5）再逐層插，
-// 是冪等的 → 每趟切片/匯出/上傳重跑都安全。純 worker thread 上執行，不碰 GUI 狀態。
-// ① 階段：配方先硬寫一條測試曲線驗管線；③ 曲線編輯器完成後改讀共享配方。
-static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPrintConfig& config)
+// 是冪等的 → 每趟切片/匯出/上傳重跑都安全（改曲線後重匯出/重上傳即吃新配方、免重切）。
+// 純 worker thread 上執行，不碰 GUI 狀態；配方由呼叫端在 mutex 下複製傳入。
+static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPrintConfig& config,
+                                 const PingMix::Recipe& dual_recipe, const PingMix::Recipe& quad_recipe)
 {
     // 1. 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
     const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
@@ -211,22 +212,12 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
         return; // 非同進機型：不插碼
     const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
 
-    // 2. 組配方（① 硬寫測試曲線；③ 完成後改讀共享 Recipe）
-    PingMix::Recipe recipe;
-    if (is_quad) {
-        recipe.kind = PingMix::MixKind::Quad;
-        recipe.mode = PingMix::CurveMode::Linear;
-        recipe.qstops = {
-            {0.00, {1.0, 0.0, 0.0, 0.0}},
-            {0.34, {0.0, 1.0, 0.0, 0.0}},
-            {0.67, {0.0, 0.0, 1.0, 0.0}},
-            {1.00, {0.0, 0.0, 0.0, 1.0}},
-        };
-    } else {
-        recipe.kind = PingMix::MixKind::Dual;
-        recipe.mode = PingMix::CurveMode::Linear;
-        recipe.stops = {{0.0, 0.05}, {1.0, 0.95}}; // 底→頂：E1 佔比由 5% 漸增到 95%
-    }
+    // 2. 取配方（GUI 曲線編輯器維護；未編輯時＝「同進還原」預設，行為等同韌體原生）
+    //    保險：配方 kind 與機型不符（不應發生）→ 退回該 kind 的預設配方
+    PingMix::Recipe recipe = is_quad ? quad_recipe : dual_recipe;
+    const PingMix::MixKind want = is_quad ? PingMix::MixKind::Quad : PingMix::MixKind::Dual;
+    if (recipe.kind != want)
+        recipe = PingMix::default_recipe(want);
 
     // 3. 讀檔 → 插碼 → 有插才覆寫（nowide 處理 Windows 中文路徑）
     std::string gcode;
@@ -313,7 +304,15 @@ void BackgroundSlicingProcess::process_fff()
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": export gcode finished");
 	}
 	// PING 混色：同進機型於 export/upload 複製 temp gcode「之前」逐層插 M6051/M6052（單一咽喉點、冪等）
-	ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config());
+	{
+		PingMix::Recipe dual_copy, quad_copy;
+		{
+			std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
+			dual_copy = m_ping_mix_dual;
+			quad_copy = m_ping_mix_quad;
+		}
+		ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy);
+	}
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
 			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
@@ -813,6 +812,14 @@ void BackgroundSlicingProcess::schedule_upload(Slic3r::PrintHostJob upload_job)
 	this->invalidate_step(bspsGCodeFinalize);
 	m_export_path.clear();
 	m_upload_job = std::move(upload_job);
+}
+
+// PING 混色：GUI thread 更新配方（worker 於咽喉點以同一把 mutex 複製讀取）
+void BackgroundSlicingProcess::set_ping_mix_recipes(const PingMix::Recipe& dual, const PingMix::Recipe& quad)
+{
+	std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
+	m_ping_mix_dual = dual;
+	m_ping_mix_quad = quad;
 }
 
 void BackgroundSlicingProcess::reset_export()
