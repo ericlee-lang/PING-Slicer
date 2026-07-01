@@ -75,6 +75,22 @@
         {
             "name": "FF800",
             "sub_path": "machine/FF800.json"
+        },
+        {
+            "name": "FF600 3in1",
+            "sub_path": "machine/FF600 3in1.json"
+        },
+        {
+            "name": "FF600 同進",
+            "sub_path": "machine/FF600 同進.json"
+        },
+        {
+            "name": "FF800 3in1",
+            "sub_path": "machine/FF800 3in1.json"
+        },
+        {
+            "name": "FF800 同進",
+            "sub_path": "machine/FF800 同進.json"
         }
     ],
     "process_list": [
@@ -477,6 +493,54 @@
         {
             "name": "0.35mm @FF800 (1.0)",
             "sub_path": "process/0.35mm @FF800 (1.0).json"
+        },
+        {
+            "name": "0.25mm @FF600 3in1 (0.4)",
+            "sub_path": "process/0.25mm @FF600 3in1 (0.4).json"
+        },
+        {
+            "name": "0.25mm @FF600 同進 (0.4)",
+            "sub_path": "process/0.25mm @FF600 同進 (0.4).json"
+        },
+        {
+            "name": "0.25mm @FF800 3in1 (0.4)",
+            "sub_path": "process/0.25mm @FF800 3in1 (0.4).json"
+        },
+        {
+            "name": "0.25mm @FF800 同進 (0.4)",
+            "sub_path": "process/0.25mm @FF800 同進 (0.4).json"
+        },
+        {
+            "name": "0.35mm @FF600 3in1 (0.6)",
+            "sub_path": "process/0.35mm @FF600 3in1 (0.6).json"
+        },
+        {
+            "name": "0.35mm @FF600 同進 (0.6)",
+            "sub_path": "process/0.35mm @FF600 同進 (0.6).json"
+        },
+        {
+            "name": "0.35mm @FF800 3in1 (0.6)",
+            "sub_path": "process/0.35mm @FF800 3in1 (0.6).json"
+        },
+        {
+            "name": "0.35mm @FF800 同進 (0.6)",
+            "sub_path": "process/0.35mm @FF800 同進 (0.6).json"
+        },
+        {
+            "name": "0.45mm @FF600 3in1 (1.0)",
+            "sub_path": "process/0.45mm @FF600 3in1 (1.0).json"
+        },
+        {
+            "name": "0.45mm @FF600 同進 (1.0)",
+            "sub_path": "process/0.45mm @FF600 同進 (1.0).json"
+        },
+        {
+            "name": "0.45mm @FF800 3in1 (1.0)",
+            "sub_path": "process/0.45mm @FF800 3in1 (1.0).json"
+        },
+        {
+            "name": "0.45mm @FF800 同進 (1.0)",
+            "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
         }
     ],
     "filament_list": [
@@ -567,6 +631,30 @@
         {
             "name": "PING SupPLA - 高流量 @FF 0.4",
             "sub_path": "filament/PING SupPLA - 高流量 @FF 0.4.json"
+        },
+        {
+            "name": "PING PLA(3in1) @FF 0.4",
+            "sub_path": "filament/PING PLA(3in1) @FF 0.4.json"
+        },
+        {
+            "name": "PING PLA(3in1) @FF 0.6",
+            "sub_path": "filament/PING PLA(3in1) @FF 0.6.json"
+        },
+        {
+            "name": "PING PLA(3in1) @FF 1.0",
+            "sub_path": "filament/PING PLA(3in1) @FF 1.0.json"
+        },
+        {
+            "name": "PING SupPLA(3in1) @FF 0.4",
+            "sub_path": "filament/PING SupPLA(3in1) @FF 0.4.json"
+        },
+        {
+            "name": "PING SupPLA(3in1) @FF 0.6",
+            "sub_path": "filament/PING SupPLA(3in1) @FF 0.6.json"
+        },
+        {
+            "name": "PING SupPLA(3in1) @FF 1.0",
+            "sub_path": "filament/PING SupPLA(3in1) @FF 1.0.json"
         }
     ],
     "machine_list": [
@@ -789,6 +877,54 @@
         {
             "name": "FF800 1.0 nozzle",
             "sub_path": "machine/FF800 1.0 nozzle.json"
+        },
+        {
+            "name": "FF600 3in1 0.4 nozzle",
+            "sub_path": "machine/FF600 3in1 0.4 nozzle.json"
+        },
+        {
+            "name": "FF600 3in1 0.6 nozzle",
+            "sub_path": "machine/FF600 3in1 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 3in1 1.0 nozzle",
+            "sub_path": "machine/FF600 3in1 1.0 nozzle.json"
+        },
+        {
+            "name": "FF600 同進 0.4 nozzle",
+            "sub_path": "machine/FF600 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FF600 同進 0.6 nozzle",
+            "sub_path": "machine/FF600 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 同進 1.0 nozzle",
+            "sub_path": "machine/FF600 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 3in1 0.4 nozzle",
+            "sub_path": "machine/FF800 3in1 0.4 nozzle.json"
+        },
+        {
+            "name": "FF800 3in1 0.6 nozzle",
+            "sub_path": "machine/FF800 3in1 0.6 nozzle.json"
+        },
+        {
+            "name": "FF800 3in1 1.0 nozzle",
+            "sub_path": "machine/FF800 3in1 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 同進 0.4 nozzle",
+            "sub_path": "machine/FF800 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "FF800 同進 0.6 nozzle",
+            "sub_path": "machine/FF800 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FF800 同進 1.0 nozzle",
+            "sub_path": "machine/FF800 同進 1.0 nozzle.json"
         }
     ]
 }

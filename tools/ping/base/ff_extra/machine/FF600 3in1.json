@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "FF600 3in1",
+    "model_id": "PING_FF600_3in1",
+    "nozzle_diameter": "0.4;0.6;1.0",
+    "machine_tech": "FFF",
+    "family": "",
+    "bed_model": "PING_FD600_buildplate_model.stl",
+    "bed_texture": "ping_buildplate_texture.png",
+    "hotend_model": "",
+    "default_materials": "PING PLA(3in1) @FF 0.4;PING SupPLA(3in1) @FF 0.4;PING PLA(3in1) @FF 0.6;PING SupPLA(3in1) @FF 0.6;PING PLA(3in1) @FF 1.0;PING SupPLA(3in1) @FF 1.0"
+}
