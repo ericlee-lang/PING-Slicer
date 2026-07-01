@@ -20,6 +20,7 @@
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
+#include "libslic3r/GCode/PingColorMix.hpp"
 #include "libslic3r/Format/SL1.hpp"
 #include "libslic3r/Thread.hpp"
 #include "libslic3r/libslic3r.h"
@@ -27,11 +28,13 @@
 #include <cassert>
 #include <stdexcept>
 #include <cctype>
+#include <sstream>
 
 #include <boost/format/format_fwd.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/cstdio.hpp>
+#include <boost/nowide/fstream.hpp>
 #include "I18N.hpp"
 //#include "RemovableDriveManager.hpp"
 
@@ -192,6 +195,68 @@ std::string BackgroundSlicingProcess::output_filepath_for_project(const boost::f
 
 // This function may one day be merged into the Print, but historically the print was separated
 // from the G-code generator.
+// ---- PING 混色漸層：同進機型切片後對輸出 gcode 逐層插入混色指令 ----
+// 咽喉點＝export/upload 從 m_temp_output_path 複製「之前」，對這個「export 與 upload 共用的母檔」
+// 就地後處理。build_mixed_gcode 會先剝既有 M605x（含 start_gcode 的 M6050 S0.5）再逐層插，
+// 是冪等的 → 每趟切片/匯出/上傳重跑都安全。純 worker thread 上執行，不碰 GUI 狀態。
+// ① 階段：配方先硬寫一條測試曲線驗管線；③ 曲線編輯器完成後改讀共享配方。
+static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPrintConfig& config)
+{
+    // 1. 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
+    const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
+    if (pm == nullptr)
+        return;
+    const std::string& printer_model = pm->value;
+    if (printer_model.find("同進") == std::string::npos)
+        return; // 非同進機型：不插碼
+    const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
+
+    // 2. 組配方（① 硬寫測試曲線；③ 完成後改讀共享 Recipe）
+    PingMix::Recipe recipe;
+    if (is_quad) {
+        recipe.kind = PingMix::MixKind::Quad;
+        recipe.mode = PingMix::CurveMode::Linear;
+        recipe.qstops = {
+            {0.00, {1.0, 0.0, 0.0, 0.0}},
+            {0.34, {0.0, 1.0, 0.0, 0.0}},
+            {0.67, {0.0, 0.0, 1.0, 0.0}},
+            {1.00, {0.0, 0.0, 0.0, 1.0}},
+        };
+    } else {
+        recipe.kind = PingMix::MixKind::Dual;
+        recipe.mode = PingMix::CurveMode::Linear;
+        recipe.stops = {{0.0, 0.05}, {1.0, 0.95}}; // 底→頂：E1 佔比由 5% 漸增到 95%
+    }
+
+    // 3. 讀檔 → 插碼 → 有插才覆寫（nowide 處理 Windows 中文路徑）
+    std::string gcode;
+    try {
+        boost::nowide::ifstream ifs(gcode_path.c_str(), std::ios::binary);
+        if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING mix: cannot open gcode " << gcode_path; return; }
+        std::stringstream ss;
+        ss << ifs.rdbuf();
+        gcode = ss.str();
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "PING mix: read failed: " << e.what();
+        return;
+    }
+
+    std::string out;
+    const int count = PingMix::build_mixed_gcode(gcode, recipe, out);
+    BOOST_LOG_TRIVIAL(info) << "PING mix: printer_model='" << printer_model << "' kind="
+                            << (is_quad ? "Quad(M6052)" : "Dual(M6051)") << " inserted=" << count;
+    if (count <= 0)
+        return; // 無 ;Z: 或曲線空 → 不動原檔
+
+    try {
+        boost::nowide::ofstream ofs(gcode_path.c_str(), std::ios::binary | std::ios::trunc);
+        if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING mix: cannot write gcode " << gcode_path; return; }
+        ofs << out;
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "PING mix: write failed: " << e.what();
+    }
+}
+
 void BackgroundSlicingProcess::process_fff()
 {
     assert(m_print == m_fff_print);
@@ -247,6 +312,8 @@ void BackgroundSlicingProcess::process_fff()
 
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": export gcode finished");
 	}
+	// PING 混色：同進機型於 export/upload 複製 temp gcode「之前」逐層插 M6051/M6052（單一咽喉點、冪等）
+	ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config());
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
 			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));

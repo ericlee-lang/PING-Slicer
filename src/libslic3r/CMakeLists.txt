@@ -223,6 +223,8 @@ set(lisbslic3r_sources
     GCode.hpp
     GCode/PchipInterpolatorHelper.cpp
     GCode/PchipInterpolatorHelper.hpp
+    GCode/PingColorMix.cpp
+    GCode/PingColorMix.hpp
     GCode/PostProcessor.cpp
     GCode/PostProcessor.hpp
     GCode/PressureEqualizer.cpp
