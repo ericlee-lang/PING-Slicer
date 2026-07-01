@@ -32,6 +32,10 @@ PINGDIR = os.path.join(REPO, "resources", "profiles", "PING")
 PROF = os.path.join(REPO, "resources", "profiles")
 PRESET_CPP = os.path.join(REPO, "src", "libslic3r", "Preset.cpp")
 DEFAULT_SRC = r"G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slicer V3.5\F系列參數"
+# FF 同進/3in1 範本（無源 config、屬衍生模式）：已驗證手工檔收進 repo 當範本，重產時複製併入。
+# 內含 machine（含 machine_model 底檔）／process／filament（3in1 專用 T4/T3 料）／cover。
+# 2026-07-01：3in1 收 2 槽（T4/T3 走 filament_start_gcode）+ 同進(T5) 編進產生器（範本複製法）。
+FF_EXTRA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "ff_extra")
 
 # ---------- 1. OrcaSlicer 權威 key 分類 ----------
 _src = open(PRESET_CPP, encoding="utf-8", errors="ignore").read()
@@ -255,6 +259,40 @@ def combo_overrides(combo, layer_height):
                   "support_object_xy_distance": "0.5"})
     return o
 
+def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
+    """範本複製法：把已驗證的 FF 同進/3in1 machine/process/filament/cover 併入產出。
+    - machine（type=machine 的口徑變體）：重指 setting_id（續 gm 計數避免撞號）→ mac_list
+    - machine_model（底檔）：→ mm_list
+    - process：重指 setting_id（續 gp）→ proc_list
+    - filament（3in1 專用 PLA(3in1)/SupPLA(3in1)，含 T4/T3 filament_start_gcode、淺灰支撐色）→ 回傳 ff_fil
+    - cover：複製到 PINGDIR（受 4c 孤兒清除保護，見 ff_models）
+    回傳 (gm, gp, ff_fil, ff_models)。範本本身已驗證，不再改值、只重編 setting_id。"""
+    ff_fil, ff_models = [], []
+    n_mac = n_proc = n_cov = 0
+    for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "machine"))):
+        d = json.load(io.open(os.path.join(FF_EXTRA, "machine", fn), encoding="utf-8"))
+        name = d["name"]
+        if d.get("type") == "machine_model":
+            mm_list.append({"name": name, "sub_path": "machine/%s.json" % name}); ff_models.append(name)
+        else:
+            d["setting_id"] = "PINGM%03d" % gm; gm += 1
+            mac_list.append({"name": name, "sub_path": "machine/%s.json" % name}); n_mac += 1
+        jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
+    for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
+        d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
+        d["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
+        proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
+    for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "filament"))):
+        d = json.load(io.open(os.path.join(FF_EXTRA, "filament", fn), encoding="utf-8"))
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % d["name"]), d)
+        ff_fil.append({"name": d["name"], "sub_path": "filament/%s.json" % d["name"]})
+    for fn in os.listdir(os.path.join(FF_EXTRA, "cover")):
+        shutil.copy2(os.path.join(FF_EXTRA, "cover", fn), os.path.join(PINGDIR, fn)); n_cov += 1
+    print("  ff_extra 併入：machine=%d + machine_model=%d，process=%d，filament=%d，cover=%d"
+          % (n_mac, len(ff_models), n_proc, len(ff_fil), n_cov))
+    return gm, gp, ff_fil, ff_models
+
 # ---------- 4. 主流程 ----------
 def main(src_base):
     # 4a. 清掉舊 machine/process（保留 fdm 基底）
@@ -353,6 +391,13 @@ def main(src_base):
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
             mm_list.append({"name":model,"sub_path":"machine/%s.json"%model})
 
+    # 4a-2. FF 同進/3in1 範本併入（衍生模式、無源 config）。須在 4b 之前跑，
+    #       好讓 existing_machines 含 同進/3in1 機台 → 高流量線材 compatible 掛得到。
+    if any(f[2] == "ff" for f in FAMS) and not PING_ONLY:
+        gm, gp, ff_fil, ff_models = emit_ff_extra(mm_list, mac_list, proc_list, gm, gp)
+    else:
+        ff_fil, ff_models = [], []
+
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
     fil_new = []
@@ -364,12 +409,14 @@ def main(src_base):
                 ff_cfg.setdefault(nz, c)
     for nz in sorted(ff_cfg, key=float):
         F = split(ff_cfg[nz])["F"]
-        machines = [m for m in ("FF600 %s nozzle" % nz, "FF800 %s nozzle" % nz)
+        machines = [m for m in ("FF600 %s nozzle" % nz, "FF800 %s nozzle" % nz,
+                    "FF600 同進 %s nozzle" % nz, "FF800 同進 %s nozzle" % nz,
+                    "FF600 3in1 %s nozzle" % nz, "FF800 3in1 %s nozzle" % nz)
                     if m in existing_machines]
         sfx = nz.replace(".","")   # 0.6 -> 06
         for slot, mat, fid_p, alias, color, sup in (
                 (0, "PLA",    "PINGFILHFPLA", "PING PLA - 高流量",    "#EA4E16", False),
-                (3, "SupPLA", "PINGFILHFSUP", "PING SupPLA - 高流量", "#808080", True)):
+                (3, "SupPLA", "PINGFILHFSUP", "PING SupPLA - 高流量", "#D3D3D3", True)):
             fp = fil_at(F, slot, 4)
             name = "%s @FF %s" % (alias, nz)
             fid = fid_p + sfx
@@ -393,8 +440,9 @@ def main(src_base):
         from PIL import Image
         Image.new("RGBA", (600, 600), (0, 0, 0, 0)).save(path)
     cover_sources = set(cover_src.values())  # 保留被引用的來源圖（如 P200+ 借 FP300_cover）
-    for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面
-        if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of and f not in cover_sources:
+    for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面（ff_extra 範本模型受保護）
+        if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of \
+           and f[:-len("_cover.png")] not in ff_models and f not in cover_sources:
             os.remove(os.path.join(PINGDIR, f)); print("  cover 移除(孤兒):", f)
     for model in nozzles_of:
         dst = os.path.join(PINGDIR, "%s_cover.png" % model)
@@ -409,7 +457,7 @@ def main(src_base):
     #       全部用「家族機器照」（模式變體同實機）；240x240 RGBA 同上游規格
     from PIL import Image
     img_dir = os.path.join(REPO, "resources", "images")
-    for model in nozzles_of:
+    for model in list(nozzles_of) + ff_models:   # ff_models（同進/3in1）側欄縮圖也要
         family_cover = cover_src[max((k for k in cover_src if model.startswith(k)), key=len)]
         mm_path = os.path.join(PINGDIR, "machine", "%s.json" % model)
         model_id = json.load(io.open(mm_path, encoding="utf-8"))["model_id"]
@@ -430,7 +478,7 @@ def main(src_base):
                            {"name":"fdm_process_ping_common","sub_path":"process/fdm_process_ping_common.json"}]
                           + proc_list)
     have = {x["name"] for x in pj["filament_list"]}
-    pj["filament_list"] += [x for x in fil_new if x["name"] not in have]
+    pj["filament_list"] += [x for x in (fil_new + ff_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
     if PING_ONLY:
         pj["filament_list"] = [x for x in pj["filament_list"] if "@FF" not in x["name"]]

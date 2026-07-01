@@ -14,6 +14,22 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
+**🏁🏁🏁🏁🏁🏁 現況（2026-07-01 — 3in1 收成 2 槽已做並實測通過；支撐材改淺灰；Apple D-U-N-S 到手）**
+
+### ✅ 3in1 收成 2 槽 — 已做＋Eric 切片實測通過（FF600 3in1 body+SUP 分離正確、換料 137、洗料塔正常）
+- **機制**：T4/T3 觸發放在**線材自己的 `filament_start_gcode`**。新建 2 支專用線材 **`PING PLA(3in1)`**(`T4`＝body 前三同動)＋**`PING SupPLA(3in1)`**(`T3`＝第四 SUP)，每口徑一支(@FF 0.4/0.6/1.0)、溫 210、只掛 FF600/FF800 3in1、註冊進 PING.json。
+- **機器**(FF600/FF800 3in1 全口徑)：`default_filament_profile`→2 槽 `[PLA(3in1), SupPLA(3in1)]`；6 製程 `support_filament`/`support_interface_filament` 4→2；6 製程 `support_base_pattern`→`rectilinear`（消「不支援空心底座」警告）。
+- **韌體對應(Eric 確認)**：T0/1/2→第1槽 body、T3→第2槽 SUP。
+- ⚠️ **Orca 坑（已記入 SSOT core-rules ③）**：①新線材要獨立 alias 否則被併組選不到 ②要進 `PINGSlicer.conf` 可見清單才在快捷下拉出現 ③改 conf 要連 `# MD5 checksum` 重算(＝body UTF-8 MD5 大寫)否則重開被判損毀回退 ④切印表機 carry-over 會讓第 2 槽沒套 default，手選 SupPLA(3in1) 即可、fresh 安裝首選會套對。
+- **支撐材顏色→淺灰 `#D3D3D3`**（8 支 Sup 線材，切片辨識用；原 #808080）。
+- ⚠️ **全部只在 %APPDATA%+portable、未進產生器**（.bak-2slot/.bak-sbp/.bak-color 備份齊）。**下一步：整批（3in1 2槽＋FF四色/同進＋支撐色）編進 `embed_params.py` 產生器＋同步 repo。**
+- 🔒 仍凍結：`T4→T012`/`T5→T0123` 命名、同進/3in1 M-code vs 留 T、真機 T 同動回抽。
+
+### ✅ Apple Mac 簽名 — D-U-N-S 已到手 `656252039`（聯造，2026/6/21 核發，記進 ping-master）
+- 下一步 Eric 做：辦 Apple Developer 公司帳號(US$99/年,填此號)→Mac 產憑證/密碼/Team ID→設 7 個 GitHub Secrets→跟我說「設好了」我改 `build_orca.yml` L166 條件啟用簽名。指南 `Apple簽名設定指南.html` 階段 1 已標完成。
+
+---
+
 **🏁🏁🏁🏁🏁 現況（2026-06-30 收工 — FF800 同進崩潰已修+驗證；FF 模式定義大整理；3in1 部分凍結等 Klipper）**
 
 ### ✅ FF800 同進切片崩潰 — 根因查實並修復、Eric 實測通過

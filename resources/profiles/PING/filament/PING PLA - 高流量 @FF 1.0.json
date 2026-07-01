@@ -276,7 +276,11 @@
     "inherits": "fdm_filament_pla",
     "compatible_printers": [
         "FF600 1.0 nozzle",
-        "FF800 1.0 nozzle"
+        "FF800 1.0 nozzle",
+        "FF600 同進 1.0 nozzle",
+        "FF800 同進 1.0 nozzle",
+        "FF600 3in1 1.0 nozzle",
+        "FF800 3in1 1.0 nozzle"
     ],
     "filament_colors": [
         "#EA4E16"
