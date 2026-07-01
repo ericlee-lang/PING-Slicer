@@ -11,6 +11,7 @@
 #include "libslic3r/PresetBundle.hpp"
 //BBS: add convex hull logic for toolpath check
 #include "libslic3r/Geometry/ConvexHull.hpp"
+#include "libslic3r/GCode/PingColorMix.hpp"
 
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
@@ -43,6 +44,7 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 
 namespace Slic3r {
@@ -94,6 +96,9 @@ else if (view_type == libvgcode::EViewType::LayerTimeLogarithmic)
 // ORCA: Add Pressure Advance visualization support
     else if (view_type == libvgcode::EViewType::PressureAdvance)
         return _u8L("Pressure Advance");
+// PING: 混色漸層檢視（品牌中文詞，與機型名「同進」同理不走 .mo）
+    else if (view_type == libvgcode::EViewType::PingColorMix)
+        return "混色";
     return "";
 }
 
@@ -338,7 +343,7 @@ void GCodeViewer::SequentialView::Marker::render_position_window(const libvgcode
 
             //ImGui::Separator();
             if (ImGui::BeginTable("Properties", 2)) {
-                char buff[1024];
+                char buff[1024] = {0}; // PING: 初始化——部分 view type 路徑會在寫入前讀（pre-existing UB）
 
                 append_table_row(_u8L("Type"), [&vertex]() {
                     ImGuiWrapper::text(_u8L(to_string(vertex.type)));
@@ -1030,6 +1035,10 @@ void GCodeViewer::update_by_mode(ConfigOptionMode mode)
     view_type_items.push_back(libvgcode::EViewType::Summary);
     view_type_items.push_back(libvgcode::EViewType::FeatureType);
     view_type_items.push_back(libvgcode::EViewType::ColorPrint);
+    // PING: 同進機型才顯示「混色」檢視。注意 init 有 m_gl_data_initialized 早退、本函式不隨機型切換重跑——
+    // 換機型後的清單重建由 load_as_gcode 的「同進狀態 vs 清單」不一致偵測負責
+    if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected())
+        view_type_items.push_back(libvgcode::EViewType::PingColorMix);
     view_type_items.push_back(libvgcode::EViewType::Speed);
     view_type_items.push_back(libvgcode::EViewType::ActualSpeed);
     view_type_items.push_back(libvgcode::EViewType::Height);
@@ -1062,6 +1071,51 @@ void GCodeViewer::update_by_mode(ConfigOptionMode mode)
     //}
     //BBS: seam is not real move and extrusion, put at last line
     options_items.push_back(EMoveType::Seam);
+}
+
+// PING 混色：把混色曲線烘成 per-layer 色表塞進 libvgcode。
+// 層 z 取 libvgcode Layers 表、以首末層 z 正規化成 t（與插碼端 ;Z: min/max 正規化一致）。
+// 顏色演算法與 web 藍圖 1:1（雙料 sRGB lerp、四料 linear pow2.2 加權），同一套也用在插出的 M605x。
+void GCodeViewer::update_ping_mix_colors()
+{
+    Plater* plater = wxGetApp().plater();
+    if (plater == nullptr)
+        return;
+    bool is_quad = false;
+    const size_t layers_count = m_viewer.get_layers_count();
+    if (!plater->is_ping_tongjin_selected(&is_quad) || layers_count == 0) {
+        if (!m_viewer.get_ping_mix_layer_colors().empty())
+            m_viewer.set_ping_mix_layer_colors(libvgcode::Palette());
+        return;
+    }
+    const Plater::PingMixState& st = plater->get_ping_mix_state();
+    int cols[4][3];
+    for (int i = 0; i < 4; ++i)
+        PingMix::parse_hex_color(st.colors[i], cols[i]);
+    // 掃全層取 min/max（逐件列印時層 z 非單調，首末層不是全域極值）——與插碼端 ;Z: min/max 語意一致
+    double z_min = m_viewer.get_layer_z(0), z_max = z_min;
+    for (size_t i = 1; i < layers_count; ++i) {
+        const double z = m_viewer.get_layer_z(i);
+        z_min = std::min(z_min, z);
+        z_max = std::max(z_max, z);
+    }
+    const double range = (z_max - z_min) != 0.0 ? (z_max - z_min) : 1.0;
+    libvgcode::Palette palette;
+    palette.reserve(layers_count);
+    for (size_t i = 0; i < layers_count; ++i) {
+        const double t = std::clamp((m_viewer.get_layer_z(i) - z_min) / range, 0.0, 1.0);
+        int rgb[3];
+        if (is_quad) {
+            double mix[4];
+            PingMix::sample_quad_mix(st.quad.qstops, t, st.quad.mode, st.quad.min_flow, mix);
+            PingMix::quad_color(mix, cols, rgb);
+        } else {
+            const double r = PingMix::sample_ratio(st.dual.stops, t, st.dual.mode);
+            PingMix::dual_color(r, cols[0], cols[1], rgb);
+        }
+        palette.push_back({ static_cast<uint8_t>(rgb[0]), static_cast<uint8_t>(rgb[1]), static_cast<uint8_t>(rgb[2]) });
+    }
+    m_viewer.set_ping_mix_layer_colors(palette);
 }
 
 std::vector<int> GCodeViewer::get_plater_extruder()
@@ -1102,6 +1156,8 @@ void GCodeViewer::load_as_gcode(const GCodeProcessorResult& gcode_result, const 
             color_print_colors.emplace_back(libvgcode::convert(color));
         }
         m_viewer.set_color_print_colors(color_print_colors);
+        // PING: 同 id 重載也重烘混色色表（配方可能已被編輯器改過）
+        update_ping_mix_colors();
         return;
     }
 
@@ -1287,6 +1343,38 @@ void GCodeViewer::load_as_gcode(const GCodeProcessorResult& gcode_result, const 
         auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
         if (it != view_type_items.end())
             m_view_type_sel = std::distance(view_type_items.begin(), it);
+        set_view_type(libvgcode::EViewType::FeatureType);
+    }
+
+    // PING: 烘混色 per-layer 色表；同進機型切片後預設直接顯示「混色」檢視
+    update_ping_mix_colors();
+    const bool ping_tongjin = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected();
+    // 防呆（review 抓到）：view_type_items 只在首次 init／簡易進階切換時重建、不隨機型換——
+    // 同進狀態與清單不一致（換機型後）就重建，並依目前 view type 重新定位 m_view_type_sel（防越界）
+    {
+        const bool has_mix = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix) != view_type_items.end();
+        if (ping_tongjin != has_mix) {
+            update_by_mode(m_user_mode);
+            auto cur = std::find(view_type_items.begin(), view_type_items.end(), get_view_type());
+            if (cur != view_type_items.end() && (size_t)std::distance(view_type_items.begin(), cur) < view_type_items_str.size())
+                m_view_type_sel = std::distance(view_type_items.begin(), cur);
+            else {
+                auto ft = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
+                m_view_type_sel = (ft != view_type_items.end()) ? std::distance(view_type_items.begin(), ft) : 0;
+                set_view_type(libvgcode::EViewType::FeatureType);
+            }
+        }
+    }
+    if (ping_tongjin) {
+        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix);
+        if (it != view_type_items.end()) {
+            m_view_type_sel = std::distance(view_type_items.begin(), it);
+            set_view_type(libvgcode::EViewType::PingColorMix);
+        }
+    } else if (get_view_type() == libvgcode::EViewType::PingColorMix) {
+        // 防呆：從同進換到非同進機型，「混色」已不在清單 → 回 FeatureType（避免 m_view_type_sel 越界）
+        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
+        m_view_type_sel = (it != view_type_items.end()) ? std::distance(view_type_items.begin(), it) : 0;
         set_view_type(libvgcode::EViewType::FeatureType);
     }
 
@@ -3542,6 +3630,8 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
     case libvgcode::EViewType::Temperature:    { imgui.title(_u8L("Temperature (°C)")); break; }
 // ORCA: Add Pressure Advance visualization support
     case libvgcode::EViewType::PressureAdvance:{ imgui.title(_u8L("Pressure Advance")); break; }
+// PING: 混色漸層檢視
+    case libvgcode::EViewType::PingColorMix:  { imgui.title(std::string("混色")); break; }
     case libvgcode::EViewType::VolumetricFlowRate:
         { imgui.title(_u8L("Volumetric flow rate (mm³/s)")); break; }
     case libvgcode::EViewType::ActualVolumetricFlowRate:
@@ -3720,6 +3810,48 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
     case libvgcode::EViewType::Temperature:              { append_range(m_viewer.get_color_range(libvgcode::EViewType::Temperature), 0); break; }
 // ORCA: Add Pressure Advance visualization support
     case libvgcode::EViewType::PressureAdvance:          { append_range(m_viewer.get_color_range(libvgcode::EViewType::PressureAdvance), 3); break; }
+// PING: 混色圖例——由頂到底取樣 11 級：色塊＋高度＋配比
+    case libvgcode::EViewType::PingColorMix:
+    {
+        Plater* plater = wxGetApp().plater();
+        const size_t layers_count = m_viewer.get_layers_count();
+        bool legend_is_quad = false;
+        if (plater != nullptr && plater->is_ping_tongjin_selected(&legend_is_quad) && layers_count > 0) {
+            const Plater::PingMixState& st = plater->get_ping_mix_state();
+            int cols[4][3];
+            for (int i = 0; i < 4; ++i)
+                PingMix::parse_hex_color(st.colors[i], cols[i]);
+            // 掃全層取 min/max（同 update_ping_mix_colors；逐件列印時層 z 非單調）
+            double z_min = m_viewer.get_layer_z(0), z_max = z_min;
+            for (size_t i = 1; i < layers_count; ++i) {
+                const double z = m_viewer.get_layer_z(i);
+                z_min = std::min(z_min, z);
+                z_max = std::max(z_max, z);
+            }
+            char buf[96];
+            const int STEPS = 10; // 11 級（含頂底）
+            for (int k = STEPS; k >= 0; --k) { // 頂 → 底
+                const double t = double(k) / double(STEPS);
+                const double z = z_min + t * (z_max - z_min);
+                int rgb[3];
+                if (legend_is_quad) {
+                    double mix[4]; int pct[4];
+                    PingMix::sample_quad_mix(st.quad.qstops, t, st.quad.mode, st.quad.min_flow, mix);
+                    PingMix::quad_color(mix, cols, rgb);
+                    PingMix::mix_to_percents(mix, pct);
+                    ::sprintf(buf, "%.1fmm  %d/%d/%d/%d", z, pct[0], pct[1], pct[2], pct[3]);
+                } else {
+                    const double r = PingMix::sample_ratio(st.dual.stops, t, st.dual.mode);
+                    PingMix::dual_color(r, cols[0], cols[1], rgb);
+                    ::sprintf(buf, "%.1fmm  E1 %d%%", z, (int)std::lround(r * 100.0));
+                }
+                append_item(EItemType::Rect,
+                            libvgcode::convert(libvgcode::Color({ static_cast<uint8_t>(rgb[0]), static_cast<uint8_t>(rgb[1]), static_cast<uint8_t>(rgb[2]) })),
+                            { { buf, 0 } });
+            }
+        }
+        break;
+    }
     case libvgcode::EViewType::LayerTimeLinear:          { append_range(m_viewer.get_color_range(libvgcode::EViewType::LayerTimeLinear), true); break; }
     case libvgcode::EViewType::LayerTimeLogarithmic:     { append_range(m_viewer.get_color_range(libvgcode::EViewType::LayerTimeLogarithmic), true); break; }
     case libvgcode::EViewType::VolumetricFlowRate:       { append_range(m_viewer.get_color_range(libvgcode::EViewType::VolumetricFlowRate), 2); break; }

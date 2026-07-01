@@ -84,6 +84,8 @@ private:
     bool init(wxWindow* parent, Bed3D& bed, Model* model, DynamicPrintConfig* config, BackgroundSlicingProcess* process);
 };
 
+class PingMixEditor;
+
 class Preview : public wxPanel
 {
     wxGLCanvas* m_canvas_widget { nullptr };
@@ -91,6 +93,8 @@ class Preview : public wxPanel
     DynamicPrintConfig* m_config;
     BackgroundSlicingProcess* m_process;
     GCodeProcessorResult* m_gcode_result;
+    // PING: 混色曲線編輯器（預覽頁右側，同進機型才顯示）
+    PingMixEditor* m_ping_mix_editor { nullptr };
 
     // Calling this function object forces Plater::schedule_background_process.
     std::function<void()> m_schedule_background_process;
@@ -156,6 +160,8 @@ public:
     void show_sliders(bool show = true);
     void show_moves_sliders(bool show = true);
     void show_layers_sliders(bool show = true);
+    // PING: 依機型顯示/隱藏混色編輯器並同步配方（切到預覽頁、切片完成時呼叫）
+    void update_ping_mix_editor();
     void set_reload_paint_after_background_process_apply(bool flag) { m_reload_paint_after_background_process_apply = flag; }
     bool get_reload_paint_after_background_process_apply() { return m_reload_paint_after_background_process_apply; }
 

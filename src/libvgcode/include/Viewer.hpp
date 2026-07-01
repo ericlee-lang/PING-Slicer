@@ -161,6 +161,12 @@ public:
     //
     void set_color_print_colors(const Palette& colors);
     //
+    // PING: per-layer palette used to render the toolpaths when
+    // the view type is EViewType::PingColorMix (index = layer_id).
+    //
+    const Palette& get_ping_mix_layer_colors() const;
+    void set_ping_mix_layer_colors(const Palette& colors);
+    //
     // Get the color range for the given view type.
     // Valid view types are:
     // EViewType::Height

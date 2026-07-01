@@ -94,6 +94,8 @@ enum class EViewType : uint8_t
     Temperature,
 // ORCA: Add Pressure Advance visualization support
     PressureAdvance,
+// PING: 混色漸層著色（依 per-layer 色表上色，色表由外部烘焙塞入）
+    PingColorMix,
     Tool,
     COUNT
 };

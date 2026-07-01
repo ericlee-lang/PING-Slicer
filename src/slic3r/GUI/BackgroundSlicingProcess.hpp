@@ -14,6 +14,7 @@
 #include "libslic3r/Format/SL1.hpp"
 #include "slic3r/Utils/PrintHost.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "libslic3r/GCode/PingColorMix.hpp"
 #include "PartPlate.hpp"
 
 namespace boost { namespace filesystem { class path; } }
@@ -155,6 +156,8 @@ public:
 	void schedule_upload(Slic3r::PrintHostJob upload_job);
 	// Clear m_export_path.
 	void reset_export();
+	// PING 混色：由 GUI（編輯器/Plater）更新雙料與四料配方；worker 於後處理咽喉點讀取（m_ping_mix_mutex 保護）
+	void set_ping_mix_recipes(const PingMix::Recipe& dual, const PingMix::Recipe& quad);
 	// Once the G-code export is scheduled, the apply() methods will do nothing.
 	bool is_export_scheduled() const { return ! m_export_path.empty(); }
 	bool is_upload_scheduled() const { return ! m_upload_job.empty(); }
@@ -248,6 +251,11 @@ private:
 	// Print host upload job to schedule after slicing is complete, used by schedule_upload(),
 	// empty by default (ie. no upload to schedule)
 	PrintHostJob                m_upload_job;
+	// PING 混色配方（GUI 寫入、worker 咽喉點讀取；m_ping_mix_mutex 保護）。
+	// 預設＝default_recipe（同進還原：雙料 50/50、四料 25×4，行為等同韌體原生）。
+	PingMix::Recipe             m_ping_mix_dual = PingMix::default_recipe(PingMix::MixKind::Dual);
+	PingMix::Recipe             m_ping_mix_quad = PingMix::default_recipe(PingMix::MixKind::Quad);
+	std::mutex                  m_ping_mix_mutex;
 	// Thread, on which the background processing is executed. The thread will always be present
 	// and ready to execute the slicing process.
 	boost::thread		 		m_thread;

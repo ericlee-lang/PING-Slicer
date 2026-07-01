@@ -15,6 +15,8 @@
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/BoundingBox.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
+#include "libslic3r/GCode/PingColorMix.hpp"
+#include <array>
 #include "Jobs/Job.hpp"
 #include "Jobs/Worker.hpp"
 #include "Search.hpp"
@@ -328,6 +330,21 @@ public:
     void load_gcode(const wxString& filename);
     void reload_gcode_from_disk();
     void reload_print();
+
+    // —— PING 混色（同進機型：曲線編輯器 ↔ 預覽著色 ↔ 切片後插碼 的共享狀態）——
+    // 同進機切片端只有 1 個料槽，取不到實體雙/四色 → colors 為使用者自選的顯示色票。
+    struct PingMixState {
+        PingMix::Recipe dual  = PingMix::default_recipe(PingMix::MixKind::Dual);
+        PingMix::Recipe quad  = PingMix::default_recipe(PingMix::MixKind::Quad);
+        std::array<std::string, 4> colors { "#FF0000", "#00B050", "#0070C0", "#FFC000" }; // E1..E4（沿用 FF 四色預設）
+    };
+    const PingMixState& get_ping_mix_state() const;
+    // 編輯器每次變動呼叫：存 priv 狀態＋AppConfig 持久化＋推進背景切片程序＋重烘預覽著色
+    void set_ping_mix_state(const PingMixState& state);
+    // 目前選中印表機是否同進機型；is_quad 回傳 FF（四料）與否
+    bool is_ping_tongjin_selected(bool* is_quad = nullptr) const;
+    // 依目前配方重烘 GCodeViewer 的 per-layer 混色色表（gcode 已載入時）
+    void refresh_ping_mix_preview();
 
     // SoftFever
     void calib_pa(const Calib_Params& params);

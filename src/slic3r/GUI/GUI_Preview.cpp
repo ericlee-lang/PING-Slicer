@@ -17,6 +17,7 @@
 #include "Plater.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"
+#include "PingMixEditor.hpp"
 
 #include <wx/listbook.h>
 #include <wx/notebook.h>
@@ -282,8 +283,14 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // sizer, m_canvas_widget
     m_canvas_widget->Bind(wxEVT_KEY_DOWN, &Preview::update_layers_slider_from_canvas, this);
 
-    wxBoxSizer *main_sizer = new wxBoxSizer(wxVERTICAL);
+    // PING: 外層改水平 sizer——canvas 佔滿＋右側混色曲線編輯器（同進機型才顯示）
+    wxBoxSizer *main_sizer = new wxBoxSizer(wxHORIZONTAL);
     main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
+
+    m_ping_mix_editor = new PingMixEditor(this);
+    m_ping_mix_editor->SetMinSize(wxSize(FromDIP(340), -1));
+    m_ping_mix_editor->Hide();
+    main_sizer->Add(m_ping_mix_editor, 0, wxEXPAND, 0);
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
@@ -292,6 +299,18 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     bind_event_handlers();
 
     return true;
+}
+
+// PING: 依目前機型顯示/隱藏混色編輯器（同進才顯示），並同步配方狀態
+void Preview::update_ping_mix_editor()
+{
+    if (m_ping_mix_editor == nullptr)
+        return;
+    const bool show = m_ping_mix_editor->update_from_plater();
+    if (show != m_ping_mix_editor->IsShown()) {
+        m_ping_mix_editor->Show(show);
+        Layout();
+    }
 }
 
 Preview::~Preview()
@@ -638,6 +657,9 @@ void Preview::load_print_as_fff(bool keep_z_range, bool only_gcode)
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" %1%: already loaded before, return directly")%__LINE__;
         return;
     }
+
+    // PING: 新 print 載入預覽 → 依機型同步混色編輯器顯示/配方
+    update_ping_mix_editor();
 
     // we require that there's at least one object and the posSlice step
     // is performed on all of them(this ensures that _shifted_copies was

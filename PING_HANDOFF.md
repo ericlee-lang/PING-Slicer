@@ -14,7 +14,49 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁 現況（2026-07-01 — 3in1 收成 2 槽已做並實測通過；支撐材改淺灰；Apple D-U-N-S 到手）**
+**🏁🏁🏁🏁🏁🏁 現況（2026-07-01 — 3in1 收成 2 槽已做並實測通過；支撐材改淺灰；Apple D-U-N-S 到手；🆕 混色器整合進 Orca 啟動）**
+
+### 🆕 混色漸層整合 — ✅ ①②③ 全部寫完＋4 路 adversarial review 修完（2026-07-02，等 Eric 說 OK 發 build）
+> **現況**：①插碼已 build 驗過（commit `06d04e63`、run 28526818670 綠；FD M6051 240 支逐層/S 單調、FF M6052 四值和=100、M6050 剝除——暫存 gcode 直驗＋Eric 確認）。②③ 已寫完（本次 commit）。
+> - **② 原生預覽著色**：libvgcode 加 `EViewType::PingColorMix`（Types.hpp）＋per-layer `Palette` 色表與 setter（ViewerImpl/Viewer）；**混色數學不進 libvgcode**——GUI 端 `GCodeViewer::update_ping_mix_colors()` 把曲線烘成色表塞入（仿 set_tool_colors 髒旗標、改曲線重上色不重切）。同進機切片後自動切「混色」檢視；legend 頂→底 11 級漸層圖例。**換機型清單重建（review 三路同抓 blocker）**：view_type_items 只在首次 init／簡易進階切換重建（init 有 `m_gl_data_initialized` 早退！），已在 load_as_gcode 加「同進狀態 vs 清單含混色」不一致偵測→重跑 update_by_mode＋重定位 m_view_type_sel 防越界。
+> - **③ 原生曲線編輯器**：`src/slic3r/GUI/PingMixEditor.hpp/.cpp`（新檔，已登錄 src/slic3r/CMakeLists.txt）掛 `Preview` 右側（GUI_Preview 外層 sizer 改 wxHORIZONTAL），同進才顯示（`Preview::update_ping_mix_editor()`；呼叫點＝Plater set_current_panel preview 分支＋load_print_as_fff）。雙料拖點曲線／四料堆疊帶、三模式、範本（同進/漸層/雙色/彩虹）、低流量（min_flow 0.10↔0.05）、E1..E4 色票（**同進機切片端只有 1 槽拿不到實體色→使用者自選**，wxColourDialog）。拖曳中只重畫、放開才 commit（免逐幀重烘百萬 vertex）；拖曳中 update_from_plater 不覆寫狀態（切片完成事件插隊防護）。**中文字串一律 wxString::FromUTF8**（/utf-8 有開但 wxString(const char*) 走 CP950——wizard conflation 同款坑）。
+> - **資料流**：編輯器→`Plater::set_ping_mix_state()`→AppConfig 持久化（`ping_mix_dual/quad/colors`；quad 序列化含 `mf=` 低流量欄位、舊格式相容、載入時值域消毒）＋`BSP::set_ping_mix_recipes()`（`m_ping_mix_mutex` 保護、worker 咽喉點鎖下複製）＋`refresh_ping_mix_preview()` 重烘。①的硬寫測試曲線已換成 `default_recipe()`「同進還原」（未編輯＝韌體原生 50/50、25×4，既有客戶零影響）。**改曲線→重匯出/重上傳即吃新配方**（冪等插碼、免重切）。
+> - **驗證**：純邏輯 Python 鏡像 vs web TS 全等（dual 101＋quad 286 點、序列化 round-trip＋mf 相容＋損壞值消毒）；4 路 adversarial review（編譯/執行緒/規格/整合）15 findings 全處理。
+> - **已知可接受（不擋 build）**：①UI 語言非中文時 imgui「混色」缺字方框（zh_TW 主客群）②切片後換機型未重切期間預覽照新機型烘色（重切自癒）③編輯器尺寸不隨 DPI 熱切換重算（msw_rescale 未接）。
+> - **⏳ 下一步**：Eric 說 OK → 發 build → 換 portable → 驗收：FD 同進切片看右側編輯器＋自動混色著色、拖曲線→重匯出比對 M6051 跟著變、FF 同進四料堆疊帶＋M6052、非同進機無編輯器無「混色」項、換機型來回切「混色」項正確出現/消失。
+
+### （背景紀錄 2026-07-01）混色漸層整合進 Orca — 🔄 改走全原生（核心插碼模組已驗證）
+> **🔄 2026-07-01 晚 架構轉向（Eric 定）**：放棄「嵌 web」，改 **全原生**。理由＝穩定度（拿掉 WebView2 執行環境依賴＋JS↔C++ 橋接這些活動零件）＋Eric「web 端不維護了」。三塊全做進 Orca：①核心插碼（C++ 後處理）②Orca 原生「預覽」頁依曲線著色 ③原生曲線編輯器面板。web 混色器（`D:\dev\ping-color-mixer`）退為「設計藍圖／驗證參照」。
+> - ✅ **① 核心插碼模組完成＋邏輯已驗證（免 Orca build）**：`src/libslic3r/GCode/PingColorMix.hpp/.cpp`（零 Orca 依賴、純 std::；移植 mixer.ts/gradient.ts/quad.ts）。`build_mixed_gcode(gcode, recipe, out)`：掃 `;Z:` 逐層插 `M6051 S..`（雙料/FD 同進）或 `M6052 A.. B.. C.. D..`（四料/FF 同進）、剝既有 M605x（含 start 的 M6050 S0.5）、去重；z→t 用 `;Z:` min/max 正規化。含公開取樣 `sample_ratio`/`sample_quad_mix`/`mix_to_percents`（給預覽著色共用）。**驗證法（不用 build）**：Python 鏡像 C++ 邏輯 vs web 真實 `buildMixGcode`/`buildQuadGcode`，4 recipe（linear/step/smooth 雙料＋rainbow 四料）**djb2 hash＋長度逐字元全相同** → C++ 演算法忠實無誤（C++ 語法待 Orca build 驗）。驗證腳本在 scratchpad `mirror.py`。
+> - ⏳ **① 剩整合**：模組接進 Orca 輸出/上傳點（用 Orca 層 z 範圍當 min/max、讀「混色配方」設定）＋ CMakeLists 加檔 → 需 build。
+> - ⏳ **② 原生預覽著色**（GCodeViewer 依混色曲線把各層染色）、**③ 原生曲線編輯器面板**（照 web 藍圖用 wxWidgets 重建：拖點/三模式/四料堆疊帶/範本）。
+> - ⚠ **下面「Phase 1/Phase 2 嵌 web」段是已放棄路線**，保留當紀錄。web 端 `main.ts` 的嵌入模式改動＋`resources/web/mixer/` 打包**未 push、可留可刪**（嵌 web 不做了）。
+
+> **📋 下一棒：native 三塊實作計畫（讀這段就能接）**
+> - **共用資料模型**：`PingMix::Recipe`（已在 `PingColorMix.hpp` 定義：kind Dual/Quad、mode Linear/Step/Smooth、stops/qstops、min_flow）。①②③ 都用它。
+> - **① 接進 Orca（先做、最小可驗）**：
+>   1. CMake：把 `PingColorMix.cpp` 加進 `src/libslic3r/CMakeLists.txt`（libslic3r 目標的來源清單）。
+>   2. 配方儲存：先在 GUI 層存一份 `Recipe`（Plater 或 MainFrame 成員），編輯器（③）更新它；未接編輯器前可**硬寫一條測試曲線**先驗管線。
+>   3. Call site：切片完成後（`Plater.cpp on_slicing_completed` 9395）或匯出/上傳前，若「同進機型＋有配方」→ 讀 `get_current_slice_result()->filename` 的 gcode → `build_mixed_gcode(gcode, recipe, out)` → 覆寫該檔（保留原檔供改曲線重插，不必重切）。同進判定＝printer `model_id`/name 含「同進」（FD→Dual、FF→Quad）。**模組內部自己用 `;Z:` min/max，不必外傳 z 範圍。**
+>   4. 驗證：硬寫曲線→切片→開輸出的 gcode 檢查 M6051/M6052 逐層對（可再用 `mirror.py` 對照）。**這步是第一次 build。**
+> - **② 原生預覽著色**：`src/slic3r/GUI/GCodeViewer.cpp` 有多種 color mode（依類型/線材/速度…）。加一個「混色」mode：每個 move 依其層 z→t→`sample_ratio`/`sample_quad_mix`→混成 RGB（雙料 blend color1/2；四料需**再移植 quad.ts `mixRgb`** 的 linear-RGB 加權）。研究重點＝GCodeViewer 的 Extrusion color 陣列怎麼填、per-move 怎麼拿到層 z。改曲線→重算著色即時更新。
+> - **③ 原生曲線編輯器**：wxWidgets 自繪面板，照 web 藍圖（`ping-color-mixer/src/curveEditor.ts`＝雙料拖點曲線、`quadEditor.ts`＝四料堆疊比例帶、`overlay.ts`）重建：拖點調比例/高度、雙擊增刪點、三模式(漸層/階梯/平滑)、四料堆疊帶、範本(同進/雙色過渡/彩虹)、配方另存/載入。放在「預覽」頁側欄或「混色」分頁（與預覽著色同頁最順）。編輯→更新 `Recipe`→觸發 ② 重著色。
+> - **驗證省 build 心法（本專案・重要）**：本機**無 C++ 編譯器**（MSVC 未配置、不在 PATH），Orca build ~2h 很貴。**純邏輯 C++ 要驗，就用 Python 鏡像該邏輯、對照 web 混色器真實輸出做 djb2 hash 比對**（scratchpad `mirror.py` 是範本；今天 ① 就這樣零 build 驗過）。GUI/著色類無法這樣驗的，才進 build，且**累積多塊一次 build**、build 前先問 Eric。
+> - **web 藍圖 dev server**：`cd D:\dev\ping-color-mixer && npm run dev` → localhost:5173（取 ground truth／看 UX 藍圖用）。
+
+### （已放棄路線·紀錄）混色嵌 web — Phase 1 完成實測、Phase 2 剩純 C++
+> 目標：把 web 混色器（mixer.ping3dp.com，repo `D:\dev\ping-color-mixer`）嵌成 Orca 一個「混色」分頁，切片後直接調色階、免匯出/丟檔；輸出的混色 gcode 回 Orca 原生上傳。架構定案（Eric）：**獨立「混色」分頁、切片後亮起、同進機型才啟用**。
+- **機制**：純 post-slice——混色器在每個 `;Z:` 層標記插 `M6051 S<比例>`（雙料/FD 同進）或 `M6052`（四料/FF 同進），比例來自高度→比例曲線。不動切片。**FD 同進 start_gcode 的 `M6050 S0.5` 被混色器剝掉沒關係（Eric 確認：M6051 從第 0 層全控）；FF 同進 start_gcode 是 `T5`（非 M605x、不被剝）。**
+- **✅ Phase 1（web 嵌入模式）完成＋瀏覽器實測 round-trip 過**（240 M6051）：`D:\dev\ping-color-mixer\src\main.ts` 加 `EMBED`(`?host=orca`)、`window.__pingHostLoad({name,gcode,mode,colors})`、`postToHost`(回傳 `window.wx`/Edge WebView2/iframe 父窗)、隱步驟1-2 CSS、ready handshake；測試台 `_orca_host_test.html`。tsc/build 過。**⚠️ 尚未 push（push 會部署 Vercel 上線站；嵌入模式是 gated 的、不影響標準站，push 與否 Eric 定）。**
+- **✅ Phase 2 步驟 1（打包）完成**：`--base=./` 產相對路徑 dist（`dist-embed`）→ 複製進 `resources/web/mixer/`。執行期載入路徑＝`file://<resources_dir>/web/mixer/index.html?host=orca`（web 資源隨 build 出貨、query 可用，比照 web/guide）。
+- **⏳ Phase 2 剩純 C++（步驟 2-5，勘查已定位接縫）**：
+  1. 新分頁：`MainFrame::init_tabpanel`(MainFrame.cpp:1210) 建 `m_mixing_panel`（wxPanel+WebView 載 mixer）；`TabPosition` 加 `tpMixing`。Notebook 無 SetPageEnabled → 用 `InsertPage`/`RemovePage`（仿 `show_device` 1348 條件插頁）。
+  2. 條件顯示：切片後(`update_slice_print_status` 2341)＋同進機型才插頁。**同進判定：printer 的 `model_id` 含「同進」(FD→2色 M6051) 或 FF 系列(→4色 M6052)**（FD 用中文「同進」、FF 範本 model_id 可能是 tongjin，實作時以 name/model_id 含「同進」＋FD/FF 前綴判）。
+  3. 餵料：切片完成(`Plater.cpp on_slicing_completed` 9395)→`partplate_list.get_current_slice_result()->filename`(GCodeProcessorResult.filename)讀 gcode→`RunScript` 呼叫 `window.__pingHostLoad({name,gcode,mode,colors})`（colors 取料槽色）。
+  4. webview 橋接：Orca `WebView.hpp`(CreateWebView/LoadUrl/RunScript)＋`wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED`；handler 名 `wx`(WebView.cpp:300)。範式：`ModelMall.cpp`:100-137、`WipeTowerDialog.cpp`:432-498（收 JSON→CallAfter→RunScript）。web 端已用 `window.wx.postMessage(JSON)` 送 `ping-mixer:output {name,content,summary,doPrint}`。
+  5. 回傳上傳：收 output→寫暫存 .gcode→`BackgroundSlicingProcess::prepare_upload` 設 `PrintHostUpload::source_path`→`PrintHostJobQueue::enqueue`（doPrint=上傳並列印）。
+  6. **build（閘門）**：全寫完→**先確認才發 ~2h build**→Eric 實機驗「新比例吃得進去」。建議 build 前先 adversarial review C++ 降低白燒 build 風險。
+- 勘查全紀錄：本 session workflow `wf_2edd472a-364`（9 代理，web×4+orca×5，接縫/檔案/行號都在）。
 
 ### ✅ 3in1 收成 2 槽 — 已做＋Eric 切片實測通過（FF600 3in1 body+SUP 分離正確、換料 137、洗料塔正常）
 - **機制**：T4/T3 觸發放在**線材自己的 `filament_start_gcode`**。新建 2 支專用線材 **`PING PLA(3in1)`**(`T4`＝body 前三同動)＋**`PING SupPLA(3in1)`**(`T3`＝第四 SUP)，每口徑一支(@FF 0.4/0.6/1.0)、溫 210、只掛 FF600/FF800 3in1、註冊進 PING.json。

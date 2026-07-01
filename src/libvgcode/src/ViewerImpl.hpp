@@ -155,6 +155,10 @@ public:
     const Palette& get_color_print_colors() const { return m_color_print_colors; }
     void set_color_print_colors(const Palette& colors);
 
+    // PING: 混色 per-layer 色表（index = layer_id；由外部依混色曲線烘焙）
+    const Palette& get_ping_mix_layer_colors() const { return m_ping_mix_layer_colors; }
+    void set_ping_mix_layer_colors(const Palette& colors);
+
     const Color& get_extrusion_role_color(EGCodeExtrusionRole role) const;
     void set_extrusion_role_color(EGCodeExtrusionRole role, const Color& color);
     void reset_default_extrusion_roles_colors();
@@ -298,6 +302,8 @@ private:
     };
     Palette m_tool_colors;
     Palette m_color_print_colors;
+    // PING: 混色 per-layer 色表
+    Palette m_ping_mix_layer_colors;
     //
     // OpenGL shaders ids
     //

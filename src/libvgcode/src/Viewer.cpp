@@ -152,6 +152,17 @@ void Viewer::set_color_print_colors(const Palette& colors)
     m_impl->set_color_print_colors(colors);
 }
 
+// PING: 混色 per-layer 色表
+const Palette& Viewer::get_ping_mix_layer_colors() const
+{
+    return m_impl->get_ping_mix_layer_colors();
+}
+
+void Viewer::set_ping_mix_layer_colors(const Palette& colors)
+{
+    m_impl->set_ping_mix_layer_colors(colors);
+}
+
 const ColorRange& Viewer::get_color_range(EViewType type) const
 {
     return m_impl->get_color_range(type);

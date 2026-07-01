@@ -4287,6 +4287,9 @@ struct Plater::priv
     BackgroundSlicingProcess    background_process;
     bool suppressed_backround_processing_update { false };
 
+    // PING 混色：GUI 側共享狀態（編輯器寫、預覽烘色讀；worker 端另有 BSP 內 mutex 保護的副本）
+    Plater::PingMixState        ping_mix_state;
+
     // TODO: A mechanism would be useful for blocking the plater interactions:
     // objects would be frozen for the user. In case of arrange, an animation
     // could be shown, or with the optimize orientations, partial results
@@ -4874,6 +4877,30 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     background_process.set_finished_event(EVT_PROCESS_COMPLETED);
     background_process.set_export_began_event(EVT_EXPORT_BEGAN);
     background_process.set_export_finished_event(EVT_EXPORT_FINISHED);
+
+    // PING 混色：載入上次配方（AppConfig）並推進背景切片程序（沒存過就用「同進還原」預設）
+    {
+        AppConfig* cfg = wxGetApp().app_config;
+        if (cfg != nullptr) {
+            std::string s = cfg->get("ping_mix_dual");
+            if (!s.empty()) PingMix::recipe_from_string(s, ping_mix_state.dual);
+            s = cfg->get("ping_mix_quad");
+            if (!s.empty()) PingMix::recipe_from_string(s, ping_mix_state.quad);
+            s = cfg->get("ping_mix_colors");
+            if (!s.empty()) {
+                size_t start = 0;
+                for (int i = 0; i < 4 && start <= s.size(); ++i) {
+                    size_t comma = s.find(',', start);
+                    std::string c = s.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+                    if (!c.empty()) ping_mix_state.colors[i] = c;
+                    if (comma == std::string::npos) break;
+                    start = comma + 1;
+                }
+            }
+        }
+        background_process.set_ping_mix_recipes(ping_mix_state.dual, ping_mix_state.quad);
+    }
+
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
     this->q->Bind(EVT_PUBLISH, &priv::on_action_publish, this);
     this->q->Bind(EVT_REPAIR_MODEL, &priv::on_repair_model, this);
@@ -8866,6 +8893,8 @@ void Plater::priv::set_current_panel(wxPanel* panel, bool no_slice)
         } else {
             preview->get_canvas3d()->enable_select_plate_toolbar(true);
         }
+        // PING: 切到預覽頁時依機型顯示/隱藏混色曲線編輯器
+        preview->update_ping_mix_editor();
     }
     else {
         preview->get_canvas3d()->enable_select_plate_toolbar(false);
@@ -13302,6 +13331,54 @@ void Plater::reload_gcode_from_disk()
 void Plater::reload_print()
 {
     p->preview->reload_print();
+}
+
+// —— PING 混色 —— //
+const Plater::PingMixState& Plater::get_ping_mix_state() const
+{
+    return p->ping_mix_state;
+}
+
+bool Plater::is_ping_tongjin_selected(bool* is_quad) const
+{
+    const Preset& printer = wxGetApp().preset_bundle->printers.get_selected_preset();
+    const std::string pm = printer.config.opt_string("printer_model");
+    if (pm.find("同進") == std::string::npos)
+        return false;
+    if (is_quad != nullptr)
+        *is_quad = (pm.rfind("FF", 0) == 0); // FF 開頭＝四進一出
+    return true;
+}
+
+void Plater::set_ping_mix_state(const PingMixState& state)
+{
+    p->ping_mix_state = state;
+
+    // 持久化（AppConfig）
+    AppConfig* cfg = wxGetApp().app_config;
+    if (cfg != nullptr) {
+        cfg->set("ping_mix_dual", PingMix::recipe_to_string(state.dual));
+        cfg->set("ping_mix_quad", PingMix::recipe_to_string(state.quad));
+        cfg->set("ping_mix_colors", state.colors[0] + "," + state.colors[1] + "," + state.colors[2] + "," + state.colors[3]);
+    }
+
+    // 推進背景切片程序（下次切片/重匯出/重上傳即吃新配方——插碼冪等、免重切）
+    p->background_process.set_ping_mix_recipes(state.dual, state.quad);
+
+    // 重烘預覽著色
+    refresh_ping_mix_preview();
+}
+
+void Plater::refresh_ping_mix_preview()
+{
+    if (p->preview == nullptr)
+        return;
+    GLCanvas3D* canvas = p->preview->get_canvas3d();
+    if (canvas == nullptr)
+        return;
+    canvas->get_gcode_viewer().update_ping_mix_colors();
+    canvas->set_as_dirty();
+    canvas->request_extra_frame();
 }
 
 // BBS
