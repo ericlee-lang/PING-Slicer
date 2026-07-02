@@ -616,9 +616,11 @@ void PingMixEditor::build_controls()
     title_row->AddStretchSpacer(1);
     m_collapse_btn = new wxButton(this, wxID_ANY, wxString::FromUTF8("收合 ▶"), wxDefaultPosition,
                                   wxSize(FromDIP(64), FromDIP(24)), wxBU_EXACTFIT);
-    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合面板（要用時點右緣「混色」再展開）"));
+    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右緣「混色」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-        wxGetApp().app_config->set("ping_mix_editor_expanded", "0");
+        // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
+        if (wxGetApp().plater() != nullptr)
+            wxGetApp().plater()->set_ping_mix_enabled(false);
         if (m_toggle_cb) m_toggle_cb();
     });
     title_row->Add(m_collapse_btn, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(8));

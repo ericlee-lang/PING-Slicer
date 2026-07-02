@@ -4899,6 +4899,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             }
         }
         background_process.set_ping_mix_recipes(ping_mix_state.dual, ping_mix_state.quad);
+        background_process.set_ping_mix_enabled(cfg != nullptr && cfg->get("ping_mix_editor_expanded") == "1");
     }
 
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
@@ -13379,6 +13380,30 @@ void Plater::refresh_ping_mix_preview()
     canvas->get_gcode_viewer().update_ping_mix_colors();
     canvas->set_as_dirty();
     canvas->request_extra_frame();
+}
+
+bool Plater::is_ping_mix_enabled() const
+{
+    AppConfig* cfg = wxGetApp().app_config;
+    return cfg != nullptr && cfg->get("ping_mix_editor_expanded") == "1";
+}
+
+void Plater::set_ping_mix_enabled(bool on)
+{
+    AppConfig* cfg = wxGetApp().app_config;
+    if (cfg != nullptr)
+        cfg->set("ping_mix_editor_expanded", on ? "1" : "0");
+    // 推進背景切片程序：下次匯出/上傳於咽喉點生效（啟用→插碼、停用→還原原始檔，免重切）
+    p->background_process.set_ping_mix_enabled(on);
+    // 預覽端立即生效：檢視清單/自動切換/著色一次刷新
+    if (p->preview != nullptr) {
+        GLCanvas3D* canvas = p->preview->get_canvas3d();
+        if (canvas != nullptr) {
+            canvas->get_gcode_viewer().refresh_ping_mix_state();
+            canvas->set_as_dirty();
+            canvas->request_extra_frame();
+        }
+    }
 }
 
 // BBS

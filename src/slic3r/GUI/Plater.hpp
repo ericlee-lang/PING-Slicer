@@ -345,6 +345,9 @@ public:
     bool is_ping_tongjin_selected(bool* is_quad = nullptr) const;
     // 依目前配方重烘 GCodeViewer 的 per-layer 混色色表（gcode 已載入時）
     void refresh_ping_mix_preview();
+    // 混色開關（B 案：＝編輯器面板展開狀態）。關閉時輸出 gcode 完全不動、預覽不染色
+    bool is_ping_mix_enabled() const;
+    void set_ping_mix_enabled(bool on);
 
     // SoftFever
     void calib_pa(const Calib_Params& params);

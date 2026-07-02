@@ -249,8 +249,10 @@ public:
     void set_scale(float scale = 1.0);
     void init(ConfigOptionMode mode, Slic3r::PresetBundle* preset_bundle);
     void update_by_mode(ConfigOptionMode mode);
-    // PING 混色：依 Plater 的混色配方把曲線烘成 per-layer 色表塞進 libvgcode（非同進機型則清空）
+    // PING 混色：依 Plater 的混色配方把曲線烘成 per-layer 色表塞進 libvgcode（非同進/關閉則清空）
     void update_ping_mix_colors();
+    // PING 混色：整體狀態刷新（烘色＋檢視清單一致性＋自動切換/退場）——載入與開關切換時呼叫
+    void refresh_ping_mix_state();
 
     // extract rendering data from the given parameters
     //BBS: add only gcode mode
