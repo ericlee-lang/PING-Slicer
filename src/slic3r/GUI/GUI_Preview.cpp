@@ -300,9 +300,11 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         wxButton* open_btn = new wxButton(m_ping_mix_strip, wxID_ANY, wxString::FromUTF8("混\n色"),
                                           wxDefaultPosition, wxSize(FromDIP(26), FromDIP(64)), wxBU_EXACTFIT);
-        open_btn->SetToolTip(wxString::FromUTF8("展開混色曲線編輯器"));
+        open_btn->SetToolTip(wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-            wxGetApp().app_config->set("ping_mix_editor_expanded", "1");
+            // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
+            if (wxGetApp().plater() != nullptr)
+                wxGetApp().plater()->set_ping_mix_enabled(true);
             update_ping_mix_editor();
         });
         strip_sizer->Add(open_btn, 0, wxTOP, FromDIP(8));
@@ -326,7 +328,7 @@ void Preview::update_ping_mix_editor()
     if (m_ping_mix_editor == nullptr)
         return;
     const bool tongjin  = m_ping_mix_editor->update_from_plater();
-    const bool expanded = wxGetApp().app_config->get("ping_mix_editor_expanded") == "1";
+    const bool expanded = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_mix_enabled();
     const bool show_editor = tongjin && expanded;
     const bool show_strip  = tongjin && !expanded;
     if (show_editor != m_ping_mix_editor->IsShown() || (m_ping_mix_strip != nullptr && show_strip != m_ping_mix_strip->IsShown())) {

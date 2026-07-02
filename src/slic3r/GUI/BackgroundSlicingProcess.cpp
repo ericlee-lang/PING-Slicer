@@ -197,54 +197,75 @@ std::string BackgroundSlicingProcess::output_filepath_for_project(const boost::f
 // from the G-code generator.
 // ---- PING 混色漸層：同進機型切片後對輸出 gcode 逐層插入混色指令 ----
 // 咽喉點＝export/upload 從 m_temp_output_path 複製「之前」，對這個「export 與 upload 共用的母檔」
-// 就地後處理。build_mixed_gcode 會先剝既有 M605x（含 start_gcode 的 M6050 S0.5）再逐層插，
-// 是冪等的 → 每趟切片/匯出/上傳重跑都安全（改曲線後重匯出/重上傳即吃新配方、免重切）。
-// 純 worker thread 上執行，不碰 GUI 狀態；配方由呼叫端在 mutex 下複製傳入。
+// 後處理。B 案（Eric 2026-07-02 定）：混色開關＝編輯器面板展開狀態——
+//   啟用：第一次先把原始 temp 備份成 <temp>.pingorig，之後永遠「從原始檔」插碼寫回 temp
+//        （改曲線→重匯出/重上傳即吃新配方、免重切）。
+//   停用（或非同進機型）：若之前混過（有 .pingorig）→ 還原原始檔並刪備份，輸出 100% 原樣
+//        （start 的 M6050 S0.5 保留，＝韌體原生行為，開關切換免重切片）。
+// 純 worker thread 上執行，不碰 GUI 狀態；配方/開關由呼叫端在 mutex 下複製傳入。
 static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPrintConfig& config,
-                                 const PingMix::Recipe& dual_recipe, const PingMix::Recipe& quad_recipe)
+                                 const PingMix::Recipe& dual_recipe, const PingMix::Recipe& quad_recipe,
+                                 bool enabled)
 {
-    // 1. 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
+    // 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
     const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
-    if (pm == nullptr)
-        return;
-    const std::string& printer_model = pm->value;
-    if (printer_model.find("同進") == std::string::npos)
-        return; // 非同進機型：不插碼
+    const std::string printer_model = pm != nullptr ? pm->value : std::string();
+    const bool tongjin = printer_model.find("同進") != std::string::npos;
     const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
-
-    // 2. 取配方（GUI 曲線編輯器維護；未編輯時＝「同進還原」預設，行為等同韌體原生）
-    //    保險：配方 kind 與機型不符（不應發生）→ 退回該 kind 的預設配方
-    PingMix::Recipe recipe = is_quad ? quad_recipe : dual_recipe;
-    const PingMix::MixKind want = is_quad ? PingMix::MixKind::Quad : PingMix::MixKind::Dual;
-    if (recipe.kind != want)
-        recipe = PingMix::default_recipe(want);
-
-    // 3. 讀檔 → 插碼 → 有插才覆寫（nowide 處理 Windows 中文路徑）
-    std::string gcode;
-    try {
-        boost::nowide::ifstream ifs(gcode_path.c_str(), std::ios::binary);
-        if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING mix: cannot open gcode " << gcode_path; return; }
-        std::stringstream ss;
-        ss << ifs.rdbuf();
-        gcode = ss.str();
-    } catch (const std::exception& e) {
-        BOOST_LOG_TRIVIAL(error) << "PING mix: read failed: " << e.what();
-        return;
-    }
-
-    std::string out;
-    const int count = PingMix::build_mixed_gcode(gcode, recipe, out);
-    BOOST_LOG_TRIVIAL(info) << "PING mix: printer_model='" << printer_model << "' kind="
-                            << (is_quad ? "Quad(M6052)" : "Dual(M6051)") << " inserted=" << count;
-    if (count <= 0)
-        return; // 無 ;Z: 或曲線空 → 不動原檔
+    const std::string pristine_path = gcode_path + ".pingorig";
 
     try {
+        if (!tongjin || !enabled) {
+            // 混色關閉：之前混過就還原原始檔，否則什麼都不動
+            if (boost::filesystem::exists(pristine_path)) {
+                std::string err;
+                if (copy_file(pristine_path, gcode_path, err) != CopyFileResult::SUCCESS) {
+                    BOOST_LOG_TRIVIAL(error) << "PING mix: restore pristine failed: " << err;
+                    return; // 還原失敗就保留備份，下次再試
+                }
+                boost::filesystem::remove(pristine_path);
+                BOOST_LOG_TRIVIAL(info) << "PING mix: disabled, pristine gcode restored";
+            }
+            return;
+        }
+
+        // 混色啟用：確保有原始檔備份（第一次跑才複製；之後插碼一律以原始檔為源）
+        if (!boost::filesystem::exists(pristine_path)) {
+            std::string err;
+            if (copy_file(gcode_path, pristine_path, err) != CopyFileResult::SUCCESS) {
+                BOOST_LOG_TRIVIAL(error) << "PING mix: backup pristine failed: " << err;
+                return; // 備份不了就不動原檔（安全優先）
+            }
+        }
+
+        // 取配方（未編輯時＝「同進還原」預設）；kind 與機型不符（不應發生）→ 退回該 kind 預設
+        PingMix::Recipe recipe = is_quad ? quad_recipe : dual_recipe;
+        const PingMix::MixKind want = is_quad ? PingMix::MixKind::Quad : PingMix::MixKind::Dual;
+        if (recipe.kind != want)
+            recipe = PingMix::default_recipe(want);
+
+        // 讀原始檔 → 插碼 → 寫回 temp（nowide 處理 Windows 中文路徑）
+        std::string gcode;
+        {
+            boost::nowide::ifstream ifs(pristine_path.c_str(), std::ios::binary);
+            if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING mix: cannot open pristine " << pristine_path; return; }
+            std::stringstream ss;
+            ss << ifs.rdbuf();
+            gcode = ss.str();
+        }
+
+        std::string out;
+        const int count = PingMix::build_mixed_gcode(gcode, recipe, out);
+        BOOST_LOG_TRIVIAL(info) << "PING mix: printer_model='" << printer_model << "' kind="
+                                << (is_quad ? "Quad(M6052)" : "Dual(M6051)") << " inserted=" << count;
+        if (count <= 0)
+            return; // 無 ;Z:（不應發生）→ 不動 temp
+
         boost::nowide::ofstream ofs(gcode_path.c_str(), std::ios::binary | std::ios::trunc);
         if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING mix: cannot write gcode " << gcode_path; return; }
         ofs << out;
     } catch (const std::exception& e) {
-        BOOST_LOG_TRIVIAL(error) << "PING mix: write failed: " << e.what();
+        BOOST_LOG_TRIVIAL(error) << "PING mix: failed: " << e.what();
     }
 }
 
@@ -272,6 +293,8 @@ void BackgroundSlicingProcess::process_fff()
                 m_fff_print->export_gcode_from_previous_file(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams &params) {
                     return this->render_thumbnails(params);
                 });
+                // PING 混色：temp 已重生成原始內容 → 舊備份作廢（ec 版不拋例外）
+                { boost::system::error_code ec; boost::filesystem::remove(m_temp_output_path + ".pingorig", ec); }
             }
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" %1%: export_gcode_from_previous_file from %2% finished")%__LINE__ % m_temp_output_path;
 		}
@@ -298,20 +321,25 @@ void BackgroundSlicingProcess::process_fff()
 		//BBS: add plate index into render params
 		m_temp_output_path = this->get_current_plate()->get_tmp_gcode_path();
 		m_fff_print->export_gcode(m_temp_output_path, m_gcode_result, [this](const ThumbnailsParams& params) { return this->render_thumbnails(params); });
+		// PING 混色：重切片後 temp 是全新原始檔 → 上一輪的 .pingorig 備份作廢（ec 版不拋例外）
+		{ boost::system::error_code ec; boost::filesystem::remove(m_temp_output_path + ".pingorig", ec); }
 		if(m_fff_print->is_BBL_printer())
 			run_post_process_scripts(m_temp_output_path, false, "File", m_temp_output_path, m_fff_print->full_print_config());
 
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": export gcode finished");
 	}
-	// PING 混色：同進機型於 export/upload 複製 temp gcode「之前」逐層插 M6051/M6052（單一咽喉點、冪等）
+	// PING 混色：同進機型於 export/upload 複製 temp gcode「之前」處理（單一咽喉點）
+	// 啟用→從 .pingorig 原始檔插碼；停用→還原原始檔（B 案：開關＝面板展開狀態）
 	{
 		PingMix::Recipe dual_copy, quad_copy;
+		bool enabled_copy;
 		{
 			std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
 			dual_copy = m_ping_mix_dual;
 			quad_copy = m_ping_mix_quad;
+			enabled_copy = m_ping_mix_enabled;
 		}
-		ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy);
+		ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy, enabled_copy);
 	}
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
@@ -820,6 +848,13 @@ void BackgroundSlicingProcess::set_ping_mix_recipes(const PingMix::Recipe& dual,
 	std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
 	m_ping_mix_dual = dual;
 	m_ping_mix_quad = quad;
+}
+
+// PING 混色開關（＝編輯器面板展開狀態）
+void BackgroundSlicingProcess::set_ping_mix_enabled(bool enabled)
+{
+	std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
+	m_ping_mix_enabled = enabled;
 }
 
 void BackgroundSlicingProcess::reset_export()

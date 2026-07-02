@@ -158,6 +158,8 @@ public:
 	void reset_export();
 	// PING 混色：由 GUI（編輯器/Plater）更新雙料與四料配方；worker 於後處理咽喉點讀取（m_ping_mix_mutex 保護）
 	void set_ping_mix_recipes(const PingMix::Recipe& dual, const PingMix::Recipe& quad);
+	// PING 混色開關（＝編輯器面板展開狀態，Eric 定 B 案）：關閉時輸出 gcode 完全不動（M6050 保留）
+	void set_ping_mix_enabled(bool enabled);
 	// Once the G-code export is scheduled, the apply() methods will do nothing.
 	bool is_export_scheduled() const { return ! m_export_path.empty(); }
 	bool is_upload_scheduled() const { return ! m_upload_job.empty(); }
@@ -255,6 +257,7 @@ private:
 	// 預設＝default_recipe（同進還原：雙料 50/50、四料 25×4，行為等同韌體原生）。
 	PingMix::Recipe             m_ping_mix_dual = PingMix::default_recipe(PingMix::MixKind::Dual);
 	PingMix::Recipe             m_ping_mix_quad = PingMix::default_recipe(PingMix::MixKind::Quad);
+	bool                        m_ping_mix_enabled = false;   // B 案：預設關（面板收合）
 	std::mutex                  m_ping_mix_mutex;
 	// Thread, on which the background processing is executed. The thread will always be present
 	// and ready to execute the slicing process.

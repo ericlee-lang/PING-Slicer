@@ -1035,9 +1035,10 @@ void GCodeViewer::update_by_mode(ConfigOptionMode mode)
     view_type_items.push_back(libvgcode::EViewType::Summary);
     view_type_items.push_back(libvgcode::EViewType::FeatureType);
     view_type_items.push_back(libvgcode::EViewType::ColorPrint);
-    // PING: 同進機型才顯示「混色」檢視。注意 init 有 m_gl_data_initialized 早退、本函式不隨機型切換重跑——
-    // 換機型後的清單重建由 load_as_gcode 的「同進狀態 vs 清單」不一致偵測負責
-    if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected())
+    // PING: 同進機型＋混色開啟才顯示「混色」檢視。注意 init 有 m_gl_data_initialized 早退、
+    // 本函式不隨機型/開關重跑——不一致時的清單重建由 refresh_ping_mix_state() 負責
+    if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected()
+        && wxGetApp().plater()->is_ping_mix_enabled())
         view_type_items.push_back(libvgcode::EViewType::PingColorMix);
     view_type_items.push_back(libvgcode::EViewType::Speed);
     view_type_items.push_back(libvgcode::EViewType::ActualSpeed);
@@ -1083,7 +1084,7 @@ void GCodeViewer::update_ping_mix_colors()
         return;
     bool is_quad = false;
     const size_t layers_count = m_viewer.get_layers_count();
-    if (!plater->is_ping_tongjin_selected(&is_quad) || layers_count == 0) {
+    if (!plater->is_ping_tongjin_selected(&is_quad) || !plater->is_ping_mix_enabled() || layers_count == 0) {
         if (!m_viewer.get_ping_mix_layer_colors().empty())
             m_viewer.set_ping_mix_layer_colors(libvgcode::Palette());
         return;
@@ -1116,6 +1117,42 @@ void GCodeViewer::update_ping_mix_colors()
         palette.push_back({ static_cast<uint8_t>(rgb[0]), static_cast<uint8_t>(rgb[1]), static_cast<uint8_t>(rgb[2]) });
     }
     m_viewer.set_ping_mix_layer_colors(palette);
+}
+
+// PING: 混色檢視整體狀態刷新——烘色＋「混色」檢視項的清單一致性＋自動切換/退場。
+// 呼叫點：load_as_gcode（每次載入）、Plater::set_ping_mix_enabled（開關切換即時生效）。
+// 註：view_type_items 只在首次 init／簡易進階切換時重建（init 有 m_gl_data_initialized 早退），
+// 不隨機型/開關變——所以這裡偵測不一致就重建，並重新定位 m_view_type_sel 防越界。
+void GCodeViewer::refresh_ping_mix_state()
+{
+    update_ping_mix_colors();
+    Plater* plater = wxGetApp().plater();
+    const bool mix_ui = plater != nullptr && plater->is_ping_tongjin_selected() && plater->is_ping_mix_enabled();
+    const bool has_mix = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix) != view_type_items.end();
+    if (mix_ui != has_mix) {
+        update_by_mode(m_user_mode);
+        auto cur = std::find(view_type_items.begin(), view_type_items.end(), get_view_type());
+        if (cur != view_type_items.end() && (size_t)std::distance(view_type_items.begin(), cur) < view_type_items_str.size())
+            m_view_type_sel = std::distance(view_type_items.begin(), cur);
+        else {
+            auto ft = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
+            m_view_type_sel = (ft != view_type_items.end()) ? std::distance(view_type_items.begin(), ft) : 0;
+            set_view_type(libvgcode::EViewType::FeatureType);
+        }
+    }
+    if (mix_ui) {
+        // 同進＋混色開啟：自動切到「混色」檢視
+        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix);
+        if (it != view_type_items.end()) {
+            m_view_type_sel = std::distance(view_type_items.begin(), it);
+            set_view_type(libvgcode::EViewType::PingColorMix);
+        }
+    } else if (get_view_type() == libvgcode::EViewType::PingColorMix) {
+        // 關閉/換機：「混色」已不在清單 → 回 FeatureType（防 m_view_type_sel 越界）
+        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
+        m_view_type_sel = (it != view_type_items.end()) ? std::distance(view_type_items.begin(), it) : 0;
+        set_view_type(libvgcode::EViewType::FeatureType);
+    }
 }
 
 std::vector<int> GCodeViewer::get_plater_extruder()
@@ -1346,37 +1383,8 @@ void GCodeViewer::load_as_gcode(const GCodeProcessorResult& gcode_result, const 
         set_view_type(libvgcode::EViewType::FeatureType);
     }
 
-    // PING: 烘混色 per-layer 色表；同進機型切片後預設直接顯示「混色」檢視
-    update_ping_mix_colors();
-    const bool ping_tongjin = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected();
-    // 防呆（review 抓到）：view_type_items 只在首次 init／簡易進階切換時重建、不隨機型換——
-    // 同進狀態與清單不一致（換機型後）就重建，並依目前 view type 重新定位 m_view_type_sel（防越界）
-    {
-        const bool has_mix = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix) != view_type_items.end();
-        if (ping_tongjin != has_mix) {
-            update_by_mode(m_user_mode);
-            auto cur = std::find(view_type_items.begin(), view_type_items.end(), get_view_type());
-            if (cur != view_type_items.end() && (size_t)std::distance(view_type_items.begin(), cur) < view_type_items_str.size())
-                m_view_type_sel = std::distance(view_type_items.begin(), cur);
-            else {
-                auto ft = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
-                m_view_type_sel = (ft != view_type_items.end()) ? std::distance(view_type_items.begin(), ft) : 0;
-                set_view_type(libvgcode::EViewType::FeatureType);
-            }
-        }
-    }
-    if (ping_tongjin) {
-        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix);
-        if (it != view_type_items.end()) {
-            m_view_type_sel = std::distance(view_type_items.begin(), it);
-            set_view_type(libvgcode::EViewType::PingColorMix);
-        }
-    } else if (get_view_type() == libvgcode::EViewType::PingColorMix) {
-        // 防呆：從同進換到非同進機型，「混色」已不在清單 → 回 FeatureType（避免 m_view_type_sel 越界）
-        auto it = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::FeatureType);
-        m_view_type_sel = (it != view_type_items.end()) ? std::distance(view_type_items.begin(), it) : 0;
-        set_view_type(libvgcode::EViewType::FeatureType);
-    }
+    // PING: 混色檢視/著色狀態刷新（同進＋混色開啟才顯示；含清單重建與自動切換）
+    refresh_ping_mix_state();
 
     // BBS: data for rendering color arrangement recommendation
     m_nozzle_nums = print.config().option<ConfigOptionFloats>("nozzle_diameter")->values.size();
