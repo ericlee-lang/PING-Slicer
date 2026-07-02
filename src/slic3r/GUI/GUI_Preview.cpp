@@ -23,6 +23,7 @@
 #include <wx/notebook.h>
 #include <wx/glcanvas.h>
 #include <wx/sizer.h>
+#include <wx/button.h>
 #include <wx/stattext.h>
 #include <wx/choice.h>
 #include <wx/combo.h>
@@ -283,14 +284,32 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // sizer, m_canvas_widget
     m_canvas_widget->Bind(wxEVT_KEY_DOWN, &Preview::update_layers_slider_from_canvas, this);
 
-    // PING: 外層改水平 sizer——canvas 佔滿＋右側混色曲線編輯器（同進機型才顯示）
+    // PING: 外層改水平 sizer——canvas 佔滿＋右側混色曲線編輯器（同進機型才顯示；
+    // 預設收合成右緣「混色」窄條，點了展開，狀態記 AppConfig ping_mix_editor_expanded）
     wxBoxSizer *main_sizer = new wxBoxSizer(wxHORIZONTAL);
     main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
 
     m_ping_mix_editor = new PingMixEditor(this);
     m_ping_mix_editor->SetMinSize(wxSize(FromDIP(340), -1));
     m_ping_mix_editor->Hide();
+    m_ping_mix_editor->set_toggle_callback([this]() { update_ping_mix_editor(); });
     main_sizer->Add(m_ping_mix_editor, 0, wxEXPAND, 0);
+
+    m_ping_mix_strip = new wxPanel(this, wxID_ANY);
+    {
+        wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
+        wxButton* open_btn = new wxButton(m_ping_mix_strip, wxID_ANY, wxString::FromUTF8("混\n色"),
+                                          wxDefaultPosition, wxSize(FromDIP(26), FromDIP(64)), wxBU_EXACTFIT);
+        open_btn->SetToolTip(wxString::FromUTF8("展開混色曲線編輯器"));
+        open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            wxGetApp().app_config->set("ping_mix_editor_expanded", "1");
+            update_ping_mix_editor();
+        });
+        strip_sizer->Add(open_btn, 0, wxTOP, FromDIP(8));
+        m_ping_mix_strip->SetSizer(strip_sizer);
+    }
+    m_ping_mix_strip->Hide();
+    main_sizer->Add(m_ping_mix_strip, 0, wxEXPAND, 0);
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
@@ -301,14 +320,19 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     return true;
 }
 
-// PING: 依目前機型顯示/隱藏混色編輯器（同進才顯示），並同步配方狀態
+// PING: 依機型與收合狀態排版——非同進：兩者都藏；同進＋收合：右緣「混色」窄條；同進＋展開：編輯器
 void Preview::update_ping_mix_editor()
 {
     if (m_ping_mix_editor == nullptr)
         return;
-    const bool show = m_ping_mix_editor->update_from_plater();
-    if (show != m_ping_mix_editor->IsShown()) {
-        m_ping_mix_editor->Show(show);
+    const bool tongjin  = m_ping_mix_editor->update_from_plater();
+    const bool expanded = wxGetApp().app_config->get("ping_mix_editor_expanded") == "1";
+    const bool show_editor = tongjin && expanded;
+    const bool show_strip  = tongjin && !expanded;
+    if (show_editor != m_ping_mix_editor->IsShown() || (m_ping_mix_strip != nullptr && show_strip != m_ping_mix_strip->IsShown())) {
+        m_ping_mix_editor->Show(show_editor);
+        if (m_ping_mix_strip != nullptr)
+            m_ping_mix_strip->Show(show_strip);
         Layout();
     }
 }

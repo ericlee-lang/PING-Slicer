@@ -93,8 +93,9 @@ class Preview : public wxPanel
     DynamicPrintConfig* m_config;
     BackgroundSlicingProcess* m_process;
     GCodeProcessorResult* m_gcode_result;
-    // PING: 混色曲線編輯器（預覽頁右側，同進機型才顯示）
+    // PING: 混色曲線編輯器（預覽頁右側，同進機型才顯示；預設收合成右緣窄條，點「混色」展開）
     PingMixEditor* m_ping_mix_editor { nullptr };
+    wxPanel*       m_ping_mix_strip  { nullptr };
 
     // Calling this function object forces Plater::schedule_background_process.
     std::function<void()> m_schedule_background_process;

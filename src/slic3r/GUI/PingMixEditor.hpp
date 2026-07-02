@@ -17,6 +17,8 @@ class wxButton;
 class wxCheckBox;
 class wxStaticText;
 
+#include <functional>
+
 namespace Slic3r {
 namespace GUI {
 
@@ -82,6 +84,9 @@ public:
     void commit();
     void refresh_canvas();
 
+    // 收合鈕按下時通知宿主（Preview）重排版面（收合狀態存 AppConfig ping_mix_editor_expanded）
+    void set_toggle_callback(std::function<void()> cb) { m_toggle_cb = std::move(cb); }
+
 private:
     void build_controls();
     void sync_controls();      // 依 m_state/m_is_quad 更新按鈕/勾選/色票外觀
@@ -95,6 +100,8 @@ private:
 
     PingMixCanvas* m_canvas = nullptr;
     wxStaticText*  m_title  = nullptr;
+    wxButton*      m_collapse_btn = nullptr;
+    std::function<void()> m_toggle_cb;
     wxButton*      m_mode_btns[3] = { nullptr, nullptr, nullptr };   // 漸層/階梯/平滑
     wxButton*      m_tpl_btns[3]  = { nullptr, nullptr, nullptr };   // 同進/漸層(雙)or雙色(四)/彩虹(四)
     wxCheckBox*    m_low_flow     = nullptr;                          // 四料低流量進階（min_flow 0.10↔0.05）
