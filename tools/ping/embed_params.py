@@ -122,6 +122,9 @@ elif PING_ONLY:
 # （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
 DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
 DEF_FIL_SINGLE = ["PING PLA - 220"]
+# PING(2026-07-02)：範本收編的口徑變體——machine 檔在 ff_extra（無交付 config，Eric 已實機驗收），
+# 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
+EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
     return ["PING PLA - 高流量 @FF %s" % nz]*3 + ["PING SupPLA - 高流量 @FF %s" % nz]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
@@ -380,10 +383,11 @@ def main(src_base):
                     jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
                     proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
 
-            # machine_model（每個 printer_model 一檔）
+            # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
+            mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
             mm = {"type":"machine_model","name":model,
                   "model_id":"PING_"+model.replace(" ","_"),
-                  "nozzle_diameter":";".join(nzs),"machine_tech":"FFF","family":"",
+                  "nozzle_diameter":";".join(mm_nzs),"machine_tech":"FFF","family":"",
                   "bed_model":bed_for(model),
                   "bed_texture":BED_OVERRIDE.get(model,{}).get("bed_texture",BED_TEXTURE),"hotend_model":"",
                   "default_materials": (";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1]))
@@ -466,6 +470,19 @@ def main(src_base):
         canvas = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
         canvas.paste(im, ((240-im.width)//2, (240-im.height)//2), im)
         canvas.save(os.path.join(img_dir, "printer_preview_%s.png" % model_id))
+
+    # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
+    # 家族依 FAMS 順序，家族內：基本款 → 單料頭 → 同進 → 3in1（ff_extra 併入的變體不留在清單尾端）
+    fam_bases = [f[1] for f in FAMS]
+    _variant_rank = {"": 0, "單料頭": 1, "同進": 2, "3in1": 3}
+    def _lay11_key(entry):
+        name = entry["name"]
+        base = max((b for b in fam_bases if name == b or name.startswith(b + " ")), key=len, default=None)
+        if base is None:
+            return (len(fam_bases), 9, name)   # 不明機型殿後（穩定排序保留原相對順序）
+        variant = name[len(base):].strip()
+        return (fam_bases.index(base), _variant_rank.get(variant, 9))
+    mm_list = sorted(mm_list, key=_lay11_key)
 
     # 4d. PING.json 重建（machine/process 全量重建；filament 保留既有＋新增 FF）
     pj_path = os.path.join(PROF, "PING.json")
