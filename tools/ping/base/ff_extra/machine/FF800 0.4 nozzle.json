@@ -11,20 +11,24 @@
     "bed_mesh_min": "-99999,-99999",
     "bed_mesh_probe_distance": "50,50",
     "before_layer_change_gcode": ";BEFORE_LAYER_CHANGE\n;LAYER:[layer_num]\nG92 E0",
-    "best_object_pos": "0.5,0.5",
+    "best_object_pos": "0,0",
     "change_extrusion_role_gcode": "",
     "change_filament_gcode": "",
     "cooling_tube_length": "0",
     "cooling_tube_retraction": "0",
     "default_filament_colors": [
-        "#000000",
-        "#D3D3D3"
+        "#FF0000",
+        "#00B050",
+        "#0070C0",
+        "#FFC000"
     ],
     "default_filament_profile": [
-        "PING PLA(3in1) @FF 1.0",
-        "PING SupPLA(3in1) @FF 1.0"
+        "PING PLA - 高流量 @FF 0.4",
+        "PING PLA - 高流量 @FF 0.4",
+        "PING PLA - 高流量 @FF 0.4",
+        "PING PLA - 高流量 @FF 0.4"
     ],
-    "default_print_profile": "0.45mm @FF800 3in1 (1.0)",
+    "default_print_profile": "0.2mm @FF800 (0.4)",
     "deretraction_speed": [
         "20",
         "20"
@@ -34,12 +38,14 @@
     "enable_filament_ramming": "0",
     "enable_long_retraction_when_cut": "0",
     "extra_loading_move": "0",
-    "extruder_clearance_height_to_lid": "140",
-    "extruder_clearance_height_to_rod": "36",
-    "extruder_clearance_radius": "65",
+    "extruder_clearance_height_to_lid": "100",
+    "extruder_clearance_height_to_rod": "40",
+    "extruder_clearance_radius": "40",
     "extruder_colour": [
-        "#000000",
-        "#ffffff"
+        "#FF0000",
+        "#00B050",
+        "#0070C0",
+        "#FFC000"
     ],
     "extruder_offset": [
         "0x0",
@@ -50,7 +56,9 @@
     "fan_speedup_time": "0",
     "filament_colors": [
         "#FF0000",
-        "#D3D3D3"
+        "#00B050",
+        "#0070C0",
+        "#FFC000"
     ],
     "gcode_flavor": "klipper",
     "head_wrap_detect_zone": [],
@@ -131,18 +139,19 @@
         "0"
     ],
     "machine_pause_gcode": "PAUSE",
-    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nT4\nG0 F8000 X-100 Y-359 Z0.25\nG92 E0\nG1 F800 X100 Y-359 E100\nG92 E0\nT3\nG0 F800 X100 Y-357 Z0.25\nG92 E0\nG1 F800 X-100 Y-357 E100\nG1 Z1 E99\nG92 E0\n",
+    "machine_start_gcode": "G21 \n G90 \n M82 \n M107 T0 \n M140 S[bed_temperature_initial_layer_single] \n M104 S[nozzle_temperature_initial_layer] T0 \n M190 S[bed_temperature_initial_layer_single] \n M109 S[nozzle_temperature_initial_layer] T0 \n  \n G28 ;Home \n T0; \n G0 F8000 X-100 Y-359 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-359 E100 ; \n G92 E0 \n  \n T1; \n G0 F800 X100 Y-357 Z0.25 ; \n G92 E0 \n G1 F800 X-100 Y-357 E100 ; \n G92 E0 \n  \n T2; \n G0 F800 X-100 Y-355 Z0.25 ; \n G92 E0 \n G1 F800 X100 Y-355 E100 ; \n G92 E0 \n  \n T3; \n G0 F800 X100 Y-353 Z0.25  \n G92 E0 \n G1 F800 X-100 Y-353 E100 ; \n G1 Z1 E99; \n G92 E0 \n ",
     "machine_tool_change_time": "0",
     "machine_unload_filament_time": "0",
     "manual_filament_change": "0",
     "max_layer_height": [
-        "0.75"
+        "0.3",
+        "0.3"
     ],
     "min_layer_height": [
-        "0.25"
+        "0.15"
     ],
     "nozzle_diameter": [
-        "1"
+        "0.4"
     ],
     "nozzle_height": "2.5",
     "nozzle_hrc": "0",
@@ -226,11 +235,11 @@
         "400x-0"
     ],
     "printable_height": "600",
-    "printer_model": "FF800 3in1",
+    "printer_model": "FF800",
     "printer_notes": "",
     "printer_structure": "undefine",
     "printer_technology": "FFF",
-    "printer_variant": "1.0",
+    "printer_variant": "0.4",
     "printhost_authorization_type": "key",
     "printhost_ssl_ignore_revoke": "0",
     "printing_by_object_gcode": "",
@@ -309,9 +318,9 @@
     ],
     "z_offset": "0",
     "type": "machine",
-    "name": "FF800 3in1 1.0 nozzle",
+    "name": "FF800 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM062",
-    "alias": "FF800 3in1"
+    "setting_id": "PINGM910",
+    "alias": "FF800"
 }

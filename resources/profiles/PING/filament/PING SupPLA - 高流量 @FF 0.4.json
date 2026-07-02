@@ -276,6 +276,7 @@
     "inherits": "fdm_filament_pla",
     "compatible_printers": [
         "FF600 0.4 nozzle",
+        "FF800 0.4 nozzle",
         "FF600 同進 0.4 nozzle",
         "FF800 同進 0.4 nozzle",
         "FF600 3in1 0.4 nozzle",

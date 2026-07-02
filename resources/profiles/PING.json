@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.42",
+    "version": "01.00.00.43",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -73,24 +73,24 @@
             "sub_path": "machine/FF600.json"
         },
         {
-            "name": "FF800",
-            "sub_path": "machine/FF800.json"
+            "name": "FF600 同進",
+            "sub_path": "machine/FF600 同進.json"
         },
         {
             "name": "FF600 3in1",
             "sub_path": "machine/FF600 3in1.json"
         },
         {
-            "name": "FF600 同進",
-            "sub_path": "machine/FF600 同進.json"
-        },
-        {
-            "name": "FF800 3in1",
-            "sub_path": "machine/FF800 3in1.json"
+            "name": "FF800",
+            "sub_path": "machine/FF800.json"
         },
         {
             "name": "FF800 同進",
             "sub_path": "machine/FF800 同進.json"
+        },
+        {
+            "name": "FF800 3in1",
+            "sub_path": "machine/FF800 3in1.json"
         }
     ],
     "process_list": [
@@ -511,6 +511,10 @@
             "sub_path": "process/0.25mm @FF800 同進 (0.4).json"
         },
         {
+            "name": "0.2mm @FF800 (0.4)",
+            "sub_path": "process/0.2mm @FF800 (0.4).json"
+        },
+        {
             "name": "0.35mm @FF600 3in1 (0.6)",
             "sub_path": "process/0.35mm @FF600 3in1 (0.6).json"
         },
@@ -901,6 +905,10 @@
         {
             "name": "FF600 同進 1.0 nozzle",
             "sub_path": "machine/FF600 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 0.4 nozzle",
+            "sub_path": "machine/FF800 0.4 nozzle.json"
         },
         {
             "name": "FF800 3in1 0.4 nozzle",
