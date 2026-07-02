@@ -172,17 +172,18 @@ void PingMixCanvas::render_dual(wxDC& dc, const wxSize& size)
     dc.SetBrush(wxBrush(COL_PLOT_BG));
     dc.DrawRectangle(plot);
 
-    // 背景漸層：垂直 25 級、透明度 0.22（wxGCDC 支援 alpha）
+    // 背景漸層：垂直 24 帶、帶中心取樣、透明度 0.22（wxGCDC 支援 alpha）。
+    // ⚠ 帶區間不可重疊：alpha 疊加會讓重疊帶顏色加倍（Eric 實測抓到「頂端一截特別濃」）
     const int BG_STEPS = 24;
-    for (int k = 0; k <= BG_STEPS; ++k) {
-        const double pos = double(k) / BG_STEPS;
+    for (int k = 0; k < BG_STEPS; ++k) {
+        const double pos = (k + 0.5) / BG_STEPS; // 帶中心
         const double ratio = PingMix::sample_ratio(r.stops, pos, r.mode);
         int rgb[3];
         PingMix::dual_color(ratio, c1, c2, rgb);
-        const int y1 = plot.y + (int)std::lround((1.0 - (pos + 1.0 / BG_STEPS)) * plot.height);
-        const int y0 = plot.y + (int)std::lround((1.0 - pos) * plot.height);
+        const int y1 = plot.y + (int)std::lround((1.0 - double(k + 1) / BG_STEPS) * plot.height);
+        const int y0 = plot.y + (int)std::lround((1.0 - double(k) / BG_STEPS) * plot.height);
         dc.SetBrush(wxBrush(wxColour(rgb[0], rgb[1], rgb[2], 56))); // 0.22*255≈56
-        dc.DrawRectangle(plot.x, std::max(plot.y, y1), plot.width, std::max(1, y0 - y1));
+        dc.DrawRectangle(plot.x, y1, plot.width, std::max(1, y0 - y1));
     }
 
     // 外框
@@ -333,20 +334,20 @@ void PingMixCanvas::render_quad(wxDC& dc, const wxSize& size)
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     dc.DrawRectangle(plot);
 
-    // 右側預覽帶（與 3D 染色同一套 linear-RGB 混色）
+    // 右側預覽帶（與 3D 染色同一套 linear-RGB 混色）——同樣不可重疊（同雙料背景帶的教訓）
     const int prev_w = FromDIP(22);
     const int prev_x = size.x - prev_w - FromDIP(8);
     const int N = 64;
-    for (int k = 0; k <= N; ++k) {
-        const double t = double(k) / N;
+    for (int k = 0; k < N; ++k) {
+        const double t = (k + 0.5) / N; // 帶中心
         double mix[4]; int rgb[3];
         PingMix::sample_quad_mix(r.qstops, t, r.mode, r.min_flow, mix);
         PingMix::quad_color(mix, cols, rgb);
-        const int y1 = plot.y + (int)std::lround((1.0 - (t + 1.0 / N)) * plot.height);
-        const int y0 = plot.y + (int)std::lround((1.0 - t) * plot.height);
+        const int y1 = plot.y + (int)std::lround((1.0 - double(k + 1) / N) * plot.height);
+        const int y0 = plot.y + (int)std::lround((1.0 - double(k) / N) * plot.height);
         dc.SetPen(*wxTRANSPARENT_PEN);
         dc.SetBrush(wxBrush(wxColour(rgb[0], rgb[1], rgb[2])));
-        dc.DrawRectangle(prev_x, std::max(plot.y, y1), prev_w, std::max(1, y0 - y1));
+        dc.DrawRectangle(prev_x, y1, prev_w, std::max(1, y0 - y1));
     }
     dc.SetPen(wxPen(COL_FRAME, 1));
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
@@ -584,11 +585,23 @@ void PingMixEditor::build_controls()
 {
     wxBoxSizer* vbox = new wxBoxSizer(wxVERTICAL);
 
+    // 標題列：標題＋（右側）收合鈕——平常不用混色時收成右緣窄條，要用再展開（Eric 2026-07-02）
+    wxBoxSizer* title_row = new wxBoxSizer(wxHORIZONTAL);
     m_title = new wxStaticText(this, wxID_ANY, wxString::FromUTF8("混色曲線"));
     wxFont tf = m_title->GetFont();
     tf.SetWeight(wxFONTWEIGHT_BOLD);
     m_title->SetFont(tf);
-    vbox->Add(m_title, 0, wxLEFT | wxTOP, FromDIP(8));
+    title_row->Add(m_title, 0, wxALIGN_CENTER_VERTICAL);
+    title_row->AddStretchSpacer(1);
+    m_collapse_btn = new wxButton(this, wxID_ANY, wxString::FromUTF8("收合 ▶"), wxDefaultPosition,
+                                  wxSize(FromDIP(64), FromDIP(24)), wxBU_EXACTFIT);
+    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合面板（要用時點右緣「混色」再展開）"));
+    m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        wxGetApp().app_config->set("ping_mix_editor_expanded", "0");
+        if (m_toggle_cb) m_toggle_cb();
+    });
+    title_row->Add(m_collapse_btn, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(8));
+    vbox->Add(title_row, 0, wxEXPAND | wxLEFT | wxTOP, FromDIP(8));
 
     // 模式列：漸層/階梯/平滑
     wxBoxSizer* mode_row = new wxBoxSizer(wxHORIZONTAL);
