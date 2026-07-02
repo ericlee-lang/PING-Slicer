@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PING Dual Photo MVP</title>
+  <style>
+    :root {
+      --orange: #ea4e16;
+      --charcoal: #202221;
+      --gray: #efefef;
+      --line: #d7d7d7;
+      --muted: #6f7371;
+      --white-fil: #f4f1e8;
+      --black-fil: #1a1a1a;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
+      color: var(--charcoal);
+      background: #fff;
+    }
+    .app {
+      min-height: 100%;
+      display: grid;
+      grid-template-columns: minmax(360px, 420px) 1fr;
+    }
+    aside {
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #fff;
+    }
+    main {
+      min-width: 0;
+      background: #fafafa;
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.25;
+      font-weight: 800;
+    }
+    .sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .card {
+      background: var(--gray);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+    .drop {
+      position: relative;
+      border: 2px dashed #c9c9c9;
+      border-radius: 8px;
+      background: #fff;
+      min-height: 128px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      padding: 14px;
+      cursor: pointer;
+    }
+    .drop.drag,
+    .drop.paste-ready { border-color: var(--orange); color: var(--orange); background: #fff4ef; }
+    .drop input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .drop strong {
+      display: block;
+      color: var(--charcoal);
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+    .mini-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .mini-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .preset-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .quality-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 8px 0 10px;
+    }
+    .quality-actions button.active {
+      background: var(--charcoal);
+      color: #fff;
+    }
+    details.advanced {
+      margin-top: 10px;
+      border-top: 1px dashed #c9c9c9;
+      padding-top: 8px;
+    }
+    details.advanced summary {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+      color: #444;
+      user-select: none;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 118px 1fr 54px;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #444;
+    }
+    input[type="range"] { width: 100%; accent-color: var(--orange); }
+    input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: 13px;
+      color: var(--charcoal);
+      background: #fff;
+    }
+    .value {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #444;
+      margin-top: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle input { accent-color: var(--orange); }
+    .direction-row {
+      display: grid;
+      grid-template-columns: 118px 1fr;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+    }
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 7px 8px;
+      font-size: 13px;
+      color: var(--charcoal);
+      background: #fff;
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .swatch {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chip {
+      width: 28px;
+      height: 22px;
+      border-radius: 5px;
+      border: 1px solid rgba(0,0,0,.18);
+      flex: 0 0 auto;
+    }
+    .swatch b {
+      display: block;
+      font-size: 13px;
+    }
+    .swatch span {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    button {
+      border: 1px solid var(--charcoal);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--charcoal);
+      padding: 10px 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--orange);
+      border-color: var(--orange);
+      color: #fff;
+    }
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .stat {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 10px;
+      min-width: 0;
+    }
+    .stat b {
+      display: block;
+      font-size: 17px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .preview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      min-height: 0;
+    }
+    .pane {
+      min-width: 0;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+    .pane-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .pane-head b { font-size: 14px; }
+    .pane-head span {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .canvas-wrap {
+      min-height: 360px;
+      display: grid;
+      place-items: center;
+      padding: 12px;
+      overflow: auto;
+      background:
+        linear-gradient(45deg, #f7f7f7 25%, transparent 25%),
+        linear-gradient(-45deg, #f7f7f7 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #f7f7f7 75%),
+        linear-gradient(-45deg, transparent 75%, #f7f7f7 75%);
+      background-size: 24px 24px;
+      background-position: 0 0, 0 12px, 12px -12px, -12px 0;
+    }
+    canvas {
+      max-width: 100%;
+      height: auto;
+      image-rendering: pixelated;
+      box-shadow: 0 2px 14px rgba(0,0,0,.12);
+      background: #fff;
+    }
+    .log {
+      min-height: 36px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .checks {
+      display: grid;
+      gap: 4px;
+      margin-top: 8px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+    .check {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .check b {
+      color: var(--charcoal);
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+    .check.warn b { color: #a34212; }
+    .check.ok b { color: #257448; }
+    .warn {
+      border-left: 3px solid var(--orange);
+      padding: 8px 10px;
+      background: #fff7f3;
+      color: #7a3a1a;
+      font-size: 12px;
+      line-height: 1.55;
+      border-radius: 6px;
+    }
+    .gcode-preview {
+      width: 100%;
+      min-height: 132px;
+      margin-top: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: #333;
+      padding: 9px 10px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      resize: vertical;
+    }
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      aside { border-right: 0; border-bottom: 1px solid var(--line); }
+      .preview { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <header>
+        <h1>雙料灰階照片 MVP</h1>
+        <p class="sub">白料 E1 + 黑料 E2，用照片亮暗決定混料比例，輸出 raster G-code 原型。</p>
+      </header>
+
+      <section class="card">
+        <h2>步驟 1 載入照片</h2>
+        <div class="drop" id="dropZone">
+          <input id="fileInput" type="file" accept="image/*">
+          <div>
+            <strong>拖曳、點選或貼上照片</strong>
+            <span>可直接 Ctrl+V 貼上截圖</span>
+          </div>
+        </div>
+        <div class="mini-actions">
+          <button id="testPatternBtn" type="button">產生校正測試圖</button>
+          <p class="mini-note">先測白料到黑料的方向與過渡，不是最終作品。</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>步驟 2 尺寸與品質</h2>
+        <div class="preset-actions">
+          <button id="safePresetBtn" type="button">工程測試值</button>
+          <button id="photoPresetBtn" type="button">照片草稿值</button>
+        </div>
+        <div class="row">
+          <label for="cols">解析度</label>
+          <input id="cols" type="range" min="40" max="240" step="1" value="100">
+          <span class="value" id="colsVal">100 格</span>
+        </div>
+        <div class="row">
+          <label for="widthMm">寬度</label>
+          <input id="widthMm" type="number" min="20" max="260" step="1" value="120">
+          <span class="value">mm</span>
+        </div>
+        <div class="direction-row">
+          <label for="bedProfile">保守床面</label>
+          <select id="bedProfile">
+            <option value="280">FD300 保守 280 mm</option>
+            <option value="430">FD450 保守 430 mm</option>
+            <option value="560" selected>FD600 / FF600 保守 560 mm</option>
+            <option value="760">FD800 / FF800 保守 760 mm</option>
+            <option value="0">暫不限制</option>
+          </select>
+        </div>
+        <div class="quality-actions" id="qualityBtns">
+          <button type="button" data-quality="draft">快速</button>
+          <button type="button" data-quality="standard" class="active">標準</button>
+          <button type="button" data-quality="fine">細緻</button>
+        </div>
+        <details class="advanced">
+          <summary>進階設定</summary>
+        <div class="row">
+          <label for="lineGap">線距</label>
+          <input id="lineGap" type="number" min="0.2" max="1.2" step="0.05" value="0.6">
+          <span class="value">mm</span>
+        </div>
+        <div class="row">
+          <label for="layerCount">層數</label>
+          <input id="layerCount" type="number" min="1" max="12" step="1" value="1">
+          <span class="value">層</span>
+        </div>
+        <div class="row">
+          <label for="layerHeight">層高</label>
+          <input id="layerHeight" type="number" min="0.08" max="0.5" step="0.01" value="0.30">
+          <span class="value">mm</span>
+        </div>
+        <div class="row">
+          <label for="nozzleTemp">噴嘴溫度</label>
+          <input id="nozzleTemp" type="number" min="160" max="280" step="1" value="210">
+          <span class="value">C</span>
+        </div>
+        <div class="row">
+          <label for="bedTemp">熱床溫度</label>
+          <input id="bedTemp" type="number" min="0" max="120" step="1" value="60">
+          <span class="value">C</span>
+        </div>
+        <div class="row">
+          <label for="flow">擠出量</label>
+          <input id="flow" type="number" min="0.005" max="0.08" step="0.001" value="0.026">
+          <span class="value">E/mm</span>
+        </div>
+        <div class="row">
+          <label for="feed">速度</label>
+          <input id="feed" type="number" min="300" max="3600" step="50" value="2400">
+          <span class="value">mm/min</span>
+        </div>
+        <div class="row">
+          <label for="firstLayerFeed">首層速度</label>
+          <input id="firstLayerFeed" type="number" min="300" max="3600" step="50" value="1200">
+          <span class="value">mm/min</span>
+        </div>
+        <div class="row">
+          <label for="contrast">對比</label>
+          <input id="contrast" type="range" min="-60" max="80" step="1" value="12">
+          <span class="value" id="contrastVal">12</span>
+        </div>
+        <div class="row">
+          <label for="levels">色階數</label>
+          <input id="levels" type="range" min="2" max="64" step="1" value="16">
+          <span class="value" id="levelsVal">16 階</span>
+        </div>
+        <div class="row">
+          <label for="gamma">中間調</label>
+          <input id="gamma" type="range" min="60" max="180" step="1" value="100">
+          <span class="value" id="gammaVal">1.00</span>
+        </div>
+        <div class="direction-row">
+          <label for="direction">白黑方向</label>
+          <select id="direction">
+            <option value="normal">白色亮、黑色暗</option>
+            <option value="inverted">黑色亮、白色暗</option>
+          </select>
+        </div>
+        <label class="toggle">
+          <input id="serpentine" type="checkbox" checked>
+          來回掃描
+        </label>
+        <label class="toggle">
+          <input id="resetEachLayer" type="checkbox" checked>
+          每層重設 E 值
+        </label>
+        <label class="toggle">
+          <input id="primeBeforePrint" type="checkbox" checked>
+          列印前排料
+        </label>
+        <div class="row">
+          <label for="primeLength">排料長度</label>
+          <input id="primeLength" type="number" min="10" max="120" step="5" value="100">
+          <span class="value">mm</span>
+        </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <h2>步驟 3 材料</h2>
+        <div class="swatches">
+          <div class="swatch">
+            <i class="chip" style="background:var(--white-fil)"></i>
+            <div><b>E1 白料</b><span>M6051 S1</span></div>
+          </div>
+          <div class="swatch">
+            <i class="chip" style="background:var(--black-fil)"></i>
+            <div><b>E2 黑料</b><span>M6051 S0</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>步驟 4 輸出</h2>
+        <div class="actions">
+          <button id="regenBtn">重算</button>
+          <button id="previewBtn" disabled>顯示預覽</button>
+          <button id="copyBtn" disabled>複製 G-code</button>
+          <button id="reportBtn" disabled>複製測試紀錄</button>
+          <button id="downloadReportBtn" disabled>下載紀錄</button>
+          <button id="downloadBtn" class="primary" disabled>下載 G-code</button>
+        </div>
+        <div id="checks" class="checks" aria-live="polite">
+          <div class="check"><b>待檢查</b><span>載入照片後顯示輸出檢查。</span></div>
+        </div>
+        <textarea id="gcodePreview" class="gcode-preview" readonly spellcheck="false" placeholder="載入照片後顯示 G-code 前段預覽"></textarea>
+      </section>
+
+      <p class="warn">這版是工程原型。`M6051` 方向已於 2026-07-02 在 FD300 實機確認（S1=白料 E1、S0=黑料 E2）；實機先用低解析度與單層測試。</p>
+      <div class="log" id="log">尚未載入照片。</div>
+    </aside>
+
+    <main>
+      <section class="stats">
+        <div class="stat"><b id="sizeStat">-</b><span>輸出尺寸</span></div>
+        <div class="stat"><b id="gridStat">-</b><span>照片格點</span></div>
+        <div class="stat"><b id="cmdStat">-</b><span>M6051 次數</span></div>
+        <div class="stat"><b id="timeStat">-</b><span>預估路徑</span></div>
+      </section>
+
+      <section class="preview">
+        <div class="pane">
+          <div class="pane-head"><b>灰階取樣</b><span id="sourceName">未載入</span></div>
+          <div class="canvas-wrap"><canvas id="grayCanvas"></canvas></div>
+        </div>
+        <div class="pane">
+          <div class="pane-head"><b>雙料比例預覽</b><span>白料到黑料</span></div>
+          <div class="canvas-wrap"><canvas id="mixCanvas"></canvas></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const state = {
+      img: null,
+      name: "dual_photo",
+      grid: null,
+      gcode: "",
+      report: "",
+      stats: null
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const els = {
+      dropZone: $("dropZone"),
+      fileInput: $("fileInput"),
+      grayCanvas: $("grayCanvas"),
+      mixCanvas: $("mixCanvas"),
+      cols: $("cols"),
+      colsVal: $("colsVal"),
+      safePresetBtn: $("safePresetBtn"),
+      photoPresetBtn: $("photoPresetBtn"),
+      qualityBtns: $("qualityBtns"),
+      widthMm: $("widthMm"),
+      bedProfile: $("bedProfile"),
+      lineGap: $("lineGap"),
+      layerCount: $("layerCount"),
+      layerHeight: $("layerHeight"),
+      nozzleTemp: $("nozzleTemp"),
+      bedTemp: $("bedTemp"),
+      flow: $("flow"),
+      feed: $("feed"),
+      firstLayerFeed: $("firstLayerFeed"),
+      contrast: $("contrast"),
+      contrastVal: $("contrastVal"),
+      levels: $("levels"),
+      levelsVal: $("levelsVal"),
+      gamma: $("gamma"),
+      gammaVal: $("gammaVal"),
+      direction: $("direction"),
+      serpentine: $("serpentine"),
+      resetEachLayer: $("resetEachLayer"),
+      primeBeforePrint: $("primeBeforePrint"),
+      primeLength: $("primeLength"),
+      testPatternBtn: $("testPatternBtn"),
+      regenBtn: $("regenBtn"),
+      previewBtn: $("previewBtn"),
+      copyBtn: $("copyBtn"),
+      reportBtn: $("reportBtn"),
+      downloadReportBtn: $("downloadReportBtn"),
+      downloadBtn: $("downloadBtn"),
+      gcodePreview: $("gcodePreview"),
+      checks: $("checks"),
+      log: $("log"),
+      sourceName: $("sourceName"),
+      sizeStat: $("sizeStat"),
+      gridStat: $("gridStat"),
+      cmdStat: $("cmdStat"),
+      timeStat: $("timeStat")
+    };
+
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function setLog(text) {
+      els.log.textContent = text;
+    }
+
+    function setGcodePreview() {
+      els.gcodePreview.value = state.gcode ? state.gcode.split("\n").slice(0, 36).join("\n") : "";
+    }
+
+    function setChecks(items) {
+      els.checks.innerHTML = "";
+      for (const item of items) {
+        const row = document.createElement("div");
+        row.className = `check ${item.level}`;
+        const label = document.createElement("b");
+        label.textContent = item.level === "warn" ? "注意" : "OK";
+        const text = document.createElement("span");
+        text.textContent = item.text;
+        row.append(label, text);
+        els.checks.appendChild(row);
+      }
+    }
+
+    function applySettings(settings) {
+      for (const [key, value] of Object.entries(settings)) {
+        if (!els[key]) continue;
+        if (els[key].type === "checkbox") {
+          els[key].checked = Boolean(value);
+        } else {
+          els[key].value = String(value);
+        }
+      }
+      render();
+    }
+
+    function setQualityActive(name) {
+      els.qualityBtns.querySelectorAll("button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.quality === name);
+      });
+    }
+
+    function applyQuality(name) {
+      const presets = {
+        draft: { cols: 80, lineGap: 0.65, layerCount: 1, levels: 8, feed: 2800, flow: 0.024 },
+        standard: { cols: 120, lineGap: 0.55, layerCount: 2, levels: 16, feed: 2600, flow: 0.024 },
+        fine: { cols: 180, lineGap: 0.45, layerCount: 3, levels: 24, feed: 2200, flow: 0.022 }
+      };
+      setQualityActive(name);
+      applySettings(presets[name]);
+    }
+
+    function updateLabels() {
+      els.colsVal.textContent = `${els.cols.value} 格`;
+      els.contrastVal.textContent = els.contrast.value;
+      els.levelsVal.textContent = `${els.levels.value} 階`;
+      els.gammaVal.textContent = (Number(els.gamma.value) / 100).toFixed(2);
+    }
+
+    function readImage(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    async function loadFile(file, fallbackName = "pasted_image") {
+      if (!file || !file.type.startsWith("image/")) return;
+      state.img = await readImage(file);
+      const displayName = file.name || fallbackName;
+      state.name = displayName.replace(/\.[^.]+$/, "") || "dual_photo";
+      els.sourceName.textContent = displayName;
+      render();
+    }
+
+    function loadImageFromDataUrl(dataUrl, name) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          state.img = img;
+          state.name = name;
+          els.sourceName.textContent = `${name}.png`;
+          render();
+          resolve();
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    }
+
+    function makeTestPattern() {
+      const w = 320;
+      const h = 160;
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext("2d");
+      const grad = ctx.createLinearGradient(0, 0, w, 0);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(1, "#000000");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      const bars = 8;
+      for (let i = 0; i < bars; i++) {
+        const shade = Math.round(255 * (1 - i / (bars - 1)));
+        ctx.fillStyle = `rgb(${shade},${shade},${shade})`;
+        ctx.fillRect((w / bars) * i, h * 0.62, w / bars, h * 0.38);
+      }
+
+      ctx.strokeStyle = "#202221";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, w - 4, h - 4);
+      loadImageFromDataUrl(c.toDataURL("image/png"), "校正測試圖");
+    }
+
+    function firstImageFromClipboard(event) {
+      const items = Array.from(event.clipboardData?.items || []);
+      for (const item of items) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          return item.getAsFile();
+        }
+      }
+      return null;
+    }
+
+    function sampleImage() {
+      if (!state.img) return null;
+      const cols = Number(els.cols.value);
+      const aspect = state.img.height / state.img.width;
+      // physical aspect: X step = widthMm/cols, Y step = lineGap. Derive rows from
+      // physical height so the print is not squashed when the two steps differ.
+      const physicalHeight = Number(els.widthMm.value) * aspect;
+      const rows = Math.max(8, Math.round(physicalHeight / Number(els.lineGap.value)));
+      const work = document.createElement("canvas");
+      work.width = cols;
+      work.height = rows;
+      const ctx = work.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(state.img, 0, 0, cols, rows);
+      const imgData = ctx.getImageData(0, 0, cols, rows);
+      const out = new Float32Array(cols * rows);
+      const contrast = Number(els.contrast.value);
+      const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+      const levels = Number(els.levels.value);
+      const gamma = Number(els.gamma.value) / 100;
+      const invert = els.direction.value === "inverted";
+
+      for (let i = 0, p = 0; i < imgData.data.length; i += 4, p++) {
+        const r = imgData.data[i];
+        const g = imgData.data[i + 1];
+        const b = imgData.data[i + 2];
+        let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        lum = clamp(factor * (lum - 128) + 128, 0, 255) / 255;
+        lum = Math.pow(lum, gamma);
+        let black = 1 - lum;
+        if (invert) black = 1 - black;
+        black = clamp(black, 0, 1);
+        out[p] = levels > 1 ? Math.round(black * (levels - 1)) / (levels - 1) : black;
+      }
+      return { cols, rows, black: out };
+    }
+
+    function paintCanvases(grid) {
+      // grid cells are not square (X step = widthMm/cols, Y step = lineGap);
+      // display with the physical mm aspect so the preview matches the print.
+      const physicalW = Number(els.widthMm.value);
+      const physicalH = grid.rows * Number(els.lineGap.value);
+      for (const canvas of [els.grayCanvas, els.mixCanvas]) {
+        canvas.width = grid.cols;
+        canvas.height = grid.rows;
+        canvas.style.aspectRatio = `${physicalW} / ${physicalH}`;
+        canvas.style.height = "auto";
+      }
+
+      const grayCtx = els.grayCanvas.getContext("2d");
+      const mixCtx = els.mixCanvas.getContext("2d");
+      const grayData = grayCtx.createImageData(grid.cols, grid.rows);
+      const mixData = mixCtx.createImageData(grid.cols, grid.rows);
+
+      const white = [244, 241, 232];
+      const black = [26, 26, 26];
+      for (let p = 0; p < grid.black.length; p++) {
+        const blackRatio = grid.black[p];
+        const gray = Math.round((1 - blackRatio) * 255);
+        const i = p * 4;
+        grayData.data[i] = gray;
+        grayData.data[i + 1] = gray;
+        grayData.data[i + 2] = gray;
+        grayData.data[i + 3] = 255;
+
+        mixData.data[i] = Math.round(white[0] * (1 - blackRatio) + black[0] * blackRatio);
+        mixData.data[i + 1] = Math.round(white[1] * (1 - blackRatio) + black[1] * blackRatio);
+        mixData.data[i + 2] = Math.round(white[2] * (1 - blackRatio) + black[2] * blackRatio);
+        mixData.data[i + 3] = 255;
+      }
+      grayCtx.putImageData(grayData, 0, 0);
+      mixCtx.putImageData(mixData, 0, 0);
+    }
+
+    function buildGcode(grid) {
+      const width = Number(els.widthMm.value);
+      const safeBedDiameter = Number(els.bedProfile.value);
+      const safeBedRadius = safeBedDiameter / 2;
+      const lineGap = Number(els.lineGap.value);
+      const layerCount = Math.max(1, Math.round(Number(els.layerCount.value)));
+      const layerHeight = Number(els.layerHeight.value);
+      const nozzleTemp = Math.round(Number(els.nozzleTemp.value));
+      const bedTemp = Math.round(Number(els.bedTemp.value));
+      const flow = Number(els.flow.value);
+      const feed = Number(els.feed.value);
+      const firstLayerFeed = Number(els.firstLayerFeed.value);
+      const step = width / Math.max(1, grid.cols - 1);
+      const height = lineGap * Math.max(1, grid.rows - 1);
+      const originX = -width / 2;
+      const originY = -height / 2;
+      const serpentine = els.serpentine.checked;
+      const resetEachLayer = els.resetEachLayer.checked;
+      const primeBeforePrint = els.primeBeforePrint.checked;
+      const primeLength = Number(els.primeLength.value);
+      const primeGap = Math.max(2, lineGap * 3);
+      const primeOffset = Math.max(6, lineGap * 3);
+      const occupiedWidth = Math.max(width, primeBeforePrint ? primeLength : 0);
+      const occupiedHeight = height + (primeBeforePrint ? primeOffset + primeGap * 2 : 0);
+      const diagonal = Math.sqrt(occupiedWidth ** 2 + occupiedHeight ** 2);
+      const minX = originX;
+      const maxX = Math.max(width / 2, primeBeforePrint ? originX + primeLength : width / 2);
+      const minY = originY - (primeBeforePrint ? primeOffset + primeGap * 2 : 0);
+      const maxY = height / 2;
+      const maxRadius = Math.max(
+        Math.hypot(minX, minY),
+        Math.hypot(minX, maxY),
+        Math.hypot(maxX, minY),
+        Math.hypot(maxX, maxY)
+      );
+      const contrast = Number(els.contrast.value);
+      const levels = Number(els.levels.value);
+      const gamma = Number(els.gamma.value) / 100;
+      const primePath = primeBeforePrint ? primeLength * 3 : 0;
+      const estimatedPath = width * grid.rows * layerCount + primePath;
+      const estimatedTotalE = estimatedPath * flow;
+      let e = 0;
+      let mCount = 0;
+      let path = 0;
+      let lastS = "";
+      const lines = [
+        "; PING Dual Photo MVP",
+        `; source = ${state.name}`,
+        "; material = E1 white, E2 black",
+        `; direction = ${els.direction.value}`,
+        "; ratio = M6051 S<E1 white ratio> (S1 = full white, S0 = full black)",
+        "; M6051 direction firmware-confirmed on FD300 (2026-07-02)",
+        `; output_size_mm = ${width.toFixed(3)} x ${height.toFixed(3)}`,
+        `; occupied_size_mm = ${occupiedWidth.toFixed(3)} x ${occupiedHeight.toFixed(3)}`,
+        `; output_diagonal_mm = ${diagonal.toFixed(3)}`,
+        `; max_radius_mm = ${maxRadius.toFixed(3)}`,
+        `; safe_bed_diameter_mm = ${safeBedDiameter > 0 ? safeBedDiameter : "unlimited"}`,
+        `; safe_bed_radius_mm = ${safeBedDiameter > 0 ? safeBedRadius.toFixed(3) : "unlimited"}`,
+        `; grid = ${grid.cols} x ${grid.rows}`,
+        `; layers = ${layerCount}`,
+        `; layer_height = ${layerHeight.toFixed(3)}`,
+        `; nozzle_temp = ${nozzleTemp}`,
+        `; bed_temp = ${bedTemp}`,
+        `; line_gap = ${lineGap.toFixed(3)}`,
+        `; extrusion_per_mm = ${flow.toFixed(5)}`,
+        `; estimated_total_e = ${estimatedTotalE.toFixed(5)}`,
+        `; speed_mm_min = ${feed}`,
+        `; first_layer_speed_mm_min = ${firstLayerFeed}`,
+        `; grayscale_levels = ${levels}`,
+        `; contrast = ${contrast}`,
+        `; gamma = ${gamma.toFixed(2)}`,
+        `; serpentine = ${serpentine ? "yes" : "no"}`,
+        `; reset_e_each_layer = ${resetEachLayer ? "yes" : "no"}`,
+        `; prime_before_print = ${primeBeforePrint ? "yes" : "no"}`,
+        `; prime_length_mm = ${primeBeforePrint ? primeLength.toFixed(3) : "0.000"}`,
+        "G90",
+        "M82",
+        "G28",
+        `M140 S${bedTemp}`,
+        `M104 S${nozzleTemp} T0`,
+        `M190 S${bedTemp}`,
+        `M109 S${nozzleTemp} T0`,
+        "G92 E0",
+        "; delta safety: descend to first layer height before any XY travel",
+        `G1 Z${layerHeight.toFixed(3)} F1200`
+      ];
+
+      if (primeBeforePrint) {
+        const primeY = originY - primeOffset;
+        const primeX0 = originX;
+        lines.push(";PRIME");
+        [
+          { s: "1.0000", label: "white" },
+          { s: "0.0000", label: "black" },
+          { s: "0.5000", label: "half_mix" }
+        ].forEach((prime, i) => {
+          const y = primeY - i * primeGap;
+          lines.push(`;PRIME:${prime.label}`);
+          lines.push(`G0 X${primeX0.toFixed(3)} Y${y.toFixed(3)} F3600`);
+          lines.push(`M6051 S${prime.s}`);
+          mCount++;
+          e += primeLength * flow;
+          path += primeLength;
+          lines.push(`G1 X${(primeX0 + primeLength).toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${firstLayerFeed}`);
+        });
+        lastS = "";
+      }
+
+      for (let layer = 0; layer < layerCount; layer++) {
+        const z = layerHeight * (layer + 1);
+        const layerFeed = layer === 0 ? firstLayerFeed : feed;
+        lines.push(`;LAYER:${layer}`);
+        lines.push(`;Z:${z.toFixed(3)}`);
+        lines.push(`G1 Z${z.toFixed(3)} F1200`);
+        if (resetEachLayer) {
+          e = 0;
+          lines.push("G92 E0");
+        }
+        const reverseRows = serpentine && layer % 2 === 1;
+        for (let rr = 0; rr < grid.rows; rr++) {
+          const row = reverseRows ? grid.rows - 1 - rr : rr;
+          const y = originY + row * lineGap;
+          const leftToRight = !serpentine || (rr + layer) % 2 === 0;
+          const colStart = leftToRight ? 0 : grid.cols - 1;
+          const colEnd = leftToRight ? grid.cols : -1;
+          const delta = leftToRight ? 1 : -1;
+          const x0 = originX + colStart * step;
+          lines.push(`G0 X${x0.toFixed(3)} Y${y.toFixed(3)} F3600`);
+          for (let col = colStart; col !== colEnd; col += delta) {
+            const idx = row * grid.cols + col;
+            const blackRatio = grid.black[idx];
+            // firmware truth (FD300, 2026-07-02): M6051 S = E1 white ratio, S1 = full white
+            const s = (1 - blackRatio).toFixed(4);
+            if (s !== lastS) {
+              lines.push(`M6051 S${s}`);
+              lastS = s;
+              mCount++;
+            }
+            const x = originX + col * step;
+            if (col !== colStart) {
+              e += step * flow;
+              path += step;
+              lines.push(`G1 X${x.toFixed(3)} Y${y.toFixed(3)} E${e.toFixed(5)} F${layerFeed}`);
+            }
+          }
+        }
+      }
+
+      lines.push(
+        "M6051 S1.0000",
+        "G92 E0",
+        "G1 Z5 F1500",
+        "M104 S0",
+        "M140 S0",
+        "G28 X0 Y0",
+        "M84"
+      );
+      return {
+        gcode: lines.join("\n") + "\n",
+        stats: {
+          width,
+          height,
+          occupiedWidth,
+          occupiedHeight,
+          diagonal,
+          maxRadius,
+          safeBedDiameter,
+          safeBedRadius,
+          cols: grid.cols,
+          rows: grid.rows,
+          layerCount,
+          layerHeight,
+          nozzleTemp,
+          bedTemp,
+          lineGap,
+          flow,
+          feed,
+          firstLayerFeed,
+          levels,
+          contrast,
+          gamma,
+          direction: els.direction.value,
+          serpentine,
+          resetEachLayer,
+          primeBeforePrint,
+          primeLength: primeBeforePrint ? primeLength : 0,
+          primePath,
+          mCount,
+          path,
+          totalE: path * flow,
+          estimatedMinutes: path / Math.max(1, feed)
+        }
+      };
+    }
+
+    function directionLabel(value) {
+      return value === "inverted" ? "黑色亮、白色暗" : "白色亮、黑色暗";
+    }
+
+    function bedProfileLabel(value) {
+      const labels = {
+        "280": "FD300 保守 280 mm",
+        "430": "FD450 保守 430 mm",
+        "560": "FD600 / FF600 保守 560 mm",
+        "760": "FD800 / FF800 保守 760 mm",
+        "0": "暫不限制"
+      };
+      return labels[String(value)] || `${value} mm`;
+    }
+
+    function safeFilePart(value) {
+      return String(value)
+        .trim()
+        .replace(/\.[^.]+$/, "")
+        .replace(/[^\w\u4e00-\u9fff-]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 48) || "dual_photo";
+    }
+
+    function buildDownloadName(stats) {
+      const dir = stats.direction === "inverted" ? "black_light" : "white_light";
+      return `${safeFilePart(state.name)}_${Math.round(stats.width)}mm_${stats.cols}x${stats.rows}_L${stats.layerCount}_${stats.levels}levels_${dir}.gcode`;
+    }
+
+    function buildReport(stats, checks) {
+      const lines = [
+        "雙料灰階照片 MVP 測試紀錄",
+        `來源：${state.name}`,
+        `下載檔名：${buildDownloadName(stats)}`,
+        `白黑方向：${directionLabel(stats.direction)}`,
+        "材料：E1 白料 / E2 黑料",
+        `尺寸：${stats.width.toFixed(0)} x ${stats.height.toFixed(0)} mm`,
+        `實際佔用：${stats.occupiedWidth.toFixed(0)} x ${stats.occupiedHeight.toFixed(0)} mm`,
+        `最大半徑 / 保守半徑：${stats.maxRadius.toFixed(0)} mm / ${stats.safeBedDiameter > 0 ? stats.safeBedRadius.toFixed(0) + " mm" : "不限制"}`,
+        `保守床面：${bedProfileLabel(stats.safeBedDiameter)}`,
+        `格點：${stats.cols} x ${stats.rows}`,
+        `層數 / 層高：${stats.layerCount} 層 / ${stats.layerHeight.toFixed(2)} mm`,
+        `列印前排料：${stats.primeBeforePrint ? `開，${stats.primeLength.toFixed(0)} mm x 3 條` : "關"}`,
+        `噴嘴 / 熱床：${stats.nozzleTemp} C / ${stats.bedTemp} C`,
+        `線距：${stats.lineGap.toFixed(2)} mm`,
+        `擠出量：${stats.flow.toFixed(3)} E/mm`,
+        `速度：首層 ${stats.firstLayerFeed} / 其餘 ${stats.feed} mm/min`,
+        `色階 / 對比 / 中間調：${stats.levels} 階 / ${stats.contrast} / ${stats.gamma.toFixed(2)}`,
+        `M6051 次數：${stats.mCount.toLocaleString()}`,
+        `預估列印路徑：${Math.round(stats.path).toLocaleString()} mm`,
+        `預估總 E：${stats.totalE.toFixed(2)} mm`,
+        `預估擠出時間：${stats.estimatedMinutes.toFixed(1)} 分鐘，不含空跑與加熱`,
+        "",
+        "輸出檢查：",
+        ...checks.map((item) => `${item.level === "warn" ? "注意" : "OK"}：${item.text}`),
+        "",
+        "工程端回填：是否堵料/斷料、白黑過渡是否單調、照片輪廓是否清楚（M6051 方向已於 2026-07-02 FD300 實機確認：S1=白 E1、S0=黑 E2）"
+      ];
+      return lines.join("\n");
+    }
+
+    function buildChecks(stats, gcode) {
+      const checks = [];
+      const cells = stats.cols * stats.rows * stats.layerCount;
+      const sizeKb = Math.round(gcode.length / 1024);
+      const bedOk = stats.safeBedDiameter <= 0 || stats.maxRadius <= stats.safeBedRadius;
+
+      checks.push({
+        level: bedOk ? "ok" : "warn",
+        text: bedOk
+          ? `床面檢查通過：最大半徑 ${stats.maxRadius.toFixed(0)} mm。`
+          : `最大半徑 ${stats.maxRadius.toFixed(0)} mm 超過 ${bedProfileLabel(stats.safeBedDiameter)} 的保守半徑 ${stats.safeBedRadius.toFixed(0)} mm，先縮小寬度或裁切。`
+      });
+      checks.push({
+        level: cells <= 30000 ? "ok" : "warn",
+        text: cells <= 30000
+          ? `格點量適合測試：${cells.toLocaleString()} 點。`
+          : `格點量偏高：${cells.toLocaleString()} 點，第一輪建議降解析度或層數。`
+      });
+      checks.push({
+        level: stats.levels <= 24 ? "ok" : "warn",
+        text: stats.levels <= 24
+          ? `色階數適合 MVP：${stats.levels} 階。`
+          : `色階數偏高：${stats.levels} 階，實機先確認 8/16/24 階穩定。`
+      });
+      checks.push({
+        level: sizeKb <= 2048 ? "ok" : "warn",
+        text: sizeKb <= 2048
+          ? `G-code 大小約 ${sizeKb.toLocaleString()} KB。`
+          : `G-code 約 ${sizeKb.toLocaleString()} KB，傳輸或預覽可能變慢。`
+      });
+      checks.push({
+        level: stats.totalE <= 800 ? "ok" : "warn",
+        text: stats.totalE <= 800
+          ? `總 E 約 ${stats.totalE.toFixed(1)} mm。`
+          : `總 E 約 ${stats.totalE.toFixed(1)} mm，第一輪建議縮小或減少層數。`
+      });
+      checks.push({
+        level: stats.primeBeforePrint ? "ok" : "warn",
+        text: stats.primeBeforePrint
+          ? `列印前會先排料 ${stats.primeLength.toFixed(0)} mm x 3 條。`
+          : "未開啟列印前排料，第一段照片可能受殘料影響。"
+      });
+      if (stats.primeBeforePrint && stats.primeLength > stats.width) {
+        checks.push({
+          level: "warn",
+          text: `排料線 ${stats.primeLength.toFixed(0)} mm 比照片寬 ${stats.width.toFixed(0)} mm 長，床面檢查已用排料線寬度計算。`
+        });
+      }
+      return checks;
+    }
+
+    function render() {
+      updateLabels();
+      if (!state.img) {
+        els.downloadBtn.disabled = true;
+        els.copyBtn.disabled = true;
+        els.reportBtn.disabled = true;
+        els.downloadReportBtn.disabled = true;
+        els.previewBtn.disabled = true;
+        setGcodePreview();
+        setChecks([{ level: "warn", text: "載入照片後顯示輸出檢查。" }]);
+        return;
+      }
+      const grid = sampleImage();
+      state.grid = grid;
+      paintCanvases(grid);
+      const built = buildGcode(grid);
+      state.gcode = built.gcode;
+      state.stats = built.stats;
+      const checks = buildChecks(built.stats, state.gcode);
+      state.report = buildReport(built.stats, checks);
+      setChecks(checks);
+
+      els.downloadBtn.disabled = false;
+      els.copyBtn.disabled = false;
+      els.reportBtn.disabled = false;
+      els.downloadReportBtn.disabled = false;
+      els.previewBtn.disabled = false;
+      els.sizeStat.textContent = `${built.stats.width.toFixed(0)} x ${built.stats.height.toFixed(0)} mm`;
+      els.gridStat.textContent = `${built.stats.cols} x ${built.stats.rows}`;
+      els.cmdStat.textContent = built.stats.mCount.toLocaleString();
+      els.timeStat.textContent = `${Math.round(built.stats.path).toLocaleString()} mm`;
+      setGcodePreview();
+      const bedNote = built.stats.safeBedDiameter > 0 && built.stats.maxRadius > built.stats.safeBedDiameter / 2
+        ? ` 尺寸可能超出 ${bedProfileLabel(built.stats.safeBedDiameter)} 保守床面範圍，請降低寬度或裁切照片。`
+        : "";
+      setLog(`已轉換：${built.stats.cols} x ${built.stats.rows} 格，${els.levels.value} 色階，${built.stats.layerCount} 層，總 E 約 ${built.stats.totalE.toFixed(1)} mm，約 ${built.stats.estimatedMinutes.toFixed(1)} 分鐘擠出路徑，輸出 ${built.stats.mCount.toLocaleString()} 次 M6051。${bedNote}`);
+    }
+
+    function downloadText(filename, content) {
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function downloadGcode() {
+      if (!state.gcode) return;
+      downloadText(buildDownloadName(state.stats), state.gcode);
+    }
+
+    function buildReportDownloadName(stats) {
+      return buildDownloadName(stats).replace(/\.gcode$/i, "_test_report.txt");
+    }
+
+    function downloadReport() {
+      if (!state.report) return;
+      downloadText(buildReportDownloadName(state.stats), state.report);
+    }
+
+    function fallbackCopyText(text) {
+      const preview = els.gcodePreview.value;
+      els.gcodePreview.value = text;
+      els.gcodePreview.focus();
+      els.gcodePreview.select();
+      const ok = document.execCommand("copy");
+      if (ok) {
+        els.gcodePreview.value = preview;
+      }
+      return ok;
+    }
+
+    async function copyGcode() {
+      if (!state.gcode) return;
+      try {
+        await navigator.clipboard.writeText(state.gcode);
+        setLog("已複製 G-code 到剪貼簿。");
+      } catch {
+        const ok = fallbackCopyText(state.gcode);
+        setLog(ok ? "已用備用方式複製完整 G-code。" : "瀏覽器阻擋剪貼簿，已選取完整 G-code；可手動 Ctrl+C，或改用下載。");
+      }
+    }
+
+    async function copyReport() {
+      if (!state.report) return;
+      try {
+        await navigator.clipboard.writeText(state.report);
+        setLog("已複製測試紀錄到剪貼簿。");
+      } catch {
+        const ok = fallbackCopyText(state.report);
+        setLog(ok ? "已用備用方式複製測試紀錄。" : "瀏覽器阻擋剪貼簿，已選取測試紀錄；可手動 Ctrl+C。");
+      }
+    }
+
+    ["dragenter", "dragover"].forEach((eventName) => {
+      els.dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        els.dropZone.classList.add("drag");
+      });
+    });
+    ["dragleave", "drop"].forEach((eventName) => {
+      els.dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        els.dropZone.classList.remove("drag");
+      });
+    });
+    els.dropZone.addEventListener("drop", (event) => {
+      const file = event.dataTransfer.files && event.dataTransfer.files[0];
+      loadFile(file);
+    });
+    els.fileInput.addEventListener("change", () => {
+      const file = els.fileInput.files && els.fileInput.files[0];
+      loadFile(file);
+    });
+    els.testPatternBtn.addEventListener("click", makeTestPattern);
+    els.safePresetBtn.addEventListener("click", () => {
+      applySettings({
+        cols: 80,
+        widthMm: 80,
+        bedProfile: 280,
+        lineGap: 0.6,
+        layerCount: 1,
+        layerHeight: 0.3,
+        nozzleTemp: 210,
+        bedTemp: 60,
+        flow: 0.026,
+        feed: 2400,
+        firstLayerFeed: 1200,
+        contrast: 12,
+        levels: 8,
+        gamma: 100,
+        direction: "normal",
+        serpentine: true,
+        resetEachLayer: true,
+        primeBeforePrint: true,
+        primeLength: 100
+      });
+      setQualityActive("draft");
+    });
+    els.photoPresetBtn.addEventListener("click", () => {
+      applySettings({
+        cols: 140,
+        widthMm: 120,
+        bedProfile: 560,
+        lineGap: 0.5,
+        layerCount: 2,
+        layerHeight: 0.25,
+        nozzleTemp: 210,
+        bedTemp: 60,
+        flow: 0.022,
+        feed: 2800,
+        firstLayerFeed: 1200,
+        contrast: 18,
+        levels: 16,
+        gamma: 100,
+        direction: "normal",
+        serpentine: true,
+        resetEachLayer: true,
+        primeBeforePrint: true,
+        primeLength: 100
+      });
+      setQualityActive("standard");
+    });
+    els.qualityBtns.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-quality]");
+      if (!button) return;
+      applyQuality(button.dataset.quality);
+    });
+    document.addEventListener("paste", (event) => {
+      const file = firstImageFromClipboard(event);
+      if (!file) return;
+      event.preventDefault();
+      loadFile(file, `貼上圖片_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.png`);
+      els.dropZone.classList.add("paste-ready");
+      window.setTimeout(() => els.dropZone.classList.remove("paste-ready"), 420);
+    });
+
+    [
+      els.cols, els.widthMm, els.bedProfile, els.lineGap, els.layerCount, els.layerHeight, els.nozzleTemp, els.bedTemp, els.flow, els.feed, els.firstLayerFeed,
+      els.contrast, els.levels, els.gamma, els.direction, els.serpentine, els.resetEachLayer, els.primeBeforePrint, els.primeLength
+    ].forEach((el) => {
+      el.addEventListener("input", render);
+      el.addEventListener("change", render);
+    });
+    els.regenBtn.addEventListener("click", render);
+    els.previewBtn.addEventListener("click", setGcodePreview);
+    els.copyBtn.addEventListener("click", copyGcode);
+    els.reportBtn.addEventListener("click", copyReport);
+    els.downloadReportBtn.addEventListener("click", downloadReport);
+    els.downloadBtn.addEventListener("click", downloadGcode);
+    updateLabels();
+  </script>
+</body>
+</html>

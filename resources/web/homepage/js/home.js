@@ -280,8 +280,23 @@ function OnClickNewProject()
 	var tSend={};
 	tSend['sequence_id']=Math.round(new Date() / 1000);
 	tSend['command']="homepage_newproject";
-	
-	SendWXMessage( JSON.stringify(tSend) );		
+
+	SendWXMessage( JSON.stringify(tSend) );
+}
+
+function OnClickPhotoMixer()
+{
+	// PING: open the dual-material photo tool (resources/web/photo-mixer) in the
+	// default browser via the existing wiki-open bridge (wxLaunchDefaultBrowser).
+	var strUrl = new URL('../photo-mixer/index.html', window.location.href).href;
+
+	var tSend={};
+	tSend['sequence_id']=Math.round(new Date() / 1000);
+	tSend['command']="userguide_wiki_open";
+	tSend['data']={};
+	tSend['data']['url']=strUrl;
+
+	SendWXMessage( JSON.stringify(tSend) );
 }
 
 function OnClickOpenProject()
