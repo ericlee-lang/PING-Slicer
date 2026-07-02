@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 namespace Slic3r {
 namespace GUI {
@@ -540,9 +541,29 @@ void PingMixCanvas::on_left_dclick(wxMouseEvent& evt)
             }
             return;
         }
+        // Eric 2026-07-02 驗收回饋：「點兩下它就移除」——雙擊節點線上的任何東西
+        //（分隔點、線本身）都視同刪該節點，不必精準點到左緣手柄（web 藍圖只認手柄，不直覺）
+        auto try_delete = [&](int idx) {
+            if (r.qstops.size() > 2 && r.qstops[idx].pos > 0.0 && r.qstops[idx].pos < 1.0) {
+                r.qstops.erase(r.qstops.begin() + idx);
+                Refresh();
+                m_editor->commit();
+            }
+        };
         int si, di;
-        if (hit_quad_divider(evt.GetPosition(), plot, si, di))
-            return; // 分隔點不觸發增刪
+        if (hit_quad_divider(evt.GetPosition(), plot, si, di)) {
+            try_delete(si);
+            return;
+        }
+        // 節點水平線鄰近（±6px）也算「點到它」
+        for (size_t i = 0; i < r.qstops.size(); ++i) {
+            const int ly = plot.y + (int)std::lround((1.0 - r.qstops[i].pos) * plot.height);
+            if (std::abs(evt.GetPosition().y - ly) <= FromDIP(6) &&
+                evt.GetPosition().x >= plot.x && evt.GetPosition().x <= plot.x + plot.width) {
+                try_delete((int)i);
+                return;
+            }
+        }
         if (plot.Contains(evt.GetPosition())) {
             // 帶內空白雙擊：於該高度新增節點（值取當前曲線 → 外觀不變）
             PingMix::QuadStop q;
