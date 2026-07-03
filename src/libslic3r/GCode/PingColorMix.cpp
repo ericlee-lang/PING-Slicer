@@ -183,15 +183,21 @@ int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::strin
     out.reserve(gcode.size() + gcode.size() / 20);
     std::string last;
     int count = 0;
+    bool in_body = false;                        // 第一個 ;Z: 之後才算列印本體
     for (size_t li = 0; li < lines.size(); ++li) {
         const std::string& raw = lines[li];
         std::string t = trim(raw);
-        if (has_mix_cmd(t)) continue;            // 剝掉既有混色指令（含 start 的 M6050 S0.5）
+        double z;
+        const bool is_z = parse_z_marker(t, z);
+        if (is_z) in_body = true;
+        // 只剝「列印本體」的既有混色指令；start_gcode 預擠區（第一層之前）的同步指令
+        //（FD 同進 M6050 S0.5 / FF 同進 M6052 A25 B25 C25 D25）必須保留 → 預擠才會兩/四邊同進。
+        // 第 0 層起由逐層插入的 M6051/M6052 接管曲線。
+        if (in_body && has_mix_cmd(t)) continue;
         if (li) out.push_back('\n');
         out += raw;
         if (empty_recipe || !have_z) continue;
-        double z;
-        if (!parse_z_marker(t, z)) continue;
+        if (!is_z) continue;
         double tt = clampd((z - minZ) / range, 0.0, 1.0);
         char buf[64];
         std::string cmd;
