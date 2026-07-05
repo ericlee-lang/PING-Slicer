@@ -14,9 +14,18 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁 現況（2026-07-01 — 3in1 收成 2 槽已做並實測通過；支撐材改淺灰；Apple D-U-N-S 到手；🆕 混色器整合進 Orca 啟動）**
+**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-03 — 🎉 v3.5.4 Release 已發（混色漸層＋預擠同步）；v3.5.5 批次（牆速/填充＋PA-CF）規格在手待開工）**
 
-### 🆕 混色漸層整合 — ✅ ①②③ 全部寫完＋4 路 adversarial review 修完（2026-07-02，等 Eric 說 OK 發 build）
+### 🎉 v3.5.4 Release 已發（2026-07-03）＋ ⚠ 分支狀態與 v3.5.5 開工防呆（下一棒必讀）
+> - **Release**：https://github.com/ericlee-lang/PING-Slicer/releases/tag/v3.5.4（Latest）＝ **`release/v3.5.4` 分支 tip `00f0f08d`**（run 28632486737）。含：混色①②③＋B案開關＋**預擠同步修正**＋FF800 四色 0.4＋LAY-11 排序＋版號 3.5.4。Google 雲端 `G:\我的雲端硬碟\2026claude\PING Slicer\` 兩檔已同名覆蓋＋版本資訊.txt 更新（SHA-256 在檔內）。
+> - **⚠ 分支分歧（最重要防呆）**：`ping/v3.5` 主線 tip＝`a11ee870`（另條 session 的雙料照片磚，Eric 定不進 v3.5.4）＋**缺 `00f0f08d` 預擠修正**——主線的 ff_extra 範本仍是 T5、mixer 沒有 in_body 保留邏輯。**v3.5.5 開工第一步＝把 `00f0f08d` cherry-pick 回 ping/v3.5**，否則 regen 會把 FF 同進 start 打回 T5、且混色會剝掉預擠同步指令。
+> - **預擠同步規則（Eric 實機糾正的 ground truth，勿回退）**：預擠料必須 co-feed——FD 同進 start 保留 `M6050 S0.5`、FF 同進 start 用 **`M6052 A25 B25 C25 D25`（不再用 T5**，T5 留給手動測試；Klipper 端 M6052 是驗證過的路）。混色插碼**只剝「第一個 `;Z:` 之後」的 M605x**（in_body 旗標，`PingColorMix.cpp` Pass 2），第一層之前的同步指令保留。舊認知「start 的 M6050 剝掉沒關係」只對列印本體成立、對預擠不成立（單邊擠料不均，Eric 2026-07-03 實機發現）。
+> - **v3.5.5 批次（規格在手、Eric 定排 Release 後）**：①牆速/填充正規化（外60/內min(現,80)/填充150/`sparse_infill_acceleration`=10000、首層不動；規格 `..\_切片規則同步_來自pingslicer_牆速填充_20260703.md`；現況分佈已盤：75/100/150×66支→60/80/150 等；DL1016 跳過）②PA-CF crater 專屬製程（產生器加材料專屬製程：外50/內80/填充80/accel不套10000/溫250/床60/扇30；規格 `..\_切片規則同步_來自pingslicer_PACF專屬製程_20260703.md`）。嵌完回報參數端抽驗。speed 是資源改動、**免 build 可先在 portable 驗**。
+> - **PETG 接縫**：Eric 嫌接縫粗＋起停凸瘤（現值＝ABS 定稿 aligned/gap15%/scarf=none 套在 PETG 上）→ 已轉參數端定 PETG 接縫標準（scarf 值得為 PETG 重測／seam_gap／PA 校準），等定稿再嵌。
+> - **本機狀態**：portable＋%APPDATA% ＝ v3.5.4 預擠版（v44、M6052、DL1016 已回注）。舊備份可清：`D:\PING-Slicer-portable-old-preB`、`-old-preprimefix`、`-old-premix`。**DL1016 備援**（G 槽 Dowell 源已失蹤）＝`D:\dev\2026claude\20260604 ORCA客製\DL1016_本機注入備援\`（11 檔＋PING.json 註冊條目）。
+> - 預擠 co-feed 已驗到 gcode/profile 層；**實機 co-feed 未印**（Eric 選直接發）——同事若回報預擠異常，先查 start 段 M6050/M6052 有沒有在。
+
+### ✅（已收成）混色漸層整合 — ①②③ 全原生＋B案開關＋Eric 5 項驗收全過（細節保留供維護）
 > **現況**：①插碼已 build 驗過（commit `06d04e63`、run 28526818670 綠；FD M6051 240 支逐層/S 單調、FF M6052 四值和=100、M6050 剝除——暫存 gcode 直驗＋Eric 確認）。②③ 已寫完（本次 commit）。
 > - **② 原生預覽著色**：libvgcode 加 `EViewType::PingColorMix`（Types.hpp）＋per-layer `Palette` 色表與 setter（ViewerImpl/Viewer）；**混色數學不進 libvgcode**——GUI 端 `GCodeViewer::update_ping_mix_colors()` 把曲線烘成色表塞入（仿 set_tool_colors 髒旗標、改曲線重上色不重切）。同進機切片後自動切「混色」檢視；legend 頂→底 11 級漸層圖例。**換機型清單重建（review 三路同抓 blocker）**：view_type_items 只在首次 init／簡易進階切換重建（init 有 `m_gl_data_initialized` 早退！），已在 load_as_gcode 加「同進狀態 vs 清單含混色」不一致偵測→重跑 update_by_mode＋重定位 m_view_type_sel 防越界。
 > - **③ 原生曲線編輯器**：`src/slic3r/GUI/PingMixEditor.hpp/.cpp`（新檔，已登錄 src/slic3r/CMakeLists.txt）掛 `Preview` 右側（GUI_Preview 外層 sizer 改 wxHORIZONTAL），同進才顯示（`Preview::update_ping_mix_editor()`；呼叫點＝Plater set_current_panel preview 分支＋load_print_as_fff）。雙料拖點曲線／四料堆疊帶、三模式、範本（同進/漸層/雙色/彩虹）、低流量（min_flow 0.10↔0.05）、E1..E4 色票（**同進機切片端只有 1 槽拿不到實體色→使用者自選**，wxColourDialog）。拖曳中只重畫、放開才 commit（免逐幀重烘百萬 vertex）；拖曳中 update_from_plater 不覆寫狀態（切片完成事件插隊防護）。**中文字串一律 wxString::FromUTF8**（/utf-8 有開但 wxString(const char*) 走 CP950——wizard conflation 同款坑）。
@@ -343,7 +352,14 @@
 3. **原生改動**：改 `src/` → commit → `gh workflow run "Build all" --ref ping/v3.5` → ~50min。
 4. **嵌入參數定稿**：`python tools/ping/embed_params.py "<定稿資料夾>"` → 同步。
 5. **取 build portable**：`gh run download <run_id> -R ericlee-lang/PING-Slicer -n PING_Slicer_Windows_V3.5.0_portable -D <dir>`；新 binary 要疊最新 `resources/profiles/PING` + `.mo`(複製成 PINGSlicer.mo)。
-6. **換 portable**：app 完全關閉 → `mv` 舊的備份 → `mv` 新的進去 → 視需要清 `%APPDATA%\PINGSlicer`（**保留 OrcaFilamentLibrary**）。
+6. **換 portable（✅ 2026-07-02/03 三次實證的完整流程）**：
+   1. **app 完全關閉**（tasklist 查 ping-slicer.exe；開著換會出鬼參數，坑#17）。
+   2. `mv` 舊 portable 備份 → `mv` 新 artifact 進去。
+   3. **profiles 對策二選一**：(a) repo 資源＝活狀態時（比對過）→ 直接用 artifact 資源；(b) 活狀態較新→ 從備份 `cp` 回 `resources/profiles/PING`＋`PING.json`。
+   4. **DL1016 回注**（本機注入、永不進 repo/Release）：G 槽 Dowell 源**已失蹤**，`add_dl1016.py` 跑不了——改從 **`D:\dev\2026claude\20260604 ORCA客製\DL1016_本機注入備援\`**（11 檔＋`PING.json_註冊條目.json`）複製檔案＋把註冊條目 append 進 PING.json 四清單（機型殿後）。
+   5. **鏡像到 `%APPDATA%\PINGSlicer\system`**（app 實際讀這裡，portable resources 只是複製源）；資源版號 > %APPDATA% 版號時 app 也會自動重複製——但**自動重複製會洗掉 DL1016**，所以要嘛先回注再鏡像、要嘛保持版號相等自己鏡像。
+   6. 驗收腳本心法：Python 比對 portable PING.json 與 %APPDATA% 四清單全等＋DL1016 檔數＋exe mtime＋`PINGSlicer.mo` 存在。
+   ↳ 發對外 Release 而主工作區有別條 session 未推 commit 時：**用 `git worktree add <tmp> <sha> -b release/x.y.z` 隔離開分支改版號**，不動主工作區（2026-07-03 v3.5.4 實證）。
 
 ---
 
