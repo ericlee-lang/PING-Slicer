@@ -16,6 +16,9 @@
 
 **🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-05 — v3.5.5 開工：③cherry-pick＋①牆速正規化完成（免 build）；②PA-CF 等參數端交付 Orca .config）**
 
+### 🆕 照片磚企劃（2026-07-06 立案，與 v3.5.5 平行的新線）
+> **光刻畫＋限色彩色照片磚**（取代 a11ee870 測試磚的方向）：企劃書 `..\照片磚企劃_20260706.html`（六階段路線圖＋已拍板決策）。Eric 已定：**獨立 Portable 測試線**（建議分支從 `release/v3.5.4` 基底 `00f0f08d` 開，不碰 v3.5 線）、通過後併回掛 v3.6+、FD300 Pro 雙料首發、四色人工選色＋模擬輔助。狀態：企劃書待 Eric 審，過了從 Phase 0（研究基準，免 build）開跑。
+
 ### 🚧 v3.5.5 進度（2026-07-05）
 > - 🔴 **發版鐵則（Eric 2026-07-05 定）**：`a11ee870`（首頁「雙料照片」磚＋photo-mixer）＝**測試用、永不列入正式發表**。它疊在 ping/v3.5 本地（未 push），我的 v3.5.5 commit 疊在它之上但內容與它無關。**v3.5.5 正式 build 一律比照 v3.5.4：用 git worktree 從排除 a11ee870 的基底切 release 分支**（基底＝`release/v3.5.4` tip `00f0f08d`，已含預擠修正、不含照片磚），把 ① 牆速（`4fe0217b`：`tools/ping/embed_params.py`＋`resources/profiles/PING/process/`）與 ②PA-CF cherry-pick 上去再 build。**別直接從 ping/v3.5 tip 發版**（會夾帶照片磚）。a11ee870 也**不要 push**。
 > - ✅ **③ 防呆 cherry-pick 完成**：`00f0f08d`（預擠同步修正）已回 ping/v3.5 主線＝commit **`2e27e298`**（乾淨無衝突）。ff_extra 範本已含 M6052、mixer 已含 in_body 保留邏輯；regen 不會再打回 T5。
