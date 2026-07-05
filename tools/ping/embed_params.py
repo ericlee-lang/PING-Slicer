@@ -201,20 +201,28 @@ def proc_overrides(kind, base, is_single_mode):
     if kind == "ff": return {}
     return {"seam_position": "aligned"}   # 2026-06-10 使用者定稿：接縫位置=對齊
 
-# ★ 高流量（2026-06-11 ★節 + 同日使用者現場裁定收斂）：「參數太多」——
-# 不做兩級並存：FD300 系/FP300＝只有一般流量（config 現值；小口徑高速無意義）；
-# FD450/600/800 Pro＝只有高流量（出廠標配高流量噴頭，不放一般流量檔）；FF 維持實機。
-# 製程「每口徑每組合一支」、名稱不帶流量尾碼。
-# ★「速度＝口徑×噴頭流量上限的函數，60/75 只是暫定」——Q 值實測後會逐口徑調，
-# 表按口徑留獨立 entry（調某口徑＝改/加該格重產），勿寫死單一速度套全口徑。
-HF_SPEED = {  # 口徑 -> (外牆, 內牆, 填充, 實心/頂面/gap)
-    "default": ("75", "100", "150", "75"),
-    # "0.6": ("100", "120", "150", "90"),   # ←例：Q 值出來「0.6 高流量調 100」就加這行重產
-}
-def hf_overrides(nz):
-    o, i, s, t = HF_SPEED.get(nz, HF_SPEED["default"])
-    return {"outer_wall_speed": o, "inner_wall_speed": i, "sparse_infill_speed": s,
-            "internal_solid_infill_speed": t, "top_surface_speed": t, "gap_infill_speed": t}
+# ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
+# Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
+# 全 Fast 系列（FD/FF/FP）標準製程統一：
+#   外牆 60（統一，含單料/同進/四色）；內牆 min(現值,80)（只降不升——單料/同進內 60 不升）；
+#   填充 150；填充加速度 sparse_infill_acceleration=10000（源檔多為 100%，需覆寫）。
+#   首層速度 initial_layer_speed 不動；solid/top/gap 不在規格 → 交回源檔（順帶對齊 Cura V2.1）。
+# ⚠ 此規（2026-07-03）取代舊 HF_SPEED「速度＝口徑×流量上限、75/100/150 暫定」的 2026-06-11 裁定
+#   （新規蓋舊規：牆慢統一 60，不再逐口徑寫死高流量速度）。
+# 例外（不套、維持材料特例）：PA-CF crater（材料專屬製程另出，is_pacf=True 跳過）；
+#   TPE 軟料 40/70（目前無 TPE 製程檔，故①不觸及；未來若出 TPE 製程一樣要跳過）。
+def normalize_fast_speed(proc, is_pacf=False):
+    if is_pacf:
+        return proc   # PA-CF 火山口製程走自己的 50/80/80，見 pacf_overrides
+    try:
+        cur_inner = float(proc.get("inner_wall_speed", "80"))
+    except (TypeError, ValueError):
+        cur_inner = 80.0
+    proc["outer_wall_speed"] = "60"
+    proc["inner_wall_speed"] = "%g" % min(cur_inner, 80.0)
+    proc["sparse_infill_speed"] = "150"
+    proc["sparse_infill_acceleration"] = "10000"
+    return proc
 
 # ---------- 3. 交付檔解析 ----------
 def parse_dir(src_base, dirname):
@@ -283,6 +291,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
+        normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -337,9 +346,6 @@ def main(src_base):
                 # 雙料機：製程依 4 組合各出一支（V3.0 行為復原，2026-06-10）；其餘一機一製程
                 is_dual_machine = (kind == "dual" and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
-                # 高流量（2026-06-11 使用者裁定收斂）：450+ 級製程「整支就是高流量」（唯一一級、
-                # 名稱不帶尾碼）；300 級/FP=一般流量；FF 維持實機值
-                apply_hf = (tier_of(base) != "300") and (kind != "ff")
                 def pname(cb):
                     return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
                         else ("%smm @%s (%s)" % (lh, model, nz))
@@ -374,8 +380,7 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh))
-                    if apply_hf:
-                        proc.update(hf_overrides(nz))
+                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
