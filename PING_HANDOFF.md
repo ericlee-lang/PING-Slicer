@@ -19,7 +19,13 @@
 
 ### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ build 綠（run 28772878371）＋獨立 portable 已裝，⏳ 等切片驗收
 
-> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。T→M6052 後處理寫完＋驗證全過（commit `fb4f9033`）→ **Eric 已核准 build、run 28772878371 綠（build_windows/mac/linux 本體全 success；坑#10 整體 failure＝Flatpak/UnitTests 不算）→ 獨立 portable 已裝 `D:\PING-Slicer-phototile-portable`**（正式版 `D:\PING-Slicer-portable` 未動；共用 %APPDATA% v44 與本 build 基底一致）。
+> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。T→M6052 後處理寫完＋驗證全過（commit `fb4f9033`）→ **Eric 已核准 build、run 28772878371 綠（build_windows/mac/linux 本體全 success；坑#10 整體 failure＝Flatpak/UnitTests 不算）→ 獨立 portable 已裝 `D:\PING-Slicer-phototile-portable`**（正式版 `D:\PING-Slicer-portable` 未動）。
+>
+> **🆕 專用機器＋洗料柱（Eric 2026-07-06 下午定，全免 build）**：
+> - **「FF800 同進照片磚」0.6 機器已建**（Eric 定名/口徑；克隆 FF800 同進 0.6）：`default_filament_profile`＝**64 槽開滿**（PLA 高流量 @FF 0.6）→ 選機自動長槽、免手動「+」。機名含「同進」＋FF 開頭＝後處理閘門**零改碼**直接認得。setting_id PINGM066/PINGP111、PING.json v44→**45** 三處註冊（LAY-11 排 FF800 3in1 之後）、高流量 0.6 線材 compatible += 新機、cover 複製、wizard 21/24.js regex 加「同進照片磚」＋EBWebView cache 已清。**裝在 %APPDATA%＋phototile portable 兩邊**（建置腳本 scratchpad `build_phototile_machine.py`、參照自檢雙邊過）。⚠ 未進 repo/embed_params 產生器（測試線慣例，正式化時再編）。
+> - **洗料柱（取代換料塔，Eric 定）**：原型 v1.9 輸出 3MF 時多一個柱零件（`洗料柱 A25 B25 C25 D25`／雙料 `洗料柱 S0.5`、extruder=N+1、**帶 sparse_infill_density=100%** per-part 設定——bbs_3mf.cpp:4942 set_deserialize 已查證支援）→ 每層必印一次＝四支料每層都動防空燒；截面=每層洗料量÷層高（UI 欄位預設 75mm³，0.35 層高→14.6mm 方柱），擺磚右側 15mm。**現成 T→M6052 翻譯器直接吃柱名，C++ 零改動**。調色盤上限 64→柱開啟時 63。換料塔本來就 enable_prime_tower=0 免動。
+> - **原型 v1.9 已驗**（preview 實測）：UI 列顯示/換算、雙料＋四料輸出攔截 zip 驗內容（柱 object/extruder/名稱/100%填充/palette 行全對）、層高加 0.35 選項、console 零錯。
+> - **⚠ 風險（Eric 首測看）**：①**槽位自動開 64 未實測**（切機自動同步槽數機制當年只驗過 1/2/4）——選「FF800 同進照片磚」看槽有沒有自動長滿；卡住＝回報，補 C++ ②兩個 portable **共用 %APPDATA%** → 正式版也會看到照片磚機器，**別用正式版切照片磚**（無翻譯器、混色面板展開還會插曲線碼）。
 
 > **🧭 接手座標**
 > - **build worktree**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚）。**tip＝`fb4f9033`（照片磚後處理）、working tree 乾淨**。
