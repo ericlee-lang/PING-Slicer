@@ -14,24 +14,26 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚企劃原型全通、build 分支已開待寫 T→M6052 碼；②v3.5.5 牆速完成、PA-CF 等交付）**
-> **下一棒最優先**：照片磚 T→M6052 後處理（詳見下方「🆕 照片磚企劃」段的「🔴 下一棒實作」——worktree 已開好、碼未寫、寫完先問再 build）。
+**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚 T→M6052 碼已寫完＋review 完，🔴 等 Eric 說 OK 發 build；②v3.5.5 牆速完成、PA-CF 等交付）**
+> **下一棒最優先**：照片磚 build——Eric 說 OK → 在 `ping/photo-tile`（tip `fb4f9033`）發 CI build（Build all, workflow_dispatch）→ 裝獨立 portable → 驗收（見下方清單）。
 
-### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— 🔴 下一棒接這裡：寫 T→M6052 後處理再 build
+### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ T→M6052 碼已寫完＋驗證，🔴 等 Eric 點頭發 build
 
-> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。Eric 已說「幫我 build」。**build 分支已開好但 C++ 還沒寫——build 尚未發車**。下一棒第一件事＝寫 T→M6052 後處理，寫完先問 Eric 再發 build。
+> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。**T→M6052 後處理已寫完、鏡像驗證＋adversarial review 全過（commit `fb4f9033`）——build 尚未發車，等 Eric 說 OK**（~2h CI build）。
 
 > **🧭 接手座標**
-> - **build worktree 已開**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚；比照發版鐵則）。目前**停在 00f0f08d、working tree 乾淨、尚未寫任何碼**。
+> - **build worktree**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚）。**tip＝`fb4f9033`（照片磚後處理）、working tree 乾淨**。
 > - **原型（產前端＝真相來源）**：`..\照片磚_原型_彩色模擬_v1.html`（v1.8，單檔零依賴雙擊即開）。垂直模式＝主線。
 > - **技術全文**：`..\照片磚_Phase0_技術參考.md`（含 §3.5 Eric 實機 ground truth、Cura ImageReader 全演算法）。企劃書 `..\照片磚企劃_20260706.html`、Phase0 報告 `..\照片磚_Phase0_研究報告_20260706.html`。
 
-> **🔴 下一棒實作：T→M6052 後處理（Phase 4 第 3 段，唯一要 build 的一塊）**
-> 1. **原理**：原型輸出的 3MF 每個零件（extruder n）＝一個混色比例。PingSlicer 切片時零件交界自動產 `Tn` 換料指令。要做的＝**後處理掃 gcode，把每個 `Tn` 換成對應的 `M6052 A.. B.. C.. D..`**（雙料模式＝`M6051 S..`）。配比表＝3MF 內 `Metadata/ping_palette.txt`（格式 `extruder n = M6052 A.. B.. C.. D..`）。
-> 2. **掛在哪**：**沿用混色現成咽喉點**——`BackgroundSlicingProcess::process_fff()` 的 `ping_apply_color_mix()`（v3.5.4 驗證過的 PingColorMix 後處理，見本檔混色①段）。加一支姊妹函式 `ping_apply_photo_tile()`：讀 palette 表（從 3MF metadata 或專案設定帶入）→掃 gcode 每個 `Tn`→插對應 M605x。冪等、與現有混色互斥（照片磚模式旗標）。
-> 3. **palette 怎麼傳進切片後端**：待定方案——(A) 原型把配比寫進 3MF 專案設定某 key，後處理讀它；(B) 後處理直接解析 3MF 內 ping_palette.txt。**先勘查 PingColorMix 怎麼拿到 recipe（printer_model 判定那套）再定**，勿猜。
-> 4. **build 前**：先問 Eric（照片磚獨立線第一次 build，~2h）。建議先 adversarial review C++ 降白燒風險。
-> 5. build 綠→裝獨立 portable→Eric 實印第一片（垂直四料，FF800 同進機／FD 同進機皆可，機器線材要先「+」到零件數）。
+> **✅ T→M6052 後處理實作定案（commit `fb4f9033`，2026-07-06）**
+> 1. **palette 傳遞＝方案 C（零件名稱，優於原列 A/B）**：原型 3MF 每零件名稱自帶配比（`零件色N A70 B30 C0 D0`／`零件色N S0.72`）且 PingSlicer 開檔即載入 Model → 切片後端從 `print.model()` 的 volume 名稱直接解析，**配比隨模型走**（重存/複製不掉、零 GUI 管線）。`Metadata/ping_palette.txt` 退為人讀備援。
+> 2. **模組層**（`PingColorMix.hpp/.cpp`，維持純 std:: 可鏡像驗證）：`parse_photo_part_name()`（尾端 pattern、字元集 [0-9.]、四料驗和=100±0.5、數字 token 逐字透傳不重格式化）＋`build_photo_tile_gcode()`（整行 `T<n>` 換 palette 指令＋行尾追溯註解；M104 T0 參數行/palette 外 T/start 預擠 M605x 不動；天然冪等——換過的行不再是 T 開頭）。
+> 3. **BSP 層**（與混色同咽喉點分流）：`ping_collect_photo_palette()` **全有全無**（所有列印零件都解析得出＋≥2 件＋同工具不衝突才成立；否則退回原混色邏輯、舊行為 100% 保留）→ `ping_apply_photo_tile()`：同進機閘門、FF↔M6052/FD↔M6051 互驗（不符→error log＋不動）、**filament 數守衛**（palette 最大工具號 ≥ filament 數→不動＋error；防引擎 clamp_exturder_to_default 把超出的零件夾回 T0 吃錯配比）、殘留 `.pingorig` 先還原再替換。照片磚成立時**混色曲線面板配方被忽略**（互斥）。
+> 4. **驗證（免 build）**：Python 鏡像 34 測全過（scratchpad `photo_mirror.py`：冪等/CRLF/檔尾無換行/T0abc 不誤觸/全有全無）；adversarial review 10 findings＝0 blocker、1 major（filament 守衛）＋2 minor 已修，餘下 MINOR 帶病可上（strtod locale 曝險與既有混色同級、CRLF 混行尾、`T1 P0` 假想行）。
+> 5. **🔴 build 閘門**：Eric 說 OK 才發（照片磚獨立線第一次 build，~2h；Build all workflow_dispatch、看 build_windows 綠＋artifact）。
+> 6. **build 綠後驗收**：裝**獨立 portable**（勿覆蓋 v3.5.4 正式 portable）→ 開原型 3MF → FF800 同進切片＋匯出 → gcode 檢查：每個 Tn 換成零件對應 M6052、start 的 `M6052 A25 B25 C25 D25` 還在、無殘留 palette 內 Tn → Eric 實印第一片（垂直四料；**機器線材要先「+」到零件數**——少於零件數時後處理會拒動並記 error log，這是故意的守衛）。
+> 7. **⚠ 操作 SOP（review #9）**：照片磚**必須獨立專案開檔**——盤上混入任何非照片磚零件（如校正塊）→ 全有全無偵測失敗→退回混色路徑。已知可接受：混色編輯器面板在照片磚專案仍會顯示（配方被忽略、僅 log）；預覽「混色」檢視著色依曲線非照片磚配比（gcode 正確、純顯示）。
 
 > **✅ 已完成（Phase 0 + 原型 v1→v1.8，全 2026-07-06、全免 build）**
 > - **Phase 0**：Cura ImageReader 全演算法規格＋6 坑到手（本機 Cura 5.13.0 模組健在＝光刻畫基準）；HueForge TD/Beer-Lambert 模型、Kromacut/AutoForge 開源參照。
