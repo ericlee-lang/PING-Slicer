@@ -9,6 +9,7 @@
 // 但保留第一層之前（start_gcode 預擠區）的同步指令（FD M6050 S0.5 / FF M6052 A25 B25 C25 D25）
 // 讓預擠兩/四邊同進；依「混色配方」曲線算該層比例、去重（比例沒變不重下）。
 // 本檔零 Orca 依賴（純 std::），可獨立 g++ 編譯驗證。
+#include <map>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,23 @@ void parse_hex_color(const std::string& hex, int out_rgb[3]);
 void dual_color(double ratio_e1, const int c1[3], const int c2[3], int out_rgb[3]);
 // 四料：linear 空間（gamma 純冪次 2.2）加權平均後轉回 sRGB（web mixRgb）
 void quad_color(const double mix[4], const int colors[4][3], int out_rgb[3]);
+
+// —— 照片磚（多零件 3MF 的 T→M605x 後處理）——
+// 原型輸出的 3MF 每個零件名稱自帶配比（配比隨模型走，重存/複製不掉）：
+//   四料 "零件色3 A70 B30 C0 D0" → 指令 "M6052 A70 B30 C0 D0"（整數、和=100）
+//   雙料 "零件色3 S0.72"          → 指令 "M6051 S0.72"（0~1）
+// 只認「名稱尾端」的 pattern（前面至少要有一個名稱 token）；數字 token 逐字沿用
+// （不重新格式化浮點）。四料驗和=100（±0.5 容差）。不是配比名稱 → 回 false。
+bool parse_photo_part_name(const std::string& name, std::string& out_cmd);
+
+// palette：0-based 工具號（＝零件 extruder-1，見 3MF part metadata extruder）→ 混色指令。
+// 掃 gcode，把「整行 T<n>」（n 在 palette 內）換成對應 M605x（原 T 號留在行尾註解供追溯）；
+// 其他一律不動——含 M104/M107 等「帶 T 參數」的行、palette 外的 T（如手測 T5）、
+// start 預擠區的 M6050/M6052 同步指令。輸出天然冪等（換過的行不再是 T 開頭）。
+// 回傳替換數；palette 空 → 原樣回傳、count=0。
+int build_photo_tile_gcode(const std::string& gcode,
+                           const std::map<int, std::string>& palette,
+                           std::string& out);
 
 // —— 配方序列化（AppConfig 持久化用；純文字緊湊格式，非 JSON）——
 // 雙料 "linear;0:0.5,1:0.5"、四料 "smooth;0:0.25|0.25|0.25|0.25,..."（分號前=mode）
