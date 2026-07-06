@@ -14,14 +14,34 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-05 — v3.5.5 開工：③cherry-pick＋①牆速正規化完成（免 build）；②PA-CF 等參數端交付 Orca .config）**
+**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚企劃原型全通、build 分支已開待寫 T→M6052 碼；②v3.5.5 牆速完成、PA-CF 等交付）**
+> **下一棒最優先**：照片磚 T→M6052 後處理（詳見下方「🆕 照片磚企劃」段的「🔴 下一棒實作」——worktree 已開好、碼未寫、寫完先問再 build）。
 
-### 🆕 照片磚企劃（2026-07-06 立案，與 v3.5.5 平行的新線）
-> **光刻畫＋限色彩色照片磚**（取代 a11ee870 測試磚的方向）：企劃書 `..\照片磚企劃_20260706.html`（六階段路線圖＋已拍板決策）。Eric 已定：**獨立 Portable 測試線**（建議分支從 `release/v3.5.4` 基底 `00f0f08d` 開，不碰 v3.5 線）、通過後併回掛 v3.6+、FD300 Pro 雙料首發、四色人工選色＋模擬輔助。
-> - ✅ **企劃過審＋Phase 0 完成（2026-07-06）**：研究報告 `..\照片磚_Phase0_研究報告_20260706.html`、**實作依據全文 `..\照片磚_Phase0_技術參考.md`**（Cura ImageReader 全演算法規格＋6 坑、HueForge TD/Beer-Lambert 模型、Kromacut/AutoForge 開源參照、PING 三張牌）。本機 Cura 5.13.0 的 ImageReader 模組健在（`C:\Program Files\UltiMaker Cura 5.13.0\share\cura\plugins\ImageReader\`）＝光刻畫基準＋同事過渡方案。
-> - ✅ **Phase 2 彩色模擬原型 v1 完成（2026-07-06）**：`..\照片磚_原型_彩色模擬_v1.html`（單檔零依賴、雙擊即開）。拖圖/貼上→k-means 自動取色→Beer-Lambert 逐層合成即時模擬→雙料/四色→色票/透光距離/換層滑桿→色差指標＋換料清單。已 AI 自查（console 零錯、雙料四色端到端、渲染親眼驗過 F 字無鏡像）。**⏳ 等 Eric 實走**。缺口：實體料色清單（現貨色＋透光性）待 Eric/參數端，原型先用暫定 TD。
-> - ⏳ Phase 1 光刻畫 C++ 未開工（開工＝從 `00f0f08d` 開 `ping/photo-tile` 分支；寫完**先問才 build**）。Phase 3 校準色卡等原型定案後產。
-> - 🔄 **原型迭代至 v1.4（2026-07-06，Eric 四輪實走）**：v1.1 建議引擎（顯眼色保底＋順序/換層自動搜＋覆蓋懲罰）→ v1.2 雙料＝白底單色漸層（明暗對色、TD 連動層數、改層數換層等比縮放）→ v1.3 四色＝白底＋三色相家族漸層帶（帶長∝√權重、帶 TD 連動帶長下限 0.3）→ **v1.4 新增「垂直（混色）」模式** → **v1.5 垂直擴四料（白＋三彩 M6052 混搭調色盤、配比表輸出、房子命中原紅、色差 12.5 歷來最佳）＋垂直尺寸寬×高×厚可設（比例連動、顯示列數）**；顏料物理：混白必去飽和、「飽和亮綠」混不出（色域＝四料凸包）→ **v1.6＝🔴 Eric 定案「垂直＝主線、平躺凍結」＋親定工作流（照片變厚→按顏色分區塊→每區塊＝獨立零件往後延伸→每零件一個混色比例）**；修 30 階只出 5 階（混比候選改 5% 網格＋1% 爬山，M6052 整數百分比細度），天空細帶漸層拉滿、色差 11.2。下一步＝Phase 4 垂直幾何（調色盤→分區塊→多零件模型→每零件掛 M6052）＋配比校準色卡。→ **v1.7 已做完 Phase 4 第 1 段「輸出 3MF（多零件）」**：眾數濾波→貪婪矩形→box mesh→JS ZIP→bbs 格式（part 帶 extruder metadata＝開檔自動指定線材、內附 ping_palette.txt 配比表）；查證 `MAXIMUM_EXTRUDER_NUMBER=64`（夠裝 48 色）；Python 拆包驗證全過（幾何數精確、座標直立正確）。**⏳ 等 Eric 用 PingSlicer 實際開檔**；過了做第 3 段 T→M6052 後處理（PingColorMix 加查表，需 build 先問）。→ **v1.8＝Eric 定調色盤結構「兩兩色階線」**（白↔B/C/D＋B↔C/B↔D/C↔D 共 6 條×K 階；同時最多 2 支料在混、校準只要 6 條階梯色卡、色差幾乎無損 11.9）；超 64 線材上限自動併。**校準色卡規格從此定死＝6 條兩兩階梯**。⚠ **Eric 實機 ground truth（技術參考 §3.5）**：M6051 混比有切換距離、做不出銳利邊（銳邊靠層線）；垂直列印＝換色過渡藏磚體後方、正面實色平整，兩支料混出整套色階（白黑=水墨/白藍=鋼鐵人）。已知物理限制：平躺單堆疊只有貼白底第一帶有完整淺→深（草地漸層拉不開），突破選項 A 混比/B 白回歸帶 待 Eric 裁。
+### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— 🔴 下一棒接這裡：寫 T→M6052 後處理再 build
+
+> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。Eric 已說「幫我 build」。**build 分支已開好但 C++ 還沒寫——build 尚未發車**。下一棒第一件事＝寫 T→M6052 後處理，寫完先問 Eric 再發 build。
+
+> **🧭 接手座標**
+> - **build worktree 已開**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚；比照發版鐵則）。目前**停在 00f0f08d、working tree 乾淨、尚未寫任何碼**。
+> - **原型（產前端＝真相來源）**：`..\照片磚_原型_彩色模擬_v1.html`（v1.8，單檔零依賴雙擊即開）。垂直模式＝主線。
+> - **技術全文**：`..\照片磚_Phase0_技術參考.md`（含 §3.5 Eric 實機 ground truth、Cura ImageReader 全演算法）。企劃書 `..\照片磚企劃_20260706.html`、Phase0 報告 `..\照片磚_Phase0_研究報告_20260706.html`。
+
+> **🔴 下一棒實作：T→M6052 後處理（Phase 4 第 3 段，唯一要 build 的一塊）**
+> 1. **原理**：原型輸出的 3MF 每個零件（extruder n）＝一個混色比例。PingSlicer 切片時零件交界自動產 `Tn` 換料指令。要做的＝**後處理掃 gcode，把每個 `Tn` 換成對應的 `M6052 A.. B.. C.. D..`**（雙料模式＝`M6051 S..`）。配比表＝3MF 內 `Metadata/ping_palette.txt`（格式 `extruder n = M6052 A.. B.. C.. D..`）。
+> 2. **掛在哪**：**沿用混色現成咽喉點**——`BackgroundSlicingProcess::process_fff()` 的 `ping_apply_color_mix()`（v3.5.4 驗證過的 PingColorMix 後處理，見本檔混色①段）。加一支姊妹函式 `ping_apply_photo_tile()`：讀 palette 表（從 3MF metadata 或專案設定帶入）→掃 gcode 每個 `Tn`→插對應 M605x。冪等、與現有混色互斥（照片磚模式旗標）。
+> 3. **palette 怎麼傳進切片後端**：待定方案——(A) 原型把配比寫進 3MF 專案設定某 key，後處理讀它；(B) 後處理直接解析 3MF 內 ping_palette.txt。**先勘查 PingColorMix 怎麼拿到 recipe（printer_model 判定那套）再定**，勿猜。
+> 4. **build 前**：先問 Eric（照片磚獨立線第一次 build，~2h）。建議先 adversarial review C++ 降白燒風險。
+> 5. build 綠→裝獨立 portable→Eric 實印第一片（垂直四料，FF800 同進機／FD 同進機皆可，機器線材要先「+」到零件數）。
+
+> **✅ 已完成（Phase 0 + 原型 v1→v1.8，全 2026-07-06、全免 build）**
+> - **Phase 0**：Cura ImageReader 全演算法規格＋6 坑到手（本機 Cura 5.13.0 模組健在＝光刻畫基準）；HueForge TD/Beer-Lambert 模型、Kromacut/AutoForge 開源參照。
+> - **原型八輪**（雙擊 HTML 即驗，每輪 AI 親眼截圖＋console 驗）：v1.1 建議引擎→v1.2 雙料白底漸層→v1.3 四色色相家族→**v1.4 垂直模式**→v1.5 垂直四料＋尺寸→**v1.6 🔴 垂直定主線/平躺凍結**→v1.7 輸出 3MF 多零件→**v1.8 🔴 調色盤＝兩兩色階線**。
+> - **v1.8 調色盤結構（Eric 定，重要）**：白↔B/白↔C/白↔D＋B↔C/B↔D/C↔D 共 **6 條色階線 × K 階**（K＝色階數，8 階→40 唯一候選）；每像素填最近格。優點：①同時最多 2 支料在混（機構單純）②**Phase 3 校準色卡＝印這 6 條兩兩階梯就校完**（任意四料混搭校不完）③色差幾無損（11.2）。超 64 線材（`MAXIMUM_EXTRUDER_NUMBER=64`，libslic3r.h:65）自動併最少用的。
+> - **3MF 輸出（v1.7，純 JS）**：眾數濾波去雜點→貪婪矩形合併→box mesh→JS ZIP（CompressionStream）→bbs 格式（`3D/3dmodel.model` components 組單物件＋`Metadata/model_settings.config` 每 part 帶 `extruder=n`＝開檔自動指定線材＋`Metadata/ping_palette.txt` 配比表）。Python 拆包＋PingSlicer 開檔雙驗過。輸出鉤子 `window.__buildExport()`。
+> - ⚠ **Eric 實機 ground truth（技術參考 §3.5，跨棒鐵律）**：M6051/M6052 混比有**切換距離**、混比做不出銳利邊→**銳邊靠層線**；垂直列印＝換色過渡藏磚體後方、正面實色平整，兩料就能混整套色階（白黑=水墨、白藍=鋼鐵人，Prusa 那類層畫）。
+> - ⏸ **平躺（疊色）模式＝凍結不發展**（Eric 2026-07-06）；光刻畫（Phase 1）未開工、非當前重點。
+
+> **⏳ 等 Eric（不阻塞 build）**：實體料色清單（PING 現貨有哪些顏色料、哪些偏透光）——Phase 2 原型用暫定色、Phase 3 校準色卡實印時要真值。
 
 ### 🚧 v3.5.5 進度（2026-07-05）
 > - 🔴 **發版鐵則（Eric 2026-07-05 定）**：`a11ee870`（首頁「雙料照片」磚＋photo-mixer）＝**測試用、永不列入正式發表**。它疊在 ping/v3.5 本地（未 push），我的 v3.5.5 commit 疊在它之上但內容與它無關。**v3.5.5 正式 build 一律比照 v3.5.4：用 git worktree 從排除 a11ee870 的基底切 release 分支**（基底＝`release/v3.5.4` tip `00f0f08d`，已含預擠修正、不含照片磚），把 ① 牆速（`4fe0217b`：`tools/ping/embed_params.py`＋`resources/profiles/PING/process/`）與 ②PA-CF cherry-pick 上去再 build。**別直接從 ping/v3.5 tip 發版**（會夾帶照片磚）。a11ee870 也**不要 push**。
