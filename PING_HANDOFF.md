@@ -17,7 +17,10 @@
 **🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-05 — v3.5.5 開工：③cherry-pick＋①牆速正規化完成（免 build）；②PA-CF 等參數端交付 Orca .config）**
 
 ### 🆕 照片磚企劃（2026-07-06 立案，與 v3.5.5 平行的新線）
-> **光刻畫＋限色彩色照片磚**（取代 a11ee870 測試磚的方向）：企劃書 `..\照片磚企劃_20260706.html`（六階段路線圖＋已拍板決策）。Eric 已定：**獨立 Portable 測試線**（建議分支從 `release/v3.5.4` 基底 `00f0f08d` 開，不碰 v3.5 線）、通過後併回掛 v3.6+、FD300 Pro 雙料首發、四色人工選色＋模擬輔助。狀態：企劃書待 Eric 審，過了從 Phase 0（研究基準，免 build）開跑。
+> **光刻畫＋限色彩色照片磚**（取代 a11ee870 測試磚的方向）：企劃書 `..\照片磚企劃_20260706.html`（六階段路線圖＋已拍板決策）。Eric 已定：**獨立 Portable 測試線**（建議分支從 `release/v3.5.4` 基底 `00f0f08d` 開，不碰 v3.5 線）、通過後併回掛 v3.6+、FD300 Pro 雙料首發、四色人工選色＋模擬輔助。
+> - ✅ **企劃過審＋Phase 0 完成（2026-07-06）**：研究報告 `..\照片磚_Phase0_研究報告_20260706.html`、**實作依據全文 `..\照片磚_Phase0_技術參考.md`**（Cura ImageReader 全演算法規格＋6 坑、HueForge TD/Beer-Lambert 模型、Kromacut/AutoForge 開源參照、PING 三張牌）。本機 Cura 5.13.0 的 ImageReader 模組健在（`C:\Program Files\UltiMaker Cura 5.13.0\share\cura\plugins\ImageReader\`）＝光刻畫基準＋同事過渡方案。
+> - ✅ **Phase 2 彩色模擬原型 v1 完成（2026-07-06）**：`..\照片磚_原型_彩色模擬_v1.html`（單檔零依賴、雙擊即開）。拖圖/貼上→k-means 自動取色→Beer-Lambert 逐層合成即時模擬→雙料/四色→色票/透光距離/換層滑桿→色差指標＋換料清單。已 AI 自查（console 零錯、雙料四色端到端、渲染親眼驗過 F 字無鏡像）。**⏳ 等 Eric 實走**。缺口：實體料色清單（現貨色＋透光性）待 Eric/參數端，原型先用暫定 TD。
+> - ⏳ Phase 1 光刻畫 C++ 未開工（開工＝從 `00f0f08d` 開 `ping/photo-tile` 分支；寫完**先問才 build**）。Phase 3 校準色卡等原型定案後產。
 
 ### 🚧 v3.5.5 進度（2026-07-05）
 > - 🔴 **發版鐵則（Eric 2026-07-05 定）**：`a11ee870`（首頁「雙料照片」磚＋photo-mixer）＝**測試用、永不列入正式發表**。它疊在 ping/v3.5 本地（未 push），我的 v3.5.5 commit 疊在它之上但內容與它無關。**v3.5.5 正式 build 一律比照 v3.5.4：用 git worktree 從排除 a11ee870 的基底切 release 分支**（基底＝`release/v3.5.4` tip `00f0f08d`，已含預擠修正、不含照片磚），把 ① 牆速（`4fe0217b`：`tools/ping/embed_params.py`＋`resources/profiles/PING/process/`）與 ②PA-CF cherry-pick 上去再 build。**別直接從 ping/v3.5 tip 發版**（會夾帶照片磚）。a11ee870 也**不要 push**。
