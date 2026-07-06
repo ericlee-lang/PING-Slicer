@@ -286,6 +286,106 @@ void quad_color(const double mix[4], const int colors[4][3], int out_rgb[3])
     }
 }
 
+// —— 照片磚：零件名稱 → 混色指令 —— //
+// token = "A70"/"S0.72" 這種「單字母前綴＋數字」；數字必須吃完整個 token、值在 [lo,hi]。
+// 字元集限定 [0-9.]——擋掉 strtod 也接受的 1e2/0x10/+70 等形式（會逐字透傳進 M605x，韌體不吃）
+static bool is_num_token(const std::string& tok, char prefix, double lo, double hi, double& val)
+{
+    if (tok.size() < 2 || tok[0] != prefix) return false;
+    for (size_t i = 1; i < tok.size(); ++i)
+        if (!std::isdigit((unsigned char)tok[i]) && tok[i] != '.') return false;
+    char* end = nullptr;
+    double v = std::strtod(tok.c_str() + 1, &end);
+    if (end != tok.c_str() + tok.size()) return false;
+    if (!std::isfinite(v) || v < lo || v > hi) return false;
+    val = v;
+    return true;
+}
+
+bool parse_photo_part_name(const std::string& name, std::string& out_cmd)
+{
+    // 空白切 token（對應原型 name 以單一空白組裝）
+    std::vector<std::string> tk;
+    {
+        size_t i = 0, n = name.size();
+        while (i < n) {
+            while (i < n && std::isspace((unsigned char)name[i])) ++i;
+            size_t j = i;
+            while (j < n && !std::isspace((unsigned char)name[j])) ++j;
+            if (j > i) tk.emplace_back(name.substr(i, j - i));
+            i = j;
+        }
+    }
+    const size_t n = tk.size();
+    // 四料：尾端 4 token = A.. B.. C.. D..（各 0~100、和=100±0.5，原型恆為整數兩支非零）
+    if (n >= 5) {
+        double a, b, c, d;
+        if (is_num_token(tk[n - 4], 'A', 0, 100, a) && is_num_token(tk[n - 3], 'B', 0, 100, b) &&
+            is_num_token(tk[n - 2], 'C', 0, 100, c) && is_num_token(tk[n - 1], 'D', 0, 100, d) &&
+            std::fabs(a + b + c + d - 100.0) <= 0.5) {
+            out_cmd = "M6052 " + tk[n - 4] + " " + tk[n - 3] + " " + tk[n - 2] + " " + tk[n - 1];
+            return true;
+        }
+    }
+    // 雙料：尾端 1 token = S..（0~1；原型值＝兩位小數，可為 0/1 純色——照實透傳）
+    if (n >= 2) {
+        double s;
+        if (is_num_token(tk[n - 1], 'S', 0.0, 1.0, s)) {
+            out_cmd = "M6051 " + tk[n - 1];
+            return true;
+        }
+    }
+    return false;
+}
+
+// —— 照片磚：整行 T<n> → palette 指令 —— //
+int build_photo_tile_gcode(const std::string& gcode,
+                           const std::map<int, std::string>& palette,
+                           std::string& out)
+{
+    out.clear();
+    if (palette.empty()) { out = gcode; return 0; }
+    out.reserve(gcode.size() + gcode.size() / 16);
+    int count = 0;
+    size_t start = 0;
+    const size_t N = gcode.size();
+    while (true) {
+        size_t nl = gcode.find('\n', start);
+        const size_t line_end = (nl == std::string::npos) ? N : nl;
+        // 行內容 [a,b)：去尾 \r、容忍前導空白（正常 gcode 沒有）
+        size_t a = start, b = line_end;
+        if (b > a && gcode[b - 1] == '\r') --b;
+        while (a < b && (gcode[a] == ' ' || gcode[a] == '\t')) ++a;
+        bool replaced = false;
+        // 「T＋純數字」開頭、數字後是行尾/空白/註解 → 才是換料指令
+        //（M104 T0 這類行首是 M；行中 T 參數永遠不會被看到）
+        if (b - a >= 2 && gcode[a] == 'T' && std::isdigit((unsigned char)gcode[a + 1])) {
+            size_t d = a + 1;
+            long tool = 0;
+            while (d < b && std::isdigit((unsigned char)gcode[d]) && d - a <= 9)
+                tool = tool * 10 + (gcode[d++] - '0');
+            // d 停在非數字處（或行尾）；若停在數字上＝超長數串（>9 位），整行不動
+            const bool cmd_ends = (d == b) || gcode[d] == ' ' || gcode[d] == '\t' || gcode[d] == ';';
+            if (cmd_ends) {
+                auto it = palette.find((int)tool);
+                if (it != palette.end()) {
+                    out += it->second;
+                    out += " ; PING photo-tile (was T";
+                    out += std::to_string(tool);
+                    out.push_back(')');
+                    replaced = true;
+                    ++count;
+                }
+            }
+        }
+        if (!replaced) out.append(gcode, start, line_end - start);
+        if (nl == std::string::npos) break;
+        out.push_back('\n');
+        start = nl + 1;
+    }
+    return count;
+}
+
 // —— 配方序列化 —— //
 std::string recipe_to_string(const Recipe& recipe)
 {
