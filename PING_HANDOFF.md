@@ -14,12 +14,12 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚 T→M6052 碼已寫完＋review 完，🔴 等 Eric 說 OK 發 build；②v3.5.5 牆速完成、PA-CF 等交付）**
-> **下一棒最優先**：照片磚 build——Eric 說 OK → 在 `ping/photo-tile`（tip `fb4f9033`）發 CI build（Build all, workflow_dispatch）→ 裝獨立 portable → 驗收（見下方清單）。
+**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚 build 綠＋獨立 portable 已裝，⏳ 等 Eric 切片驗收；②v3.5.5 牆速完成、PA-CF 等交付）**
+> **下一棒最優先**：照片磚驗收——Eric 用 `D:\PING-Slicer-phototile-portable` 開原型 3MF 切片匯出 → AI 自查 gcode（Tn 全換/預擠保留）→ 實印第一片。
 
-### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ T→M6052 碼已寫完＋驗證，🔴 等 Eric 點頭發 build
+### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ build 綠（run 28772878371）＋獨立 portable 已裝，⏳ 等切片驗收
 
-> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。**T→M6052 後處理已寫完、鏡像驗證＋adversarial review 全過（commit `fb4f9033`）——build 尚未發車，等 Eric 說 OK**（~2h CI build）。
+> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。T→M6052 後處理寫完＋驗證全過（commit `fb4f9033`）→ **Eric 已核准 build、run 28772878371 綠（build_windows/mac/linux 本體全 success；坑#10 整體 failure＝Flatpak/UnitTests 不算）→ 獨立 portable 已裝 `D:\PING-Slicer-phototile-portable`**（正式版 `D:\PING-Slicer-portable` 未動；共用 %APPDATA% v44 與本 build 基底一致）。
 
 > **🧭 接手座標**
 > - **build worktree**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚）。**tip＝`fb4f9033`（照片磚後處理）、working tree 乾淨**。
