@@ -269,6 +269,108 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     }
 }
 
+// ---- PING 照片磚：多零件 3MF 的 T→M605x 後處理（與上面混色曲線互斥）----
+// 原型（照片磚_原型_彩色模擬_v1.html）輸出的 3MF：每零件名稱自帶配比
+//（"零件色N A70 B30 C0 D0" / "零件色N S0.72"）＋ part metadata extruder=n。
+// 切片器在零件交界產 Tn 換料指令，但同進混色機沒有第 n 支實體工具——
+// 這裡把每個 Tn 換成該零件的 M6052/M6051，混色靠韌體 M605x。
+// 蒐集規則（全有全無，避免誤傷一般專案）：模型「所有」列印零件的名稱都解析得出
+// 配比、且 ≥2 件才成立；任一件不合格＝不是照片磚 → 走原混色曲線邏輯。
+static bool ping_collect_photo_palette(const Print& print, std::map<int, std::string>& palette)
+{
+    palette.clear();
+    for (const ModelObject* obj : print.model().objects) {
+        for (const ModelVolume* vol : obj->volumes) {
+            if (!vol->is_model_part()) continue;   // 修飾/支撐體不參與
+            std::string cmd;
+            if (!PingMix::parse_photo_part_name(vol->name, cmd)) { palette.clear(); return false; }
+            const int tool = vol->extruder_id() - 1;   // extruder 1-based → gcode T 0-based
+            if (tool < 0) { palette.clear(); return false; }
+            auto it = palette.find(tool);
+            if (it != palette.end() && it->second != cmd) {
+                // 同一工具兩種配比＝髒資料，寧可不動
+                BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: conflicting recipes on tool T" << tool;
+                palette.clear();
+                return false;
+            }
+            palette[tool] = cmd;
+        }
+    }
+    if (palette.size() < 2) { palette.clear(); return false; }
+    return true;
+}
+
+// 純 worker thread 上執行（同 ping_apply_color_mix）。天然冪等：換過的行不再是 T 開頭，
+// 重匯出時 count=0、不重寫檔——不需要 .pingorig 備份機制（配比隨模型走、不會中途改）。
+static void ping_apply_photo_tile(const std::string& gcode_path, const DynamicPrintConfig& config,
+                                  const std::map<int, std::string>& palette)
+{
+    const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
+    const std::string printer_model = pm != nullptr ? pm->value : std::string();
+    if (printer_model.find("同進") == std::string::npos) {
+        BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: palette present but printer '" << printer_model
+                                   << "' is not a mixing (tongjin) machine; gcode untouched";
+        return;
+    }
+    // 機型×配比互驗：FF（四進一出）↔M6052、FD↔M6051。開錯機型寧可不動——
+    // 留著 Tn 讓韌體顯性報錯，勝過默默下錯混色指令。
+    const bool is_quad_machine = printer_model.rfind("FF", 0) == 0;
+    for (const auto& kv : palette) {
+        const bool is_quad_cmd = kv.second.compare(0, 5, "M6052") == 0;
+        if (is_quad_cmd != is_quad_machine) {
+            BOOST_LOG_TRIVIAL(error) << "PING photo-tile: recipe kind (" << (is_quad_cmd ? "M6052" : "M6051")
+                                     << ") does not match printer '" << printer_model << "'; gcode untouched";
+            return;
+        }
+    }
+    // filament 數守衛：切片引擎會把超出 filament 數的零件 extruder 夾回 1
+    //（PrintObject clamp_exturder_to_default）→ 那些零件實際以 T0 切出、吃到錯配比。
+    // 配方數 > filament 數＝使用者忘了把線材「+」到零件數 → 不動 gcode、記 error（寧可顯性失敗）。
+    {
+        const ConfigOptionFloats* fd = config.option<ConfigOptionFloats>("filament_diameter");
+        const size_t filament_count = fd != nullptr ? fd->values.size() : 0;
+        const int max_tool = palette.rbegin()->first;   // std::map 有序，最大工具號在尾
+        if (max_tool >= (int)filament_count) {
+            BOOST_LOG_TRIVIAL(error) << "PING photo-tile: palette needs tool T" << max_tool
+                                     << " but only " << filament_count
+                                     << " filaments configured; add filaments to match part count. Gcode untouched";
+            return;
+        }
+    }
+    try {
+        // 同 session 由混色專案改名而來的殘留 .pingorig（曲線已插碼的 temp 備份）→ 先還原原始檔
+        // 再做照片磚替換，避免疊在曲線碼上雙重處理
+        const std::string pristine_path = gcode_path + ".pingorig";
+        if (boost::filesystem::exists(pristine_path)) {
+            std::string err;
+            if (copy_file(pristine_path, gcode_path, err) != CopyFileResult::SUCCESS) {
+                BOOST_LOG_TRIVIAL(error) << "PING photo-tile: restore pristine failed: " << err;
+                return; // 還原不了就不動（安全優先）
+            }
+            boost::filesystem::remove(pristine_path);
+        }
+        std::string gcode;
+        {
+            boost::nowide::ifstream ifs(gcode_path.c_str(), std::ios::binary);
+            if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING photo-tile: cannot open gcode " << gcode_path; return; }
+            std::stringstream ss;
+            ss << ifs.rdbuf();
+            gcode = ss.str();
+        }
+        std::string out;
+        const int count = PingMix::build_photo_tile_gcode(gcode, palette, out);
+        BOOST_LOG_TRIVIAL(info) << "PING photo-tile: printer_model='" << printer_model
+                                << "' parts=" << palette.size() << " replaced=" << count;
+        if (count <= 0)
+            return; // 已處理過（重匯出）或 gcode 無 T（不應發生）→ 不重寫
+        boost::nowide::ofstream ofs(gcode_path.c_str(), std::ios::binary | std::ios::trunc);
+        if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING photo-tile: cannot write gcode " << gcode_path; return; }
+        ofs << out;
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "PING photo-tile: failed: " << e.what();
+    }
+}
+
 void BackgroundSlicingProcess::process_fff()
 {
     assert(m_print == m_fff_print);
@@ -328,18 +430,24 @@ void BackgroundSlicingProcess::process_fff()
 
 		BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": export gcode finished");
 	}
-	// PING 混色：同進機型於 export/upload 複製 temp gcode「之前」處理（單一咽喉點）
-	// 啟用→從 .pingorig 原始檔插碼；停用→還原原始檔（B 案：開關＝面板展開狀態）
+	// PING 照片磚／混色：同進機型於 export/upload 複製 temp gcode「之前」處理（單一咽喉點）
+	// 照片磚（模型零件名稱帶配比）優先且與混色曲線互斥；否則走原混色邏輯
+	// （啟用→從 .pingorig 原始檔插碼；停用→還原原始檔。B 案：開關＝面板展開狀態）
 	{
-		PingMix::Recipe dual_copy, quad_copy;
-		bool enabled_copy;
-		{
-			std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
-			dual_copy = m_ping_mix_dual;
-			quad_copy = m_ping_mix_quad;
-			enabled_copy = m_ping_mix_enabled;
+		std::map<int, std::string> photo_palette;
+		if (ping_collect_photo_palette(*m_fff_print, photo_palette)) {
+			ping_apply_photo_tile(m_temp_output_path, m_fff_print->full_print_config(), photo_palette);
+		} else {
+			PingMix::Recipe dual_copy, quad_copy;
+			bool enabled_copy;
+			{
+				std::scoped_lock<std::mutex> lock(m_ping_mix_mutex);
+				dual_copy = m_ping_mix_dual;
+				quad_copy = m_ping_mix_quad;
+				enabled_copy = m_ping_mix_enabled;
+			}
+			ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy, enabled_copy);
 		}
-		ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy, enabled_copy);
 	}
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
