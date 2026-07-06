@@ -287,7 +287,8 @@ void BBLTopbar::Init(wxFrame* parent)
 
     m_title_ctrl = new CenteredTitle(this);
     wxAuiToolBarItem* title_item = this->AddControl(m_title_ctrl, "");
-    title_item->SetProportion(1); 
+    title_item->SetProportion(1);
+    SetTitle(wxEmptyString);   // PING: 啟動即顯示版次（未開專案時只有「PING Slicer Vx.x.x」）
 
     this->AddSpacer(FromDIP(25));
     //this->AddStretchSpacer(1);
@@ -472,9 +473,15 @@ wxMenu* BBLTopbar::GetCalibMenu()
 
 void BBLTopbar::SetTitle(wxString title)
 {
-    m_titleText = title;
+    // PING: 頂列常駐顯示版次（售服一眼辨識客戶版本，Eric 2026-07-06）。
+    // 版號跟 SoftFever_VERSION 走（發版 bump 即自動更新）；組好存回 m_titleText，
+    // Rescale 重設標題時沿用組好的字串、不會重複前綴。
+    wxString composed = wxString::Format("PING Slicer V%s", SoftFever_VERSION);
+    if (!title.IsEmpty())
+        composed += "  -  " + title;
+    m_titleText = composed;
     if (m_title_ctrl)
-        m_title_ctrl->SetTitle(title);
+        m_title_ctrl->SetTitle(composed);
 }
 
 void BBLTopbar::SetMaximizedSize()
