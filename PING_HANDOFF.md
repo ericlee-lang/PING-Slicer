@@ -8,11 +8,38 @@
 >
 > 這份是「接手用」文件：給下一個 Session（或維護者）快速接續 + 避免重踩坑。
 > 搭配 `PING_CUSTOMIZATION.md`（AGPL 修改紀錄）一起看。
-> 最近一次 session 圖文總結：`D:\dev\2026claude\20260604 ORCA客製\PING_session_summary_20260610.html`（前次：`..._20260607.html`）。
+> 歷次 session 圖文總結都在 `D:\dev\2026claude\20260604 ORCA客製\_封存\session總結\`（最新 `PING_session_summary_20260703.html`）。
 
 ---
 
 ## 0. 立即接續（現況 + 待辦）
+
+---
+### 🚀🚀🚀 現況（2026-07-08 深夜自主任務 — 照片磚整合進 V3.5.5＋build 已發，Eric 睡前授權、明早直接測）
+
+**做了什麼（全在 `ping/v3.5`，並開 `release/v3.5.5` 觸發 build）**
+1. **cherry-pick 照片磚 T→M605x 後處理**（`fb4f9033`→本分支 `be14c92a`）：ping/v3.5 原本只有混色器（曲線編輯 M6051/M6052），**沒有**「多零件 3MF 依零件名配比換 M605x」的照片磚後處理；已淨套進來（同底 00f0f08d，零衝突）。→ V3.5 現在具**完整照片磚切片管線**。
+2. **HTML 產生器打包進 build**：`resources/web/phototile/index.html`（＝當前原型，含「解析度＝實體尺寸÷格點」引擎、預設 0.1）。
+3. **Help 選單新增「照片磚產生器」**（`MainFrame.cpp generate_help_menu()`，用 `resources_dir()+wxLaunchDefaultBrowser` 開本地 HTML；全平台一致——Windows topbar 的 Help 下拉＋Mac/Linux Help 選單都有）。commit `b107b90f`。
+4. **進版 `version.inc` 3.5.3 → 3.5.5**（頂列自動顯示「PING Slicer V3.5.5」）。
+5. C++ 已過 reviewer 對抗式複核＝**COMPILE-CLEAN**（本機無編譯器，靠 review 驗；self-review 另抓掉一個 Windows 選單重複項）。
+
+**⚠️ 明早測試前務必知道的關鍵限制（我留意到、誠實記）**
+- **照片磚的機器/製程 profile 沒進 build 的 bundle**（FD300/FF800 同進照片磚、5 製程、SEMM/64槽、以及今天改的「零回抽＋seam_gap0＋wipe_on_loops0」都**只在 `%APPDATA%\PingSlicer\system\PING` ＋ phototile portable**，未進 `embed_params.py` 產生器/repo）。
+  - **對 Eric 個人測試＝OK**：新版 3.5.5 讀同一個 `%APPDATA%`，你的照片磚機器/今天的參數都在、測得動（memory `pingslicer-profiles-read-from-appdata`：app 讀 %APPDATA%、不被 bundle 覆蓋）。
+  - **但若照片磚機器不見了**（極少數：全新安裝/換機/%APPDATA% 被重置），那是因為沒 bundle → 之後要做「把機器/製程/參數編進 embed_params.py＋repo」才算完整可發布。
+- **專屬料 `PING PLA(照片磚)` 未建**（Eric 要過但功能上多餘，回抽關後 wipe 已歸零）——不影響測試。
+
+**明早測試 checklist**
+1. build 綠了 → 裝 **PING Slicer V3.5.5**（頂列應顯示「PING Slicer V3.5.5」）。
+2. **Help 選單 → 「照片磚產生器」** → 應在瀏覽器開出照片磚工具。
+3. 用它出 3MF → 在 PingSlicer 開檔 → 選「FD300/FF800 同進照片磚」機器 → 切片 → gcode 應 Tn 全換 M6051/M6052（可貼 gcode 給下一棒跑 `scratchpad/check_phototile_gcode2.py`）。
+
+**build 狀態**：release/v3.5.5 已 push 觸發 `build_all.yml`（僅 main/release/* 會觸發；ping/v3.5 push 不觸發）。run 編號見 GitHub Actions；上一次照片磚 build 綠＝run 28772878371 可對照。
+
+**下一棒最優先（讓照片磚可正式發布）**：把照片磚**機器×5＋製程×5＋今天的零回抽/seam 參數**編進 `tools/ping/embed_params.py`＋repo bundle（現只在 %APPDATA%/portable）；順帶決定專屬料要不要建。回抽/轉角 saga 已定案（見 memory `photo-tile-vertical-mixing`）。
+
+---
 
 **🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 晚收工 — 照片磚整條線跑通到「實印第一片＋縫隙優化 A 案」；②v3.5.5 牆速完成、PA-CF 等交付、版次顯示已寫）**
 > **下一棒最優先**：照片磚縫隙 A 案（交錯齒 v2.1）實印驗收——Eric 重啟 phototile portable → 用**原型 v2.1**（「邊界：交錯齒」預設開）重出 3MF → 切片 → 貼 gcode 我自查 → 印出來跟前一片（有縫）對照交界縫隙。若齒還不夠→退而求其次改外牆線寬；若要真·零縫→啟動 D 案（單網格+沿牆換色，X 失銳邊）。
