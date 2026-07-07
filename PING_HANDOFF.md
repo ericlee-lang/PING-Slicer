@@ -35,7 +35,7 @@
 2. **Help 選單 → 「照片磚產生器」** → 應在瀏覽器開出照片磚工具。
 3. 用它出 3MF → 在 PingSlicer 開檔 → 選「FD300/FF800 同進照片磚」機器 → 切片 → gcode 應 Tn 全換 M6051/M6052（可貼 gcode 給下一棒跑 `scratchpad/check_phototile_gcode2.py`）。
 
-**build 狀態**：release/v3.5.5 已 push 觸發 `build_all.yml`（僅 main/release/* 會觸發；ping/v3.5 push 不觸發）。run 編號見 GitHub Actions；上一次照片磚 build 綠＝run 28772878371 可對照。
+**build 狀態**：✅ **成功確認**（run `28883963324`，2h11m）。build_windows/linux/macOS(x86+arm+Universal) 的 **Build OrcaSlicer 全 success**；artifacts＝`PING_Slicer_Windows_V3.5.5`(100MB 安裝檔)＋`PING_Slicer_Windows_V3.5.5_portable`(133MB)＋Mac/Linux 齊，版本 V3.5.5 確認。整體 run 顯 failure **僅因 Flatpak×2＋Unit Tests＝坑#10**（與本次改動無關，Windows artifact 可正常下載安裝）。（build_all.yml 僅 main/release/* 觸發；ping/v3.5 push 不觸發。）
 
 **下一棒最優先（讓照片磚可正式發布）**：把照片磚**機器×5＋製程×5＋今天的零回抽/seam 參數**編進 `tools/ping/embed_params.py`＋repo bundle（現只在 %APPDATA%/portable）；順帶決定專屬料要不要建。回抽/轉角 saga 已定案（見 memory `photo-tile-vertical-mixing`）。
 
