@@ -23,6 +23,7 @@
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/PresetBundle.hpp"
+#include "libslic3r/Utils.hpp"   // PING: resources_dir() 供照片磚選單開啟內建 HTML
 
 #include "Tab.hpp"
 #include "ProgressStatusBar.hpp"
@@ -2515,6 +2516,15 @@ static wxMenu* generate_help_menu()
         [](wxCommandEvent&) { wxGetApp().keyboard_shortcuts(); });
     // Show Beginner's Tutorial
     append_menu_item(helpMenu, wxID_ANY, _L("Setup Wizard"), _L("Setup Wizard"), [](wxCommandEvent &) {wxGetApp().ShowUserGuide();});
+
+    // PING: 照片磚產生器（開啟內建 HTML 工具，拖照片→出彩色 3MF）
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("照片磚產生器"),
+        wxString::FromUTF8("產生照片磚彩色 3MF（於瀏覽器開啟）"),
+        [](wxCommandEvent&) {
+            std::string html_path = Slic3r::resources_dir() + "/web/phototile/index.html";
+            wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
+        });
 
     helpMenu->AppendSeparator();
     // Open Config Folder
