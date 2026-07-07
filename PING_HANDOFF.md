@@ -14,18 +14,33 @@
 
 ## 0. 立即接續（現況 + 待辦）
 
-**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 — 兩條線並行：①照片磚 build 綠＋獨立 portable 已裝，⏳ 等 Eric 切片驗收；②v3.5.5 牆速完成、PA-CF 等交付）**
-> **下一棒最優先**：照片磚驗收——Eric 用 `D:\PING-Slicer-phototile-portable` 開原型 3MF 切片匯出 → AI 自查 gcode（Tn 全換/預擠保留）→ 實印第一片。
+**🏁🏁🏁🏁🏁🏁🏁 現況（2026-07-06 晚收工 — 照片磚整條線跑通到「實印第一片＋縫隙優化 A 案」；②v3.5.5 牆速完成、PA-CF 等交付、版次顯示已寫）**
+> **下一棒最優先**：照片磚縫隙 A 案（交錯齒 v2.1）實印驗收——Eric 重啟 phototile portable → 用**原型 v2.1**（「邊界：交錯齒」預設開）重出 3MF → 切片 → 貼 gcode 我自查 → 印出來跟前一片（有縫）對照交界縫隙。若齒還不夠→退而求其次改外牆線寬；若要真·零縫→啟動 D 案（單網格+沿牆換色，X 失銳邊）。
 
-### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ build 綠（run 28772878371）＋獨立 portable 已裝，⏳ 等切片驗收
+### 🆕 照片磚企劃（2026-07-06，與 v3.5.5 平行的新線）— ✅ 全鏈路跑通＋實印第一片，🔧 縫隙優化 A 案 v2.1 待實印驗
 
-> **一句話現況**：垂直混色照片磚**原型全鏈路已通**（原型 v1.8→輸出多零件 3MF→PingSlicer 開檔成功、34 零件各帶配比名稱、切片正常）。T→M6052 後處理寫完＋驗證全過（commit `fb4f9033`）→ **Eric 已核准 build、run 28772878371 綠（build_windows/mac/linux 本體全 success；坑#10 整體 failure＝Flatpak/UnitTests 不算）→ 獨立 portable 已裝 `D:\PING-Slicer-phototile-portable`**（正式版 `D:\PING-Slicer-portable` 未動）。
+> **一句話現況**：垂直混色照片磚**從原型到實機全鏈路跑通**。核心後處理 build 綠（`fb4f9033`→run 28772878371）、獨立 portable 已裝 `D:\PING-Slicer-phototile-portable`（正式版 `D:\PING-Slicer-portable` 未動）。**FD300 小機第一片已印完**（`78g_6h36m`＝completed、實印 6h12m）；FF800 大機 gcode 已驗可印。Eric 首印回報**唯一問題＝零件交界有縫**→已定 A 案（交錯齒）、原型出到 **v2.1**，待實印驗。
+
+> **🖨 已建照片磚機（全免 build、%APPDATA%＋phototile portable 雙邊、參照自檢過）**：
+> - **FF800 同進照片磚**（四料 M6052）：**0.4／0.6／1.0** 三口徑（PINGM066/067/068、製程 PINGP111/112/113）。
+> - **FD300 同進照片磚**（雙料 M6051，小機）：**0.4／0.6** 兩口徑（FD300 硬體無 1.0；PINGM069/070、PINGP114/115）。
+> - 共通：**SEMM=1**（否則槽卡 2！＝克隆同進帶進的 SEMM=0）、`default_filament_profile`=**64 槽開滿**（選機自動長槽免手動+）、機名含「同進」讓後處理閘門零改碼認得、製程帶 **Eric 四項預設**（填充 0%／上下殼 0／牆 2 圈／接縫背部）＋**零回抽/零抬升**（retraction_length/z_hop/retract_length_toolchange 全 0——幾千次換料每次回抽既慢又擾混色）。PING.json 已到 **v47**。⚠ 未進 repo/embed_params 產生器（測試線慣例，正式化再編）。建置腳本 scratchpad `build_phototile_machine.py`／`extend_phototile_nozzles.py`／`build_fd300_phototile.py`。
+> - ⚠ 兩 portable **共用 %APPDATA%** → 正式版也看得到照片磚機，**別用正式版切照片磚**（無翻譯器、混色面板展開還會插曲線碼）。
+
+> **🎨 原型演進 v1.8→v2.1（`..\照片磚_原型_彩色模擬_v1.html`，檔名固定叫 v1、版本看頁內標題；雙擊即開）**：
+> - **v1.9 洗料柱**（Eric 定，取代換料塔）：輸出多一根柱零件（四料 `洗料柱 A25 B25 C25 D25`／雙料 `洗料柱 S0.5`、100% 填充、extruder=N+1）→ 每層必印＝四/兩料每層都動、防久未用料空燒。翻譯器直接吃、C++ 零改動。
+> - **v2.0 去層高化**（Eric 洞察：輸出是模型、層高歸切片器＝不會 Double）：垂直模式移除層高設定；洗料柱改**只設柱寬**（預設 25mm 方柱）、不再算每層體積。
+> - **v2.1 交錯齒**（Eric 定 A 案解縫）：奇數像素列把**垂直邊界**右咬 1px（長溝→單列錯位短縫＋零件咬合；只動垂直邊界——水平邊界無內縮溝、做齒會孤島爆炸）。preview 驗過（212 flips、零件/換料數不變、console 零錯）。UI「邊界：交錯齒」預設開。
 >
 > **🆕 專用機器＋洗料柱（Eric 2026-07-06 下午定，全免 build）**：
 > - **「FF800 同進照片磚」0.6 機器已建**（Eric 定名/口徑；克隆 FF800 同進 0.6）：`default_filament_profile`＝**64 槽開滿**（PLA 高流量 @FF 0.6）→ 選機自動長槽、免手動「+」。機名含「同進」＋FF 開頭＝後處理閘門**零改碼**直接認得。setting_id PINGM066/PINGP111、PING.json v44→**45** 三處註冊（LAY-11 排 FF800 3in1 之後）、高流量 0.6 線材 compatible += 新機、cover 複製、wizard 21/24.js regex 加「同進照片磚」＋EBWebView cache 已清。**裝在 %APPDATA%＋phototile portable 兩邊**（建置腳本 scratchpad `build_phototile_machine.py`、參照自檢雙邊過）。⚠ 未進 repo/embed_params 產生器（測試線慣例，正式化時再編）。
 > - **洗料柱（取代換料塔，Eric 定）**：原型 v1.9 輸出 3MF 時多一個柱零件（`洗料柱 A25 B25 C25 D25`／雙料 `洗料柱 S0.5`、extruder=N+1、**帶 sparse_infill_density=100%** per-part 設定——bbs_3mf.cpp:4942 set_deserialize 已查證支援）→ 每層必印一次＝四支料每層都動防空燒；截面=每層洗料量÷層高（UI 欄位預設 75mm³，0.35 層高→14.6mm 方柱），擺磚右側 15mm。**現成 T→M6052 翻譯器直接吃柱名，C++ 零改動**。調色盤上限 64→柱開啟時 63。換料塔本來就 enable_prime_tower=0 免動。
 > - **原型 v1.9 已驗**（preview 實測）：UI 列顯示/換算、雙料＋四料輸出攔截 zip 驗內容（柱 object/extruder/名稱/100%填充/palette 行全對）、層高加 0.35 選項、console 零錯。
-> - **⚠ 風險（Eric 首測看）**：①**槽位自動開 64 未實測**（切機自動同步槽數機制當年只驗過 1/2/4）——選「FF800 同進照片磚」看槽有沒有自動長滿；卡住＝回報，補 C++ ②兩個 portable **共用 %APPDATA%** → 正式版也會看到照片磚機器，**別用正式版切照片磚**（無翻譯器、混色面板展開還會插曲線碼）。
+> - **🔴 踩坑判例庫（2026-07-06 全實測，跨棒/售服會再踩）**：
+>   1. **槽位卡 2** ＝克隆同進帶進 `single_extruder_multi_material=0`。照片磚機必須 **SEMM=1**（走四色同路徑）才會吃 `default_filament_profile` 的 64 槽——已修、已實測 64 槽自動長滿。
+>   2. **零件交界縫隙**＝multi-volume 各自生外牆的幾何本質（每邊界 ≈1 線寬溝）。已排查：零回抽（Eric session 內即時關韌體回抽仍有縫）→非回抽問題；**`interlocking_beam` 在數百矩形零件上會炸引擎（Infill failed→當機）**，已試已收回**勿再開**；**XY 補償救不了**（多零件只作用最外輪廓，`PrintObjectSlice.cpp:1238` 重裁）；**彩繪路線（mmu painting）讀碼否決**——`apply_mm_segmentation`(`PrintObjectSlice.cpp:846`) 分區一樣各自生牆＝溝還在，且 `ExtruderMax=16`(`TriangleSelector.hpp:37`) 裝不下 39+ 色。**已定 A 案＝原型層做交錯齒**（v2.1，引擎只看到普通網格不會炸）。
+>   3. **實機操作坑（.135 FD300 實測）**：①**「上傳並列印」＝開印即 klippy_shutdown**（用料 60mm＝預擠剛跑完就當）——真因＝SBC 還在掃 7.5MB/39 萬行 metadata，Klipper 同時起跑動作規劃→過載（Timer too close 家族）。**SOP：上傳與開印分兩步、上傳完等 1–2 分鐘再按列印**（78g 那片第一次當、第二次分開就 completed）。②**firmware retraction 每次 klippy 重啟回 `retract_length=1.3`**——這台走 G10/G11 韌體回抽，回抽量由 Klipper 決定不由 gcode。要當場無回抽＝Fluidd 下 `SET_RETRACTION RETRACT_LENGTH=0`（先 `GET_RETRACTION` 記原值），**klippy 一重啟就要重下**。檔案級乾淨＝重啟 portable 重切（吃零回抽預設）。
+> - **gcode 自查工具**：`scratchpad/check_phototile_gcode.py <path>`——驗裸 T 殘留=0／Tn 全換 M605x／start 預擠保留／配比和=100／洗料柱全 25×4。四料認 M6052、雙料認 M6051（雙料版要用對話裡那段 M6051 規則版；下棒可把自動判雙/四料合進腳本）。三份 gcode（22h13m/498g/379g FF＋78g/133g FD）皆 PASS。
 
 > **🧭 接手座標**
 > - **build worktree**：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-phototile`，分支 `ping/photo-tile`，基底＝`release/v3.5.4` tip `00f0f08d`（乾淨、含預擠修正、不含 a11ee870 照片磚）。**tip＝`fb4f9033`（照片磚後處理）、working tree 乾淨**。
@@ -55,6 +70,7 @@
 > - 🔴 **發版鐵則（Eric 2026-07-05 定）**：`a11ee870`（首頁「雙料照片」磚＋photo-mixer）＝**測試用、永不列入正式發表**。它疊在 ping/v3.5 本地（未 push），我的 v3.5.5 commit 疊在它之上但內容與它無關。**v3.5.5 正式 build 一律比照 v3.5.4：用 git worktree 從排除 a11ee870 的基底切 release 分支**（基底＝`release/v3.5.4` tip `00f0f08d`，已含預擠修正、不含照片磚），把 ① 牆速（`4fe0217b`：`tools/ping/embed_params.py`＋`resources/profiles/PING/process/`）與 ②PA-CF cherry-pick 上去再 build。**別直接從 ping/v3.5 tip 發版**（會夾帶照片磚）。a11ee870 也**不要 push**。
 > - ✅ **③ 防呆 cherry-pick 完成**：`00f0f08d`（預擠同步修正）已回 ping/v3.5 主線＝commit **`2e27e298`**（乾淨無衝突）。ff_extra 範本已含 M6052、mixer 已含 in_body 保留邏輯；regen 不會再打回 T5。
 > - ✅ **① 牆速/填充正規化完成（免 build、resource，commit `4fe0217b`）**：吃參數端 `_切片規則同步_來自pingslicer_牆速填充_20260703.md`。產生器 `tools/ping/embed_params.py` 加 `normalize_fast_speed(proc, is_pacf=False)` 取代舊 `HF_SPEED`/`hf_overrides`（75/100/150 逐口徑暫定值，2026-06-11 裁定 → 新規蓋舊規），主迴圈（第 ~380 行）＋`emit_ff_extra`（FF 範本）兩處套用。**111 支製程檔全數命中**：外60／內 min(現,80)（100→80、單料/同進 60 不升）／填150／`sparse_infill_acceleration` 100%→**10000**／首層 `initial_layer_speed` 不動。副作用（已對齊 Cura V2.1）：54 支高流量 solid/top/gap 由舊 override 的 75 交回源檔 60。regen 零意外波及（PING.json/machine/Preset.cpp 未動＝setting_id 穩定）。**⏳ 待參數端牆速抽驗；portable 尚未換裝**（要驗切片可把 `resources/profiles/PING/process/` 同步進 %APPDATA%\PingSlicer\system\PING）。
+> - ✅ **④ 頂列常駐版次顯示（Eric 2026-07-06 售服需求，commit `0567977f` on ping/v3.5、未 build）**：BBLTopbar::SetTitle 組入 `PING Slicer V{SoftFever_VERSION}` 前綴＋建構播種（啟動即顯示）；發版 bump version.inc 自動跟上。**發 v3.5.5 時記得 cherry-pick 這顆**（與牆速 4fe0217b 同模式、基底仍排除 a11ee870）。
 > - ⏸ **② PA-CF crater — 等參數端交付 Orca `.config`（Eric 2026-07-05 定）**。**範圍：只 FD450 Pro 0.6 單料頭一支**。**取源：請參數端在 PingSlicer 開好該支 PA-CF → 匯出 `project_settings.config` 放 G 槽**（比照他料交付；Orca 匯出同時含製程＋線材＝零猜鍵）。原因：規格 `_切片規則同步_來自pingslicer_PACF專屬製程_20260703.md` 製程層級多為 **Cura 鍵**（`wall_thickness`/`skin_overlap`/`skin_outline_count`/`infill_wall_line_count`/`brim_gap`/`support_z_distance`/`cool_min_layer_time`/`top_bottom_thickness`），規格明令別猜；且現有 `resources/profiles/PING/filament/PING PA-CF.json` 線材值與規格對不上（溫 255≠250／床 70≠60／cool_plate 70／回抽 2≠1.3／缺 z_hop 0.8·hop速 90·韌體回抽·`material_flow_layer_0`=105）——交付檔會一併帶正確線材值。**交付到手後**：接進產生器出「FD450 Pro 0.6 單料頭 PA-CF」單一製程（`normalize_fast_speed` 帶 `is_pacf=True` 跳過牆速正規化，保火山口 50/80/80）＋同步 PING PA-CF 線材。Eric 可選「先把線材溫度暫改 250/60」兩個零疑義項先做。
 
 ---
