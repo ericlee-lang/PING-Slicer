@@ -15,7 +15,16 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🎯 現況（2026-07-08 午 — Eric 拍板「照片磚分支切割」＋原生整合規劃出爐，等 Eric 實走原型）
+### 🧱 換料塔＋棧板雙版本（2026-07-08 午後，參數端同步單・Eric 三裁決全 A 案）— ✅ repo 三線完成
+- 規格：`..\_切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md`。實作＝主線 commit **`2d27bb2c`**（photo-tile cherry `e59364a1`、release/v3.5.5 同內容 `98a7e2b6`）：
+  - **A** `normalize_prime_tower()`：全庫 `prime_tower_width` 30→15＋`wipe_tower_wall_type=rib`（主迴圈＋ff_extra＋照片磚範本三處）。
+  - **B** 棧板雙生 33 支 `{層高}mm_棧板 @機型 (口徑)`（raft 六鍵＝ABS+SUP 黃金配方；主迴圈收集、**4a-4 統一 emit＝setting_id 排全庫最後、既有 id 零位移**）。⚠ **兩線 id 不同**：照片磚線/主線＝PINGP116-148（與 %APPDATA% 對齊）、無照片磚 release 線＝PINGP111-143（該線無照片磚 5 支）——同名異 id、無功能影響，未來查坑別混淆。
+  - **C** Tab.cpp `ping_apply_combo_filaments` 前段加 `_棧板` 子字串偵測（UTF-8 位元組 `\xE6\xA3\xA7\xE6\x9D\xBF`）→ 全槽切 `PING ABS - 250`；≥1 槽即可；單向（切回一般版不換回 PLA）；僅手動點選觸發（沿用既有掛點）。**需 build＝搭下次發版**。
+  - `emit_phototile` 加 `os.path.isdir` 守衛 → **同一支 embed_params.py 在無照片磚 release 分支直接可跑**（該線 regen 已驗：144 支/verify 過）。
+- ⏸ **%APPDATA% 同步（驗收步驟①）被權限閘門擋、等 Eric 說「同步 %APPDATA%」**：做法＝備份 `process.bak-palletsync` → 複製 repo 全部製程（跳過照片磚 5 支＝牆速抉擇未裁不動）→ %APPDATA% PING.json 併 33 條目＋版號 47→48。⚠ 會把 07-05 牆速正規化一併帶上 Eric 機器（他機上還是舊速度）。
+- 回報參數端：已依雙向協定 send_message（見該線）。
+
+### 🎯 前況（2026-07-08 午 — Eric 拍板「照片磚分支切割」＋原生整合規劃出爐，等 Eric 實走原型）
 
 **Eric 指示（原話重點）**：①照片磚區分成分支，**兩個版本：一個含照片磚、一個沒有**（＝上一段 a11ee870 問題的裁決：走乾淨切割）②照片磚整合**不是把 Web 貼進去**，要像混色一樣原生整合③目標動線＝開新專案→選照片磚機→丟照片→**「準備」頁旁邊直接調參數**（他認為準備頁比照混色的預覽頁合理，問我意見——我同意，理由見規劃書）。
 
