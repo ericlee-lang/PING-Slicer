@@ -15,7 +15,22 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🚀🚀🚀 現況（2026-07-08 深夜自主任務 — 照片磚整合進 V3.5.5＋build 已發，Eric 睡前授權、明早直接測）
+### ✅ 現況（2026-07-08 上午接續 — 照片磚機器/製程已編進產生器＋repo bundle（commit `4f271975` push ping/v3.5）；🔴 發現 release/v3.5.5 夾帶 a11ee870 待 Eric 裁決）
+
+**已完成（原「下一棒最優先」）**：照片磚 5 機＋5 製程＋零回抽/seam 參數編進 `tools/ping/embed_params.py`＋repo bundle，全新安裝不再丟機器。
+1. **範本複製法比照 ff_extra**：`tools/ping/base/phototile/`（machine×7＝2 母檔+5 變體、process×5、cover×2，全部取自 %APPDATA% 實印驗證檔＝含 SEMM=1／64 槽／四項預設／零回抽 `use_firmware_retraction=0`／`seam_gap 0%`+`wipe_on_loops 0`）；`emit_phototile()` 順序寫死重現 setting_id **PINGM066-070／PINGP111-115**（與 %APPDATA% 全等）。
+2. **製程套 `normalize_fast_speed`**（2026-07-03 牆速新規全系列統一）：repo 版＝外60/內≤80/填150/accel10000；**%APPDATA% 仍是建置時舊值（FF 外75/內100、FD 外50、accel 100%）**——Eric 實印那幾片是舊值印的；bundle 版牆稍慢＝品質向（與其他 111 支一致）。⚠ 若 Eric 要照片磚維持實印值，把 emit_phototile 裡 normalize 那行拿掉即可。
+3. 高流量 PLA @FF 0.4/0.6/1.0 `compatible_printers` +照片磚機（SupPLA 不加）；wizard 21/24.js regex +「同進照片磚」；cover/preview 圖進孤兒保護＋側欄縮圖。
+4. **PING.json 版號 44→45（刻意 < %APPDATA% 的 47）**：bundle 不含 DL1016（本機注入備援）——版號若壓過 47，app 會用 bundle 蓋 %APPDATA% → **DL1016 從 Eric 機上消失**。之後任何人 bump 版號 ≥48 前，先把 DL1016 也編進 bundle 或接受消失。
+5. 驗證：regen 全庫 verify ✅ 243 presets/73 machines；既有 111 製程/66 機**位元零波及**；產出 vs %APPDATA% 語意比對＝機器 7 檔全等、製程僅差正規化速度鍵。**踩坑新判例**：建置腳本把 process 的 `compatible_printers` 寫成**字串**（app 容忍、verify 逐字元誤判）→ 範本已修成陣列；之後手建 preset 一律陣列。
+
+**🔴 發現（跨 session 違規、需 Eric 裁決）**：昨晚 `release/v3.5.5` 是**直接從 ping/v3.5 tip 切的，夾帶了 `a11ee870`**（首頁「雙料照片」測試磚＋photo-mixer）——違反 07-05 發版鐵則「a11ee870 永不進正式發表、build 從排除它的基底切」（memory `photo-tile-testing-not-release`）。今早功能測試不受影響；**若 V3.5.5 要對外正式發布，須重切乾淨 release 分支**（法一比照 v3.5.4 worktree 從 00f0f08d 基底 cherry-pick；法二在 release 分支 revert a11ee870）＋重 build。或 Eric 改裁「照片磚產品化了、雙料照片磚一併轉正」。
+- 註：a11ee870 也已隨 release/v3.5.5 push 上 GitHub（「不要 push」同時破戒，木已成舟、僅記錄）。
+
+**bundle 未含（維持現狀）**：DL1016（本機備援 `D:\dev\...\DL1016_本機注入備援\`）；專屬料 `PING PLA(照片磚)` 未建（回抽關後 wipe 已歸零＝功能多餘，等 Eric 要不要純產品隔離用）。
+
+---
+### 🚀🚀🚀 前況（2026-07-08 深夜自主任務 — 照片磚整合進 V3.5.5＋build 已發，Eric 睡前授權、明早直接測）
 
 **做了什麼（全在 `ping/v3.5`，並開 `release/v3.5.5` 觸發 build）**
 1. **cherry-pick 照片磚 T→M605x 後處理**（`fb4f9033`→本分支 `be14c92a`）：ping/v3.5 原本只有混色器（曲線編輯 M6051/M6052），**沒有**「多零件 3MF 依零件名配比換 M605x」的照片磚後處理；已淨套進來（同底 00f0f08d，零衝突）。→ V3.5 現在具**完整照片磚切片管線**。
