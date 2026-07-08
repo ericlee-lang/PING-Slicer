@@ -15,7 +15,24 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### ✅ 現況（2026-07-08 上午接續 — 照片磚機器/製程已編進產生器＋repo bundle（commit `4f271975` push ping/v3.5）；🔴 發現 release/v3.5.5 夾帶 a11ee870 待 Eric 裁決）
+### 🎯 現況（2026-07-08 午 — Eric 拍板「照片磚分支切割」＋原生整合規劃出爐，等 Eric 實走原型）
+
+**Eric 指示（原話重點）**：①照片磚區分成分支，**兩個版本：一個含照片磚、一個沒有**（＝上一段 a11ee870 問題的裁決：走乾淨切割）②照片磚整合**不是把 Web 貼進去**，要像混色一樣原生整合③目標動線＝開新專案→選照片磚機→丟照片→**「準備」頁旁邊直接調參數**（他認為準備頁比照混色的預覽頁合理，問我意見——我同意，理由見規劃書）。
+
+**已完成**：
+1. **分支切割**：
+   - `release/v3.5.5`（**無照片磚**）＝本機重切 `21ff0003`：基底 00f0f08d＋牆速 `4fe0217b`＋版次顯示 `0567977f`＋進版 3.5.5。無 a11ee870、無任何照片磚。**⚠ 未 push——push 到 release/* 會自動觸發 build（build_all.yml on.push），等 Eric 說 OK 才推**（推的時候要 `git push --force` 蓋掉 GitHub 上舊的污染版）。
+   - `ping/photo-tile`（**含照片磚**、已 push `9f373d24`）＝00f0f08d＋照片磚後處理 fb4f9033＋牆速＋版次＋照片磚 HTML/Help（cherry `ed62286d`，內含 version.inc 衝突解決）＋bundle `9f373d24`。**版號暫定 3.5.6**（兩版本頂列要分得出來；`ed62286d` 的 commit 訊息寫 3.5.5 但 version.inc 實為 3.5.6——cherry-pick 歷史訊息，勿被誤導）。無 a11ee870。原生整合（下述）之後也長在這條。
+   - `ping/v3.5` 主線維持混歷史（含 a11ee870）＝開發紀錄；**發版一律從上面兩條 release/feature 分支走，別再從主線 tip 切**。
+2. **原生整合規劃＋可操作原型**（P0，等 Eric 實走拍板）：
+   - 規劃書 `..\照片磚_整合規劃_20260708.html`：準備頁左欄「照片磚」卡片（選照片磚機才出現、混色面板互斥隱藏）；C++ 引擎移植（`libslic3r/PingPhotoTile`，比照 PingColorMix 純 std::＋Python 鏡像驗證）；**直接生成 ModelObject 上盤（免 3MF 出入）**；零件名帶配比→既有 T→M605x 後處理零改動；分階段 P0 原型定稿→P1 引擎移植（免 build）→P2 面板接線（build）→P3 持久化＋實印。
+   - 可操作原型 `..\照片磚_整合原型_準備頁_20260708.html`（雙擊開）：真的能丟照片/Ctrl+V→即時量化→改色階/尺寸/解析度/色票即時重算→產生零件（FBK-12 覆蓋確認）→切片閘門。已 preview 自查：合成測試圖三主色（紅屋/藍天/綠地）建議引擎全中、四料 A/B/C/D 與雙料 S 配比正確、一般機卡片消失、無橫向捲動、console 零錯誤。⚠ preview 截圖工具連續逾時（工具端問題），改以 DOM 數值＋像素讀取自查，Eric 實走原型時即是最終視覺驗收。
+3. bundle 嵌入（`4f271975`）詳見下一段（上午完成）。
+
+**⏳ 等 Eric**：①實走原型＋規劃書過審（拍板才開工 P1）②「可以 build」→ 我 force push `release/v3.5.5` 發車無照片磚版（要不要同時 workflow_dispatch build `ping/photo-tile` 一併說）③照片磚版號 3.5.6 認可或另定④（不阻塞）bundle 牆速正規化 vs 實印速度、專屬料。
+
+---
+### ✅ 前況（2026-07-08 上午接續 — 照片磚機器/製程已編進產生器＋repo bundle（commit `4f271975` push ping/v3.5）；🔴 發現 release/v3.5.5 夾帶 a11ee870 → **已由 Eric 分支切割指示解決（見上段）**）
 
 **已完成（原「下一棒最優先」）**：照片磚 5 機＋5 製程＋零回抽/seam 參數編進 `tools/ping/embed_params.py`＋repo bundle，全新安裝不再丟機器。
 1. **範本複製法比照 ff_extra**：`tools/ping/base/phototile/`（machine×7＝2 母檔+5 變體、process×5、cover×2，全部取自 %APPDATA% 實印驗證檔＝含 SEMM=1／64 槽／四項預設／零回抽 `use_firmware_retraction=0`／`seam_gap 0%`+`wipe_on_loops 0`）；`emit_phototile()` 順序寫死重現 setting_id **PINGM066-070／PINGP111-115**（與 %APPDATA% 全等）。
