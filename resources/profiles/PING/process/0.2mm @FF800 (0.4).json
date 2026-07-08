@@ -132,7 +132,7 @@
     "preheat_steps": "1",
     "preheat_time": "30",
     "prime_tower_brim_width": "3",
-    "prime_tower_width": "30",
+    "prime_tower_width": "15",
     "prime_volume": "45",
     "print_flow_ratio": "1",
     "print_order": "default",
@@ -295,5 +295,6 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 0.4 nozzle"
-    ]
+    ],
+    "wipe_tower_wall_type": "rib"
 }
