@@ -132,7 +132,7 @@
     "preheat_steps": "1",
     "preheat_time": "30",
     "prime_tower_brim_width": "3",
-    "prime_tower_width": "30",
+    "prime_tower_width": "15",
     "prime_volume": "45",
     "print_flow_ratio": "1",
     "print_order": "default",
@@ -298,5 +298,6 @@
         "FF800 3in1 0.6 nozzle"
     ],
     "solid_infill_rotate_template": "45,135",
-    "wipe_tower_max_idle_layers": "1"
+    "wipe_tower_max_idle_layers": "1",
+    "wipe_tower_wall_type": "rib"
 }
