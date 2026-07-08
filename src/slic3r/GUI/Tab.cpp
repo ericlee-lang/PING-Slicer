@@ -179,6 +179,24 @@ static void ping_apply_combo_filaments(const std::string &process_name)
     if (at == std::string::npos || at == 0) return;
     std::string head = process_name.substr(0, at);
     while (!head.empty() && head.back() == ' ') head.pop_back();
+    // PING(2026-07-08)：棧板雙生製程（頭段含「_棧板」，接在層高 token 後、無空白分隔
+    // → 不走下方 combo token 解析）→ 全槽切 PING ABS - 250（單料頭/同進/FP 全槽同料）。
+    // 單向連動（Eric 裁決）：切回無 _棧板 的一般版不自動換回 PLA（一般製程不動線材＝現行為）。
+    if (head.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos) {   // "_棧板" UTF-8
+        PresetBundle *bundle = wxGetApp().preset_bundle;
+        if (bundle->filament_presets.empty()) return;   // 棧板路徑放寬到 ≥1 槽（單料機也套）
+        if (!bundle->filaments.find_preset("PING ABS - 250", false)) return;   // 目標線材在才動手
+        for (size_t i = 0; i < bundle->filament_presets.size(); ++i)
+            bundle->set_filament_preset(i, "PING ABS - 250");
+        bundle->export_selections(*wxGetApp().app_config);
+        if (Plater *plater = wxGetApp().plater()) {
+            plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
+            plater->update_project_dirty_from_presets();
+            for (size_t i = 0; i < bundle->filament_presets.size(); ++i)
+                plater->on_filament_change(i);
+        }
+        return;
+    }
     size_t sp = head.find_last_of(' ');
     if (sp == std::string::npos) return;
     const std::string combo = head.substr(sp + 1);

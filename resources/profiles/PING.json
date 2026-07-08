@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.45",
+    "version": "01.00.00.46",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -573,6 +573,138 @@
         {
             "name": "0.3mm @FD300 同進照片磚 (0.6)",
             "sub_path": "process/0.3mm @FD300 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.1mm_棧板 @FP300 (0.2)",
+            "sub_path": "process/0.1mm_棧板 @FP300 (0.2).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FP300 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FP300 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FP300 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FP300 (0.6).json"
+        },
+        {
+            "name": "0.125mm_棧板 @FD300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm_棧板 @FD300 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD300 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm_棧板 @FD300 同進 (0.25)",
+            "sub_path": "process/0.125mm_棧板 @FD300 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD300 同進 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD300 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD300 同進 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm_棧板 @FD300 Pro 單料頭 (0.25)",
+            "sub_path": "process/0.125mm_棧板 @FD300 Pro 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD300 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD300 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD300 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD300 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm_棧板 @FD300 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm_棧板 @FD300 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD300 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD300 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD300 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD300 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD450 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD450 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD450 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD450 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD450 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD450 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD450 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD450 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD600 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD600 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD600 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD600 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD600 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD600 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD600 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD800 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm_棧板 @FD800 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_棧板 @FD800 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_棧板 @FD800 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_棧板 @FD800 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_棧板 @FD800 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_棧板 @FD800 Pro 同進 (1.0).json"
         }
     ],
     "filament_list": [
