@@ -280,7 +280,8 @@
         "FF600 同進 0.4 nozzle",
         "FF800 同進 0.4 nozzle",
         "FF600 3in1 0.4 nozzle",
-        "FF800 3in1 0.4 nozzle"
+        "FF800 3in1 0.4 nozzle",
+        "FF800 同進照片磚 0.4 nozzle"
     ],
     "filament_colors": [
         "#EA4E16"
