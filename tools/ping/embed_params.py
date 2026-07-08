@@ -36,6 +36,21 @@ DEFAULT_SRC = r"G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slic
 # 內含 machine（含 machine_model 底檔）／process／filament（3in1 專用 T4/T3 料）／cover。
 # 2026-07-01：3in1 收 2 槽（T4/T3 走 filament_start_gcode）+ 同進(T5) 編進產生器（範本複製法）。
 FF_EXTRA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "ff_extra")
+# ★ 照片磚範本（2026-07-08 收編）：垂直混色照片磚專用機（衍生自同進、Eric 實印驗證）。
+# 無源 config——%APPDATA% 手工建置檔收進 repo 當範本（建置腳本見當時 scratchpad
+# build_phototile_machine.py／extend_phototile_nozzles.py／build_fd300_phototile.py）。
+# 範本已含：SEMM=1（槽位才會吃 64 槽 default_filament_profile）＋64 槽開滿＋
+# Eric 四項製程預設（填充0%／上下殼0層／牆2圈／接縫背部）＋零回抽（retraction 全 0
+# ＋use_firmware_retraction=0，防繞道 Klipper G10）＋seam_gap 0%/wipe_on_loops 0
+#（2026-07-08 轉角 C 缺口定案）。機名含「同進」＝gcode 後處理閘門零改碼認得。
+# 順序寫死＝重現 %APPDATA% 建置時的 setting_id（PINGM066-070／PINGP111-115）。
+PHOTOTILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "phototile")
+PHOTOTILE_MACHINES = ["FF800 同進照片磚 0.6 nozzle", "FF800 同進照片磚 0.4 nozzle",
+                      "FF800 同進照片磚 1.0 nozzle", "FD300 同進照片磚 0.4 nozzle",
+                      "FD300 同進照片磚 0.6 nozzle"]
+PHOTOTILE_PROCS = ["0.35mm @FF800 同進照片磚 (0.6)", "0.25mm @FF800 同進照片磚 (0.4)",
+                   "0.45mm @FF800 同進照片磚 (1.0)", "0.2mm @FD300 同進照片磚 (0.4)",
+                   "0.3mm @FD300 同進照片磚 (0.6)"]
 
 # ---------- 1. OrcaSlicer 權威 key 分類 ----------
 _src = open(PRESET_CPP, encoding="utf-8", errors="ignore").read()
@@ -224,6 +239,24 @@ def normalize_fast_speed(proc, is_pacf=False):
     proc["sparse_infill_acceleration"] = "10000"
     return proc
 
+# ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md）：
+# 全庫統一 寬 30→15＋外牆肋條（rib）。肋寬/圓角吃引擎預設（肋寬 8；寬 15 時被引擎夾到 7.5
+# ＝正常行為，PrintConfig.cpp wipe_tower_rib_width tooltip）。單料機不顯示換料塔、寫入無副作用
+# → 不分機型全寫（含 FF 範本/照片磚範本）。
+def normalize_prime_tower(proc):
+    proc["prime_tower_width"] = "15"
+    proc["wipe_tower_wall_type"] = "rib"
+    return proc
+
+# ★ 棧板雙版本製程（2026-07-08 Eric 拍板，同上規格檔）：FD 單料頭/同進＋FP300 出「_棧板」雙生
+#（raft 六鍵＝既有 ABS+SUP 黃金配方定稿值，與 0.2mm ABS+SUP @FD300 (0.4).json 全等）。
+# 裁決：①FF 全系/DL1016/雙料組合不出 ②切回一般版不自動換回 PLA（Tab.cpp 單向連動）
+# ③雙料 ABS+SUP/ABS+ABS 維持現名（功能上已是棧板版）。
+# setting_id 一律排在全庫既有 id 之後（主迴圈收集、最後統一 emit），既有 id 零位移。
+PALLET_OVERRIDES = {"raft_layers": "2", "raft_contact_distance": "0.1", "raft_expansion": "1.5",
+                    "raft_first_layer_density": "100%", "raft_first_layer_expansion": "3",
+                    "initial_layer_line_width": "150%"}
+
 # ---------- 3. 交付檔解析 ----------
 def parse_dir(src_base, dirname):
     """回傳 {(nozzle, mode): config}；mode ∈ {dual, 單料頭, 同進, 四色}（dual=PLA+SUP 母檔）"""
@@ -292,6 +325,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
+        normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -304,6 +338,36 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     print("  ff_extra 併入：machine=%d + machine_model=%d，process=%d，filament=%d，cover=%d"
           % (n_mac, len(ff_models), n_proc, len(ff_fil), n_cov))
     return gm, gp, ff_fil, ff_models
+
+def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
+    """照片磚範本併入（比照 emit_ff_extra 範本複製法）：machine_model×2＋口徑變體×5＋製程×5＋cover×2。
+    製程套 normalize_fast_speed（2026-07-03 牆速新規＝全 Fast 系列統一含同進衍生；
+    範本源值 75/100/accel100% 是 %APPDATA% 建置當時未同步正規化的舊值→進 repo 時對齊）。
+    其餘照範本不改值、只重編 setting_id。回傳 (gm, gp, pt_models)。"""
+    pt_models = []
+    for fn in sorted(os.listdir(os.path.join(PHOTOTILE, "machine"))):
+        d = json.load(io.open(os.path.join(PHOTOTILE, "machine", fn), encoding="utf-8"))
+        if d.get("type") == "machine_model":
+            jdump(os.path.join(PINGDIR, "machine", "%s.json" % d["name"]), d)
+            mm_list.append({"name": d["name"], "sub_path": "machine/%s.json" % d["name"]})
+            pt_models.append(d["name"])
+    for name in PHOTOTILE_MACHINES:
+        d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
+        d["setting_id"] = "PINGM%03d" % gm; gm += 1
+        jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
+        mac_list.append({"name": name, "sub_path": "machine/%s.json" % name})
+    for name in PHOTOTILE_PROCS:
+        d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
+        normalize_fast_speed(d)
+        normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
+        d["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
+        proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
+    for fn in os.listdir(os.path.join(PHOTOTILE, "cover")):
+        shutil.copy2(os.path.join(PHOTOTILE, "cover", fn), os.path.join(PINGDIR, fn))
+    print("  phototile 併入：machine=%d + machine_model=%d，process=%d，cover=2"
+          % (len(PHOTOTILE_MACHINES), len(pt_models), len(PHOTOTILE_PROCS)))
+    return gm, gp, pt_models
 
 # ---------- 4. 主流程 ----------
 def main(src_base):
@@ -318,6 +382,7 @@ def main(src_base):
     gm = gp = 0
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
+    pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -381,12 +446,18 @@ def main(src_base):
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh))
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
+                    normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
                         "filename_format": filename_tpl(cb)})
                     jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
                     proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
+                    # 棧板雙生（單料頭/同進/FP 限定；kind=ff 的四色 is_single=False 天然排除）
+                    if is_single and not PING_ONLY:
+                        tw = dict(proc); tw.update(PALLET_OVERRIDES)
+                        tw["name"] = "%smm_棧板 @%s (%s)" % (lh, model, nz)
+                        pallet_twins.append(tw)
 
             # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
             mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
@@ -406,6 +477,21 @@ def main(src_base):
         gm, gp, ff_fil, ff_models = emit_ff_extra(mm_list, mac_list, proc_list, gm, gp)
     else:
         ff_fil, ff_models = [], []
+    # 4a-3. 照片磚範本併入（需 FF800/FD300 家族＝通用版；客戶版 PING_ONLY 跳過）。
+    #       同樣須在 4b 之前跑，讓高流量 PLA 的 compatible 掛得到照片磚機。
+    #       範本資料夾不存在（如無照片磚的 release 分支）＝自動跳過，同一支產生器兩線通用。
+    if not PING_ONLY and os.path.isdir(PHOTOTILE):
+        gm, gp, pt_models = emit_phototile(mm_list, mac_list, proc_list, gm, gp)
+    else:
+        pt_models = []
+
+    # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 111＋照片磚 5 支 id 零位移）
+    for tw in pallet_twins:
+        tw["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % tw["name"]), tw)
+        proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
+    if pallet_twins:
+        print("  棧板雙生製程：%d 支（PINGP%03d 起）" % (len(pallet_twins), gp - len(pallet_twins)))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
@@ -422,6 +508,9 @@ def main(src_base):
                     "FF600 同進 %s nozzle" % nz, "FF800 同進 %s nozzle" % nz,
                     "FF600 3in1 %s nozzle" % nz, "FF800 3in1 %s nozzle" % nz)
                     if m in existing_machines]
+        # 照片磚機只吃高流量 PLA、不掛 SupPLA（64 槽全 PLA——2026-07-06 建機驗證狀態）
+        machines_pla = machines + [m for m in ("FF800 同進照片磚 %s nozzle" % nz,)
+                                   if m in existing_machines]
         sfx = nz.replace(".","")   # 0.6 -> 06
         for slot, mat, fid_p, alias, color, sup in (
                 (0, "PLA",    "PINGFILHFPLA", "PING PLA - 高流量",    "#EA4E16", False),
@@ -431,7 +520,8 @@ def main(src_base):
             fid = fid_p + sfx
             fp.update({"type":"filament","name":name,"alias":alias,"from":"system",
                 "instantiation":"true","setting_id":fid,"filament_id":fid,
-                "inherits":"fdm_filament_pla","compatible_printers":machines,
+                "inherits":"fdm_filament_pla",
+                "compatible_printers":(machines if sup else machines_pla),
                 "filament_colors":[color],"default_filament_colors":[color]})
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；FD 的 30/60 規則不適用，待裁定）
@@ -449,9 +539,9 @@ def main(src_base):
         from PIL import Image
         Image.new("RGBA", (600, 600), (0, 0, 0, 0)).save(path)
     cover_sources = set(cover_src.values())  # 保留被引用的來源圖（如 P200+ 借 FP300_cover）
-    for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面（ff_extra 範本模型受保護）
+    for f in os.listdir(PINGDIR):           # 刪除不屬於現役機型的封面（ff_extra/照片磚 範本模型受保護）
         if f.endswith("_cover.png") and f[:-len("_cover.png")] not in nozzles_of \
-           and f[:-len("_cover.png")] not in ff_models and f not in cover_sources:
+           and f[:-len("_cover.png")] not in (ff_models + pt_models) and f not in cover_sources:
             os.remove(os.path.join(PINGDIR, f)); print("  cover 移除(孤兒):", f)
     for model in nozzles_of:
         dst = os.path.join(PINGDIR, "%s_cover.png" % model)
@@ -466,7 +556,7 @@ def main(src_base):
     #       全部用「家族機器照」（模式變體同實機）；240x240 RGBA 同上游規格
     from PIL import Image
     img_dir = os.path.join(REPO, "resources", "images")
-    for model in list(nozzles_of) + ff_models:   # ff_models（同進/3in1）側欄縮圖也要
+    for model in list(nozzles_of) + ff_models + pt_models:   # ff_models（同進/3in1）＋照片磚 側欄縮圖也要
         family_cover = cover_src[max((k for k in cover_src if model.startswith(k)), key=len)]
         mm_path = os.path.join(PINGDIR, "machine", "%s.json" % model)
         model_id = json.load(io.open(mm_path, encoding="utf-8"))["model_id"]
