@@ -12,8 +12,10 @@
 
 #include "libslic3r/GCode/PingColorMix.hpp"
 #include "Plater.hpp"
+// PING(2026-07-09 Eric)：按鈕改用軟體標準 Button 元件（Widgets/Button 的 SetStyle
+// Regular/Confirm＝全 app 統一的 hover/按壓/焦點/深色樣式），不再用原生 wxButton 硬塗色
+#include "Widgets/Button.hpp"
 
-class wxButton;
 class wxCheckBox;
 class wxStaticText;
 
@@ -101,10 +103,10 @@ private:
 
     PingMixCanvas* m_canvas = nullptr;
     wxStaticText*  m_title  = nullptr;
-    wxButton*      m_collapse_btn = nullptr;
+    ::Button*      m_collapse_btn = nullptr;
     std::function<void()> m_toggle_cb;
-    wxButton*      m_mode_btns[3] = { nullptr, nullptr, nullptr };   // 漸層/階梯/平滑
-    wxButton*      m_tpl_btns[3]  = { nullptr, nullptr, nullptr };   // 同進/漸層(雙)or雙色(四)/彩虹(四)
+    ::Button*      m_mode_btns[3] = { nullptr, nullptr, nullptr };   // 漸層/階梯/平滑
+    ::Button*      m_tpl_btns[3]  = { nullptr, nullptr, nullptr };   // 同進/漸層(雙)or雙色(四)/彩虹(四)
     wxCheckBox*    m_low_flow     = nullptr;                          // 四料低流量進階（min_flow 0.10↔0.05）
     wxWindow*      m_swatches[4]  = { nullptr, nullptr, nullptr, nullptr }; // E1..E4 色票
     wxStaticText*  m_swatch_labels[4] = { nullptr, nullptr, nullptr, nullptr };
