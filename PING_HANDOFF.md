@@ -17,7 +17,7 @@
 ---
 ### 🏁 收工快照（2026-07-09 晚・本 session 結束——下一棒從這裡接）
 
-**🔴 下一棒第一件事：查 build run `29011140392`（release/v3.5.5 @ `48e95f8b`）**——本 session 收工時仍在跑（~2h）、監看程序隨 session 結束失效。綠了（看 build_windows 的 Build OrcaSlicer job，整體 failure＝Flatpak/UnitTests 坑#10 不算）→ 下載 `PING_Slicer_Windows_V3.5.5_portable` artifact 換裝 `D:\PING-Slicer-portable`（現況備份成 -old 再換）→ 通知 Eric 驗收。
+**✅ build run `29011140392` 綠＋portable 已換裝（收工前完成）**：本體全 success（坑#10 照舊）；`D:\PING-Slicer-portable`＝V3.5.5 第3版（9 修正、bundle v45、無照片磚），前版備份 `-old-v355r2`。**下一棒＝等 Eric 驗收回饋**（重點五條見下段）。
 
 **這顆 build 內容（V3.5.5 第 3 版，累積 9 修正）**：混色層級（同進不顯三選項/範本主選/收合鈕浮動）＋混色按鈕標準樣式＋設備未連線中文頁＋設備對話框三修（瀏覽鈕除/tooltip 去參數名/主機名說明短版）＋品牌清洗＋專案頁移除＋新增實例 tooltip＋洗料塔圓床預設＋FD300 弧線預擠。**Eric 驗收重點**：①混色浮動鈕 vs 縱向層滑桿位置（可能要調 offset）②專案頁消失後「校正」入口正常（FindPage 換算）③FD300 三模式切片＝弧線預擠、上機不撞門（雙料 4 弧 T0/T1、單料頭 2 弧、同進 M6050+2 弧）④選 `_棧板` 自動切 ABS 沒退化⑤About 頁品牌字樣。
 
