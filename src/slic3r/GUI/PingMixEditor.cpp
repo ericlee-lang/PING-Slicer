@@ -626,17 +626,8 @@ void PingMixEditor::build_controls()
     title_row->Add(m_collapse_btn, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(8));
     vbox->Add(title_row, 0, wxEXPAND | wxLEFT | wxTOP, FromDIP(8));
 
-    // 模式列：漸層/階梯/平滑
-    wxBoxSizer* mode_row = new wxBoxSizer(wxHORIZONTAL);
-    const wxString mode_names[3] = { wxString::FromUTF8("漸層"), wxString::FromUTF8("階梯"), wxString::FromUTF8("平滑") };
-    for (int i = 0; i < 3; ++i) {
-        m_mode_btns[i] = new wxButton(this, wxID_ANY, mode_names[i], wxDefaultPosition,
-                                      wxSize(FromDIP(56), FromDIP(26)), wxBU_EXACTFIT);
-        m_mode_btns[i]->Bind(wxEVT_BUTTON, [this, i](wxCommandEvent&) { on_mode_clicked(i); });
-        mode_row->Add(m_mode_btns[i], 0, wxRIGHT, FromDIP(4));
-    }
-    vbox->Add(mode_row, 0, wxLEFT | wxTOP, FromDIP(8));
-
+    // PING(2026-07-09 Eric)：層級改「範本為主選」——範本列（同進/漸層…）排在前、帶選中狀態；
+    // 曲線模式列（漸層/階梯/平滑）是漸層的細部選項，只在「非同進均分」時顯示（漸進揭露）。
     // 範本列＋低流量
     wxBoxSizer* tpl_row = new wxBoxSizer(wxHORIZONTAL);
     for (int i = 0; i < 3; ++i) {
@@ -650,6 +641,17 @@ void PingMixEditor::build_controls()
     m_low_flow->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { on_low_flow_toggled(); });
     tpl_row->Add(m_low_flow, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(4));
     vbox->Add(tpl_row, 0, wxLEFT | wxTOP, FromDIP(8));
+
+    // 模式列：漸層/階梯/平滑（同進均分時整列隱藏，見 sync_controls）
+    wxBoxSizer* mode_row = new wxBoxSizer(wxHORIZONTAL);
+    const wxString mode_names[3] = { wxString::FromUTF8("漸層"), wxString::FromUTF8("階梯"), wxString::FromUTF8("平滑") };
+    for (int i = 0; i < 3; ++i) {
+        m_mode_btns[i] = new wxButton(this, wxID_ANY, mode_names[i], wxDefaultPosition,
+                                      wxSize(FromDIP(56), FromDIP(26)), wxBU_EXACTFIT);
+        m_mode_btns[i]->Bind(wxEVT_BUTTON, [this, i](wxCommandEvent&) { on_mode_clicked(i); });
+        mode_row->Add(m_mode_btns[i], 0, wxRIGHT, FromDIP(4));
+    }
+    vbox->Add(mode_row, 0, wxLEFT | wxTOP, FromDIP(8));
 
     // 色票列（E1..E4；雙料只顯示前兩個）
     wxBoxSizer* swatch_row = new wxBoxSizer(wxHORIZONTAL);
@@ -693,13 +695,27 @@ void PingMixEditor::sync_controls()
     m_title->SetLabel(m_is_quad ? wxString::FromUTF8("混色曲線（四料）")
                                 : wxString::FromUTF8("混色曲線（雙料）"));
 
-    // 模式按鈕：active 橘底白字
+    // PING(2026-07-09 Eric)：同進（均分）＝不需要曲線模式 → 整列隱藏；選漸層/動過曲線才出現。
+    const bool flat_tongjin = is_flat_tongjin();
+
+    // 模式按鈕：active 橘底白字（僅非同進時可見）
     const PingMix::CurveMode mode = recipe().mode;
     for (int i = 0; i < 3; ++i) {
         const bool active = (int)mode == i;
         m_mode_btns[i]->SetBackgroundColour(active ? COL_ORANGE : wxNullColour);
         m_mode_btns[i]->SetForegroundColour(active ? *wxWHITE : wxNullColour);
+        m_mode_btns[i]->Show(!flat_tongjin);
         m_mode_btns[i]->Refresh();
+    }
+
+    // 範本按鈕選中狀態：同進均分＝「同進」亮；雙料非均分＝「漸層」亮（四料非均分不特別亮——
+    // 雙色/彩虹是一次性範本、非持續狀態）
+    const int active_tpl = flat_tongjin ? 0 : (m_is_quad ? -1 : 1);
+    for (int i = 0; i < 3; ++i) {
+        const bool active = i == active_tpl;
+        m_tpl_btns[i]->SetBackgroundColour(active ? COL_ORANGE : wxNullColour);
+        m_tpl_btns[i]->SetForegroundColour(active ? *wxWHITE : wxNullColour);
+        m_tpl_btns[i]->Refresh();
     }
 
     // 範本按鈕
@@ -731,11 +747,30 @@ void PingMixEditor::sync_controls()
     Layout();
 }
 
+// 同進均分判定：雙料＝所有節點 50/50、四料＝所有節點 25×4（拖過節點即非同進，模式列跟著現身）
+bool PingMixEditor::is_flat_tongjin() const
+{
+    const PingMix::Recipe& r = recipe();
+    if (m_is_quad) {
+        for (const PingMix::QuadStop& q : r.qstops)
+            for (int k = 0; k < 4; ++k)
+                if (std::abs(q.mix[k] - 0.25) > 1e-6)
+                    return false;
+        return true;
+    }
+    for (const PingMix::Stop& st : r.stops)
+        if (std::abs(st.ratio - 0.5) > 1e-6)
+            return false;
+    return true;
+}
+
 void PingMixEditor::commit()
 {
     Plater* plater = wxGetApp().plater();
     if (plater != nullptr)
         plater->set_ping_mix_state(m_state);
+    // 拖曳放開也走這裡：曲線一離開「同進均分」，範本亮燈與模式列要跟著換（漸進揭露）
+    sync_controls();
 }
 
 void PingMixEditor::refresh_canvas()
