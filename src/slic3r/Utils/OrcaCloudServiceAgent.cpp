@@ -70,7 +70,7 @@ std::string generate_uuid(const std::string& name = "")
         return "";
     }
 
-    // Use a fixed namespace UUID for OrcaSlicer profiles
+    // Use a fixed namespace UUID for PING Slicer profiles
     // This ensures the same name always generates the same UUID
     static const boost::uuids::uuid orca_namespace =
         boost::uuids::string_generator()("f47ac10b-58cc-4372-a567-0e02b2c3d479");
