@@ -19,7 +19,8 @@
 - run **28952768359** @ `98a7e2b6`（Eric 授權發車；整體 failure＝Flatpak×2＋UnitTests 坑#10，本體全綠、artifact 齊：Windows 安裝檔+portable/Mac Universal/Linux）。
 - `D:\PING-Slicer-portable`＝乾淨 **V3.5.5**（混色＋預擠＋牆速＋版次＋棧板 A+B+C；無照片磚、無 a11ee870）。舊 v3.5.4 備份 `D:\PING-Slicer-portable-old-v354`（更早 -old-preB/-premix/-preprimefix 已標可清、未刪）。bundle PING.json v45 <%APPDATA% v48 → DL1016 安全。⚠ 這顆無照片磚後處理，切照片磚一律用 `D:\PING-Slicer-phototile-portable`。
 - %APPDATA% 已同步棧板（Eric 授權）：備份 `process.bak-palletsync`、+33 雙生、版號 48、牆速新規一併帶上；照片磚 5 支/DL1016 未動。
-- ⏳ 等 Eric：驗棧板（雙生/筏層/塔 15 肋條/**手選 _棧板 自動切 ABS-250**）→「棧板驗收 OK」轉參數端；要不要發正式 Release。
+- ✅ 棧板驗收 OK（Eric 07-09；150%＝筏層貼床層線寬，引擎碼 support_material_1st_layer_flow→Base flange 查證）；已轉參數端定案。
+- ✅ **G 槽下載夾已換乾淨版**（`G:\我的雲端硬碟6claude\PING Slicer\`）：7/8 有人上傳了污染版 V3.5.5（run 28883963324 夾帶 a11ee870）→ 07-09 同名覆蓋為乾淨 run 28952768359（連結不變）、SHA-256/版本資訊.txt 已更新。⏳ 可選：補發 GitHub Release v3.5.5 tag（等 Eric 說）。
 
 ### 🧱 換料塔＋棧板雙版本（2026-07-08 午後，參數端同步單・Eric 三裁決全 A 案）— ✅ repo 三線完成
 - 規格：`..\_切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md`。實作＝主線 commit **`2d27bb2c`**（photo-tile cherry `e59364a1`、release/v3.5.5 同內容 `98a7e2b6`）：
