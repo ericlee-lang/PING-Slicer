@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="./ping-logo.png" />
+    <title>PING Color Mixer V2.0</title>
+    <script type="module" crossorigin src="./assets/index-CGsUA3fQ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DEC-t5bI.css">
+  </head>
+  <body>
+    <div id="app">
+      <section id="viewer">
+        <div id="drop-hint">
+          <div class="dh-icon">⬇</div>
+          <div class="dh-head"><span class="step-tag">步驟 1</span></div>
+          <div class="dh-text">把 <b>.gcode</b> 拖進來</div>
+        </div>
+        <div id="overlayWrap"></div>
+        <div id="vtools" hidden>
+          <button id="viewBedBtn" class="vt-btn active" title="顯示列印平台">列印平台</button>
+          <button id="viewModelBtn" class="vt-btn" title="無平台、模型填滿畫面、節點直接疊在模型上調">模型</button>
+          <button id="viewTopBtn" class="vt-btn" title="正上方往下看；可再用滑鼠轉成 3D">俯視</button>
+          <button id="firstLayerBtn" class="vt-btn" title="只顯示最底層，確認四色橫向排列">首層</button>
+          <button id="gridBtn" class="vt-btn vt-grid active" title="顯示/隱藏節點，看模型最終狀態" hidden>⊞ 網格</button>
+        </div>
+        <!-- 機型（FD/D）小切換，右上角；只在雙料相關 -->
+        <div id="seriesPick" hidden>
+          <span class="sp-lab">機型</span>
+          <button class="vt-btn series-btn active" data-series="fd" title="FD 系列：逐層設定混色比例">FD 系列</button>
+          <button class="vt-btn series-btn" data-series="d" title="D 系列（舊款韌體）：輸出分段漸變 M6050">D 系列</button>
+          <span class="sp-hint" id="seriesHint" hidden>D 系列：分段漸變 M6050</span>
+        </div>
+        <!-- 檔案資訊：拖檔後出現在左上角 -->
+        <div id="info" hidden>尚未載入檔案</div>
+        <!-- 步驟 2 的「目前材料色」純顯示：對照模型方位（編輯在左面板步驟2，這裡不可點）-->
+        <div id="topPick">
+          <div id="dualColorView" class="cview"></div>
+          <div id="quadColorView" class="cview cview-quad" hidden></div>
+        </div>
+      </section>
+      <aside id="panel">
+        <header>
+          <img src="./ping-logo.png" class="brand-logo" alt="PING Color Mixer" />
+        </header>
+
+        <!-- 步驟 1 在右側 3D 區操作（拖檔）；用說明帶過去，讓左面板 1→2→3→4 順讀 -->
+        <div class="step-guide">
+          <div class="sg-item">
+            <span class="step-tag">步驟 1</span>
+            <span class="sg-txt"><b>載入檔案</b><span class="sg-sub">把 .gcode 拖到右側 3D 區</span></span>
+          </div>
+        </div>
+
+        <!-- 步驟 2：選模式與材料（編輯在左面板；右側畫布只純顯示目前色對照方位）-->
+        <div class="card">
+          <div class="sec-title"><span class="step-tag">步驟 2</span> 選模式與材料</div>
+          <div class="mix-tabs">
+            <button class="mix-tab active" data-mix="dual">雙料漸層</button>
+            <button class="mix-tab" data-mix="quad">四料混色</button>
+          </div>
+          <div id="colorBar">
+            <div id="dualColorBar" class="cbar">
+              <div class="cb-item"><span class="cb-lab">E1</span><button type="button" class="swatch-btn" id="color1" data-color="#E8A000"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+              <div class="cb-item"><span class="cb-lab">E2</span><button type="button" class="swatch-btn" id="color2" data-color="#1A1A1A"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+            </div>
+            <!-- 左面板：四料色列改一排（編輯用）；2×2「操作側視角」排列改放畫布純顯示，省高度 -->
+            <div id="quadColorBar" class="cbar cbar-quad" hidden>
+              <div class="cb-item"><span class="cb-lab">E1</span><button type="button" class="swatch-btn" id="qcolor1" data-color="#D9534F"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+              <div class="cb-item"><span class="cb-lab">E2</span><button type="button" class="swatch-btn" id="qcolor2" data-color="#F8D44C"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+              <div class="cb-item"><span class="cb-lab">E3</span><button type="button" class="swatch-btn" id="qcolor3" data-color="#BCAF4A"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+              <div class="cb-item"><span class="cb-lab">E4</span><button type="button" class="swatch-btn" id="qcolor4" data-color="#176B87"><span class="sw-chip"></span><span class="sw-name"></span></button></div>
+            </div>
+          </div>
+          <div id="opacityRow">
+            <span class="op-lab">透明度</span>
+            <input type="range" id="opacitySlider" min="0" max="100" value="0" />
+            <span id="opacityVal">0%</span>
+          </div>
+        </div>
+
+        <!-- 步驟 3：調色控制（雙料/四料共用一張卡，配方也在這裡）-->
+        <div class="card">
+          <div class="sec-title"><span class="step-tag">步驟 3</span> 調色控制</div>
+
+          <div id="dualCard">
+            <div class="tpl-row">
+              <span class="tpl-label">範本</span>
+              <button class="tpl-btn" data-dtpl="coequal" title="還原：兩料各 50% 等量同進">雙料同進</button>
+            </div>
+            <div class="mode-tabs" id="dualModeTabs">
+              <button class="mode-btn active" data-mode="linear">漸層</button>
+              <button class="mode-btn" data-mode="step">階梯</button>
+              <button class="mode-btn" data-mode="smooth">平滑</button>
+            </div>
+            <div id="curve" class="curve-box"></div>
+            <ul class="hint-list">
+              <li>拖曳圓點調整比例與高度</li>
+              <li>雙擊空白新增控制點、雙擊圓點刪除</li>
+            </ul>
+          </div>
+
+          <div id="quadCard" hidden>
+            <div class="tpl-row">
+              <span class="tpl-label">範本</span>
+              <button class="tpl-btn" data-tpl="equal">四色同進</button>
+              <button class="tpl-btn" data-tpl="duo">雙色過渡</button>
+              <button class="tpl-btn" data-tpl="rainbow">彩虹</button>
+            </div>
+            <div class="mode-tabs" id="qmodeTabs">
+              <button class="mode-btn active" data-qmode="linear">漸層</button>
+              <button class="mode-btn" data-qmode="step">階梯</button>
+              <button class="mode-btn" data-qmode="smooth">平滑</button>
+            </div>
+            <div id="quadBand" class="curve-box"></div>
+            <label class="adv-row" title="低於 10% 的流量在部分材料組合可能不穩定，5% 為韌體絕對下限">
+              <input type="checkbox" id="lowFlowChk" /> 進階：允許單料低於 10%（下限 5%）
+            </label>
+            <ul class="hint-list">
+              <li>拖<b>白色分隔點</b>調四料比例（總和恆為 100%）</li>
+              <li>拖左側<b>橘色圓點</b>調節點高度、雙擊刪除；雙擊空白新增節點</li>
+            </ul>
+            <p class="warn">⚠ 多進一出非均勻混色：各料分佔不同方位，轉動模型看各面，實際以打樣為準。</p>
+          </div>
+
+          <div class="preset-row">
+            <span class="tpl-label">配方</span>
+            <button class="tpl-btn" id="savePresetBtn" title="把目前的曲線/顏色/模式存成檔案，下次或別台電腦可載入">另存…</button>
+            <button class="tpl-btn" id="loadPresetBtn" title="載入先前存下的配方檔">載入…</button>
+            <span class="preset-auto">已自動記住</span>
+          </div>
+          <input type="file" id="presetInput" accept=".json,application/json" hidden />
+        </div>
+
+        <!-- 步驟 4：輸出（下載 G-code；上傳到機台＝Moonraker，HTTPS 網頁受 mixed-content 限制無法直連區網機，屬桌面版） -->
+        <div class="card">
+          <div class="sec-title"><span class="step-tag">步驟 4</span> 輸出</div>
+          <button id="exportBtn" disabled>輸出混色 G-code</button>
+          <div class="send-box">
+            <div class="send-row">
+              <span class="send-lab">機台 IP</span>
+              <input type="text" id="printerHost" placeholder="192.168.1.50" spellcheck="false" autocomplete="off" />
+            </div>
+            <div class="send-btns">
+              <button type="button" id="uploadBtn" class="send-btn" disabled>上傳</button>
+              <button type="button" id="uploadPrintBtn" class="send-btn send-btn-print" disabled>上傳並列印</button>
+            </div>
+            <p id="sendMsg" class="send-msg" hidden></p>
+          </div>
+        </div>
+
+        <footer>
+          <span>Color Mixer V2.0</span>
+          <a href="https://ping3dp.com" target="_blank" rel="noopener">ping3dp.com</a>
+        </footer>
+      </aside>
+    </div>
+  </body>
+</html>
