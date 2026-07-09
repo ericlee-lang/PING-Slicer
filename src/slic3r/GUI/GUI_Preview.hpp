@@ -163,6 +163,8 @@ public:
     void show_layers_sliders(bool show = true);
     // PING: 依機型顯示/隱藏混色編輯器並同步配方（切到預覽頁、切片完成時呼叫）
     void update_ping_mix_editor();
+    // PING: 浮動「混色」鈕定位（畫布右上，不佔 sizer 欄；2026-07-09 Eric）
+    void position_ping_mix_strip();
     void set_reload_paint_after_background_process_apply(bool flag) { m_reload_paint_after_background_process_apply = flag; }
     bool get_reload_paint_after_background_process_apply() { return m_reload_paint_after_background_process_apply; }
 
