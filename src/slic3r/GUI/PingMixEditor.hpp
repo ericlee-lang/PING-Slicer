@@ -90,6 +90,7 @@ public:
 private:
     void build_controls();
     void sync_controls();      // 依 m_state/m_is_quad 更新按鈕/勾選/色票外觀
+    bool is_flat_tongjin() const;   // 曲線＝同進均分（雙 50/50、四 25×4）→ 隱藏模式列、亮「同進」
     void on_mode_clicked(int mode_idx);
     void on_template_clicked(int tpl_idx);
     void on_low_flow_toggled();
