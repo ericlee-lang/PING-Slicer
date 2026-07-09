@@ -190,7 +190,7 @@
         "0"
     ],
     "machine_pause_gcode": "PAUSE",
-    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nM6050 S0.5\nG0 F8000 X-50 Y-140 Z0.25\nG92 E0\nG1 F800 X50 Y-140 E30\nG92 E0\nG0 F800 X50 Y-138 Z0.25\nG92 E0\nG1 F800 X-50 Y-138 E30\nG1 Z1 E29\nG92 E0",
+    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nM6050 S0.5\nG0 F8000 X-135.23 Y-36.23 Z0.25\nG92 E0\nG3 F800 X-98.99 Y-98.99 I135.23 J36.23 E15\nG92 E0\nG0 F800 X-97.58 Y-97.58 Z0.25\nG92 E0\nG2 F800 X-133.30 Y-35.72 I97.58 J97.58 E15\nG1 Z1 E14\nG92 E0",
     "machine_tool_change_time": "0",
     "machine_unload_filament_time": "0",
     "manual_filament_change": "0",
