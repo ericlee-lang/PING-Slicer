@@ -22,6 +22,12 @@
 - ✅ 棧板驗收 OK（Eric 07-09；150%＝筏層貼床層線寬，引擎碼 support_material_1st_layer_flow→Base flange 查證）；已轉參數端定案。
 - ✅ **G 槽下載夾已換乾淨版**（`G:\我的雲端硬碟6claude\PING Slicer\`）：7/8 有人上傳了污染版 V3.5.5（run 28883963324 夾帶 a11ee870）→ 07-09 同名覆蓋為乾淨 run 28952768359（連結不變）、SHA-256/版本資訊.txt 已更新。⏳ 可選：補發 GitHub Release v3.5.5 tag（等 Eric 說）。
 
+### 🎨 0709 Eric 驗收回饋批（混色 UX×2＋設備未連線頁＋按鈕標準化）— ✅ 已實作（C++ 搭下次 build）
+- **混色編輯器**（`48dcd811`）：①範本列（同進/漸層）為主選、帶選中態；「漸層/階梯/平滑」只在非同進均分時顯示（is_flat_tongjin()；commit() 補 sync 讓拖曳離開均分即現身）②收合「混色」鈕改浮動疊畫布右上（不入 sizer、EVT_SIZE 重定位、Raise；⚠ 與縱向層滑桿相對位置 build 後親眼看）。
+- **按鈕標準化**（Eric 再回饋「抓軟體本身按鈕的 hover/active 樣式」）：混色編輯器全部按鈕（範本/模式/收合/浮動混色鈕）由 wxButton 硬塗色改**軟體標準 `Widgets/Button`**——`SetStyle(Regular)`＝灰 hover `#D4D4D4`+focus 橘框、選中＝`SetStyle(Confirm)`＝橘底白字 hover `#F0683A`；深色模式/DPI 自動跟全 app。浮動混色鈕用 SetVertical(true)（同校正頁 btn_sync 前例）。
+- **設備頁未連線畫面**（`c81582e8`，resource 免 build）：英文＋A4Max Pro 別牌 GIF → PING CIS 中文頁（CSS Wi-Fi 波紋動畫＋連線三步驟）；兩 portable 已同步；preview 自查過（screenshot 工具連兩天故障、用 DOM 數值自查）。安裝版等下次安裝檔。
+- 下次發版（不論哪條線）記得帶上這批＋換料塔/棧板（皆已在 ping/v3.5＋photo-tile 兩線 tip）。
+
 ### 🧱 換料塔＋棧板雙版本（2026-07-08 午後，參數端同步單・Eric 三裁決全 A 案）— ✅ repo 三線完成
 - 規格：`..\_切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md`。實作＝主線 commit **`2d27bb2c`**（photo-tile cherry `e59364a1`、release/v3.5.5 同內容 `98a7e2b6`）：
   - **A** `normalize_prime_tower()`：全庫 `prime_tower_width` 30→15＋`wipe_tower_wall_type=rib`（主迴圈＋ff_extra＋照片磚範本三處）。
