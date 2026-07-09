@@ -295,6 +295,9 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     m_ping_mix_editor->set_toggle_callback([this]() { update_ping_mix_editor(); });
     main_sizer->Add(m_ping_mix_editor, 0, wxEXPAND, 0);
 
+    // PING(2026-07-09 Eric)：收合狀態不再佔一條空白直欄——「混色」鈕改成浮動小鈕疊在畫布
+    // 右上角（比照摺疊側邊欄的浮動 <> 鈕）。不入 sizer、on size 重定位、Raise 蓋在畫布上
+    //（GL canvas 帶 WS_CLIPSIBLINGS，浮鈕區域不會被 GL 繪掉）。
     m_ping_mix_strip = new wxPanel(this, wxID_ANY);
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
@@ -307,15 +310,15 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
                 wxGetApp().plater()->set_ping_mix_enabled(true);
             update_ping_mix_editor();
         });
-        strip_sizer->Add(open_btn, 0, wxTOP, FromDIP(8));
-        m_ping_mix_strip->SetSizer(strip_sizer);
+        strip_sizer->Add(open_btn, 0, 0, 0);
+        m_ping_mix_strip->SetSizerAndFit(strip_sizer);
     }
     m_ping_mix_strip->Hide();
-    main_sizer->Add(m_ping_mix_strip, 0, wxEXPAND, 0);
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
     GetSizer()->SetSizeHints(this);
+    Bind(wxEVT_SIZE, [this](wxSizeEvent& evt) { evt.Skip(); position_ping_mix_strip(); });
 
     bind_event_handlers();
 
@@ -337,6 +340,18 @@ void Preview::update_ping_mix_editor()
             m_ping_mix_strip->Show(show_strip);
         Layout();
     }
+    position_ping_mix_strip();
+}
+
+// PING(2026-07-09)：浮動「混色」鈕定位——畫布右上角（右緣內縮 6、頂 6），顯示時 Raise 保持最上層
+void Preview::position_ping_mix_strip()
+{
+    if (m_ping_mix_strip == nullptr || !m_ping_mix_strip->IsShown())
+        return;
+    const wxSize cs = GetClientSize();
+    const wxSize bs = m_ping_mix_strip->GetSize();
+    m_ping_mix_strip->SetPosition(wxPoint(cs.x - bs.x - FromDIP(6), FromDIP(6)));
+    m_ping_mix_strip->Raise();
 }
 
 Preview::~Preview()
