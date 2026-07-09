@@ -614,9 +614,9 @@ void PingMixEditor::build_controls()
     m_title->SetFont(tf);
     title_row->Add(m_title, 0, wxALIGN_CENTER_VERTICAL);
     title_row->AddStretchSpacer(1);
-    m_collapse_btn = new wxButton(this, wxID_ANY, wxString::FromUTF8("收合 ▶"), wxDefaultPosition,
-                                  wxSize(FromDIP(64), FromDIP(24)), wxBU_EXACTFIT);
-    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右緣「混色」重新啟用"));
+    m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合 ▶"));
+    m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
+    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)
@@ -628,11 +628,12 @@ void PingMixEditor::build_controls()
 
     // PING(2026-07-09 Eric)：層級改「範本為主選」——範本列（同進/漸層…）排在前、帶選中狀態；
     // 曲線模式列（漸層/階梯/平滑）是漸層的細部選項，只在「非同進均分」時顯示（漸進揭露）。
-    // 範本列＋低流量
+    // 範本列＋低流量（軟體標準 Button：未選 Regular、選中 Confirm，見 sync_controls）
     wxBoxSizer* tpl_row = new wxBoxSizer(wxHORIZONTAL);
     for (int i = 0; i < 3; ++i) {
-        m_tpl_btns[i] = new wxButton(this, wxID_ANY, "", wxDefaultPosition,
-                                     wxSize(FromDIP(56), FromDIP(26)), wxBU_EXACTFIT);
+        m_tpl_btns[i] = new ::Button(this, " ");
+        m_tpl_btns[i]->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
+        m_tpl_btns[i]->SetMinSize(wxSize(FromDIP(56), FromDIP(26)));
         m_tpl_btns[i]->Bind(wxEVT_BUTTON, [this, i](wxCommandEvent&) { on_template_clicked(i); });
         tpl_row->Add(m_tpl_btns[i], 0, wxRIGHT, FromDIP(4));
     }
@@ -646,8 +647,9 @@ void PingMixEditor::build_controls()
     wxBoxSizer* mode_row = new wxBoxSizer(wxHORIZONTAL);
     const wxString mode_names[3] = { wxString::FromUTF8("漸層"), wxString::FromUTF8("階梯"), wxString::FromUTF8("平滑") };
     for (int i = 0; i < 3; ++i) {
-        m_mode_btns[i] = new wxButton(this, wxID_ANY, mode_names[i], wxDefaultPosition,
-                                      wxSize(FromDIP(56), FromDIP(26)), wxBU_EXACTFIT);
+        m_mode_btns[i] = new ::Button(this, mode_names[i]);
+        m_mode_btns[i]->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
+        m_mode_btns[i]->SetMinSize(wxSize(FromDIP(56), FromDIP(26)));
         m_mode_btns[i]->Bind(wxEVT_BUTTON, [this, i](wxCommandEvent&) { on_mode_clicked(i); });
         mode_row->Add(m_mode_btns[i], 0, wxRIGHT, FromDIP(4));
     }
@@ -698,12 +700,12 @@ void PingMixEditor::sync_controls()
     // PING(2026-07-09 Eric)：同進（均分）＝不需要曲線模式 → 整列隱藏；選漸層/動過曲線才出現。
     const bool flat_tongjin = is_flat_tongjin();
 
-    // 模式按鈕：active 橘底白字（僅非同進時可見）
+    // 模式按鈕：選中＝軟體標準 Confirm（橘底白字＋hover #F0683A）、未選＝Regular（僅非同進時可見）
     const PingMix::CurveMode mode = recipe().mode;
     for (int i = 0; i < 3; ++i) {
         const bool active = (int)mode == i;
-        m_mode_btns[i]->SetBackgroundColour(active ? COL_ORANGE : wxNullColour);
-        m_mode_btns[i]->SetForegroundColour(active ? *wxWHITE : wxNullColour);
+        m_mode_btns[i]->SetStyle(active ? ButtonStyle::Confirm : ButtonStyle::Regular, ButtonType::Compact);
+        m_mode_btns[i]->SetMinSize(wxSize(FromDIP(56), FromDIP(26)));
         m_mode_btns[i]->Show(!flat_tongjin);
         m_mode_btns[i]->Refresh();
     }
@@ -713,8 +715,8 @@ void PingMixEditor::sync_controls()
     const int active_tpl = flat_tongjin ? 0 : (m_is_quad ? -1 : 1);
     for (int i = 0; i < 3; ++i) {
         const bool active = i == active_tpl;
-        m_tpl_btns[i]->SetBackgroundColour(active ? COL_ORANGE : wxNullColour);
-        m_tpl_btns[i]->SetForegroundColour(active ? *wxWHITE : wxNullColour);
+        m_tpl_btns[i]->SetStyle(active ? ButtonStyle::Confirm : ButtonStyle::Regular, ButtonType::Compact);
+        m_tpl_btns[i]->SetMinSize(wxSize(FromDIP(56), FromDIP(26)));
         m_tpl_btns[i]->Refresh();
     }
 
