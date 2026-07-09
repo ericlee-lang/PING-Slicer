@@ -6684,7 +6684,9 @@ bool GLCanvas3D::_init_main_toolbar()
 
     item.name = "more";
     item.icon_filename = m_is_dark ? "instance_add_dark.svg" : "instance_add.svg";
-    item.tooltip = _utf8(L("Add instance")) + " [+]";
+    // PING(2026-07-09 Eric)：tooltip 補功能說明（實例＝連動複製品，與單純複製不同）
+    item.tooltip = _utf8(L("Add instance")) + " [+]\n" +
+        _utf8(L("Creates a linked copy of the object. Unlike a plain copy, instances stay in sync with the original and use less system resources."));
     item.sprite_id++;
     item.left.render_callback = nullptr;
     item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_MORE)); };
