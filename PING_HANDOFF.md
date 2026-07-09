@@ -15,6 +15,21 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-09 晚・本 session 結束——下一棒從這裡接）
+
+**🔴 下一棒第一件事：查 build run `29011140392`（release/v3.5.5 @ `48e95f8b`）**——本 session 收工時仍在跑（~2h）、監看程序隨 session 結束失效。綠了（看 build_windows 的 Build OrcaSlicer job，整體 failure＝Flatpak/UnitTests 坑#10 不算）→ 下載 `PING_Slicer_Windows_V3.5.5_portable` artifact 換裝 `D:\PING-Slicer-portable`（現況備份成 -old 再換）→ 通知 Eric 驗收。
+
+**這顆 build 內容（V3.5.5 第 3 版，累積 9 修正）**：混色層級（同進不顯三選項/範本主選/收合鈕浮動）＋混色按鈕標準樣式＋設備未連線中文頁＋設備對話框三修（瀏覽鈕除/tooltip 去參數名/主機名說明短版）＋品牌清洗＋專案頁移除＋新增實例 tooltip＋洗料塔圓床預設＋FD300 弧線預擠。**Eric 驗收重點**：①混色浮動鈕 vs 縱向層滑桿位置（可能要調 offset）②專案頁消失後「校正」入口正常（FindPage 換算）③FD300 三模式切片＝弧線預擠、上機不撞門（雙料 4 弧 T0/T1、單料頭 2 弧、同進 M6050+2 弧）④選 `_棧板` 自動切 ABS 沒退化⑤About 頁品牌字樣。
+
+**分支 tip**：`ping/v3.5`＝`5db7959f`｜`ping/photo-tile`＝`419f99c2`（版號 3.5.6、含照片磚＋全部修正）｜`release/v3.5.5`＝`48e95f8b`（無照片磚、已 push 觸發上述 build）。三線內容除照片磚外同步；**發版一律從 release/feature 分支、勿從 ping/v3.5 tip 切**（a11ee870 仍在主線歷史）。
+
+**本 session 完成（2026-07-09，時序）**：①棧板驗收 OK（轉參數端定案）＋150%＝筏層貼床線寬（Flow.cpp:235）②G 槽下載夾確認最新（另 session 已覆蓋乾淨版）③混色 UX 兩修正＋標準按鈕化④設備對話框三修⑤品牌清洗（**保護清單＋regex 誤傷判例見下方 0709 品牌清洗段，跨棒必讀**）⑥專案頁移除/tooltip/線材對話框中文（text.js zh_TW 缺鍵——**text.js 是 CRLF、插入要偵測行尾**）⑦洗料塔圓床盤形夾限（PartPlate set_default_wipe_tower_pos_for_plate）⑧FD300 弧線預擠（embed_params `apply_fd300_prime_arc`，只 FD300 非 Pro——Eric 確認 Pro 不用；規則已轉參數端）⑨release/v3.5.5 重組發 build。**%APPDATA% 本日動過**：棧板同步（.bak-palletsync）＋FD300 弧線 11 機檔（.bak-primearc）。
+
+**照片磚線待辦不變**：Eric 實走原型（`..\照片磚_整合原型_準備頁_20260708.html`）拍板 → P1 C++ 引擎移植。照片磚版 build 等原生整合後再發。
+
+**其他掛著**：GitHub Release v3.5.5 要不要發（等 Eric）；更新對話框 Orca logo 圖檔資產另案；單獨「Orca」字樣散點；PA-CF 等參數端交付；牆速待參數端抽驗。
+
+---
 ### 🏁 V3.5.5 無照片磚版 build 綠＋portable 已換裝（2026-07-09）
 - run **28952768359** @ `98a7e2b6`（Eric 授權發車；整體 failure＝Flatpak×2＋UnitTests 坑#10，本體全綠、artifact 齊：Windows 安裝檔+portable/Mac Universal/Linux）。
 - `D:\PING-Slicer-portable`＝乾淨 **V3.5.5**（混色＋預擠＋牆速＋版次＋棧板 A+B+C；無照片磚、無 a11ee870）。舊 v3.5.4 備份 `D:\PING-Slicer-portable-old-v354`（更早 -old-preB/-premix/-preprimefix 已標可清、未刪）。bundle PING.json v45 <%APPDATA% v48 → DL1016 安全。⚠ 這顆無照片磚後處理，切照片磚一律用 `D:\PING-Slicer-phototile-portable`。
