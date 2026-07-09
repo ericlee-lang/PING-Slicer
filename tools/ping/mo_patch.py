@@ -12,6 +12,11 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING(2026-07-09)：print_host 說明改短版（去 HAProxy 帳密@URL 段——非 PING 用法，Eric 定）
+    (
+        "PING Slicer can upload G-code files to a printer host. This field should contain "
+        "the hostname, IP address or URL of the printer host instance."
+    ): "PING Slicer 可以將 G-code 檔案上傳到列印設備。此欄位填列印設備的主機名、IP 位址或 URL。",
     "Purge idle filaments every": "閒置線材沖刷間隔",
     (
         "For shared-nozzle multi-material hotends (2-in-1-out / 4-in-1-out), filaments that "
