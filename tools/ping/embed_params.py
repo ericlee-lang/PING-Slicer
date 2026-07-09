@@ -188,6 +188,46 @@ def apply_bed_override(model, mac):
         mac["machine_start_gcode"] = re.sub(
             r"Y(-1[34][0-9])", lambda m: "Y%d" % (int(m.group(1)) + ov["prime_y_shift"]), sg)
 
+# ★ FD300 預擠改「左側弧線」（2026-07-09 Eric＋同事實機定案）：FD300 門關只能印 200 圓、
+# 前緣 Y-140~-134 直線預擠會把門撞開 → 改沿盤緣左側弧線（圓心 210° 方向、掃角 195°~225°，
+# 半徑由外而內 140/138/136/134、間距 2mm；I/J＝圓心(0,0)−弧起點；E15/弧＝同事調校值，
+# Klipper [gcode_arcs] 已實機驗證）。只套 FD300 非 Pro 家族；照片磚機在 emit_phototile 同套。
+import math as _math
+def _fd300_arc_block(radii_tools):
+    """radii_tools=[(半徑, T字串或None), ...] 由外而內；奇數索引逆向（G2 回程）。"""
+    c195, s195 = _math.cos(_math.radians(195)), _math.sin(_math.radians(195))
+    c225, s225 = _math.cos(_math.radians(225)), _math.sin(_math.radians(225))
+    lines = []
+    for i, (r, tool) in enumerate(radii_tools):
+        p195 = (r * c195, r * s195)
+        p225 = (r * c225, r * s225)
+        start, end, cmd = (p195, p225, "G3") if i % 2 == 0 else (p225, p195, "G2")
+        if tool is not None:
+            lines.append(tool)
+        lines.append("G0 F%d X%.2f Y%.2f Z0.25" % (8000 if i == 0 else 800, start[0], start[1]))
+        lines.append("G92 E0")
+        lines.append("%s F800 X%.2f Y%.2f I%.2f J%.2f E15" % (cmd, end[0], end[1], -start[0], -start[1]))
+        if i < len(radii_tools) - 1:
+            lines.append("G92 E0")
+    lines.append("G1 Z1 E14")
+    lines.append("G92 E0")
+    return "\n".join(lines)
+
+def apply_fd300_prime_arc(model, mac):
+    if model not in ("FD300", "FD300 單料頭", "FD300 同進"):
+        return
+    sg = mac.get("machine_start_gcode")
+    if not isinstance(sg, str) or "G28 ;Home" not in sg or "Y-140" not in sg:
+        return
+    head = sg.split("G28 ;Home", 1)[0] + "G28 ;Home"
+    if "M6050" in sg:
+        head += "\nM6050 S0.5"
+    if "\nT1\n" in sg:   # 雙料：T0 外弧140/136、T1 內弧138/134（對映原 4 條直線）
+        block = _fd300_arc_block([(140, "T0"), (138, "T1"), (136, "T0"), (134, "T1")])
+    else:                # 單料頭/同進：2 弧
+        block = _fd300_arc_block([(140, None), (138, None)])
+    mac["machine_start_gcode"] = head + "\n" + block
+
 def tier_of(base):
     # 300 級＝加速度3000＋一般流量（小機單/雙噴頭）；450+＝1500＋高流量（大機標配高流量噴頭）
     # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
@@ -353,6 +393,8 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
             pt_models.append(d["name"])
     for name in PHOTOTILE_MACHINES:
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
+        if name.startswith("FD300 同進照片磚"):   # FD300 硬體同款門 → 預擠同套左側弧線
+            apply_fd300_prime_arc("FD300 同進", d)
         d["setting_id"] = "PINGM%03d" % gm; gm += 1
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
         mac_list.append({"name": name, "sub_path": "machine/%s.json" % name})
@@ -431,6 +473,7 @@ def main(src_base):
                 _old_mlh = mac.get("max_layer_height")
                 mac["max_layer_height"] = [_mlh] * (len(_old_mlh) if isinstance(_old_mlh, list) and _old_mlh else 1)
                 apply_bed_override(model, mac)   # 衍生機型改列印範圍（FP200：床250/高200/預擠內移）
+                apply_fd300_prime_arc(model, mac)  # FD300 預擠改左側弧線（防撞門，2026-07-09）
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
                 # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
