@@ -483,7 +483,13 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     //BBS
     Bind(EVT_SELECT_TAB, [this](wxCommandEvent&evt) {
         TabPosition pos = (TabPosition)evt.GetInt();
-        m_tabpanel->SetSelection(pos);
+        // PING(2026-07-09)：專案頁移除後，枚舉位置≠實際頁索引——校正頁改用 FindPage 換算
+        int idx = pos;
+        if (pos == tpCalibration && m_calibration != nullptr) {
+            int found = m_tabpanel->FindPage(m_calibration);
+            if (found != wxNOT_FOUND) idx = found;
+        }
+        m_tabpanel->SetSelection(idx);
     });
 
     Bind(EVT_SYNC_CLOUD_PRESET, &MainFrame::on_select_default_preset, this);
@@ -1323,9 +1329,11 @@ void MainFrame::init_tabpanel() {
         m_tabpanel->AddPage(m_multi_machine, _L("Multi-device"), std::string("tab_multi_active"), std::string("tab_multi_active"), false);
     }
 
-    m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-    m_project->SetBackgroundColour(*wxWHITE);
-    m_tabpanel->AddPage(m_project, _L("Project"), std::string("tab_auxiliary_active"), std::string("tab_auxiliary_active"), false);
+    // PING(2026-07-09 Eric)：「專案」頁移除——BOM/配件/模型資訊頁沒在用（m_project 留 nullptr，
+    // 引用處已 null 防護；校正頁索引位移由 EVT_SELECT_TAB 的 FindPage 換算吸收）
+    // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
+    // m_project->SetBackgroundColour(*wxWHITE);
+    // m_tabpanel->AddPage(m_project, _L("Project"), std::string("tab_auxiliary_active"), std::string("tab_auxiliary_active"), false);
 
     m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     m_calibration->SetBackgroundColour(*wxWHITE);
@@ -2412,7 +2420,7 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
     //BBS GUI refactor: remove unused layout new/dlg
     //if (m_layout != ESettingsLayout::Dlg) // Do not update tabs if the Settings are in the separated dialog
     m_param_panel->msw_rescale();
-    m_project->msw_rescale();
+    if (m_project != nullptr) m_project->msw_rescale();   // PING：專案頁已移除
     if(m_monitor)
         m_monitor->msw_rescale();
     if(m_multi_machine)
