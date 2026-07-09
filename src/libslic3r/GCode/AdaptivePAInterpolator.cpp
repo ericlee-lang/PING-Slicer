@@ -1,5 +1,5 @@
 // AdaptivePAInterpolator.cpp
-// OrcaSlicer
+// PING Slicer
 //
 // Implementation file for the AdaptivePAInterpolator class, providing methods to parse data and perform PA interpolation.
 
