@@ -4124,6 +4124,41 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
         }
     }
 
+    // PING(2026-07-09 Eric)：圓床盤形夾限——上面的方形 bbox 夾限對圓床（PING delta 全系列）
+    // 不夠：bbox 四角在圓外，預設位置會落盤外。盤形點數 >4（圓/多邊形）時，把塔踏面
+    //（含 margin）四角都收進盤形內：任一角在外就沿「塔中心→盤中心」方向 2mm 步進內移。
+    {
+        const Pointfs &shape = part_plate->get_shape();   // 絕對座標盤形
+        if (shape.size() > 4) {
+            Polygon shape_poly;
+            shape_poly.points.reserve(shape.size());
+            for (const Vec2d &p : shape)
+                shape_poly.points.emplace_back(scale_(p.x()), scale_(p.y()));
+            auto footprint_inside = [&](double lx, double ly) -> bool {
+                const double xs[2] = { lx - margin + plate_origin(0), lx + wipe_tower_size(0) + margin + plate_origin(0) };
+                const double ys[2] = { ly - margin + plate_origin(1), ly + wipe_tower_size(1) + margin + plate_origin(1) };
+                for (double cx : xs)
+                    for (double cy : ys)
+                        if (!shape_poly.contains(Point(scale_(cx), scale_(cy))))
+                            return false;
+                return true;
+            };
+            BoundingBoxf shape_bb(shape);
+            const Vec2d center_local(shape_bb.center()(0) - plate_origin(0), shape_bb.center()(1) - plate_origin(1));
+            Vec2d dir = center_local - Vec2d(x + wipe_tower_size(0) / 2., y + wipe_tower_size(1) / 2.);
+            double dist = dir.norm();
+            if (dist > EPSILON) {
+                dir /= dist;
+                for (int guard = 0; guard < 200 && dist > EPSILON && !footprint_inside(x, y); ++guard) {
+                    const double step = std::min(2.0, dist);
+                    x += (float)(dir(0) * step);
+                    y += (float)(dir(1) * step);
+                    dist -= step;
+                }
+            }
+        }
+    }
+
     ConfigOptionFloat wt_x_opt(x);
     ConfigOptionFloat wt_y_opt(y);
     dynamic_cast<ConfigOptionFloats *>(proj_cfg.option("wipe_tower_x"))->set_at(&wt_x_opt, plate_idx, 0);
