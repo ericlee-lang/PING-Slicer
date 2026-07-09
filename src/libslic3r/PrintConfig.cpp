@@ -755,10 +755,10 @@ void PrintConfigDef::init_common_params()
 
     def = this->add("print_host", coString);
     def->label = L("Hostname, IP or URL");
-    def->tooltip = L("Orca Slicer can upload G-code files to a printer host. This field should contain "
-        "the hostname, IP address or URL of the printer host instance. "
-        "Print host behind HAProxy with basic auth enabled can be accessed by putting the user name and password into the URL "
-        "in the following format: https://username:password@your-octopi-address/");
+    // PING(2026-07-09 Eric)：說明只留前半（上傳＋填主機名/IP/URL）；HAProxy 帳密@URL
+    // 那段不是 PING 的使用方式、對客戶是雜訊。繁中翻譯走 tools/ping/mo_patch.py（坑#16）。
+    def->tooltip = L("PING Slicer can upload G-code files to a printer host. This field should contain "
+        "the hostname, IP address or URL of the printer host instance.");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionString());

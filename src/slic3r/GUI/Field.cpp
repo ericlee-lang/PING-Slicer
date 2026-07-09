@@ -113,7 +113,8 @@ wxString get_formatted_tooltip_text(const ConfigOptionDef& opt, const t_config_o
         opt_id += "]";
     }
 
-    tooltip += (tooltip.empty() ? "" : "\n\n") + _(L("parameter name")) + ": " + opt_id;
+    // PING(2026-07-09 Eric)：tooltip 尾端不再附「參數名稱: xxx」——內部 config key 對
+    // 一般使用者是雜訊（開發/進階查 key 用 repo 或匯出檔即可）。opt_id 保留給下方預設值查找。
 
     // Orca: 
     // We can't use Orca's default values as-is because they sometimes depend on other values. 
