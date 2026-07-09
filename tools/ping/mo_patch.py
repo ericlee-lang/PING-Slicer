@@ -12,6 +12,11 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING(2026-07-09)：新增實例 tooltip 補說明（Eric 給的文案）
+    (
+        "Creates a linked copy of the object. Unlike a plain copy, instances stay in sync "
+        "with the original and use less system resources."
+    ): "建立一個與原物件連動的複製品（跟單純複製不同），可節省系統資源。",
     # PING(2026-07-09)：print_host 說明改短版（去 HAProxy 帳密@URL 段——非 PING 用法，Eric 定）
     (
         "PING Slicer can upload G-code files to a printer host. This field should contain "
