@@ -59,5 +59,8 @@
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "15"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nM207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]\n"
     ]
 }
