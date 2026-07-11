@@ -168,7 +168,7 @@
         "0"
     ],
     "filament_start_gcode": [
-        "T3\n"
+        "T3\n; Filament gcode\nM207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]\n"
     ],
     "filament_toolchange_delay": [
         "0"
