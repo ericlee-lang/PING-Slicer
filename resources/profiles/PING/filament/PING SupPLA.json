@@ -50,5 +50,8 @@
     ],
     "default_filament_colors": [
         "#D3D3D3"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nM207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]\n"
     ]
 }

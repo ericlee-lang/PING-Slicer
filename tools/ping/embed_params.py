@@ -571,6 +571,30 @@ def main(src_base):
             jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
             fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
 
+    # 4b-2. ★ M207/M208 雙邊回抽埋全線材（2026-07-11 Eric 交辦，Klipper #52 裁 A；
+    # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）。機端 wrapper 把 M207/M208 轉
+    # SET_RETRACTION（雙邊回抽長度/速度/回填 extra）；無 wrapper 機＝Unknown command 無害。
+    # ⚠ 交辦單原文 [retract_length] 非 Orca key（PlaceholderParser 直接炸 Variable does not
+    #   exist）→ 實埋 [retraction_length]（legacy 向量展開取 current_extruder；filament 層
+    #   覆蓋鏈已由 PrintApply filament_overrides 併進 placeholder 向量＝有效值）。
+    # ⚠ 3in1 線材 T4/T3 進料觸發行必須保留（只追加）。冪等：已含 M207 跳過。
+    # 放在 4b 之後＝高流量/3in1 重生檔也蓋得到；靜態線材檔就地補。
+    m207_added = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        sg = fd.get("filament_start_gcode")
+        cur = (sg[0] if isinstance(sg, list) and sg else sg) or ""
+        if "M207" in cur:
+            continue
+        add = "M207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]"
+        if "; Filament gcode" not in cur:
+            add = "; Filament gcode\n" + add
+        fd["filament_start_gcode"] = [(cur.rstrip() + "\n" + add + "\n") if cur.strip() else (add + "\n")]
+        jdump(fp_path, fd)
+        m207_added += 1
+    if m207_added:
+        print("  線材 M207/M208 雙邊回抽：+%d 支" % m207_added)
+
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
