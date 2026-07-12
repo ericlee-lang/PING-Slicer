@@ -45,7 +45,7 @@
         "1"
     ],
     "enable_pressure_advance": [
-        "1"
+        "0"
     ],
     "eng_plate_temp": [
         "60"
@@ -102,7 +102,7 @@
         "nil"
     ],
     "filament_max_volumetric_speed": [
-        "20"
+        "30"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "120"
@@ -201,10 +201,10 @@
         "10"
     ],
     "hot_plate_temp": [
-        "60"
+        "50"
     ],
     "hot_plate_temp_initial_layer": [
-        "60"
+        "50"
     ],
     "idle_temperature": [
         "0"
@@ -267,22 +267,13 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 高流量 @FF 0.6",
-    "alias": "PING PLA - 高流量",
+    "name": "PING PLA - 四料高流量噴頭 1.0",
+    "alias": "PING PLA - 四料高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFPLA06",
-    "filament_id": "PINGFILHFPLA06",
+    "setting_id": "PINGFILHFPLA10",
+    "filament_id": "PINGFILHFPLA10",
     "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 0.6 nozzle",
-        "FF800 0.6 nozzle",
-        "FF600 同進 0.6 nozzle",
-        "FF800 同進 0.6 nozzle",
-        "FF600 3in1 0.6 nozzle",
-        "FF800 3in1 0.6 nozzle",
-        "FF800 同進照片磚 0.6 nozzle"
-    ],
     "filament_colors": [
         "#EA4E16"
     ],

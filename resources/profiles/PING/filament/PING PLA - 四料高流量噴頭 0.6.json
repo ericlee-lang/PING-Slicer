@@ -45,7 +45,7 @@
         "1"
     ],
     "enable_pressure_advance": [
-        "0"
+        "1"
     ],
     "eng_plate_temp": [
         "60"
@@ -57,10 +57,10 @@
         "10"
     ],
     "fan_max_speed": [
-        "30"
+        "100"
     ],
     "fan_min_speed": [
-        "30"
+        "100"
     ],
     "filament_cooling_final_speed": [
         "3.4"
@@ -90,7 +90,7 @@
         "1"
     ],
     "filament_is_support": [
-        "1"
+        "0"
     ],
     "filament_loading_speed": [
         "28"
@@ -174,7 +174,7 @@
         "0"
     ],
     "filament_type": [
-        "PETG"
+        "PLA"
     ],
     "filament_unloading_speed": [
         "90"
@@ -201,19 +201,19 @@
         "10"
     ],
     "hot_plate_temp": [
-        "50"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "50"
+        "60"
     ],
     "idle_temperature": [
         "0"
     ],
     "nozzle_temperature": [
-        "185"
+        "190"
     ],
     "nozzle_temperature_initial_layer": [
-        "185"
+        "190"
     ],
     "nozzle_temperature_range_high": [
         "230"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.02"
+        "0.4"
     ],
     "reduce_fan_stop_start_freq": [
         "1"
@@ -240,10 +240,10 @@
         "0"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
-        "5"
+        "7"
     ],
     "slow_down_min_speed": [
         "10"
@@ -267,25 +267,17 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA - 高流量 @FF 1.0",
-    "alias": "PING SupPLA - 高流量",
+    "name": "PING PLA - 四料高流量噴頭 0.6",
+    "alias": "PING PLA - 四料高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFSUP10",
-    "filament_id": "PINGFILHFSUP10",
+    "setting_id": "PINGFILHFPLA06",
+    "filament_id": "PINGFILHFPLA06",
     "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 1.0 nozzle",
-        "FF800 1.0 nozzle",
-        "FF600 同進 1.0 nozzle",
-        "FF800 同進 1.0 nozzle",
-        "FF600 3in1 1.0 nozzle",
-        "FF800 3in1 1.0 nozzle"
-    ],
     "filament_colors": [
-        "#D3D3D3"
+        "#EA4E16"
     ],
     "default_filament_colors": [
-        "#D3D3D3"
+        "#EA4E16"
     ]
 }

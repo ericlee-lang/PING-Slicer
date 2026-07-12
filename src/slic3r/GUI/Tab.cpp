@@ -206,9 +206,25 @@ static void ping_apply_combo_filaments(const std::string &process_name)
         {"ABS+SUP", {"PING ABS - 250", "PING SupABS"}},
         {"ABS+ABS", {"PING ABS - 250", "PING ABS - 250"}},
     };
-    auto it = COMBO_FILAMENTS.find(combo);
-    if (it == COMBO_FILAMENTS.end()) return;
+    // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
+    // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
+    // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。
+    static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS_HF = {
+        {"PLA+SUP", {"PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD",      // 高流量噴頭
+                     "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD"}},
+        {"PLA+PLA", {"PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD",
+                     "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD"}},
+        {"ABS+SUP", {"PING ABS - 250", "PING SupABS"}},
+        {"ABS+ABS", {"PING ABS - 250", "PING ABS - 250"}},
+    };
     PresetBundle *bundle = wxGetApp().preset_bundle;
+    const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
+    const bool hiflow_machine = printer_model.find("FD450") != std::string::npos ||
+                                printer_model.find("FD600") != std::string::npos ||
+                                printer_model.find("FD800") != std::string::npos;
+    const auto &combo_map = hiflow_machine ? COMBO_FILAMENTS_HF : COMBO_FILAMENTS;
+    auto it = combo_map.find(combo);
+    if (it == combo_map.end()) return;
     if (bundle->filament_presets.size() < 2) return;   // 雙料機限定（單料/四色不套）
     // 兩支目標線材都存在才動手
     if (!bundle->filaments.find_preset(it->second.first, false) ||
