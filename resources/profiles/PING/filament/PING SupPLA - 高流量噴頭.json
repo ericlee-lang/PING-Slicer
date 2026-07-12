@@ -63,5 +63,17 @@
     "filament_retract_restart_extra": [
         "0.6"
     ],
+    "filament_retraction_minimum_travel": [
+        "3"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "5"
+    ],
+    "filament_retract_before_wipe": [
+        "100%"
+    ],
     "alias": "PING SupPLA - 高流量噴頭"
 }
