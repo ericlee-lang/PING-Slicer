@@ -603,15 +603,18 @@ def main(src_base):
     # 冪等：已含 SET_RETRACTION 跳過。放 4b 之後＝重生檔（高流量/3in1）每次 regen 自動補。
     sr_added = 0
     SR_LINE = ("SET_RETRACTION RETRACT_LENGTH=[retraction_length] "
-               "RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra]")
+               "RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] "
+               "UNRETRACT_SPEED=[deretraction_speed]")   # 第四欄 2026-07-12 Eric 實測抓缺（裝填速度覆蓋要能下機）
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
         sg = fd.get("filament_start_gcode")
         cur = (sg[0] if isinstance(sg, list) and sg else sg) or ""
-        if "SET_RETRACTION" in cur:
-            continue
-        # M207/M208 退場（B 定案）
-        cur = "\n".join(l for l in cur.splitlines() if not l.startswith("M207 ") and not l.startswith("M208 "))
+        if "UNRETRACT_SPEED" in cur:
+            continue   # 已是四欄新行
+        # M207/M208 退場（B 定案）＋舊三欄 SET_RETRACTION 行就地升級成四欄
+        cur = "\n".join(l for l in cur.splitlines()
+                        if not l.startswith("M207 ") and not l.startswith("M208 ")
+                        and not l.startswith("SET_RETRACTION "))
         add = SR_LINE
         if "; Filament gcode" not in cur:
             add = "; Filament gcode\n" + add
