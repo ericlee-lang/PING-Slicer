@@ -143,8 +143,11 @@ DEF_FIL_SINGLE = ["PING PLA - 220"]
 # 欄樣本未覆蓋＝吃機器層，照「權威＝樣本」抄 4 鍵，偏差已回報參數端）。
 HFN_PLA = "PING PLA - 高流量噴頭"
 HFN_SUP = "PING SupPLA - 高流量噴頭"
+# 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
 HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed": ["30"],
-                 "filament_deretraction_speed": ["30"], "filament_retract_restart_extra": ["0.6"]}
+                 "filament_deretraction_speed": ["30"], "filament_retract_restart_extra": ["0.6"],
+                 "filament_retraction_minimum_travel": ["3"], "filament_wipe": ["1"],
+                 "filament_wipe_distance": ["5"], "filament_retract_before_wipe": ["100%"]}
 # FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
@@ -171,7 +174,9 @@ EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
     return ["%s %s" % (FF_FIL_ALIAS["PLA"], nz)]*3 + ["%s %s" % (FF_FIL_ALIAS["SupPLA"], nz)]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
-                        "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF")
+                        "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF;"
+                        # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
+                        "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 BED_TEXTURE = "ping_buildplate_texture.png"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
