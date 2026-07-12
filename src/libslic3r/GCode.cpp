@@ -3767,7 +3767,20 @@ std::string GCode::placeholder_parser_process(const std::string &name, const std
 PlaceholderParserIntegration &ppi = m_placeholder_parser_integration;
     try {
         ppi.update_from_gcodewriter(m_writer);
-        std::string output = ppi.parser.process(templ, current_filament_id, config_override, &ppi.output_config, &ppi.context);
+        // PING(2026-07-12 Eric 實切證僞修正)：回抽三參數以「含線材覆蓋鏈的有效值」錨定。
+        // 上游 bug：PrintApply 每次 full_config_diff 都 clear_config() 重建 m_placeholder_parser，
+        // 卻只補回「本輪有變」的 filament_overrides（compute_filament_override_value 的 changed
+        // 閘門）→ 線材覆蓋值在其後任何一次 apply 從 parser 遺失，佔位符退回印表機原值
+        //（實證：覆蓋 額外回填=0.5，輸出 UNRETRACT_EXTRA_LENGTH=0）。m_config 不會被清、
+        // 恆為合併後有效值 → 這裡以最高優先權 config_override 按當前線材逐次錨入
+        //（純量：legacy [key] 寫法直接輸出值；get_at 對越界/單值自動退 front）。
+        DynamicConfig cfg_override_ping;
+        if (config_override != nullptr)
+            cfg_override_ping = *config_override;
+        cfg_override_ping.set_key_value("retraction_length",     new ConfigOptionFloat(m_config.retraction_length.get_at(current_filament_id)));
+        cfg_override_ping.set_key_value("retraction_speed",      new ConfigOptionFloat(m_config.retraction_speed.get_at(current_filament_id)));
+        cfg_override_ping.set_key_value("retract_restart_extra", new ConfigOptionFloat(m_config.retract_restart_extra.get_at(current_filament_id)));
+        std::string output = ppi.parser.process(templ, current_filament_id, &cfg_override_ping, &ppi.output_config, &ppi.context);
         ppi.validate_output_vector_variables();
 
         if (const std::vector<double> &pos = ppi.opt_position->values; ppi.position != pos) {
