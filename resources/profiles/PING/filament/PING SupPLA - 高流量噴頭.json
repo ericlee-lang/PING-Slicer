@@ -75,5 +75,11 @@
     "filament_retract_before_wipe": [
         "100%"
     ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.2"
+    ],
     "alias": "PING SupPLA - 高流量噴頭"
 }
