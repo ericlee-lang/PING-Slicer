@@ -45,7 +45,7 @@
         "1"
     ],
     "enable_pressure_advance": [
-        "1"
+        "0"
     ],
     "eng_plate_temp": [
         "60"
@@ -57,10 +57,10 @@
         "10"
     ],
     "fan_max_speed": [
-        "100"
+        "30"
     ],
     "fan_min_speed": [
-        "100"
+        "30"
     ],
     "filament_cooling_final_speed": [
         "3.4"
@@ -90,7 +90,7 @@
         "1"
     ],
     "filament_is_support": [
-        "0"
+        "1"
     ],
     "filament_loading_speed": [
         "28"
@@ -102,7 +102,7 @@
         "nil"
     ],
     "filament_max_volumetric_speed": [
-        "20"
+        "12"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "120"
@@ -174,7 +174,7 @@
         "0"
     ],
     "filament_type": [
-        "PLA"
+        "PETG"
     ],
     "filament_unloading_speed": [
         "90"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.4"
+        "0.12"
     ],
     "reduce_fan_stop_start_freq": [
         "1"
@@ -240,10 +240,10 @@
         "0"
     ],
     "slow_down_for_layer_cooling": [
-        "1"
+        "0"
     ],
     "slow_down_layer_time": [
-        "7"
+        "5"
     ],
     "slow_down_min_speed": [
         "10"
@@ -267,25 +267,17 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 高流量 @FF 0.4",
-    "alias": "PING PLA - 高流量",
+    "name": "PING SupPLA - 四料高流量噴頭 0.4",
+    "alias": "PING SupPLA - 四料高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFPLA04",
-    "filament_id": "PINGFILHFPLA04",
+    "setting_id": "PINGFILHFSUP04",
+    "filament_id": "PINGFILHFSUP04",
     "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 0.4 nozzle",
-        "FF800 0.4 nozzle",
-        "FF600 同進 0.4 nozzle",
-        "FF800 同進 0.4 nozzle",
-        "FF600 3in1 0.4 nozzle",
-        "FF800 3in1 0.4 nozzle"
-    ],
     "filament_colors": [
-        "#EA4E16"
+        "#D3D3D3"
     ],
     "default_filament_colors": [
-        "#EA4E16"
+        "#D3D3D3"
     ]
 }
