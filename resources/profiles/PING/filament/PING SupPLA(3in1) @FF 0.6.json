@@ -168,7 +168,7 @@
         "0"
     ],
     "filament_start_gcode": [
-        "T3\n; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra]\n"
+        "T3\n; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
     ],
     "filament_toolchange_delay": [
         "0"
