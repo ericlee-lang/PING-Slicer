@@ -3577,6 +3577,12 @@ DynamicConfig PrintStatistics::placeholders()
         "print_time_hm", "total_weight_str",   // PING 檔名格式化佔位符
         "initial_tool", "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament"})
         config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
+    // PING(2026-07-11 Eric 實測炸錯)：initial_tool 在檔名模板裡是「向量索引」用途
+    //（filament_type[initial_tool]，PING 與上游預設模板皆然）——延遲字串 "{initial_tool}"
+    // 進索引運算會炸「Non-integer index is not allowed to address a vector variable」
+    //（切片完成前的預估檔名路徑，Print::output_filename 的 !finished() 分支）。
+    // 改給整數 0（首噴頭）當合理近似；正式檔名在切片完成後走 config() 真值，不受影響。
+    config.set_key_value("initial_tool", new ConfigOptionInt(0));
     return config;
 }
 
