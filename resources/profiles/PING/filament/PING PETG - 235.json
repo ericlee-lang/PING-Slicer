@@ -61,6 +61,6 @@
         "15"
     ],
     "filament_start_gcode": [
-        "; Filament gcode\nM207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]\n"
+        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra]\n"
     ]
 }
