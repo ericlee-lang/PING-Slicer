@@ -213,6 +213,26 @@ def _fd300_arc_block(radii_tools):
     lines.append("G92 E0")
     return "\n".join(lines)
 
+# ★ 預擠段正規化（2026-07-12 Eric 抓錯）：①預擠段「中途」travel 誤植 F8000（多一個 0，
+# 熱料拖行過快）→ 除第一個接近 travel 保留 F8000 外，其餘 G0 F8000 一律改 F800。
+# ②T0/T1 交替預擠的最後一條改成 T0（起印主料免多一次換刀）——交替序整組對調
+#（T0,T1,T0,T1 → T1,T0,T1,T0）。僅動獨立成行的 T0/T1（M104/M107 的 T0 參數不受影響）；
+# 3in1 的 T4/T3 與 FF 四色不在此規則（Eric 限定 T0/T1 交替）。
+_T01_LINE = re.compile(r"^(T[01])\s*$", re.M)
+def normalize_prime_lines(mac):
+    sg = mac.get("machine_start_gcode")
+    if not isinstance(sg, str) or "G0" not in sg:
+        return
+    # ① 中途 travel F8000 → F800（保留第一個）
+    parts = sg.split("G0 F8000")
+    if len(parts) > 2:
+        sg = parts[0] + "G0 F8000" + "G0 F800".join(parts[1:])
+    # ② T0/T1 交替 → 對調使結尾為 T0
+    tools = _T01_LINE.findall(sg)
+    if len(tools) >= 2 and set(tools) == {"T0", "T1"} and tools[-1] == "T1":
+        sg = _T01_LINE.sub(lambda m: "T1" if m.group(1) == "T0" else "T0", sg)
+    mac["machine_start_gcode"] = sg
+
 def apply_fd300_prime_arc(model, mac):
     if model not in ("FD300", "FD300 單料頭", "FD300 同進"):
         return
@@ -222,8 +242,8 @@ def apply_fd300_prime_arc(model, mac):
     head = sg.split("G28 ;Home", 1)[0] + "G28 ;Home"
     if "M6050" in sg:
         head += "\nM6050 S0.5"
-    if "\nT1\n" in sg:   # 雙料：T0 外弧140/136、T1 內弧138/134（對映原 4 條直線）
-        block = _fd300_arc_block([(140, "T0"), (138, "T1"), (136, "T0"), (134, "T1")])
+    if "\nT1\n" in sg:   # 雙料：4 弧交替、最後一條 T0（2026-07-12 Eric 定＝起印主料免換刀）
+        block = _fd300_arc_block([(140, "T1"), (138, "T0"), (136, "T1"), (134, "T0")])
     else:                # 單料頭/同進：2 弧
         block = _fd300_arc_block([(140, None), (138, None)])
     mac["machine_start_gcode"] = head + "\n" + block
@@ -473,6 +493,7 @@ def main(src_base):
                 _old_mlh = mac.get("max_layer_height")
                 mac["max_layer_height"] = [_mlh] * (len(_old_mlh) if isinstance(_old_mlh, list) and _old_mlh else 1)
                 apply_bed_override(model, mac)   # 衍生機型改列印範圍（FP200：床250/高200/預擠內移）
+                normalize_prime_lines(mac)         # 預擠中途 travel F800＋T0/T1 結尾 T0（2026-07-12）
                 apply_fd300_prime_arc(model, mac)  # FD300 預擠改左側弧線（防撞門，2026-07-09）
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
                 mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
