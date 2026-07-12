@@ -592,32 +592,34 @@ def main(src_base):
             jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
             fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
 
-    # 4b-2. ★ M207/M208 雙邊回抽埋全線材（2026-07-11 Eric 交辦，Klipper #52 裁 A；
-    # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）。機端 wrapper 把 M207/M208 轉
-    # SET_RETRACTION（雙邊回抽長度/速度/回填 extra）；無 wrapper 機＝Unknown command 無害。
-    # 🔴 HOLD（2026-07-12 Eric 裁「功能先拿掉」）：機端 wrapper 已全線下車（Klipper #52，
-    # 母版退回 c4dd001c）→ 這三行現在全機隊＝無害 echo、值不生效。Eric 裁示已埋可留、
-    # 不撤（恢復條件＝#52 重走 pilot 收編，參數端會再知會）。勿當成活功能宣傳/驗收。
-    # ⚠ 交辦單原文 [retract_length] 非 Orca key（PlaceholderParser 直接炸 Variable does not
-    #   exist）→ 實埋 [retraction_length]（legacy 向量展開取 current_extruder；filament 層
-    #   覆蓋鏈已由 PrintApply filament_overrides 併進 placeholder 向量＝有效值）。
-    # ⚠ 3in1 線材 T4/T3 進料觸發行必須保留（只追加）。冪等：已含 M207 跳過。
-    # 放在 4b 之後＝高流量/3in1 重生檔也蓋得到；靜態線材檔就地補。
-    m207_added = 0
+    # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
+    # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
+    # ——免機端 wrapper、全機隊（含舊 C8/單料/四料）原生支援、老檔無指令＝機器 config 預設、
+    # 速度單位 mm/s 與 Orca 一致。切片端需開 firmware retraction（G10/G11）照舊。
+    # ⚠ 交辦單原文 [retract_length] 非 Orca key（會炸 Variable does not exist）→ 實埋
+    #   [retraction_length]；三個佔位符皆經 PrintApply filament_overrides 併入 placeholder
+    #  （GH #3649 機制，PrintApply.cpp:1250）＝含線材層覆蓋鏈的有效值（07-12 ①查證）。
+    # ⚠ 3in1 線材 T4/T3 進料觸發行必須保留（只追加）。既有 M207/M208 行（HOLD 遺留）就地退場。
+    # 冪等：已含 SET_RETRACTION 跳過。放 4b 之後＝重生檔（高流量/3in1）每次 regen 自動補。
+    sr_added = 0
+    SR_LINE = ("SET_RETRACTION RETRACT_LENGTH=[retraction_length] "
+               "RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra]")
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
         sg = fd.get("filament_start_gcode")
         cur = (sg[0] if isinstance(sg, list) and sg else sg) or ""
-        if "M207" in cur:
+        if "SET_RETRACTION" in cur:
             continue
-        add = "M207 S[retraction_length] F[retraction_speed]\nM208 S0 F[retraction_speed]"
+        # M207/M208 退場（B 定案）
+        cur = "\n".join(l for l in cur.splitlines() if not l.startswith("M207 ") and not l.startswith("M208 "))
+        add = SR_LINE
         if "; Filament gcode" not in cur:
             add = "; Filament gcode\n" + add
         fd["filament_start_gcode"] = [(cur.rstrip() + "\n" + add + "\n") if cur.strip() else (add + "\n")]
         jdump(fp_path, fd)
-        m207_added += 1
-    if m207_added:
-        print("  線材 M207/M208 雙邊回抽：+%d 支" % m207_added)
+        sr_added += 1
+    if sr_added:
+        print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
