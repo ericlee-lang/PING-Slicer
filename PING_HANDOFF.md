@@ -15,6 +15,25 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🚀 現況（2026-07-12 收工 — 0711-0712 回抽/高流量大批全數落地，build 發車中）
+
+**🔴 下一棒第一件事：查 build run `29183125531`（release/v3.5.5 @ `2cb3557d`）**——收工時在跑（~2h）。綠了（build_windows 的 Build OrcaSlicer job；整體 failure＝Flatpak/UnitTests 坑#10 不算）→ 下載 `PING_Slicer_Windows_V3.5.5_portable` 換裝 `D:\PING-Slicer-portable`（現況先備份）→ 通知 Eric 驗收。
+
+**這顆 build 內容（自上顆 29011140392 之後新增 9 顆碼 commit）**：
+1. **佔位符引擎修正 `fdc1ba19`（最重要）**：線材回抽覆蓋值終於能進 SET_RETRACTION——上游 parser 生命週期 bug（clear_config 後只補「本輪有變」覆蓋），修法＝placeholder_parser_process 中央入口按當前線材錨定 m_config 有效值（四鍵：retraction_length/speed/deretraction_speed/retract_restart_extra）。**驗收＝Eric 的圓柱體測試檔（PLA-220 覆蓋：長度2/速30/裝填30/回填0.6）重切，SET_RETRACTION 四欄應全等於覆蓋值、機器 UI 同步變。**
+2. SET_RETRACTION 四欄行（`0e9b421c`+`ac2478b5`；M207/M208 已退場）＋M207 歷程（`0def77fc`/`2397e40e` HOLD 標記）。
+3. 高流量噴頭案 A-D（`7d7e5ff0`+`61811ade`）：新線材×2（8 鍵覆蓋）、FD450+ 預設高流量、FF 改名四料高流量噴頭系、**D＝Tab.cpp 連動機型相依**（FD450+ 選 PLA 組合→高流量組；FD300 原表）。
+4. 檔名模板「Non-integer index」修正（`a68e548c`）＋預擠正規化（`a009d287`：中途 F800、T0/T1 結尾 T0）。
+5. 上一輪 UI 批（混色/設備對話框/品牌清洗/專案頁移除等）已在前顆 build，此顆延續。
+
+**%APPDATA% 現況（Eric 機、已全數同步）**：PING.json v49；線材 24 支（SET_RETRACTION 四欄＋高流量噴頭 8 鍵×2＋四料改名×6、舊名清零）；conf 可見清單/選擇已換名＋**MD5 已重算**（方案＝標準 md5·LF 正規化 JSON 段·大寫，詳 memory checklist 7c）；機器 97 檔含弧線預擠/棧板/64 槽新名；DL1016 完整。備份系列：.bak-hfnozzle／.bak-setretraction／.bak-primefix2／.bak-primearc。
+
+**判例（本輪血淚，已記 memory）**：①靜態讀碼推斷 ≠ 執行期（[retract_length] 不會炸、PrintApply:1250 不保證——被 Eric 實切打臉兩次，唯一 ground truth＝實測 gcode）②線材改名波及清單＋conf MD5 方案＝memory checklist 7b/7c。
+
+**⏳ 等 Eric（build 綠換裝後）**：①回抽四欄下機驗證（見上）②D 連動：FD600 選 PLA+SUP → 槽自動帶高流量噴頭對、FD300 → 原 PLA-220 對 ③高流量噴頭線材全機型可選、FD450+ 選機預設 ④檔名不再炸、FD300 弧線預擠、UI 批殘餘驗收。⑤照片磚原型回饋照舊等。
+
+
+---
 ### 🏁 收工快照（2026-07-09 晚・本 session 結束——下一棒從這裡接）
 
 **✅ build run `29011140392` 綠＋portable 已換裝（收工前完成）**：本體全 success（坑#10 照舊）；`D:\PING-Slicer-portable`＝V3.5.5 第3版（9 修正、bundle v45、無照片磚），前版備份 `-old-v355r2`。**下一棒＝等 Eric 驗收回饋**（重點五條見下段）。
