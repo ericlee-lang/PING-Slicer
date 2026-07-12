@@ -13,10 +13,10 @@
         "PETG"
     ],
     "nozzle_temperature": [
-        "220"
+        "210"
     ],
     "nozzle_temperature_initial_layer": [
-        "220"
+        "210"
     ],
     "hot_plate_temp": [
         "60"
