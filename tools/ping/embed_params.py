@@ -150,8 +150,9 @@ HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed
                  "filament_retraction_minimum_travel": ["3"], "filament_wipe": ["1"],
                  "filament_wipe_distance": ["5"], "filament_retract_before_wipe": ["100%"],
                  "enable_pressure_advance": ["1"], "pressure_advance": ["0.2"]}
+# 2026-07-12 Eric 補裁：SupPLA 版噴溫同 210（高流量噴頭組整組統一 210/210，不套 SUP=220 慣例）
 HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
-             HFN_SUP: {}}   # SupPLA 溫度待裁，先不動
+             HFN_SUP: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]}}
 # FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
