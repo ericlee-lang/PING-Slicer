@@ -137,11 +137,39 @@ elif PING_ONLY:
 # （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
 DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
 DEF_FIL_SINGLE = ["PING PLA - 220"]
+# ★ 高流量噴頭專用線材（2026-07-12 Eric 裁定：高流量＝噴頭屬性非機型屬性，回抽值落材料層；
+# 規格 _切片規則同步_來自pingslicer_高流量噴頭線材_20260712.md）。不分口徑、不限機型
+#（無 compatible_printers）。覆蓋值＝Eric %APPDATA% 權威樣本 4 鍵（規格表另列的擦拭/空駛
+# 欄樣本未覆蓋＝吃機器層，照「權威＝樣本」抄 4 鍵，偏差已回報參數端）。
+HFN_PLA = "PING PLA - 高流量噴頭"
+HFN_SUP = "PING SupPLA - 高流量噴頭"
+HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed": ["30"],
+                 "filament_deretraction_speed": ["30"], "filament_retract_restart_extra": ["0.6"]}
+# FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
+def def_fil_dual_for(base):
+    return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
+def def_fil_single_for(base):
+    return [HFN_PLA] if tier_of(base) == "450" else DEF_FIL_SINGLE
+# FF 四料線材改名（同裁定：綁機型＝錯）：「高流量 @FF」→「四料高流量噴頭」系、解除機型綁定。
+# setting_id/filament_id 不變（同一支材料身份）；3in1 專用支不動。
+FF_FIL_ALIAS = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
+FF_FIL_RENAME = {}   # 舊名→新名（4b 填入，供 ff_extra/照片磚範本 default 引用改名）
+for _nz in ("0.4", "0.6", "1.0"):
+    FF_FIL_RENAME["PING PLA - 高流量 @FF %s" % _nz] = "%s %s" % (FF_FIL_ALIAS["PLA"], _nz)
+    FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = "%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)
+def rename_ff_filament_refs(d):
+    """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）"""
+    v = d.get("default_filament_profile")
+    if isinstance(v, list):
+        d["default_filament_profile"] = [FF_FIL_RENAME.get(x, x) for x in v]
+    dm = d.get("default_materials")
+    if isinstance(dm, str):
+        d["default_materials"] = ";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";"))
 # PING(2026-07-02)：範本收編的口徑變體——machine 檔在 ff_extra（無交付 config，Eric 已實機驗收），
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
-    return ["PING PLA - 高流量 @FF %s" % nz]*3 + ["PING SupPLA - 高流量 @FF %s" % nz]
+    return ["%s %s" % (FF_FIL_ALIAS["PLA"], nz)]*3 + ["%s %s" % (FF_FIL_ALIAS["SupPLA"], nz)]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
                         "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
@@ -375,6 +403,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     n_mac = n_proc = n_cov = 0
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "machine"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "machine", fn), encoding="utf-8"))
+        rename_ff_filament_refs(d)   # 高流量 @FF → 四料高流量噴頭（2026-07-12 改名）
         name = d["name"]
         if d.get("type") == "machine_model":
             mm_list.append({"name": name, "sub_path": "machine/%s.json" % name}); ff_models.append(name)
@@ -407,12 +436,14 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     pt_models = []
     for fn in sorted(os.listdir(os.path.join(PHOTOTILE, "machine"))):
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", fn), encoding="utf-8"))
+        rename_ff_filament_refs(d)   # 照片磚 64 槽高流量引用改新名（2026-07-12）
         if d.get("type") == "machine_model":
             jdump(os.path.join(PINGDIR, "machine", "%s.json" % d["name"]), d)
             mm_list.append({"name": d["name"], "sub_path": "machine/%s.json" % d["name"]})
             pt_models.append(d["name"])
     for name in PHOTOTILE_MACHINES:
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
+        rename_ff_filament_refs(d)   # 照片磚 64 槽高流量引用改新名（2026-07-12）
         if name.startswith("FD300 同進照片磚"):   # FD300 硬體同款門 → 預擠同套左側弧線
             apply_fd300_prime_arc("FD300 同進", d)
         d["setting_id"] = "PINGM%03d" % gm; gm += 1
@@ -449,11 +480,11 @@ def main(src_base):
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
         if kind == "dual":
-            modes = [("PLA+SUP", base, DEF_FIL_DUAL, False),   # 雙料機母檔=PLA+SUP；製程另出 4 組合
-                     ("單料頭", base + " 單料頭", DEF_FIL_SINGLE, True),
-                     ("同進",   base + " 同進",   DEF_FIL_SINGLE, True)]
+            modes = [("PLA+SUP", base, def_fil_dual_for(base), False),   # 雙料機母檔=PLA+SUP；製程另出 4 組合
+                     ("單料頭", base + " 單料頭", def_fil_single_for(base), True),
+                     ("同進",   base + " 同進",   def_fil_single_for(base), True)]
         elif kind == "single":
-            modes = [("單料頭", base, DEF_FIL_SINGLE, True)]
+            modes = [("單料頭", base, def_fil_single_for(base), True)]
         else:
             modes = [("四色", base, None, False)]
 
@@ -568,29 +599,42 @@ def main(src_base):
                 ff_cfg.setdefault(nz, c)
     for nz in sorted(ff_cfg, key=float):
         F = split(ff_cfg[nz])["F"]
-        machines = [m for m in ("FF600 %s nozzle" % nz, "FF800 %s nozzle" % nz,
-                    "FF600 同進 %s nozzle" % nz, "FF800 同進 %s nozzle" % nz,
-                    "FF600 3in1 %s nozzle" % nz, "FF800 3in1 %s nozzle" % nz)
-                    if m in existing_machines]
-        # 照片磚機只吃高流量 PLA、不掛 SupPLA（64 槽全 PLA——2026-07-06 建機驗證狀態）
-        machines_pla = machines + [m for m in ("FF800 同進照片磚 %s nozzle" % nz,)
-                                   if m in existing_machines]
+        # 2026-07-12 Eric 裁定：改名「四料高流量噴頭」系＋解除機型綁定（無 compatible_printers）；
+        # setting_id/filament_id 沿用（同一支材料身份）。
         sfx = nz.replace(".","")   # 0.6 -> 06
         for slot, mat, fid_p, alias, color, sup in (
-                (0, "PLA",    "PINGFILHFPLA", "PING PLA - 高流量",    "#EA4E16", False),
-                (3, "SupPLA", "PINGFILHFSUP", "PING SupPLA - 高流量", "#D3D3D3", True)):
+                (0, "PLA",    "PINGFILHFPLA", FF_FIL_ALIAS["PLA"],    "#EA4E16", False),
+                (3, "SupPLA", "PINGFILHFSUP", FF_FIL_ALIAS["SupPLA"], "#D3D3D3", True)):
             fp = fil_at(F, slot, 4)
-            name = "%s @FF %s" % (alias, nz)
+            name = "%s %s" % (alias, nz)
             fid = fid_p + sfx
             fp.update({"type":"filament","name":name,"alias":alias,"from":"system",
                 "instantiation":"true","setting_id":fid,"filament_id":fid,
                 "inherits":"fdm_filament_pla",
-                "compatible_printers":(machines if sup else machines_pla),
                 "filament_colors":[color],"default_filament_colors":[color]})
+            fp.pop("compatible_printers", None)   # 不限機型
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；FD 的 30/60 規則不適用，待裁定）
             jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
             fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
+    # 舊名檔清除（改名後不留雙份；PING.json 舊條目在 4d 過濾）
+    for old in FF_FIL_RENAME:
+        oldp = os.path.join(PINGDIR, "filament", "%s.json" % old)
+        if os.path.exists(oldp):
+            os.remove(oldp); print("  filament 移除(改名):", old)
+
+    # 4b-1b. ★ 高流量噴頭專用線材 2 支（A 案）：承 PLA-220/SupPLA 本體＋樣本 4 鍵覆蓋、
+    # 不限機型；SET_RETRACTION 四欄行由基底帶入/4b-2 sweep 保證。
+    for base_name, new_name, fid in ((("PING PLA - 220"), HFN_PLA, "PINGFILHFNPLA"),
+                                     (("PING SupPLA"),    HFN_SUP, "PINGFILHFNSUP")):
+        bp = os.path.join(PINGDIR, "filament", "%s.json" % base_name)
+        fd_ = json.load(io.open(bp, encoding="utf-8"))
+        fd_.update(HFN_OVERRIDES)
+        fd_.update({"name": new_name, "alias": new_name,   # 獨立 alias 勿與其他 PLA 併組
+                    "setting_id": fid, "filament_id": fid})
+        fd_.pop("compatible_printers", None)   # 不限機型
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
+        fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
@@ -685,6 +729,8 @@ def main(src_base):
     pj["process_list"] = ([{"name":"fdm_process_common","sub_path":"process/fdm_process_common.json"},
                            {"name":"fdm_process_ping_common","sub_path":"process/fdm_process_ping_common.json"}]
                           + proc_list)
+    # 高流量 @FF 舊名條目過濾（2026-07-12 改名，檔已刪、條目不留＝防斷鏈）
+    pj["filament_list"] = [x for x in pj["filament_list"] if x["name"] not in FF_FIL_RENAME]
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in (fil_new + ff_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔

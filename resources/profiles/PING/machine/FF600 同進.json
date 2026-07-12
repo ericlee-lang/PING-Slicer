@@ -8,5 +8,5 @@
     "bed_model": "PING_FD600_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture.png",
     "hotend_model": "",
-    "default_materials": "PING PLA - 高流量 @FF 0.4;PING PLA - 高流量 @FF 0.4;PING PLA - 高流量 @FF 0.4;PING SupPLA - 高流量 @FF 0.4;PING PLA - 高流量 @FF 1.0;PING PLA - 高流量 @FF 1.0;PING PLA - 高流量 @FF 1.0;PING SupPLA - 高流量 @FF 1.0"
+    "default_materials": "PING PLA - 四料高流量噴頭 0.4;PING PLA - 四料高流量噴頭 0.4;PING PLA - 四料高流量噴頭 0.4;PING SupPLA - 四料高流量噴頭 0.4;PING PLA - 四料高流量噴頭 1.0;PING PLA - 四料高流量噴頭 1.0;PING PLA - 四料高流量噴頭 1.0;PING SupPLA - 四料高流量噴頭 1.0"
 }
