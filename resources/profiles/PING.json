@@ -21,10 +21,6 @@
             "sub_path": "machine/FD300 同進.json"
         },
         {
-            "name": "FD300 同進照片磚",
-            "sub_path": "machine/FD300 同進照片磚.json"
-        },
-        {
             "name": "FD300 Pro",
             "sub_path": "machine/FD300 Pro.json"
         },
@@ -95,10 +91,6 @@
         {
             "name": "FF800 3in1",
             "sub_path": "machine/FF800 3in1.json"
-        },
-        {
-            "name": "FF800 同進照片磚",
-            "sub_path": "machine/FF800 同進照片磚.json"
         }
     ],
     "process_list": [
@@ -553,26 +545,6 @@
         {
             "name": "0.45mm @FF800 同進 (1.0)",
             "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
-        },
-        {
-            "name": "0.35mm @FF800 同進照片磚 (0.6)",
-            "sub_path": "process/0.35mm @FF800 同進照片磚 (0.6).json"
-        },
-        {
-            "name": "0.25mm @FF800 同進照片磚 (0.4)",
-            "sub_path": "process/0.25mm @FF800 同進照片磚 (0.4).json"
-        },
-        {
-            "name": "0.45mm @FF800 同進照片磚 (1.0)",
-            "sub_path": "process/0.45mm @FF800 同進照片磚 (1.0).json"
-        },
-        {
-            "name": "0.2mm @FD300 同進照片磚 (0.4)",
-            "sub_path": "process/0.2mm @FD300 同進照片磚 (0.4).json"
-        },
-        {
-            "name": "0.3mm @FD300 同進照片磚 (0.6)",
-            "sub_path": "process/0.3mm @FD300 同進照片磚 (0.6).json"
         },
         {
             "name": "0.1mm_棧板 @FP300 (0.2)",
@@ -1101,26 +1073,6 @@
         {
             "name": "FF800 同進 1.0 nozzle",
             "sub_path": "machine/FF800 同進 1.0 nozzle.json"
-        },
-        {
-            "name": "FF800 同進照片磚 0.6 nozzle",
-            "sub_path": "machine/FF800 同進照片磚 0.6 nozzle.json"
-        },
-        {
-            "name": "FF800 同進照片磚 0.4 nozzle",
-            "sub_path": "machine/FF800 同進照片磚 0.4 nozzle.json"
-        },
-        {
-            "name": "FF800 同進照片磚 1.0 nozzle",
-            "sub_path": "machine/FF800 同進照片磚 1.0 nozzle.json"
-        },
-        {
-            "name": "FD300 同進照片磚 0.4 nozzle",
-            "sub_path": "machine/FD300 同進照片磚 0.4 nozzle.json"
-        },
-        {
-            "name": "FD300 同進照片磚 0.6 nozzle",
-            "sub_path": "machine/FD300 同進照片磚 0.6 nozzle.json"
         }
     ]
 }
