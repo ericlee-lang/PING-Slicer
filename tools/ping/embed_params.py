@@ -574,6 +574,9 @@ def main(src_base):
     # 4b-2. ★ M207/M208 雙邊回抽埋全線材（2026-07-11 Eric 交辦，Klipper #52 裁 A；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）。機端 wrapper 把 M207/M208 轉
     # SET_RETRACTION（雙邊回抽長度/速度/回填 extra）；無 wrapper 機＝Unknown command 無害。
+    # 🔴 HOLD（2026-07-12 Eric 裁「功能先拿掉」）：機端 wrapper 已全線下車（Klipper #52，
+    # 母版退回 c4dd001c）→ 這三行現在全機隊＝無害 echo、值不生效。Eric 裁示已埋可留、
+    # 不撤（恢復條件＝#52 重走 pilot 收編，參數端會再知會）。勿當成活功能宣傳/驗收。
     # ⚠ 交辦單原文 [retract_length] 非 Orca key（PlaceholderParser 直接炸 Variable does not
     #   exist）→ 實埋 [retraction_length]（legacy 向量展開取 current_extruder；filament 層
     #   覆蓋鏈已由 PrintApply filament_overrides 併進 placeholder 向量＝有效值）。
