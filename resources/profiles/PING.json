@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.45",
+    "version": "01.00.00.47",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -19,6 +19,10 @@
         {
             "name": "FD300 同進",
             "sub_path": "machine/FD300 同進.json"
+        },
+        {
+            "name": "FD300 同進照片磚",
+            "sub_path": "machine/FD300 同進照片磚.json"
         },
         {
             "name": "FD300 Pro",
@@ -91,6 +95,10 @@
         {
             "name": "FF800 3in1",
             "sub_path": "machine/FF800 3in1.json"
+        },
+        {
+            "name": "FF800 同進照片磚",
+            "sub_path": "machine/FF800 同進照片磚.json"
         }
     ],
     "process_list": [
@@ -547,6 +555,26 @@
             "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
         },
         {
+            "name": "0.35mm @FF800 同進照片磚 (0.6)",
+            "sub_path": "process/0.35mm @FF800 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.25mm @FF800 同進照片磚 (0.4)",
+            "sub_path": "process/0.25mm @FF800 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.45mm @FF800 同進照片磚 (1.0)",
+            "sub_path": "process/0.45mm @FF800 同進照片磚 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD300 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD300 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD300 同進照片磚 (0.6).json"
+        },
+        {
             "name": "0.1mm_棧板 @FP300 (0.2)",
             "sub_path": "process/0.1mm_棧板 @FP300 (0.2).json"
         },
@@ -745,30 +773,6 @@
             "sub_path": "filament/PING PLA - 220.json"
         },
         {
-            "name": "PING PLA - 高流量 @FF 0.6",
-            "sub_path": "filament/PING PLA - 高流量 @FF 0.6.json"
-        },
-        {
-            "name": "PING SupPLA - 高流量 @FF 0.6",
-            "sub_path": "filament/PING SupPLA - 高流量 @FF 0.6.json"
-        },
-        {
-            "name": "PING PLA - 高流量 @FF 1.0",
-            "sub_path": "filament/PING PLA - 高流量 @FF 1.0.json"
-        },
-        {
-            "name": "PING SupPLA - 高流量 @FF 1.0",
-            "sub_path": "filament/PING SupPLA - 高流量 @FF 1.0.json"
-        },
-        {
-            "name": "PING PLA - 高流量 @FF 0.4",
-            "sub_path": "filament/PING PLA - 高流量 @FF 0.4.json"
-        },
-        {
-            "name": "PING SupPLA - 高流量 @FF 0.4",
-            "sub_path": "filament/PING SupPLA - 高流量 @FF 0.4.json"
-        },
-        {
             "name": "PING PLA(3in1) @FF 0.4",
             "sub_path": "filament/PING PLA(3in1) @FF 0.4.json"
         },
@@ -791,6 +795,38 @@
         {
             "name": "PING SupPLA(3in1) @FF 1.0",
             "sub_path": "filament/PING SupPLA(3in1) @FF 1.0.json"
+        },
+        {
+            "name": "PING PLA - 四料高流量噴頭 0.4",
+            "sub_path": "filament/PING PLA - 四料高流量噴頭 0.4.json"
+        },
+        {
+            "name": "PING SupPLA - 四料高流量噴頭 0.4",
+            "sub_path": "filament/PING SupPLA - 四料高流量噴頭 0.4.json"
+        },
+        {
+            "name": "PING PLA - 四料高流量噴頭 0.6",
+            "sub_path": "filament/PING PLA - 四料高流量噴頭 0.6.json"
+        },
+        {
+            "name": "PING SupPLA - 四料高流量噴頭 0.6",
+            "sub_path": "filament/PING SupPLA - 四料高流量噴頭 0.6.json"
+        },
+        {
+            "name": "PING PLA - 四料高流量噴頭 1.0",
+            "sub_path": "filament/PING PLA - 四料高流量噴頭 1.0.json"
+        },
+        {
+            "name": "PING SupPLA - 四料高流量噴頭 1.0",
+            "sub_path": "filament/PING SupPLA - 四料高流量噴頭 1.0.json"
+        },
+        {
+            "name": "PING PLA - 高流量噴頭",
+            "sub_path": "filament/PING PLA - 高流量噴頭.json"
+        },
+        {
+            "name": "PING SupPLA - 高流量噴頭",
+            "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
         }
     ],
     "machine_list": [
@@ -1065,6 +1101,26 @@
         {
             "name": "FF800 同進 1.0 nozzle",
             "sub_path": "machine/FF800 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "FD300 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD300 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD300 同進照片磚 0.6 nozzle.json"
         }
     ]
 }
