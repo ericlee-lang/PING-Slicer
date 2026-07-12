@@ -3780,6 +3780,7 @@ PlaceholderParserIntegration &ppi = m_placeholder_parser_integration;
         cfg_override_ping.set_key_value("retraction_length",     new ConfigOptionFloat(m_config.retraction_length.get_at(current_filament_id)));
         cfg_override_ping.set_key_value("retraction_speed",      new ConfigOptionFloat(m_config.retraction_speed.get_at(current_filament_id)));
         cfg_override_ping.set_key_value("retract_restart_extra", new ConfigOptionFloat(m_config.retract_restart_extra.get_at(current_filament_id)));
+        cfg_override_ping.set_key_value("deretraction_speed",    new ConfigOptionFloat(m_config.deretraction_speed.get_at(current_filament_id)));
         std::string output = ppi.parser.process(templ, current_filament_id, &cfg_override_ping, &ppi.output_config, &ppi.context);
         ppi.validate_output_vector_variables();
 
