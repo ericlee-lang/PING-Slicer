@@ -15,9 +15,25 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🚀 現況（2026-07-12 收工 — 0711-0712 回抽/高流量大批全數落地，build 發車中）
+### 🚀 現況（2026-07-14 — 支撐四規則落地＋SupPLA 高流量「看不到」真因抓到，⏳ 等 Eric 關 app 補 conf）
 
-**🔴 下一棒第一件事：查 build run `29183125531`（release/v3.5.5 @ `2cb3557d`）**——收工時在跑（~2h）。綠了（build_windows 的 Build OrcaSlicer job；整體 failure＝Flatpak/UnitTests 坑#10 不算）→ 下載 `PING_Slicer_Windows_V3.5.5_portable` 換裝 `D:\PING-Slicer-portable`（現況先備份）→ 通知 Eric 驗收。
+**Eric 2026-07-14 裁「支撐四規則」已嵌（commit `c8c3e751`，ping/v3.5；repo＋%APPDATA% 各 51 檔同步改）**：
+- PLA+SUP ×15：`support_object_xy_distance`＝口徑×0.75、`support_object_first_layer_gap`＝口徑/3（0.25→0.19/0.08、0.4→0.3/0.13、0.6→0.45/0.2、1.0→0.75/0.33）＋介面 4 層/間距 0.1。
+- PLA+PLA／ABS+ABS ×30＋FF 四色 ×6：介面收到 4 層/0.1（**只收緊不放鬆**）。
+- 不動（⏳ 待 Eric 裁「一律」是否也蓋）：ABS+SUP 黃金 4/0.04/XY0.5、3in1 4/0 實心、照片磚、DL1016。
+- 產生器 durable：`combo_overrides` 帶口徑出 PLA+SUP 幾何＋新 `normalize_support_interface`；SSOT 已回填 ping-slicer skill materials.md。
+- ⚠ **下次發版：把 `c8c3e751` 帶進 release/v3.5.5**（比照 43056ecd regen 法）再 build——r5（bundle v48）尚無此批。
+
+**🔴 「PING SupPLA - 高流量噴頭」下拉看不到的真因＝conf 可見清單被 app 回寫蓋回舊名**：07-12 記錄「conf 已換名＋MD5 重算」，07-14 實測已回魂（filaments 仍 22 支舊 @FF 名、全檔 147 處舊名殘留）——conf 若在 app 開著時補、退出時會被記憶體舊態覆寫。系統端本身沒問題（%APPDATA% 線材/註冊/機器 default 皆新名；線材×2 已補同步 210/210＋PA 0.2＝9a5c1892/572b9241 內容）。
+- 修補腳本已收 repo：`tools/ping/patch_conf_hf_visible.py`（`--check` 乾跑已驗：MD5 方案重算＝現檔一致；147 處換名＋filaments 22→24）。**執行條件＝PingSlicer 完全關閉**（腳本有 running 防呆＋自動備份）。跑完重開＋開新專案。
+- 順帶：Eric user 夾有自建同名樣本（`PING PLA - 高流量噴頭`／`- 複製`等）建議請他在 app 內刪除改用系統版，避免同名混淆。
+
+**同事 FD600 Pro 同進「兩支料」＝同事本機狀態、非系統 bug**：同進機定義三處驗證皆 1 槽（repo ping/v3.5／%APPDATA%／release355 worktree：`nozzle_diameter` len1、SEMM=0、`default_filament_profile` 1 支）；「PING SupPLA - 210」**git 全歷史查無**＝同事自建 user 線材或開過 2 槽專案被 conf 記住。排查＝同事機選該機後把第 2 槽移除／重置該機選擇；刪不掉＝他的機器定義被動過→用正式版覆蓋 profiles。
+
+---
+### 🚀 前況（2026-07-12 下午 — build 綠、portable 已換裝 V3.5.5 第4版，⏳ 等 Eric 驗收）
+
+**✅ build run `29183125531` 綠＋portable 已換裝（2026-07-12 16:38）**：build_windows 的 Build OrcaSlicer=success（整體 failure＝Flatpak×2＋UnitTests 坑#10 照舊）；`D:\PING-Slicer-portable`＝**V3.5.5 第4版**（release/v3.5.5 @ `2cb3557d`），前版備份 `D:\PING-Slicer-portable-old-v355r3`。換裝前已驗：bundle PING.json **v47 < %APPDATA% v49**（DL1016 安全）、機器 90／製程 146、高流量線材×2＋四料改名×6 全在。**下一棒＝等 Eric 驗收回饋（重點見下方「⏳ 等 Eric」五條，最優先＝回抽四欄圓柱體測試）。**
 
 **這顆 build 內容（自上顆 29011140392 之後新增 9 顆碼 commit）**：
 1. **佔位符引擎修正 `fdc1ba19`（最重要）**：線材回抽覆蓋值終於能進 SET_RETRACTION——上游 parser 生命週期 bug（clear_config 後只補「本輪有變」覆蓋），修法＝placeholder_parser_process 中央入口按當前線材錨定 m_config 有效值（四鍵：retraction_length/speed/deretraction_speed/retract_restart_extra）。**驗收＝Eric 的圓柱體測試檔（PLA-220 覆蓋：長度2/速30/裝填30/回填0.6）重切，SET_RETRACTION 四欄應全等於覆蓋值、機器 UI 同步變。**
@@ -51,7 +67,7 @@
 ---
 ### 🏁 V3.5.5 無照片磚版 build 綠＋portable 已換裝（2026-07-09）
 - run **28952768359** @ `98a7e2b6`（Eric 授權發車；整體 failure＝Flatpak×2＋UnitTests 坑#10，本體全綠、artifact 齊：Windows 安裝檔+portable/Mac Universal/Linux）。
-- `D:\PING-Slicer-portable`＝乾淨 **V3.5.5**（混色＋預擠＋牆速＋版次＋棧板 A+B+C；無照片磚、無 a11ee870）。舊 v3.5.4 備份 `D:\PING-Slicer-portable-old-v354`（更早 -old-preB/-premix/-preprimefix 已標可清、未刪）。bundle PING.json v45 <%APPDATA% v48 → DL1016 安全。⚠ 這顆無照片磚後處理，切照片磚一律用 `D:\PING-Slicer-phototile-portable`。
+- `D:\PING-Slicer-portable`＝乾淨 **V3.5.5**（混色＋預擠＋牆速＋版次＋棧板 A+B+C；無照片磚、無 a11ee870）。舊 v3.5.4 備份 `D:\PING-Slicer-portable-old-v354`（更早 -old-preB/-premix/-preprimefix 已於 2026-07-12 清除）。bundle PING.json v45 <%APPDATA% v48 → DL1016 安全。⚠ 這顆無照片磚後處理，切照片磚一律用 `D:\PING-Slicer-phototile-portable`。
 - %APPDATA% 已同步棧板（Eric 授權）：備份 `process.bak-palletsync`、+33 雙生、版號 48、牆速新規一併帶上；照片磚 5 支/DL1016 未動。
 - ✅ 棧板驗收 OK（Eric 07-09；150%＝筏層貼床層線寬，引擎碼 support_material_1st_layer_flow→Base flange 查證）；已轉參數端定案。
 - ✅ **G 槽下載夾已換乾淨版**（`G:\我的雲端硬碟6claude\PING Slicer\`）：7/8 有人上傳了污染版 V3.5.5（run 28883963324 夾帶 a11ee870）→ 07-09 同名覆蓋為乾淨 run 28952768359（連結不變）、SHA-256/版本資訊.txt 已更新。⏳ 可選：補發 GitHub Release v3.5.5 tag（等 Eric 說）。
@@ -206,7 +222,7 @@ OrcaSlicer」是 lookahead/lookbehind 盲點要補掃。
 > - **預擠同步規則（Eric 實機糾正的 ground truth，勿回退）**：預擠料必須 co-feed——FD 同進 start 保留 `M6050 S0.5`、FF 同進 start 用 **`M6052 A25 B25 C25 D25`（不再用 T5**，T5 留給手動測試；Klipper 端 M6052 是驗證過的路）。混色插碼**只剝「第一個 `;Z:` 之後」的 M605x**（in_body 旗標，`PingColorMix.cpp` Pass 2），第一層之前的同步指令保留。舊認知「start 的 M6050 剝掉沒關係」只對列印本體成立、對預擠不成立（單邊擠料不均，Eric 2026-07-03 實機發現）。
 > - **v3.5.5 批次（規格在手、Eric 定排 Release 後）**：①牆速/填充正規化（外60/內min(現,80)/填充150/`sparse_infill_acceleration`=10000、首層不動；規格 `..\_切片規則同步_來自pingslicer_牆速填充_20260703.md`；現況分佈已盤：75/100/150×66支→60/80/150 等；DL1016 跳過）②PA-CF crater 專屬製程（產生器加材料專屬製程：外50/內80/填充80/accel不套10000/溫250/床60/扇30；規格 `..\_切片規則同步_來自pingslicer_PACF專屬製程_20260703.md`）。嵌完回報參數端抽驗。speed 是資源改動、**免 build 可先在 portable 驗**。
 > - **PETG 接縫**：Eric 嫌接縫粗＋起停凸瘤（現值＝ABS 定稿 aligned/gap15%/scarf=none 套在 PETG 上）→ 已轉參數端定 PETG 接縫標準（scarf 值得為 PETG 重測／seam_gap／PA 校準），等定稿再嵌。
-> - **本機狀態**：portable＋%APPDATA% ＝ v3.5.4 預擠版（v44、M6052、DL1016 已回注）。舊備份可清：`D:\PING-Slicer-portable-old-preB`、`-old-preprimefix`、`-old-premix`。**DL1016 備援**（G 槽 Dowell 源已失蹤）＝`D:\dev\2026claude\20260604 ORCA客製\DL1016_本機注入備援\`（11 檔＋PING.json 註冊條目）。
+> - **本機狀態**：portable＋%APPDATA% ＝ v3.5.4 預擠版（v44、M6052、DL1016 已回注）。舊備份 `-old-preB`/`-old-preprimefix`/`-old-premix` 已於 2026-07-12 清除。**DL1016 備援**（G 槽 Dowell 源已失蹤）＝`D:\dev\2026claude\20260604 ORCA客製\DL1016_本機注入備援\`（11 檔＋PING.json 註冊條目）。
 > - 預擠 co-feed 已驗到 gcode/profile 層；**實機 co-feed 未印**（Eric 選直接發）——同事若回報預擠異常，先查 start 段 M6050/M6052 有沒有在。
 
 ### ✅（已收成）混色漸層整合 — ①②③ 全原生＋B案開關＋Eric 5 項驗收全過（細節保留供維護）
