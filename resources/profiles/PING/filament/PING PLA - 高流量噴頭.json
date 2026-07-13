@@ -210,10 +210,10 @@
         "0"
     ],
     "nozzle_temperature": [
-        "220"
+        "210"
     ],
     "nozzle_temperature_initial_layer": [
-        "220"
+        "210"
     ],
     "nozzle_temperature_range_high": [
         "230"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.12"
+        "0.2"
     ],
     "reduce_fan_stop_start_freq": [
         "1"

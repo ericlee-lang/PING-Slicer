@@ -144,10 +144,15 @@ DEF_FIL_SINGLE = ["PING PLA - 220"]
 HFN_PLA = "PING PLA - 高流量噴頭"
 HFN_SUP = "PING SupPLA - 高流量噴頭"
 # 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
+# 2026-07-12 統一四值④：PA 0.2 兩支都套；噴溫 210/210 只 PLA 版（SupPLA 版溫度待 Eric 裁）
 HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed": ["30"],
                  "filament_deretraction_speed": ["30"], "filament_retract_restart_extra": ["0.6"],
                  "filament_retraction_minimum_travel": ["3"], "filament_wipe": ["1"],
-                 "filament_wipe_distance": ["5"], "filament_retract_before_wipe": ["100%"]}
+                 "filament_wipe_distance": ["5"], "filament_retract_before_wipe": ["100%"],
+                 "enable_pressure_advance": ["1"], "pressure_advance": ["0.2"]}
+# 2026-07-12 Eric 補裁：SupPLA 版噴溫同 210（高流量噴頭組整組統一 210/210，不套 SUP=220 慣例）
+HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
+             HFN_SUP: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]}}
 # FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
@@ -305,9 +310,24 @@ def proc_overrides(kind, base, is_single_mode):
     """軟體端裁定值 override（FF 不套）。
     2026-06-11 大清理（吃當日交付驗證）：加速度(3000/1500)、scarf=none、速度兩線新裁定
     （雙料/FP 60-80-150、單料頭/同進 50-60-150、口徑連動填充）——源檔已全套→override 拿掉
-    （「源檔套完→拿掉 embed override」原則）。僅 seam_position 源檔部分檔仍 back→保留。"""
-    if kind == "ff": return {}
-    return {"seam_position": "aligned"}   # 2026-06-10 使用者定稿：接縫位置=對齊
+    （「源檔套完→拿掉 embed override」原則）。
+    2026-07-12：舊「seam_position=aligned（2026-06-10）」被統一四值的 aligned_back 取代
+    （normalize_unified_values 新規蓋舊規），此處不再覆寫。"""
+    return {}
+
+# ★ 製程統一四值之①②③（2026-07-12 Eric 定，規格 _切片規則同步_來自pingslicer_製程統一四值_20260712.md）：
+# ①首層流量比 1.1（set_other_flow_ratios 開；其餘流量比維持預設 1）
+# ②接縫位置＝背部對齊 aligned_back（⚠ enum 對映：UI「背部對齊」=aligned_back、「背面」=back；
+#   照片磚特調用的是 back＋seam_gap0——本函式不套照片磚，見 emit_phototile 註）
+# ③空駛加速度 20000（Eric user 製程「-調教/空跑加速2W」存檔實證值；空駛速度 250 不變）
+# 全 PING 製程套（含棧板雙生＝從已正規化的 proc 派生自然繼承）；DL1016 不在 repo 自然跳過；
+# 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。新規蓋舊規（seam aligned→aligned_back）。
+def normalize_unified_values(proc):
+    proc["set_other_flow_ratios"] = "1"
+    proc["first_layer_flow_ratio"] = "1.1"
+    proc["seam_position"] = "aligned_back"
+    proc["travel_acceleration"] = "20000"
+    return proc
 
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
@@ -420,6 +440,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
+        normalize_unified_values(d)  # 統一四值①②③（2026-07-12）
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -458,6 +479,9 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
         normalize_fast_speed(d)
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
+        # ⚠ 統一四值①②③「不套」照片磚（2026-07-12 對衝突結論）：②aligned_back 會蓋掉
+        # 照片磚特調 back＋seam_gap0（接縫藏背面定案）；③travel 20000 對數千次換料路徑
+        # 未驗證；①首層流量 1.1 動已實印驗證的首層。已回報參數端。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
@@ -547,6 +571,7 @@ def main(src_base):
                         proc.update(combo_overrides(cb, lh))
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
+                    normalize_unified_values(proc)  # 統一四值①②③（2026-07-12）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
@@ -635,6 +660,7 @@ def main(src_base):
         bp = os.path.join(PINGDIR, "filament", "%s.json" % base_name)
         fd_ = json.load(io.open(bp, encoding="utf-8"))
         fd_.update(HFN_OVERRIDES)
+        fd_.update(HFN_EXTRA[new_name])
         fd_.update({"name": new_name, "alias": new_name,   # 獨立 alias 勿與其他 PLA 併組
                     "setting_id": fid, "filament_id": fid})
         fd_.pop("compatible_printers", None)   # 不限機型
