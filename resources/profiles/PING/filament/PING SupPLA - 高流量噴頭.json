@@ -13,10 +13,10 @@
         "PETG"
     ],
     "nozzle_temperature": [
-        "220"
+        "210"
     ],
     "nozzle_temperature_initial_layer": [
-        "220"
+        "210"
     ],
     "hot_plate_temp": [
         "60"
@@ -74,6 +74,12 @@
     ],
     "filament_retract_before_wipe": [
         "100%"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.2"
     ],
     "alias": "PING SupPLA - 高流量噴頭"
 }
