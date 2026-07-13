@@ -329,6 +329,17 @@ def normalize_unified_values(proc):
     proc["travel_acceleration"] = "20000"
     return proc
 
+# ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
+# 只「收緊不放鬆」：層數 1/2→4；間距比 0.1 鬆（0.2/0.4/0.5/1）→0.1；
+# 比 0.1 更密的既有定稿不動（ABS+SUP 黃金 0.04、3in1 實心 0——是否也收 0.1 待 Eric 另裁）。
+# 範本 emit（ff_extra 3in1/同進、照片磚）不套（範本已驗證不改值原則）；DL1016 不在 repo 自然跳過。
+def normalize_support_interface(proc):
+    if proc.get("support_interface_top_layers") in ("1", "2"):
+        proc["support_interface_top_layers"] = "4"
+    if proc.get("support_interface_spacing") in ("0.2", "0.4", "0.5", "1"):
+        proc["support_interface_spacing"] = "0.1"
+    return proc
+
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
@@ -394,16 +405,21 @@ def parse_dir(src_base, dirname):
 
 DUAL_COMBOS = ["PLA+SUP", "PLA+PLA", "ABS+SUP", "ABS+ABS"]
 
-def combo_overrides(combo, layer_height):
+def combo_overrides(combo, layer_height, nozzle):
     """V3.0 組合別製程差異復原（2026-06-10 使用者規格＋V3.0「最佳 ABS」定稿實證）：
     - 支撐介面：有 SUP＝z 距離 0（貼緊、靠支撐料好剝）；無 SUP＝1 層層高（留縫好拆）
     - Raft：ABS 系＝2 層、PLA 系＝0
-    - ABS+SUP 另套 V3.0 黃金支撐配方（normal/主體料1/界面料2/界面4·2層/間距0.04/xy0.5）"""
+    - ABS+SUP 另套 V3.0 黃金支撐配方（normal/主體料1/界面料2/界面4·2層/間距0.04/xy0.5）
+    - PLA+SUP 支撐幾何（Eric 2026-07-14 裁）：XY=口徑×0.75、支撐/物件第一層間隙=口徑/3
+      （易拆支撐口徑公式；ABS+SUP 維持黃金配方 xy0.5 不套）"""
     o = {}
     if combo.endswith("+SUP"):
         o.update({"support_top_z_distance": "0", "support_bottom_z_distance": "0"})
     else:
         o.update({"support_top_z_distance": layer_height, "support_bottom_z_distance": layer_height})
+    if combo == "PLA+SUP":
+        o.update({"support_object_xy_distance": "%g" % round(float(nozzle) * 0.75, 2),
+                  "support_object_first_layer_gap": "%g" % round(float(nozzle) / 3.0, 2)})
     if combo.startswith("ABS"):
         o["raft_layers"] = "2"
         # ABS 首層線寬 1.5×口徑（「最佳ABS(更新後)」定稿 0.4 噴嘴=0.6；百分比隨口徑縮放）
@@ -568,10 +584,11 @@ def main(src_base):
                     proc.pop("tree_support_wall_count", None)
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
-                        proc.update(combo_overrides(cb, lh))
+                        proc.update(combo_overrides(cb, lh, nz))
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc)  # 統一四值①②③（2026-07-12）
+                    normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
