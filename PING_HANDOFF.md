@@ -22,7 +22,8 @@
 - PLA+PLA／ABS+ABS ×30＋FF 四色 ×6：介面收到 4 層/0.1（**只收緊不放鬆**）。
 - 不動（⏳ 待 Eric 裁「一律」是否也蓋）：ABS+SUP 黃金 4/0.04/XY0.5、3in1 4/0 實心、照片磚、DL1016。
 - 產生器 durable：`combo_overrides` 帶口徑出 PLA+SUP 幾何＋新 `normalize_support_interface`；SSOT 已回填 ping-slicer skill materials.md。
-- ⚠ **下次發版：把 `c8c3e751`（支撐四規則，profiles regen）＋`4a3fa192`（圓床洗料塔頂部置中，C++）帶進 release/v3.5.5**（比照 43056ecd regen 法）再 build——r5（bundle v48）尚無這兩批。
+- ⚠ **下次發版：把 `c8c3e751`（支撐四規則，profiles regen）＋`4a3fa192`（圓床洗料塔頂部置中，C++）＋`cb10b456`（FD300/FP300 弧線預擠幾何定稿）帶進 release/v3.5.5**（比照 43056ecd regen 法）再 build——r5（bundle v48）尚無這三批。ping/photo-tile 分支也未鏡像這三顆，照片磚下次 build 前記得 cherry-pick（%APPDATA% 已是新值、Eric 本機照片磚切片不受影響）。
+- **0714 弧線預擠幾何定稿（參數端同步單）已嵌（`cb10b456`）**：209°/弦100/R144-138/E=直線版同量（0.2→16/0.25→20/0.4→30/0.6→45）/Z=口徑首層高；白名單 FD300 三模式＋FP300（P200+/FP200 全名比對防繼承——床 250 會超床）；repo＋%APPDATA% 各 14 檔、備份 `.bak-primearc2`；0.4 雙料與定稿逐字相等（硬閘門）。⏳ FP300 2 弧版待實機驗。完成紀錄在規格檔尾。
 - **0714 洗料塔兩案（Eric 裁定）**：A＝圓床預設塔位「頂部置中 X=0、含 brim 離頂 10mm」已做（`4a3fa192`，PartPlate.cpp set_default_wipe_tower_pos_for_plate，方床不動，需 build 驗）；B＝層層洗開關不用做——現成參數 `wipe_tower_max_idle_layers`（多線材→換料塔「閒置線材沖刷間隔」，0=原始/1=層層洗），Eric 裁「預設開」＝維持 `fdm_process_ping_common`=1 現狀、3in1 六支明寫 1。
 - **conf 可見清單已補（0714 08:08，Eric 關 app 後）**：換名 147、filaments 22→24、MD5 重算、備份 `.bak-hfvisible-20260714080823`、復檢乾淨——⏳ 等 Eric 重開驗 SupPLA 高流量噴頭出現＋溫度 210。⚠ Eric user 夾仍有 7/12 手建同名樣本（PLA - 高流量噴頭等），若前台吃到 220＝那支，請他刪 user 版。
 
