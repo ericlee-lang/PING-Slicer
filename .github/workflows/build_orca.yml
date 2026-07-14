@@ -281,7 +281,16 @@ jobs:
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
         run: |
           dir "C:/Program Files (x86)/Windows Kits/10/Include"
-          choco install nsis
+          # choco 社群源偶發 504（2026-07-14 run 29296142180 實例：裝 0 套件仍過關、1 小時後 cpack 才炸）
+          # → 重試 5 次＋裝完驗 makensis 存在，失敗就當場紅、不拖到 cpack
+          $ok = $false
+          foreach ($i in 1..5) {
+            choco install nsis -y --no-progress
+            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") { $ok = $true; break }
+            Write-Host "choco install nsis 第 $i 次未成功，60 秒後重試…"
+            Start-Sleep -Seconds 60
+          }
+          if (-not $ok) { throw "choco install nsis 重試 5 次仍失敗（makensis 不存在）" }
 
       - name: Build slicer Win
         if: runner.os == 'Windows'
