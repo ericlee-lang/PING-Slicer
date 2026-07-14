@@ -4124,9 +4124,11 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
         }
     }
 
-    // PING(2026-07-09 Eric)：圓床盤形夾限——上面的方形 bbox 夾限對圓床（PING delta 全系列）
-    // 不夠：bbox 四角在圓外，預設位置會落盤外。盤形點數 >4（圓/多邊形）時，把塔踏面
-    //（含 margin）四角都收進盤形內：任一角在外就沿「塔中心→盤中心」方向 2mm 步進內移。
+    // PING(2026-07-09 Eric)：圓床盤形夾限；PING(2026-07-14 Eric)：圓床預設塔位改「頂部置中」——
+    // 塔踏面置中於床中心線（X=0）、塔＋brim 外緣離床頂內緣 10mm（Y 正向側），取代原「方床預設
+    // (165,250) 再內縮」——那條路徑在圓床上會落盤外或停在右上角。算完仍跑四角盤內防呆：
+    // 任一角在盤形外就沿「塔中心→盤中心」方向 2mm 步進內移（塔深大於床時的守衛）。
+    // 方床（4 點，如 DL1016）行為不變。
     {
         const Pointfs &shape = part_plate->get_shape();   // 絕對座標盤形
         if (shape.size() > 4) {
@@ -4145,6 +4147,9 @@ void PartPlateList::set_default_wipe_tower_pos_for_plate(int plate_idx, bool ini
             };
             BoundingBoxf shape_bb(shape);
             const Vec2d center_local(shape_bb.center()(0) - plate_origin(0), shape_bb.center()(1) - plate_origin(1));
+            // 頂部置中（局部座標）：X 置中；Y＝盤頂內緣 − 10mm − brim/margin − 塔深
+            x = (float)(center_local(0) - wipe_tower_size(0) / 2.);
+            y = (float)(shape_bb.max(1) - plate_origin(1) - 10. - margin - wipe_tower_size(1));
             Vec2d dir = center_local - Vec2d(x + wipe_tower_size(0) / 2., y + wipe_tower_size(1) / 2.);
             double dist = dir.norm();
             if (dist > EPSILON) {
