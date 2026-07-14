@@ -226,28 +226,33 @@ def apply_bed_override(model, mac):
         mac["machine_start_gcode"] = re.sub(
             r"Y(-1[34][0-9])", lambda m: "Y%d" % (int(m.group(1)) + ov["prime_y_shift"]), sg)
 
-# ★ FD300 預擠改「左側弧線」（2026-07-09 Eric＋同事實機定案）：FD300 門關只能印 200 圓、
-# 前緣 Y-140~-134 直線預擠會把門撞開 → 改沿盤緣左側弧線（圓心 210° 方向、掃角 195°~225°，
-# 半徑由外而內 140/138/136/134、間距 2mm；I/J＝圓心(0,0)−弧起點；E15/弧＝同事調校值，
-# Klipper [gcode_arcs] 已實機驗證）。只套 FD300 非 Pro 家族；照片磚機在 emit_phototile 同套。
-import math as _math
-def _fd300_arc_block(radii_tools):
-    """radii_tools=[(半徑, T字串或None), ...] 由外而內；奇數索引逆向（G2 回程）。"""
-    c195, s195 = _math.cos(_math.radians(195)), _math.sin(_math.radians(195))
-    c225, s225 = _math.cos(_math.radians(225)), _math.sin(_math.radians(225))
+# ★ FD300/FP300 預擠「左側弧線」幾何定稿（2026-07-14 Eric 雙料實機定稿，取代 2026-07-09 初版
+# 掃角 195-225°/R140-134/E15——全部作廢）：弧中點方位角 209°、弦長固定 100mm（半角＝asin(50/R)）、
+# 半徑由外而內 144/142/140/138（間距 2mm）、I/J＝圓心(0,0)−弧起點、每弧 E＝直線版同量
+#（0.4 基準 E30，既有口徑流量比：0.2→16／0.25→20／0.6→45）、Z＝各口徑首層高、
+# 末弧 G1 Z1 E(e−1)（抬升＋回抽 1mm）。座標採定稿 gcode 字面值（規格檔
+# _切片規則同步_來自pingslicer_FD300弧線預擠幾何定稿_20260714.md）——實機驗過，勿以公式重算竄動；
+# 半徑固定故全口徑共用同一組座標，只有 Z/E 隨口徑。
+_FD300_ARC_PTS = {  # r: (a=188.7° 側點, b=229.3° 側點)；G3 走 a→b、G2 走 b→a
+    144: ((-142.35, -21.74), (-93.88, -109.21)),
+    142: ((-140.49, -20.70), (-92.00, -108.17)),
+    140: ((-138.63, -19.67), (-90.13, -107.13)),
+    138: ((-136.77, -18.63), (-88.26, -106.09)),
+}
+def _fd300_arc_block(radii_tools, z, e):
+    """radii_tools=[(半徑, T字串或None), ...] 由外而內；偶數索引 G3 去、奇數索引 G2 回。"""
     lines = []
     for i, (r, tool) in enumerate(radii_tools):
-        p195 = (r * c195, r * s195)
-        p225 = (r * c225, r * s225)
-        start, end, cmd = (p195, p225, "G3") if i % 2 == 0 else (p225, p195, "G2")
+        a, b = _FD300_ARC_PTS[r]
+        start, end, cmd = (a, b, "G3") if i % 2 == 0 else (b, a, "G2")
         if tool is not None:
             lines.append(tool)
-        lines.append("G0 F%d X%.2f Y%.2f Z0.25" % (8000 if i == 0 else 800, start[0], start[1]))
+        lines.append("G0 F%d X%.2f Y%.2f Z%s" % (8000 if i == 0 else 800, start[0], start[1], z))
         lines.append("G92 E0")
-        lines.append("%s F800 X%.2f Y%.2f I%.2f J%.2f E15" % (cmd, end[0], end[1], -start[0], -start[1]))
+        lines.append("%s F800 X%.2f Y%.2f I%.2f J%.2f E%s" % (cmd, end[0], end[1], -start[0], -start[1], e))
         if i < len(radii_tools) - 1:
             lines.append("G92 E0")
-    lines.append("G1 Z1 E14")
+    lines.append("G1 Z1 E%g" % (float(e) - 1))
     lines.append("G92 E0")
     return "\n".join(lines)
 
@@ -272,18 +277,27 @@ def normalize_prime_lines(mac):
     mac["machine_start_gcode"] = sg
 
 def apply_fd300_prime_arc(model, mac):
-    if model not in ("FD300", "FD300 單料頭", "FD300 同進"):
+    # 白名單（Eric 2026-07-14「目前只針對 FD300/FP300 即可」）：FD300 非 Pro 三模式＋FP300 新納入
+    #（同 300 床殼直線預擠一樣撞門）。FD300 Pro／E 系、FP300 E 未提及＝不套；FD450+/FF 無門問題。
+    # ⚠ P200+/FP200 絕不可納入：衍生自 FP300 但床只有 250（半徑 125）——R144 弧會超出床外；
+    # 它的預擠本就按門關 200 另算（apply_bed_override 預擠內移），此處用「全名精確比對」防繼承。
+    if model not in ("FD300", "FD300 單料頭", "FD300 同進", "FP300"):
         return
     sg = mac.get("machine_start_gcode")
     if not isinstance(sg, str) or "G28 ;Home" not in sg or "Y-140" not in sg:
         return
+    m_z = re.search(r"G0 F8000 [^\n]*?Z([\d.]+)", sg)
+    m_e = re.search(r"G1 F800 [^\n]*?E([\d.]+)", sg)
+    if not m_z or not m_e:
+        return
+    z, e = m_z.group(1), m_e.group(1)   # 取直線版的首層高與每線 E（口徑流量比已在源檔）
     head = sg.split("G28 ;Home", 1)[0] + "G28 ;Home"
     if "M6050" in sg:
         head += "\nM6050 S0.5"
     if "\nT1\n" in sg:   # 雙料：4 弧交替、最後一條 T0（2026-07-12 Eric 定＝起印主料免換刀）
-        block = _fd300_arc_block([(140, "T1"), (138, "T0"), (136, "T1"), (134, "T0")])
-    else:                # 單料頭/同進：2 弧
-        block = _fd300_arc_block([(140, None), (138, None)])
+        block = _fd300_arc_block([(144, "T1"), (142, "T0"), (140, "T1"), (138, "T0")], z, e)
+    else:                # 單料頭/同進/FP300：2 弧（外側 R144/142，由 4 弧定稿裁減、待實機驗）
+        block = _fd300_arc_block([(144, None), (142, None)], z, e)
     mac["machine_start_gcode"] = head + "\n" + block
 
 def tier_of(base):
