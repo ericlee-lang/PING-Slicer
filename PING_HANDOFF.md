@@ -22,7 +22,9 @@
 - PLA+PLA／ABS+ABS ×30＋FF 四色 ×6：介面收到 4 層/0.1（**只收緊不放鬆**）。
 - 不動（⏳ 待 Eric 裁「一律」是否也蓋）：ABS+SUP 黃金 4/0.04/XY0.5、3in1 4/0 實心、照片磚、DL1016。
 - 產生器 durable：`combo_overrides` 帶口徑出 PLA+SUP 幾何＋新 `normalize_support_interface`；SSOT 已回填 ping-slicer skill materials.md。
-- ⚠ **下次發版：把 `c8c3e751` 帶進 release/v3.5.5**（比照 43056ecd regen 法）再 build——r5（bundle v48）尚無此批。
+- ⚠ **下次發版：把 `c8c3e751`（支撐四規則，profiles regen）＋`4a3fa192`（圓床洗料塔頂部置中，C++）帶進 release/v3.5.5**（比照 43056ecd regen 法）再 build——r5（bundle v48）尚無這兩批。
+- **0714 洗料塔兩案（Eric 裁定）**：A＝圓床預設塔位「頂部置中 X=0、含 brim 離頂 10mm」已做（`4a3fa192`，PartPlate.cpp set_default_wipe_tower_pos_for_plate，方床不動，需 build 驗）；B＝層層洗開關不用做——現成參數 `wipe_tower_max_idle_layers`（多線材→換料塔「閒置線材沖刷間隔」，0=原始/1=層層洗），Eric 裁「預設開」＝維持 `fdm_process_ping_common`=1 現狀、3in1 六支明寫 1。
+- **conf 可見清單已補（0714 08:08，Eric 關 app 後）**：換名 147、filaments 22→24、MD5 重算、備份 `.bak-hfvisible-20260714080823`、復檢乾淨——⏳ 等 Eric 重開驗 SupPLA 高流量噴頭出現＋溫度 210。⚠ Eric user 夾仍有 7/12 手建同名樣本（PLA - 高流量噴頭等），若前台吃到 220＝那支，請他刪 user 版。
 
 **🔴 「PING SupPLA - 高流量噴頭」下拉看不到的真因＝conf 可見清單被 app 回寫蓋回舊名**：07-12 記錄「conf 已換名＋MD5 重算」，07-14 實測已回魂（filaments 仍 22 支舊 @FF 名、全檔 147 處舊名殘留）——conf 若在 app 開著時補、退出時會被記憶體舊態覆寫。系統端本身沒問題（%APPDATA% 線材/註冊/機器 default 皆新名；線材×2 已補同步 210/210＋PA 0.2＝9a5c1892/572b9241 內容）。
 - 修補腳本已收 repo：`tools/ping/patch_conf_hf_visible.py`（`--check` 乾跑已驗：MD5 方案重算＝現檔一致；147 處換名＋filaments 22→24）。**執行條件＝PingSlicer 完全關閉**（腳本有 running 防呆＋自動備份）。跑完重開＋開新專案。
