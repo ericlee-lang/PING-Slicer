@@ -302,20 +302,24 @@ static bool is_num_token(const std::string& tok, char prefix, double lo, double 
     return true;
 }
 
+static std::vector<std::string> split_name_tokens(const std::string& name)
+{
+    std::vector<std::string> tokens;
+    size_t                   i = 0;
+    while (i < name.size()) {
+        while (i < name.size() && std::isspace((unsigned char) name[i])) ++i;
+        size_t j = i;
+        while (j < name.size() && !std::isspace((unsigned char) name[j])) ++j;
+        if (j > i) tokens.emplace_back(name.substr(i, j - i));
+        i = j;
+    }
+    return tokens;
+}
+
 bool parse_photo_part_name(const std::string& name, std::string& out_cmd)
 {
     // 空白切 token（對應原型 name 以單一空白組裝）
-    std::vector<std::string> tk;
-    {
-        size_t i = 0, n = name.size();
-        while (i < n) {
-            while (i < n && std::isspace((unsigned char)name[i])) ++i;
-            size_t j = i;
-            while (j < n && !std::isspace((unsigned char)name[j])) ++j;
-            if (j > i) tk.emplace_back(name.substr(i, j - i));
-            i = j;
-        }
-    }
+    const std::vector<std::string> tk = split_name_tokens(name);
     const size_t n = tk.size();
     // 四料：尾端 4 token = A.. B.. C.. D..（各 0~100、和=100±0.5，原型恆為整數兩支非零）
     if (n >= 5) {
@@ -336,6 +340,121 @@ bool parse_photo_part_name(const std::string& name, std::string& out_cmd)
         }
     }
     return false;
+}
+
+// —— 照片磚：預覽色與指派完整性 —— //
+bool parse_photo_part_color(const std::string& name, std::string& out_color)
+{
+    out_color.clear();
+    std::string cmd;
+    if (!parse_photo_part_name(name, cmd)) return false;
+
+    const std::vector<std::string> tokens = split_name_tokens(name);
+    for (const std::string& token : tokens) {
+        if (token.size() != 7 || token.front() != '#') continue;
+        bool valid = true;
+        for (size_t i = 1; i < token.size(); ++i) {
+            if (hex_digit(token[i]) < 0) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        out_color = token;
+        std::transform(out_color.begin() + 1, out_color.end(), out_color.begin() + 1,
+                       [](unsigned char c) { return (char) std::toupper(c); });
+        return true;
+    }
+
+    // Legacy dual test files have no embedded preview color. A neutral grayscale keeps
+    // assignments visually inspectable; newly generated files always carry the exact color.
+    if (cmd.compare(0, 6, "M6051 ") == 0) {
+        double            s     = 0.0;
+        const std::string token = cmd.substr(6);
+        if (!is_num_token(token, 'S', 0.0, 1.0, s)) return false;
+        const int gray = (int) std::lround(s * 255.0);
+        char      color[8];
+        std::snprintf(color, sizeof(color), "#%02X%02X%02X", gray, gray, gray);
+        out_color = color;
+        return true;
+    }
+    return false;
+}
+
+PhotoPaletteStatus collect_photo_palette(const std::vector<PhotoPartAssignment>& parts,
+                                         PhotoPalette& out,
+                                         std::string& reason)
+{
+    out = PhotoPalette{};
+    reason.clear();
+    if (parts.empty()) return PhotoPaletteStatus::NotPhotoTile;
+
+    size_t      parsed_count = 0;
+    std::string first_unparsed_name;
+    for (const PhotoPartAssignment& part : parts) {
+        std::string cmd;
+        if (!parse_photo_part_name(part.name, cmd)) {
+            if (first_unparsed_name.empty()) first_unparsed_name = part.name;
+            continue;
+        }
+        ++parsed_count;
+
+        if (part.tool < 0) {
+            reason = "a photo-tile part has no material assignment: " + part.name;
+            out    = PhotoPalette{};
+            return PhotoPaletteStatus::Invalid;
+        }
+
+        auto recipe_it = out.recipes.find(part.tool);
+        if (recipe_it != out.recipes.end() && recipe_it->second != cmd) {
+            reason = "material T" + std::to_string(part.tool) + " has conflicting recipes";
+            out    = PhotoPalette{};
+            return PhotoPaletteStatus::Invalid;
+        }
+        out.recipes[part.tool] = cmd;
+
+        if (out.colors.size() <= (size_t) part.tool) out.colors.resize((size_t) part.tool + 1);
+        std::string color;
+        if (parse_photo_part_color(part.name, color)) {
+            if (!out.colors[part.tool].empty() && out.colors[part.tool] != color) {
+                reason = "material T" + std::to_string(part.tool) + " has conflicting preview colors";
+                out    = PhotoPalette{};
+                return PhotoPaletteStatus::Invalid;
+            }
+            out.colors[part.tool] = color;
+        }
+    }
+
+    if (parsed_count == 0) {
+        out = PhotoPalette{};
+        return PhotoPaletteStatus::NotPhotoTile;
+    }
+    if (parsed_count != parts.size()) {
+        reason = std::to_string(parts.size() - parsed_count) + " of " + std::to_string(parts.size())
+               + " printable parts have no photo-tile recipe; first: " + first_unparsed_name;
+        out = PhotoPalette{};
+        return PhotoPaletteStatus::Invalid;
+    }
+    if (parts.size() < 2) {
+        out = PhotoPalette{};
+        return PhotoPaletteStatus::NotPhotoTile;
+    }
+    if (out.recipes.size() < 2) {
+        reason = "multiple photo-tile parts are assigned to fewer than two materials";
+        out    = PhotoPalette{};
+        return PhotoPaletteStatus::Invalid;
+    }
+
+    const int max_tool = out.recipes.rbegin()->first;
+    for (int tool = 0; tool <= max_tool; ++tool) {
+        if (out.recipes.find(tool) == out.recipes.end()) {
+            reason = "material assignments are not contiguous; T" + std::to_string(tool) + " is missing";
+            out    = PhotoPalette{};
+            return PhotoPaletteStatus::Invalid;
+        }
+    }
+    out.colors.resize((size_t) max_tool + 1);
+    return PhotoPaletteStatus::Valid;
 }
 
 // —— 照片磚：整行 T<n> → palette 指令 —— //
