@@ -9,11 +9,16 @@
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/nowide/fstream.hpp>
 
+#include <wx/base64.h>
+#include <wx/filename.h>
 #include <wx/sizer.h>
 #include <wx/toolbar.h>
 #include <wx/textdlg.h>
 #include <wx/url.h>
+
+#include <vector>
 
 #include <slic3r/GUI/Widgets/WebView.hpp>
 
@@ -21,6 +26,22 @@ namespace pt = boost::property_tree;
 
 namespace Slic3r {
 namespace GUI {
+    namespace {
+    wxString homepage_url()
+    {
+        wxString url = wxString::Format("file://%s/web/homepage/index.html", from_u8(resources_dir()));
+        const wxString language = wxGetApp().current_language_code_safe();
+        if (!language.IsEmpty())
+            url = wxString::Format("file://%s/web/homepage/index.html?lang=%s", from_u8(resources_dir()), language);
+        return url;
+    }
+
+    wxString photo_tile_url()
+    {
+        return wxString::Format("file://%s/web/phototile/index.html?mode=vertical&embedded=1", from_u8(resources_dir()));
+    }
+    }
+
     wxDECLARE_EVENT(EVT_RESPONSE_MESSAGE, wxCommandEvent);
 
     wxDEFINE_EVENT(EVT_RESPONSE_MESSAGE, wxCommandEvent);
@@ -36,10 +57,7 @@ namespace GUI {
 WebViewPanel::WebViewPanel(wxWindow *parent)
         : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
  {
-    wxString url = wxString::Format("file://%s/web/homepage/index.html", from_u8(resources_dir()));
-    wxString strlang = wxGetApp().current_language_code_safe();
-    if (strlang != "")
-        url = wxString::Format("file://%s/web/homepage/index.html?lang=%s", from_u8(resources_dir()), strlang);
+    wxString url = homepage_url();
 
     wxBoxSizer* topsizer = new wxBoxSizer(wxVERTICAL);
     
@@ -248,6 +266,75 @@ void WebViewPanel::load_url(wxString& url)
     m_browser->LoadURL(url);
     m_browser->SetFocus();
     UpdateState();
+}
+
+void WebViewPanel::ShowHomepage()
+{
+    m_pending_photo_tile_image.clear();
+    wxString url = homepage_url();
+    load_url(url);
+}
+
+void WebViewPanel::ShowPhotoTile(const wxString& image_path)
+{
+    m_pending_photo_tile_image = image_path;
+    wxString url = photo_tile_url();
+    load_url(url);
+}
+
+void WebViewPanel::SendPendingPhotoTileImage()
+{
+    const wxString image_path = m_pending_photo_tile_image;
+    m_pending_photo_tile_image.clear();
+    if (image_path.IsEmpty())
+        return;
+
+    boost::nowide::ifstream input(into_u8(image_path), std::ios::binary | std::ios::ate);
+    if (!input) {
+        BOOST_LOG_TRIVIAL(warning) << "Unable to open dropped photo tile image: " << into_u8(image_path);
+        RunScript("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片無法讀取，請按「開啟圖片」重試。');");
+        return;
+    }
+
+    const std::streamoff file_size = input.tellg();
+    constexpr std::streamoff max_image_bytes = 64LL * 1024LL * 1024LL;
+    if (file_size <= 0 || file_size > max_image_bytes) {
+        BOOST_LOG_TRIVIAL(warning) << "Dropped photo tile image has unsupported size: " << file_size;
+        RunScript("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片檔案過大（上限 64 MB），請先縮小圖片再試。');");
+        return;
+    }
+
+    input.seekg(0, std::ios::beg);
+    std::vector<unsigned char> bytes(static_cast<size_t>(file_size));
+    if (!input.read(reinterpret_cast<char*>(bytes.data()), file_size)) {
+        BOOST_LOG_TRIVIAL(warning) << "Unable to read dropped photo tile image: " << into_u8(image_path);
+        RunScript("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片讀取失敗，請按「開啟圖片」重試。');");
+        return;
+    }
+
+    const wxString extension = wxFileName(image_path).GetExt().Lower();
+    wxString mime = "image/png";
+    if (extension == "jpg" || extension == "jpeg") mime = "image/jpeg";
+    else if (extension == "webp") mime = "image/webp";
+    else if (extension == "bmp") mime = "image/bmp";
+
+    pt::ptree metadata;
+    metadata.put("name", into_u8(wxFileName(image_path).GetFullName()));
+    metadata.put("mime", into_u8(mime));
+    metadata.put("size", bytes.size());
+    std::ostringstream json_stream;
+    pt::write_json(json_stream, metadata, false);
+    std::string metadata_json = json_stream.str();
+    metadata_json.erase(std::remove(metadata_json.begin(), metadata_json.end(), '\n'), metadata_json.end());
+    RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.beginImage(") + from_u8(metadata_json) + ");");
+
+    const wxString encoded = wxBase64Encode(bytes.data(), bytes.size());
+    constexpr size_t chunk_chars = 192 * 1024;
+    for (size_t offset = 0; offset < encoded.length(); offset += chunk_chars) {
+        const wxString chunk = encoded.Mid(offset, chunk_chars);
+        RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.appendImageChunk(\"") + chunk + "\");");
+    }
+    RunScript("window.PINGPhotoTile && window.PINGPhotoTile.finishImage();");
 }
 
 /**
@@ -550,7 +637,7 @@ void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetURL().ToUTF8().data();
     const wxString &url = evt.GetURL();
     if (url.StartsWith("File://") || url.StartsWith("file://")) {
-        if (!url.Contains("/web/homepage/index.html")) {
+        if (!url.Contains("/web/homepage/index.html") && !url.Contains("/web/phototile/index.html")) {
             auto file = wxURL::Unescape(wxURL(url).GetPath());
 #ifdef _WIN32
             if (file.StartsWith('/'))
@@ -612,6 +699,8 @@ void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
         if (wxGetApp().get_mode() == comDevelop)
             wxLogMessage("%s", "Document loaded; url='" + evt.GetURL() + "'");
     }
+    if (evt.GetURL().Contains("/web/phototile/index.html"))
+        SendPendingPhotoTileImage();
     UpdateState();
 }
 
