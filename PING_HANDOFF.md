@@ -24,7 +24,7 @@
 - 舊機全部隔離為 Marlin legacy：`emit_machine_limits_to_gcode=0`、製程加速度/jerk=0（不產生 M204）、`use_firmware_retraction=0`、Classic 專用線材 PA=0 且無 Klipper `SET_RETRACTION`。
 - 回抽定稿：EDU（料管約 40cm）`4/30`、PING 270（約 70cm）`6/60`、PING 200／300+ `2/20`、DUAL 300 `2/20`、DUAL 450/600/800 `3/30`。EDU 專屬線材床溫 0，Start/End G-code 無 M140/M190。
 - 速度按 V2.1：單料 40、DUAL 300 40、DUAL 450+ 外牆40／內牆80／填充60，空駛250；0.6 DUAL 標準層高 0.25。`verify_profiles.py` 已加入完整硬閘門，regen 後 294 presets／76 machines 參照全過；21/24.js Node 語法全過。
-- ⚠ `DL1016` 依既有裁定仍是 Eric 本機注入、不得進正式 Release。參數包 51 首次載入會洗掉本機注入；測試 V3.6 前從 `..\DL1016_本機注入備援\` 回注，這輪未碰 `%APPDATA%`。
+- `DL1016` 依 Eric 2026-07-15 裁定只保留在既有 Portable 本機用途，正式 V3.6 不打包、不更新，也不碰 `%APPDATA%`；未來確實需要新版 Portable 再由 `..\DL1016_本機注入備援\` 回注。本次 build 不處理 DL1016。
 
 ### ✅ 介面／精靈／支撐預設確認批（2026-07-15，依 Eric 指示暫不 build）
 - 安裝精靈直接從「選擇 3D 列印機」開始；歡迎頁與區域頁都不再進入，隱藏區域固定 `Asia-Pacific`，選機首屏也移除返回歡迎頁的按鈕。
