@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.49",
+    "version": "01.00.00.51",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -13,60 +13,60 @@
             "sub_path": "machine/FD300.json"
         },
         {
-            "name": "FD300 單料頭",
-            "sub_path": "machine/FD300 單料頭.json"
-        },
-        {
             "name": "FD300 同進",
             "sub_path": "machine/FD300 同進.json"
+        },
+        {
+            "name": "FD300 單料頭",
+            "sub_path": "machine/FD300 單料頭.json"
         },
         {
             "name": "FD300 Pro",
             "sub_path": "machine/FD300 Pro.json"
         },
         {
-            "name": "FD300 Pro 單料頭",
-            "sub_path": "machine/FD300 Pro 單料頭.json"
-        },
-        {
             "name": "FD300 Pro 同進",
             "sub_path": "machine/FD300 Pro 同進.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭",
+            "sub_path": "machine/FD300 Pro 單料頭.json"
         },
         {
             "name": "FD450 Pro",
             "sub_path": "machine/FD450 Pro.json"
         },
         {
-            "name": "FD450 Pro 單料頭",
-            "sub_path": "machine/FD450 Pro 單料頭.json"
-        },
-        {
             "name": "FD450 Pro 同進",
             "sub_path": "machine/FD450 Pro 同進.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭",
+            "sub_path": "machine/FD450 Pro 單料頭.json"
         },
         {
             "name": "FD600 Pro",
             "sub_path": "machine/FD600 Pro.json"
         },
         {
-            "name": "FD600 Pro 單料頭",
-            "sub_path": "machine/FD600 Pro 單料頭.json"
-        },
-        {
             "name": "FD600 Pro 同進",
             "sub_path": "machine/FD600 Pro 同進.json"
+        },
+        {
+            "name": "FD600 Pro 單料頭",
+            "sub_path": "machine/FD600 Pro 單料頭.json"
         },
         {
             "name": "FD800 Pro",
             "sub_path": "machine/FD800 Pro.json"
         },
         {
-            "name": "FD800 Pro 單料頭",
-            "sub_path": "machine/FD800 Pro 單料頭.json"
-        },
-        {
             "name": "FD800 Pro 同進",
             "sub_path": "machine/FD800 Pro 同進.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭",
+            "sub_path": "machine/FD800 Pro 單料頭.json"
         },
         {
             "name": "FF600",
@@ -91,6 +91,38 @@
         {
             "name": "FF800 3in1",
             "sub_path": "machine/FF800 3in1.json"
+        },
+        {
+            "name": "EDU 200",
+            "sub_path": "machine/EDU 200.json"
+        },
+        {
+            "name": "PING 200",
+            "sub_path": "machine/PING 200.json"
+        },
+        {
+            "name": "PING 270",
+            "sub_path": "machine/PING 270.json"
+        },
+        {
+            "name": "PING 300+",
+            "sub_path": "machine/PING 300+.json"
+        },
+        {
+            "name": "DUAL 300",
+            "sub_path": "machine/DUAL 300.json"
+        },
+        {
+            "name": "DUAL 450",
+            "sub_path": "machine/DUAL 450.json"
+        },
+        {
+            "name": "DUAL 600",
+            "sub_path": "machine/DUAL 600.json"
+        },
+        {
+            "name": "DUAL 800",
+            "sub_path": "machine/DUAL 800.json"
         }
     ],
     "process_list": [
@@ -547,6 +579,38 @@
             "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
         },
         {
+            "name": "0.3mm @EDU 200 (0.6)",
+            "sub_path": "process/0.3mm @EDU 200 (0.6).json"
+        },
+        {
+            "name": "0.2mm @PING 200 (0.4)",
+            "sub_path": "process/0.2mm @PING 200 (0.4).json"
+        },
+        {
+            "name": "0.2mm @PING 270 (0.4)",
+            "sub_path": "process/0.2mm @PING 270 (0.4).json"
+        },
+        {
+            "name": "0.2mm @PING 300+ (0.4)",
+            "sub_path": "process/0.2mm @PING 300+ (0.4).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 (0.4).json"
+        },
+        {
+            "name": "0.25mm @DUAL 450 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 450 (0.6).json"
+        },
+        {
+            "name": "0.25mm @DUAL 600 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 600 (0.6).json"
+        },
+        {
+            "name": "0.25mm @DUAL 800 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 800 (0.6).json"
+        },
+        {
             "name": "0.1mm_棧板 @FP300 (0.2)",
             "sub_path": "process/0.1mm_棧板 @FP300 (0.2).json"
         },
@@ -799,6 +863,22 @@
         {
             "name": "PING SupPLA - 高流量噴頭",
             "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
+        },
+        {
+            "name": "PING PLA - Classic 210",
+            "sub_path": "filament/PING PLA - Classic 210.json"
+        },
+        {
+            "name": "PING PLA - Classic 220",
+            "sub_path": "filament/PING PLA - Classic 220.json"
+        },
+        {
+            "name": "PING SupPLA - Classic",
+            "sub_path": "filament/PING SupPLA - Classic.json"
+        },
+        {
+            "name": "PING PLA - EDU Classic",
+            "sub_path": "filament/PING PLA - EDU Classic.json"
         }
     ],
     "machine_list": [
@@ -1073,6 +1153,38 @@
         {
             "name": "FF800 同進 1.0 nozzle",
             "sub_path": "machine/FF800 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "EDU 200 0.6 nozzle",
+            "sub_path": "machine/EDU 200 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 200 0.4 nozzle",
+            "sub_path": "machine/PING 200 0.4 nozzle.json"
+        },
+        {
+            "name": "PING 270 0.4 nozzle",
+            "sub_path": "machine/PING 270 0.4 nozzle.json"
+        },
+        {
+            "name": "PING 300+ 0.4 nozzle",
+            "sub_path": "machine/PING 300+ 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 0.6 nozzle.json"
         }
     ]
 }

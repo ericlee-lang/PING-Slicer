@@ -1,10 +1,12 @@
-# PING Slicer V3.5 — Session Hand-off ＆ 客製化指南
+# PING Slicer V3.6 — Session Hand-off ＆ 客製化指南
 
 > 🧭 **加機型／動切片引擎前，先讀 `D:\dev\2026claude\20260604 ORCA客製\SOP_加機型.md`**（跨棒永久標準：機型＝多檔 preset bundle 結構、加機型步驟、`extruder_id 越界`/FF800 同進崩潰的已驗證真因與修法都在 §2.5）。
 >
-> 🟠 **本專案 repo（git）在：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer`**（分支 `ping/v3.5`）。
+> 🟠 **正式維護線 repo（git）在：`D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-release355`**（分支 `release/v3.6`）。
 > **請在這個資料夾開 session**，不要開在 G 槽雲端的 `…\20250403 ORCA軟體客制\`（那是舊資料夾，沒有 repo）。
-> 接續指令： `讀 D:\dev\2026claude\20260604 ORCA客製\PING-Slicer\PING_HANDOFF.md 接續`
+> 接續指令： `讀 D:\dev\2026claude\20260604 ORCA客製\PING-Slicer-release355\PING_HANDOFF.md 接續`
+>
+> **兩線治理（Eric 2026-07-15 定）**：`release/v3.6`＝唯一正式發布／維護線；`ping/photo-tile`＝照片磚專線。`ping/v3.5` 僅保留為整理期安全備份，不再承接新功能。
 >
 > 這份是「接手用」文件：給下一個 Session（或維護者）快速接續 + 避免重踩坑。
 > 搭配 `PING_CUSTOMIZATION.md`（AGPL 修改紀錄）一起看。
@@ -15,6 +17,28 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🆕 V3.6 Classic 前代機支援（2026-07-15，已實作／未 build）
+- 正式維護線進版 `3.6.0`；內建參數包 `PING.json` 49→51，讓既有 3.5 安裝可收到新機型。尚未 push／build／部署。
+- 選機精靈的首次設定（21）與後續新增印表機（24）都在同一頁新增 **Fast／Classic** 分頁；預設 Fast，搜尋時跨兩頁顯示結果，「全選／清空」只作用目前可見頁。
+- Classic 八機型與 V2.1 名稱／尺寸／預設口徑：`EDU 200(0.6)`、`PING 200(0.4)`、`PING 270(0.4)`、`PING 300+(0.4)`、`DUAL 300(0.4)`、`DUAL 450/600/800(0.6)`。
+- 舊機全部隔離為 Marlin legacy：`emit_machine_limits_to_gcode=0`、製程加速度/jerk=0（不產生 M204）、`use_firmware_retraction=0`、Classic 專用線材 PA=0 且無 Klipper `SET_RETRACTION`。
+- 回抽定稿：EDU（料管約 40cm）`4/30`、PING 270（約 70cm）`6/60`、PING 200／300+ `2/20`、DUAL 300 `2/20`、DUAL 450/600/800 `3/30`。EDU 專屬線材床溫 0，Start/End G-code 無 M140/M190。
+- 速度按 V2.1：單料 40、DUAL 300 40、DUAL 450+ 外牆40／內牆80／填充60，空駛250；0.6 DUAL 標準層高 0.25。`verify_profiles.py` 已加入完整硬閘門，regen 後 294 presets／76 machines 參照全過；21/24.js Node 語法全過。
+- ⚠ `DL1016` 依既有裁定仍是 Eric 本機注入、不得進正式 Release。參數包 51 首次載入會洗掉本機注入；測試 V3.6 前從 `..\DL1016_本機注入備援\` 回注，這輪未碰 `%APPDATA%`。
+
+### ✅ 介面／精靈／支撐預設確認批（2026-07-15，依 Eric 指示暫不 build）
+- 安裝精靈直接從「選擇 3D 列印機」開始；歡迎頁與區域頁都不再進入，隱藏區域固定 `Asia-Pacific`，選機首屏也移除返回歡迎頁的按鈕。
+- 混色區提示統一黑底白字；浮動「混色」圓角按鈕的父背景改為貼合 GL 畫布，消除白色方背；色彩選擇器固定在所點色票旁並限制在當前螢幕工作區。
+- 精靈同家族順序改為「基本款 → 同進 → 3in1 → 單料頭」，需要實際換噴頭的單料頭固定最右。
+- 支撐模式硬閘門：FD300 全家族樹狀；FF600／FF600 3in1 普通；FF600 同進樹狀。來源在 `embed_params.py`，`verify_profiles.py` 同步驗證。
+- 本批 C++／web／產生器已同步正式維護線與照片磚線；正式線 profiles 已重生 144 支並通過參照／安全值／支撐矩陣／精靈排序驗證。遵照指示不 build，實際像素驗收留待下一次合併 build。尚未 commit、push、部署。
+
+### ✅ 兩線對齊：正式線保守加速度／接縫對齊／副本短名稱（2026-07-15）
+- 本線 144 支一般製程已重生為：`sparse_infill_acceleration=5000`、`travel_acceleration=5000`、`seam_position=aligned`；原因＝高加速度會造成馬達錯位／失步。
+- 儲存系統列印參數副本時，預設名稱移除 `@機型 (口徑)`，例：`0.2mm PLA+SUP - 複製`；只套 `TYPE_PRINT`。
+- `embed_params.py` 與 `verify_profiles.py` 已同步硬閘門；驗證＝144 一般／0 照片磚、參照完整性通過。
+- 尚未 commit、push、build、部署 `%APPDATA%`／portable；`PING.json` 版號維持 49，發版遷移另行裁定。
+
 ### 🏁 V3.5.5 無照片磚版 build 綠＋portable 已換裝（2026-07-09）
 - run **28952768359** @ `98a7e2b6`（Eric 授權發車；整體 failure＝Flatpak×2＋UnitTests 坑#10，本體全綠、artifact 齊：Windows 安裝檔+portable/Mac Universal/Linux）。
 - `D:\PING-Slicer-portable`＝乾淨 **V3.5.5**（混色＋預擠＋牆速＋版次＋棧板 A+B+C；無照片磚、無 a11ee870）。舊 v3.5.4 備份 `D:\PING-Slicer-portable-old-v354`（更早 -old-preB/-premix/-preprimefix 已標可清、未刪）。bundle PING.json v45 <%APPDATA% v48 → DL1016 安全。⚠ 這顆無照片磚後處理，切照片磚一律用 `D:\PING-Slicer-phototile-portable`。

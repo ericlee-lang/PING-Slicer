@@ -206,9 +206,51 @@ BED_OVERRIDE = {
               "bed_texture": "P200+_buildplate_texture.png",
               "nozzles": ["0.4", "0.6"]},   # 去掉 0.2、只留 0.4/0.6（使用者 2026-06-15）
 }
+
+# ---------- Classic 前代機（V3.6） ----------
+# 名稱、尺寸與預設口徑以 PingSlicer V2.1 為權威；速度／回抽沿用同版品質檔。
+# 這批皆為 Marlin 非 Klipper 機：不送 machine limits、不產生 M204、不用韌體回抽／PA。
+# EDU 料管約 40cm，保留專屬 4/30；PING 270 約 70cm，使用 6/60。
+CLASSIC_SPECS = [
+    {"name":"EDU 200",  "src_model":"FP300",       "src_nozzle":"0.6", "src_diameter":300,
+     "diameter":200, "height":"200", "nozzle":"0.6", "layer":"0.3",  "initial":"0.35",
+     "retract":"4", "retract_speed":"30", "dual":False, "heated_bed":False, "speed_class":"single"},
+    {"name":"PING 200", "src_model":"FP300",       "src_nozzle":"0.4", "src_diameter":300,
+     "diameter":200, "height":"200", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
+     "retract":"2", "retract_speed":"20", "dual":False, "heated_bed":True,  "speed_class":"single"},
+    {"name":"PING 270", "src_model":"FP300",       "src_nozzle":"0.4", "src_diameter":300,
+     "diameter":270, "height":"300", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
+     "retract":"6", "retract_speed":"60", "dual":False, "heated_bed":True,  "speed_class":"single"},
+    {"name":"PING 300+","src_model":"FP300",       "src_nozzle":"0.4", "src_diameter":300,
+     "diameter":300, "height":"270", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
+     "retract":"2", "retract_speed":"20", "dual":False, "heated_bed":True,  "speed_class":"single"},
+    {"name":"DUAL 300", "src_model":"FD300",       "src_nozzle":"0.4", "src_diameter":300,
+     "diameter":300, "height":"270", "nozzle":"0.4", "layer":"0.2",  "initial":"0.25",
+     "retract":"2", "retract_speed":"20", "dual":True,  "heated_bed":True,  "speed_class":"dual04"},
+    {"name":"DUAL 450", "src_model":"FD450 Pro",   "src_nozzle":"0.6", "src_diameter":450,
+     "diameter":450, "height":"600", "nozzle":"0.6", "layer":"0.25", "initial":"0.3",
+     "retract":"3", "retract_speed":"30", "dual":True,  "heated_bed":True,  "speed_class":"dual06"},
+    {"name":"DUAL 600", "src_model":"FD600 Pro",   "src_nozzle":"0.6", "src_diameter":600,
+     "diameter":600, "height":"580", "nozzle":"0.6", "layer":"0.25", "initial":"0.3",
+     "retract":"3", "retract_speed":"30", "dual":True,  "heated_bed":True,  "speed_class":"dual06"},
+    {"name":"DUAL 800", "src_model":"FD800 Pro",   "src_nozzle":"0.6", "src_diameter":800,
+     "diameter":800, "height":"580", "nozzle":"0.6", "layer":"0.25", "initial":"0.3",
+     "retract":"3", "retract_speed":"30", "dual":True,  "heated_bed":True,  "speed_class":"dual06"},
+]
+CLASSIC_MODELS = [s["name"] for s in CLASSIC_SPECS]
+
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
     s = (target_diameter / 2.0) / 150.0
+    out = []
+    for p in area_pts:
+        x, y = p.split("x")
+        out.append("%gx%g" % (round(float(x) * s, 4), round(float(y) * s, 4)))
+    return out
+
+def scale_circle_area_from(area_pts, source_diameter, target_diameter):
+    """以來源機的實際直徑等比縮放圓床，供 Classic 從相近 Fast 機型複製。"""
+    s = float(target_diameter) / float(source_diameter)
     out = []
     for p in area_pts:
         x, y = p.split("x")
@@ -325,22 +367,22 @@ def proc_overrides(kind, base, is_single_mode):
     2026-06-11 大清理（吃當日交付驗證）：加速度(3000/1500)、scarf=none、速度兩線新裁定
     （雙料/FP 60-80-150、單料頭/同進 50-60-150、口徑連動填充）——源檔已全套→override 拿掉
     （「源檔套完→拿掉 embed override」原則）。
-    2026-07-12：舊「seam_position=aligned（2026-06-10）」被統一四值的 aligned_back 取代
-    （normalize_unified_values 新規蓋舊規），此處不再覆寫。"""
+    接縫與兩個加速度由 normalize_unified_values 集中套用，此處不再覆寫。"""
     return {}
 
-# ★ 製程統一四值之①②③（2026-07-12 Eric 定，規格 _切片規則同步_來自pingslicer_製程統一四值_20260712.md）：
+# ★ 正式製程統一值（Eric 2026-07-15 最新裁定；取代 2026-07-12 的 aligned_back／travel 20000，
+# 規格 _切片規則同步_來自orca_主線保守加速度與接縫_20260715.md）：
 # ①首層流量比 1.1（set_other_flow_ratios 開；其餘流量比維持預設 1）
-# ②接縫位置＝背部對齊 aligned_back（⚠ enum 對映：UI「背部對齊」=aligned_back、「背面」=back；
+# ②接縫位置＝對齊 aligned（⚠ enum 對映：UI「對齊」=aligned；「背部對齊」=aligned_back；
 #   照片磚特調用的是 back＋seam_gap0——本函式不套照片磚，見 emit_phototile 註）
-# ③空駛加速度 20000（Eric user 製程「-調教/空跑加速2W」存檔實證值；空駛速度 250 不變）
+# ③空駛加速度 5000（20000 會造成馬達錯位／失步；空駛速度 250 不變）
 # 全 PING 製程套（含棧板雙生＝從已正規化的 proc 派生自然繼承）；DL1016 不在 repo 自然跳過；
-# 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。新規蓋舊規（seam aligned→aligned_back）。
+# 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。
 def normalize_unified_values(proc):
     proc["set_other_flow_ratios"] = "1"
     proc["first_layer_flow_ratio"] = "1.1"
-    proc["seam_position"] = "aligned_back"
-    proc["travel_acceleration"] = "20000"
+    proc["seam_position"] = "aligned"
+    proc["travel_acceleration"] = "5000"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
@@ -358,13 +400,13 @@ def normalize_support_interface(proc):
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
 #   外牆 60（統一，含單料/同進/四色）；內牆 min(現值,80)（只降不升——單料/同進內 60 不升）；
-#   填充 150；填充加速度 sparse_infill_acceleration=10000（源檔多為 100%，需覆寫）。
+#   填充 150；填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
 #   首層速度 initial_layer_speed 不動；solid/top/gap 不在規格 → 交回源檔（順帶對齊 Cura V2.1）。
 # ⚠ 此規（2026-07-03）取代舊 HF_SPEED「速度＝口徑×流量上限、75/100/150 暫定」的 2026-06-11 裁定
 #   （新規蓋舊規：牆慢統一 60，不再逐口徑寫死高流量速度）。
 # 例外（不套、維持材料特例）：PA-CF crater（材料專屬製程另出，is_pacf=True 跳過）；
 #   TPE 軟料 40/70（目前無 TPE 製程檔，故①不觸及；未來若出 TPE 製程一樣要跳過）。
-def normalize_fast_speed(proc, is_pacf=False):
+def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False):
     if is_pacf:
         return proc   # PA-CF 火山口製程走自己的 50/80/80，見 pacf_overrides
     try:
@@ -374,7 +416,8 @@ def normalize_fast_speed(proc, is_pacf=False):
     proc["outer_wall_speed"] = "60"
     proc["inner_wall_speed"] = "%g" % min(cur_inner, 80.0)
     proc["sparse_infill_speed"] = "150"
-    proc["sparse_infill_acceleration"] = "10000"
+    if not preserve_sparse_acceleration:
+        proc["sparse_infill_acceleration"] = "5000"
     return proc
 
 # ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md）：
@@ -446,6 +489,20 @@ def combo_overrides(combo, layer_height, nozzle):
                   "support_object_xy_distance": "0.5"})
     return o
 
+def normalize_support_mode(proc, model_name):
+    """機型預設支撐模式（Eric 2026-07-15）：
+    - FD300 全家族／所有模式＝樹狀
+    - FF600 基本款與 3in1＝普通
+    - FF600 同進＝樹狀
+    放在組合別覆寫之後，避免 ABS+SUP 黃金配方把 FD300 改回普通。"""
+    if model_name.startswith("FD300"):
+        proc["support_type"] = "tree(auto)"
+    elif model_name.startswith("FF600 同進"):
+        proc["support_type"] = "tree(auto)"
+    elif model_name.startswith("FF600"):
+        proc["support_type"] = "normal(auto)"
+    return proc
+
 def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     """範本複製法：把已驗證的 FF 同進/3in1 machine/process/filament/cover 併入產出。
     - machine（type=machine 的口徑變體）：重指 setting_id（續 gm 計數避免撞號）→ mac_list
@@ -470,7 +527,10 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
-        normalize_unified_values(d)  # 統一四值①②③（2026-07-12）
+        normalize_unified_values(d)  # 正式製程統一值（2026-07-15 最新裁定）
+        compatible = d.get("compatible_printers", []) or []
+        if compatible:
+            normalize_support_mode(d, compatible[0])
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -486,8 +546,8 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
 
 def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     """照片磚範本併入（比照 emit_ff_extra 範本複製法）：machine_model×2＋口徑變體×5＋製程×5＋cover×2。
-    製程套 normalize_fast_speed（2026-07-03 牆速新規＝全 Fast 系列統一含同進衍生；
-    範本源值 75/100/accel100% 是 %APPDATA% 建置當時未同步正規化的舊值→進 repo 時對齊）。
+    製程套 normalize_fast_speed 的牆速／填充速度，但保留照片磚專屬 sparse acceleration；
+    範本源值 75/100 是 %APPDATA% 建置當時未同步正規化的舊值→進 repo 時對齊。
     其餘照範本不改值、只重編 setting_id。回傳 (gm, gp, pt_models)。"""
     pt_models = []
     for fn in sorted(os.listdir(os.path.join(PHOTOTILE, "machine"))):
@@ -507,11 +567,10 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         mac_list.append({"name": name, "sub_path": "machine/%s.json" % name})
     for name in PHOTOTILE_PROCS:
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
-        normalize_fast_speed(d)
+        normalize_fast_speed(d, preserve_sparse_acceleration=True)
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
-        # ⚠ 統一四值①②③「不套」照片磚（2026-07-12 對衝突結論）：②aligned_back 會蓋掉
-        # 照片磚特調 back＋seam_gap0（接縫藏背面定案）；③travel 20000 對數千次換料路徑
-        # 未驗證；①首層流量 1.1 動已實印驗證的首層。已回報參數端。
+        # ⚠ 正式製程統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000，
+        # 稀疏填充加速度也保留特調範本值；正式線 2026-07-15 保守值不得蓋進照片磚。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
@@ -520,6 +579,170 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     print("  phototile 併入：machine=%d + machine_model=%d，process=%d，cover=2"
           % (len(PHOTOTILE_MACHINES), len(pt_models), len(PHOTOTILE_PROCS)))
     return gm, gp, pt_models
+
+CLASSIC_PLA_210 = "PING PLA - Classic 210"
+CLASSIC_PLA_220 = "PING PLA - Classic 220"
+CLASSIC_SUP_PLA = "PING SupPLA - Classic"
+CLASSIC_EDU_PLA = "PING PLA - EDU Classic"
+
+def _fill_array(d, key, value):
+    """保留 Orca 來源 preset 的槽位數，只替換每槽值。"""
+    old = d.get(key)
+    d[key] = [str(value)] * (len(old) if isinstance(old, list) and old else 1)
+
+def _classic_filament(base_name, name, setting_id, temperature, bed_temperature, is_support=False):
+    d = json.load(io.open(os.path.join(PINGDIR, "filament", "%s.json" % base_name), encoding="utf-8"))
+    d.update({"type":"filament", "name":name, "alias":name, "from":"system", "instantiation":"true",
+              "setting_id":setting_id, "filament_id":setting_id})
+    # 回抽只由 Classic machine preset 控制。不可讓材料層覆蓋，也不可送 Klipper 指令。
+    for key in list(d):
+        if key.startswith("filament_retract") or key in ("filament_wipe", "filament_wipe_distance",
+                                                          "filament_z_hop", "filament_z_hop_types"):
+            d.pop(key, None)
+    d["filament_start_gcode"] = ["; Classic Marlin filament - machine retraction only\n"]
+    d["enable_pressure_advance"] = ["0"]
+    d["pressure_advance"] = ["0"]
+    for key in ("adaptive_pressure_advance", "adaptive_pressure_advance_bridges",
+                "adaptive_pressure_advance_overhangs"):
+        if key in d:
+            d[key] = ["0"]
+    d["nozzle_temperature"] = [str(temperature)]
+    d["nozzle_temperature_initial_layer"] = [str(temperature)]
+    for key in ("hot_plate_temp", "hot_plate_temp_initial_layer", "cool_plate_temp",
+                "cool_plate_temp_initial_layer", "textured_plate_temp", "textured_plate_temp_initial_layer",
+                "eng_plate_temp", "eng_plate_temp_initial_layer"):
+        if key in d or bed_temperature == 0:
+            d[key] = [str(bed_temperature)]
+    if is_support:
+        d["filament_is_support"] = ["1"]
+    return d
+
+def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
+    """V3.6 Classic：由已產生且可載入的 Fast preset 複製結構，再套 V2.1 舊機參數。"""
+    classic_filaments = [
+        _classic_filament("PING PLA",       CLASSIC_PLA_210, "PINGFILCLASSIC210", 210, 60),
+        _classic_filament("PING PLA - 220", CLASSIC_PLA_220, "PINGFILCLASSIC220", 220, 60),
+        _classic_filament("PING SupPLA",    CLASSIC_SUP_PLA, "PINGFILCLASSICSUP", 220, 60, True),
+        _classic_filament("PING PLA",       CLASSIC_EDU_PLA, "PINGFILCLASSICEDU", 210, 0),
+    ]
+    classic_fil_list = []
+    for d in classic_filaments:
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % d["name"]), d)
+        classic_fil_list.append({"name":d["name"], "sub_path":"filament/%s.json" % d["name"]})
+
+    accel_keys = ("default_acceleration", "outer_wall_acceleration", "inner_wall_acceleration",
+                  "sparse_infill_acceleration", "internal_solid_infill_acceleration",
+                  "top_surface_acceleration", "initial_layer_acceleration", "bridge_acceleration",
+                  "travel_acceleration")
+    jerk_keys = ("default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk",
+                 "top_surface_jerk", "initial_layer_jerk", "travel_jerk")
+
+    for spec in CLASSIC_SPECS:
+        name, nz = spec["name"], spec["nozzle"]
+        src_mac_name = "%s %s nozzle" % (spec["src_model"], spec["src_nozzle"])
+        src_mac = os.path.join(PINGDIR, "machine", "%s.json" % src_mac_name)
+        mac = json.load(io.open(src_mac, encoding="utf-8"))
+        mac_name = "%s %s nozzle" % (name, nz)
+        proc_name = "%smm @%s (%s)" % (spec["layer"], name, nz)
+        defaults = ([CLASSIC_PLA_220, CLASSIC_SUP_PLA] if spec["dual"] else
+                    [CLASSIC_EDU_PLA] if not spec["heated_bed"] else [CLASSIC_PLA_210])
+
+        mac.update({"type":"machine", "name":mac_name, "alias":name, "from":"system",
+                    "instantiation":"true", "setting_id":"PINGM%03d" % gm,
+                    "printer_model":name, "printer_variant":nz,
+                    "default_print_profile":proc_name, "default_filament_profile":defaults,
+                    "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
+                    "use_firmware_retraction":"0", "use_relative_e_distances":"0",
+                    "machine_pause_gcode":"M0", "disable_m73":"1",
+                    "printable_height":spec["height"],
+                    "single_extruder_multi_material":"1" if spec["dual"] else "0"})
+        if isinstance(mac.get("printable_area"), list):
+            mac["printable_area"] = scale_circle_area_from(
+                mac["printable_area"], spec["src_diameter"], spec["diameter"])
+        for key, value in (("retraction_length", spec["retract"]),
+                           ("retraction_speed", spec["retract_speed"]),
+                           ("deretraction_speed", spec["retract_speed"]),
+                           ("retract_length_toolchange", spec["retract"]),
+                           ("retract_restart_extra", "0"),
+                           ("retraction_minimum_travel", "1"),
+                           ("z_hop", "0.5"), ("wipe", "0"),
+                           ("retract_before_wipe", "0%")):
+            _fill_array(mac, key, value)
+        mac["default_filament_colors"] = (["#EA4E16", "#D3D3D3"] if spec["dual"] else ["#EA4E16"])
+        mac["filament_colors"] = list(mac["default_filament_colors"])
+        _fill_array(mac, "max_layer_height", "%g" % (0.75 * float(nz)))
+        _fill_array(mac, "min_layer_height", "0.1")
+
+        heat = ["M104 S[nozzle_temperature_initial_layer] T0"]
+        if spec["heated_bed"]:
+            heat = ["M140 S[bed_temperature_initial_layer_single]"] + heat + [
+                "M190 S[bed_temperature_initial_layer_single]"]
+        heat += ["M109 S[nozzle_temperature_initial_layer] T0"]
+        prime_e = "5" if spec["dual"] else "3"
+        mac["machine_start_gcode"] = "\n".join(
+            ["G21", "G90", "M82"] + heat + ["G28 ;Home", "G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
+        end = ["G91", "G1 Z10 E-1 F9000", "M104 S0"]
+        if spec["heated_bed"]:
+            end.append("M140 S0")
+        mac["machine_end_gcode"] = "\n".join(end + ["G90", "G28 X0 Y0", "M84"])
+
+        jdump(os.path.join(PINGDIR, "machine", "%s.json" % mac_name), mac)
+        mac_list.append({"name":mac_name, "sub_path":"machine/%s.json" % mac_name})
+        gm += 1
+
+        src_proc_name = (("%smm PLA+SUP @%s (%s)" %
+                          ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"]))
+                         if spec["dual"] else
+                         ("%smm @%s (%s)" %
+                          ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"])))
+        proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_proc_name), encoding="utf-8"))
+        proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
+                     "setting_id":"PINGP%03d" % gp, "inherits":"fdm_process_ping_common",
+                     "compatible_printers":[mac_name], "layer_height":spec["layer"],
+                     "initial_layer_print_height":spec["initial"], "seam_position":"aligned",
+                     "support_type":"normal(auto)", "accel_to_decel_enable":"0",
+                     "filename_format":'{"經典_"}{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode'})
+        for key in accel_keys + jerk_keys:
+            proc[key] = "0"
+        sc = spec["speed_class"]
+        if sc == "single":
+            speeds = {"outer_wall_speed":"40", "inner_wall_speed":"40", "sparse_infill_speed":"40",
+                      "internal_solid_infill_speed":"40", "top_surface_speed":"40", "gap_infill_speed":"40",
+                      "support_speed":"40", "support_interface_speed":"40", "bridge_speed":"40",
+                      "initial_layer_speed":"30", "initial_layer_infill_speed":"30", "travel_speed":"250"}
+        elif sc == "dual04":
+            speeds = {"outer_wall_speed":"40", "inner_wall_speed":"40", "sparse_infill_speed":"40",
+                      "internal_solid_infill_speed":"40", "top_surface_speed":"40", "gap_infill_speed":"40",
+                      "support_speed":"25", "support_interface_speed":"25", "bridge_speed":"40",
+                      "initial_layer_speed":"25", "initial_layer_infill_speed":"25", "travel_speed":"250"}
+        else:
+            speeds = {"outer_wall_speed":"40", "inner_wall_speed":"80", "sparse_infill_speed":"60",
+                      "internal_solid_infill_speed":"60", "top_surface_speed":"40", "gap_infill_speed":"40",
+                      "support_speed":"25", "support_interface_speed":"25", "bridge_speed":"40",
+                      "initial_layer_speed":"25", "initial_layer_infill_speed":"25", "travel_speed":"250"}
+        proc.update(speeds)
+        for key in ("line_width", "outer_wall_line_width", "inner_wall_line_width",
+                    "sparse_infill_line_width", "internal_solid_infill_line_width",
+                    "top_surface_line_width", "support_line_width"):
+            proc[key] = nz
+        proc["enable_prime_tower"] = "1" if spec["dual"] else "0"
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % proc_name), proc)
+        proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
+        gp += 1
+
+        mm = {"type":"machine_model", "name":name,
+              "model_id":"PING_" + name.replace(" ", "_").replace("+", "Plus"),
+              "nozzle_diameter":nz, "machine_tech":"FFF", "family":"Classic",
+              "bed_model":"" if spec["diameter"] in (200, 270) else bed_for(spec["src_model"]),
+              "bed_texture":BED_TEXTURE, "hotend_model":"",
+              "default_materials":";".join(defaults)}
+        jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), mm)
+        mm_list.append({"name":name, "sub_path":"machine/%s.json" % name})
+        nozzles_of[name] = [nz]
+
+    print("  Classic V3.6 併入：machine=%d + machine_model=%d，process=%d，filament=%d" %
+          (len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(classic_fil_list)))
+    return gm, gp, classic_fil_list
 
 # ---------- 4. 主流程 ----------
 def main(src_base):
@@ -599,9 +822,10 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
-                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
+                    normalize_support_mode(proc, model)
+                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
-                    normalize_unified_values(proc)  # 統一四值①②③（2026-07-12）
+                    normalize_unified_values(proc)  # 正式製程統一值（2026-07-15 最新裁定）
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
@@ -640,6 +864,13 @@ def main(src_base):
         gm, gp, pt_models = emit_phototile(mm_list, mac_list, proc_list, gm, gp)
     else:
         pt_models = []
+
+    # 4a-3b. V3.6 Classic 前代機：和 Fast 同 bundle，但用獨立 machine/process/filament，
+    # 避免 Klipper 指令與高加速度滲入 Marlin 舊板。
+    if not PING_ONLY:
+        gm, gp, classic_fil = emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp)
+    else:
+        classic_fil = []
 
     # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 111＋照片磚 5 支 id 零位移）
     for tw in pallet_twins:
@@ -713,6 +944,8 @@ def main(src_base):
                "UNRETRACT_SPEED=[deretraction_speed]")   # 第四欄 2026-07-12 Eric 實測抓缺（裝填速度覆蓋要能下機）
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if "Classic" in fd.get("name", ""):
+            continue   # Classic 是 Marlin：不可加入 Klipper SET_RETRACTION
         sg = fd.get("filament_start_gcode")
         cur = (sg[0] if isinstance(sg, list) and sg else sg) or ""
         if "UNRETRACT_SPEED" in cur:
@@ -733,7 +966,11 @@ def main(src_base):
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）
-    cover_src = {"FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png",
+    cover_src = {"EDU 200":"FP300_cover.png", "PING 200":"FP300_cover.png",
+                 "PING 270":"FP300_cover.png", "PING 300+":"FP300_cover.png",
+                 "DUAL 300":"FD300_cover.png", "DUAL 450":"FD450 Pro_cover.png",
+                 "DUAL 600":"FD600 Pro_cover.png", "DUAL 800":"FD800 Pro_cover.png",
+                 "FD300 Pro":"FD300 Pro_cover.png","FD300":"FD300_cover.png",
                  "FP300":"FP300_cover.png","P200+":"FP300_cover.png",
                  "FD450":"FD450 Pro_cover.png","FD600":"FD600 Pro_cover.png",
                  "FD800":"FD800 Pro_cover.png","FF600":"FF600_cover.png","FF800":"FF800_cover.png"}
@@ -769,14 +1006,18 @@ def main(src_base):
         canvas.save(os.path.join(img_dir, "printer_preview_%s.png" % model_id))
 
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
-    # 家族依 FAMS 順序，家族內：基本款 → 單料頭 → 同進 → 3in1（ff_extra 併入的變體不留在清單尾端）
+    # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。
+    # 單料頭需要實際換噴頭，放最右以免和 FD300／同進的雙料硬體混在一起（Eric 2026-07-15）。
     fam_bases = [f[1] for f in FAMS]
-    _variant_rank = {"": 0, "單料頭": 1, "同進": 2, "3in1": 3}
+    classic_bases = [s["name"] for s in CLASSIC_SPECS]
+    _variant_rank = {"": 0, "同進": 1, "3in1": 2, "單料頭": 3}
     def _lay11_key(entry):
         name = entry["name"]
         base = max((b for b in fam_bases if name == b or name.startswith(b + " ")), key=len, default=None)
         if base is None:
-            return (len(fam_bases), 9, name)   # 不明機型殿後（穩定排序保留原相對順序）
+            if name in classic_bases:
+                return (len(fam_bases) + classic_bases.index(name), 0, name)
+            return (len(fam_bases) + len(classic_bases), 9, name)   # 不明機型殿後
         variant = name[len(base):].strip()
         return (fam_bases.index(base), _variant_rank.get(variant, 9))
     mm_list = sorted(mm_list, key=_lay11_key)
@@ -794,7 +1035,7 @@ def main(src_base):
     # 高流量 @FF 舊名條目過濾（2026-07-12 改名，檔已刪、條目不留＝防斷鏈）
     pj["filament_list"] = [x for x in pj["filament_list"] if x["name"] not in FF_FIL_RENAME]
     have = {x["name"] for x in pj["filament_list"]}
-    pj["filament_list"] += [x for x in (fil_new + ff_fil) if x["name"] not in have]
+    pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
     if PING_ONLY:
         pj["filament_list"] = [x for x in pj["filament_list"] if "@FF" not in x["name"]]

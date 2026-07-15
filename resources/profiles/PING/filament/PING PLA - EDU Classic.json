@@ -1,0 +1,70 @@
+{
+    "type": "filament",
+    "name": "PING PLA - EDU Classic",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILCLASSICEDU",
+    "filament_id": "PINGFILCLASSICEDU",
+    "inherits": "fdm_filament_pla",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "PLA"
+    ],
+    "nozzle_temperature": [
+        "210"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "210"
+    ],
+    "hot_plate_temp": [
+        "0"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "0"
+    ],
+    "cool_plate_temp": [
+        "0"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "0"
+    ],
+    "fan_max_speed": [
+        "100"
+    ],
+    "fan_min_speed": [
+        "100"
+    ],
+    "filament_colors": [
+        "#EA4E16"
+    ],
+    "default_filament_colors": [
+        "#EA4E16"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "15"
+    ],
+    "filament_start_gcode": [
+        "; Classic Marlin filament - machine retraction only\n"
+    ],
+    "alias": "PING PLA - EDU Classic",
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
+    ],
+    "textured_plate_temp": [
+        "0"
+    ],
+    "textured_plate_temp_initial_layer": [
+        "0"
+    ],
+    "eng_plate_temp": [
+        "0"
+    ],
+    "eng_plate_temp_initial_layer": [
+        "0"
+    ]
+}

@@ -11,6 +11,10 @@
 #include <wx/dcgraph.h>
 #include <wx/dcclient.h>
 #include <wx/colordlg.h>
+#include <wx/display.h>
+#ifdef _WIN32
+#include <wx/richtooltip.h>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -28,6 +32,48 @@ static const wxColour COL_LABEL(0x9A, 0x9A, 0x9A);      // 軸標
 static const wxColour COL_PCT(0x66, 0x66, 0x66);        // 比例%
 static const wxColour COL_POS(0xAA, 0xAA, 0xAA);        // 高度%
 static const wxColour COL_PLOT_BG(0xFF, 0xFF, 0xFF);    // 繪圖區白底（顏色判讀基準，深色模式亦同）
+
+#ifdef _WIN32
+using PingRichToolTipPopup = wxCustomBackgroundWindow<wxPopupTransientWindow>;
+
+static PingRichToolTipPopup* ping_rich_tooltip_popup(wxWindow* target)
+{
+    for (wxWindow* child : target->GetChildren())
+        if (child->IsShown())
+            if (auto* popup = dynamic_cast<PingRichToolTipPopup*>(child))
+                return popup;
+    return nullptr;
+}
+#endif
+
+void bind_ping_dark_tooltip(wxWindow* target, const wxString& text)
+{
+    if (target == nullptr || text.IsEmpty())
+        return;
+
+    target->UnsetToolTip();
+#ifdef _WIN32
+    target->Bind(wxEVT_ENTER_WINDOW, [target, text](wxMouseEvent& event) {
+        wxRichToolTip tip(text, wxEmptyString);
+        tip.SetIcon(wxICON_NONE);
+        tip.SetTipKind(wxTipKind_BottomRight);
+        tip.SetTitleFont(wxGetApp().normal_font());
+        tip.SetBackgroundColour(COL_CHARCOAL);
+        tip.ShowFor(target);
+        if (PingRichToolTipPopup* popup = ping_rich_tooltip_popup(target))
+            for (wxWindow* child : popup->GetChildren())
+                child->SetForegroundColour(*wxWHITE);
+        event.Skip();
+    });
+    target->Bind(wxEVT_LEAVE_WINDOW, [target](wxMouseEvent& event) {
+        if (PingRichToolTipPopup* popup = ping_rich_tooltip_popup(target))
+            popup->Dismiss();
+        event.Skip();
+    });
+#else
+    target->SetToolTip(text);
+#endif
+}
 
 static wxColour ping_hex_to_wx(const std::string& hex)
 {
@@ -616,7 +662,8 @@ void PingMixEditor::build_controls()
     title_row->AddStretchSpacer(1);
     m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合 ▶"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
-    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
+    bind_ping_dark_tooltip(m_collapse_btn,
+        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)
@@ -638,7 +685,7 @@ void PingMixEditor::build_controls()
         tpl_row->Add(m_tpl_btns[i], 0, wxRIGHT, FromDIP(4));
     }
     m_low_flow = new wxCheckBox(this, wxID_ANY, wxString::FromUTF8("低流量"));
-    m_low_flow->SetToolTip(wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
+    bind_ping_dark_tooltip(m_low_flow, wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
     m_low_flow->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { on_low_flow_toggled(); });
     tpl_row->Add(m_low_flow, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(4));
     vbox->Add(tpl_row, 0, wxLEFT | wxTOP, FromDIP(8));
@@ -840,6 +887,29 @@ void PingMixEditor::on_swatch_clicked(int idx)
     wxColourData data;
     data.SetColour(ping_hex_to_wx(m_state.colors[idx]));
     wxColourDialog dlg(this, &data);
+
+    // Native colour dialogs otherwise choose a system-default position that may be on the
+    // opposite side of a wide window. Re-anchor it beside the swatch and keep it on-screen.
+    const wxRect anchor = m_swatches[idx]->GetScreenRect();
+    const auto display_idx = wxDisplay::GetFromWindow(m_swatches[idx]);
+    const wxRect work_area = wxDisplay(display_idx != wxNOT_FOUND ? display_idx : 0u).GetClientArea();
+    dlg.Bind(wxEVT_SHOW, [this, &dlg, anchor, work_area](wxShowEvent& event) {
+        event.Skip();
+        if (!event.IsShown())
+            return;
+        dlg.CallAfter([this, &dlg, anchor, work_area]() {
+            const wxSize dialog_size = dlg.GetSize();
+            const int gap = FromDIP(8);
+            int x = anchor.GetRight() + gap;
+            if (x + dialog_size.x > work_area.GetRight())
+                x = anchor.GetLeft() - dialog_size.x - gap;
+            const int max_x = std::max(work_area.GetLeft(), work_area.GetRight() - dialog_size.x + 1);
+            const int max_y = std::max(work_area.GetTop(), work_area.GetBottom() - dialog_size.y + 1);
+            x = std::clamp(x, work_area.GetLeft(), max_x);
+            const int y = std::clamp(anchor.GetTop(), work_area.GetTop(), max_y);
+            dlg.Move(wxPoint(x, y));
+        });
+    });
     if (dlg.ShowModal() == wxID_OK) {
         const wxColour c = dlg.GetColourData().GetColour();
         char buf[8];
