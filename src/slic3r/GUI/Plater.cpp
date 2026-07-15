@@ -29,6 +29,7 @@
 #include <wx/statbox.h>
 #include <wx/statbmp.h>
 #include <wx/filedlg.h>
+#include <wx/filename.h>
 #include <wx/dnd.h>
 #include <wx/progdlg.h>
 #include <wx/string.h>
@@ -4784,6 +4785,19 @@ bool PlaterDropTarget::OnDropFiles(wxCoord x, wxCoord y, const wxArrayString &fi
 #endif // WIN32
 
     m_mainframe.Raise();
+
+    // A single image dropped on the build plate opens the same photo-tile studio
+    // as the home-page entry, with the image already loaded.
+    if (filenames.size() == 1) {
+        const wxString& filename = filenames.Last();
+        const wxString extension = wxFileName(filename).GetExt().Lower();
+        if (extension == "png" || extension == "jpg" || extension == "jpeg" ||
+            extension == "webp" || extension == "bmp") {
+            wxGetApp().open_photo_tile(filename);
+            return true;
+        }
+    }
+
     m_mainframe.select_tab(size_t(MainFrame::tp3DEditor));
     if (wxGetApp().is_editor())
         m_plater.select_view_3D("3D");
