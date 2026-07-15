@@ -308,6 +308,15 @@ function OnClickOpenProject()
 	SendWXMessage( JSON.stringify(tSend) );		
 }
 
+function OnClickPhotoTile()
+{
+	var tSend={};
+	tSend['sequence_id']=Math.round(new Date() / 1000);
+	tSend['command']="homepage_phototile";
+
+	SendWXMessage( JSON.stringify(tSend) );
+}
+
 function OnOpenRecentFile( strPath )
 {
 	var tSend={};

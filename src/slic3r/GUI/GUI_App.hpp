@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include "ImGuiWrapper.hpp"
 #include "ConfigWizard.hpp"
 #include "OpenGLManager.hpp"
@@ -238,6 +239,11 @@ private:
     bool            m_app_conf_exists{ false };
     EAppMode        m_app_mode{ EAppMode::Editor };
     bool            m_is_recreating_gui{ false };
+    std::vector<unsigned char> m_photo_tile_export_buffer;
+    size_t          m_photo_tile_export_expected_size{ 0 };
+    size_t          m_photo_tile_export_expected_chunks{ 0 };
+    size_t          m_photo_tile_export_next_chunk{ 0 };
+    bool            m_photo_tile_export_active{ false };
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -474,6 +480,7 @@ public:
     int             request_user_unbind(std::string dev_id);
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
+    void            open_photo_tile(const wxString& image_path = wxEmptyString);
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);
