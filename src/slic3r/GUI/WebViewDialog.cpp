@@ -259,10 +259,11 @@ void WebViewPanel::load_url(wxString& url)
 {
     this->Show();
     this->Raise();
-    m_url->SetLabelText(url);
+    if (m_url)
+        m_url->SetLabelText(url);
 
     if (wxGetApp().get_mode() == comDevelop)
-        wxLogMessage(m_url->GetValue());
+        wxLogMessage("Loading URL: %s", url);
     m_browser->LoadURL(url);
     m_browser->SetFocus();
     UpdateState();
@@ -665,7 +666,8 @@ void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
     if (!m_tools_handle_navigation->IsChecked())
     {
         evt.Veto();
-        m_button_stop->Enable(false);
+        if (m_button_stop)
+            m_button_stop->Enable(false);
     }
     else
     {
