@@ -4704,6 +4704,95 @@ std::string GUI_App::handle_web_request(std::string cmd)
             else if (command_str.compare("homepage_openproject") == 0) {
                 this->request_open_project({});
             }
+            else if (command_str.compare("homepage_phototile") == 0) {
+                CallAfter([this] { open_photo_tile(); });
+            }
+            else if (command_str.compare("phototile_home") == 0) {
+                CallAfter([this] {
+                    if (mainframe && mainframe->m_webview)
+                        mainframe->m_webview->ShowHomepage();
+                });
+            }
+            else if (command_str.compare("phototile_export_begin") == 0) {
+                constexpr size_t max_photo_tile_bytes = 512ULL * 1024ULL * 1024ULL;
+                const size_t expected_size = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+
+                m_photo_tile_export_buffer.clear();
+                m_photo_tile_export_expected_size = 0;
+                m_photo_tile_export_expected_chunks = 0;
+                m_photo_tile_export_next_chunk = 0;
+                m_photo_tile_export_active = false;
+
+                if (expected_size == 0 || expected_size > max_photo_tile_bytes || expected_chunks == 0 || expected_chunks > 8192) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected invalid photo tile export: size=" << expected_size
+                                               << ", chunks=" << expected_chunks;
+                } else {
+                    m_photo_tile_export_buffer.reserve(expected_size);
+                    m_photo_tile_export_expected_size = expected_size;
+                    m_photo_tile_export_expected_chunks = expected_chunks;
+                    m_photo_tile_export_active = true;
+                }
+            }
+            else if (command_str.compare("phototile_export_chunk") == 0) {
+                if (!m_photo_tile_export_active)
+                    return "";
+
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.base64", "");
+                if (index != m_photo_tile_export_next_chunk || encoded.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile export chunk out of sequence: expected="
+                                               << m_photo_tile_export_next_chunk << ", got=" << index;
+                    m_photo_tile_export_active = false;
+                    m_photo_tile_export_buffer.clear();
+                    return "";
+                }
+
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(result.first);
+                if (decoded.empty() || m_photo_tile_export_buffer.size() + decoded.size() > m_photo_tile_export_expected_size) {
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile export chunk could not be decoded";
+                    m_photo_tile_export_active = false;
+                    m_photo_tile_export_buffer.clear();
+                    return "";
+                }
+
+                m_photo_tile_export_buffer.insert(m_photo_tile_export_buffer.end(), decoded.begin(), decoded.end());
+                ++m_photo_tile_export_next_chunk;
+            }
+            else if (command_str.compare("phototile_export_end") == 0) {
+                if (!m_photo_tile_export_active ||
+                    m_photo_tile_export_next_chunk != m_photo_tile_export_expected_chunks ||
+                    m_photo_tile_export_buffer.size() != m_photo_tile_export_expected_size) {
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile export ended before all data arrived";
+                    m_photo_tile_export_active = false;
+                    m_photo_tile_export_buffer.clear();
+                    return "";
+                }
+
+                const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
+                    boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
+                boost::nowide::ofstream output(output_path.string(), std::ios::binary);
+                output.write(reinterpret_cast<const char*>(m_photo_tile_export_buffer.data()),
+                             static_cast<std::streamsize>(m_photo_tile_export_buffer.size()));
+                output.close();
+
+                const bool write_ok = output.good();
+                m_photo_tile_export_active = false;
+                m_photo_tile_export_buffer.clear();
+                m_photo_tile_export_expected_size = 0;
+                m_photo_tile_export_expected_chunks = 0;
+                m_photo_tile_export_next_chunk = 0;
+
+                if (!write_ok) {
+                    BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+                    return "";
+                }
+
+                const std::string project_path = output_path.string();
+                CallAfter([this, project_path] { request_open_project(project_path); });
+            }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
                     if (mainframe->m_webview) {
@@ -4906,6 +4995,15 @@ void GUI_App::request_open_project(std::string project_id)
         ;
     else
         CallAfter([this, project_id] { mainframe->open_recent_project(-1, wxString::FromUTF8(project_id)); });
+}
+
+void GUI_App::open_photo_tile(const wxString& image_path)
+{
+    if (!mainframe || !mainframe->m_webview)
+        return;
+
+    mainframe->select_tab(size_t(MainFrame::tpHome));
+    mainframe->m_webview->ShowPhotoTile(image_path);
 }
 
 void GUI_App::request_remove_project(std::string project_id)
