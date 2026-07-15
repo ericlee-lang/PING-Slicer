@@ -275,29 +275,32 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
 // 切片器在零件交界產 Tn 換料指令，但同進混色機沒有第 n 支實體工具——
 // 這裡把每個 Tn 換成該零件的 M6052/M6051，混色靠韌體 M605x。
 // 蒐集規則（全有全無，避免誤傷一般專案）：模型「所有」列印零件的名稱都解析得出
-// 配比、且 ≥2 件才成立；任一件不合格＝不是照片磚 → 走原混色曲線邏輯。
-static bool ping_collect_photo_palette(const Print& print, std::map<int, std::string>& palette)
+// 配比、且 ≥2 件才成立。完全無配方＝普通專案；只有部分配方／漏指派＝髒照片磚，停止後處理而不套用其他混色曲線。
+static PingMix::PhotoPaletteStatus ping_collect_photo_palette(const Print& print, std::map<int, std::string>& palette)
 {
-    palette.clear();
+    std::vector<PingMix::PhotoPartAssignment> parts;
     for (const ModelObject* obj : print.model().objects) {
         for (const ModelVolume* vol : obj->volumes) {
-            if (!vol->is_model_part()) continue;   // 修飾/支撐體不參與
-            std::string cmd;
-            if (!PingMix::parse_photo_part_name(vol->name, cmd)) { palette.clear(); return false; }
-            const int tool = vol->extruder_id() - 1;   // extruder 1-based → gcode T 0-based
-            if (tool < 0) { palette.clear(); return false; }
-            auto it = palette.find(tool);
-            if (it != palette.end() && it->second != cmd) {
-                // 同一工具兩種配比＝髒資料，寧可不動
-                BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: conflicting recipes on tool T" << tool;
-                palette.clear();
-                return false;
-            }
-            palette[tool] = cmd;
+            if (!vol->is_model_part()) continue; // 修飾/支撐體不參與
+            const ConfigOption* extruder = vol->config.option("extruder");
+            if ((extruder == nullptr || extruder->getInt() == 0) && vol->get_object() != nullptr)
+                extruder = vol->get_object()->config.option("extruder");
+            const int explicit_tool = extruder != nullptr && extruder->getInt() > 0 ? extruder->getInt() - 1 : -1;
+            parts.push_back({explicit_tool, vol->name});
         }
     }
-    if (palette.size() < 2) { palette.clear(); return false; }
-    return true;
+
+    PingMix::PhotoPalette parsed;
+    std::string           reason;
+    const auto status = PingMix::collect_photo_palette(parts, parsed, reason);
+    if (status == PingMix::PhotoPaletteStatus::Invalid)
+        BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: invalid material assignments: " << reason;
+    if (status != PingMix::PhotoPaletteStatus::Valid) {
+        palette.clear();
+        return status;
+    }
+    palette = std::move(parsed.recipes);
+    return PingMix::PhotoPaletteStatus::Valid;
 }
 
 // 純 worker thread 上執行（同 ping_apply_color_mix）。天然冪等：換過的行不再是 T 開頭，
@@ -435,9 +438,10 @@ void BackgroundSlicingProcess::process_fff()
 	// （啟用→從 .pingorig 原始檔插碼；停用→還原原始檔。B 案：開關＝面板展開狀態）
 	{
 		std::map<int, std::string> photo_palette;
-		if (ping_collect_photo_palette(*m_fff_print, photo_palette)) {
+		const auto photo_status = ping_collect_photo_palette(*m_fff_print, photo_palette);
+		if (photo_status == PingMix::PhotoPaletteStatus::Valid) {
 			ping_apply_photo_tile(m_temp_output_path, m_fff_print->full_print_config(), photo_palette);
-		} else {
+		} else if (photo_status == PingMix::PhotoPaletteStatus::NotPhotoTile) {
 			PingMix::Recipe dual_copy, quad_copy;
 			bool enabled_copy;
 			{
@@ -447,6 +451,10 @@ void BackgroundSlicingProcess::process_fff()
 				enabled_copy = m_ping_mix_enabled;
 			}
 			ping_apply_color_mix(m_temp_output_path, m_fff_print->full_print_config(), dual_copy, quad_copy, enabled_copy);
+		} else {
+			// A malformed photo-tile must not silently fall through to the unrelated height-gradient mixer.
+			// The import notification keeps its original slots visible for diagnosis; leave raw G-code untouched.
+			BOOST_LOG_TRIVIAL(error) << "PING photo-tile: post-processing skipped because material assignments are incomplete";
 		}
 	}
 	if (this->set_step_started(bspsGCodeFinalize)) {
