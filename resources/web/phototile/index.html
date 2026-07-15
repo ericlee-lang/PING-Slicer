@@ -14,6 +14,7 @@
   .brand{font-family:Inter,Arial,sans-serif; font-weight:800; letter-spacing:.1em; font-size:13px;}
   h1{font-family:"Source Han Serif TC","Noto Serif TC",serif; font-size:20px; font-weight:700;}
   .sub{font-size:12.5px; color:#777;}
+  .sub.warn{color:var(--orange); font-weight:700;}
   header .grow{flex:1;}
   .btn{display:inline-block; border:1px solid #bbb; background:#fff; color:var(--black);
        padding:6px 14px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600;}
@@ -145,8 +146,9 @@
         <span class="sub">階＝拆成幾種混色色塊零件（雙料＝漸層階數；邊界＝層線，銳利）</span>
       </div>
       <div class="row" id="sizeRow" style="display:none"><label>尺寸</label>
-        寬 <input type="number" id="wIn" value="100" min="20" max="400" step="1" style="width:64px">
-        高 <input type="number" id="hIn" value="75" min="20" max="400" step="1" style="width:64px">
+        寬 <input type="number" id="wIn" value="100" min="20" max="400" step="0.1" style="width:70px">
+        高 <input type="number" id="hIn" value="75" min="20" max="400" step="0.1" style="width:70px">
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
         厚 <input type="number" id="tIn" value="6" min="2" max="30" step="0.5" style="width:64px"> mm
         <span class="sub" id="sizeInfo"></span>
       </div>
@@ -183,6 +185,7 @@
 </main>
 
 <script src="mesh_union.js"></script>
+<script src="size_ratio.js"></script>
 <script>
 "use strict";
 /* ================= 色彩數學 ================= */
@@ -220,6 +223,7 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
                teeth:false };                     // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
 let imgAspect = 0.75;                             // 高/寬，載圖時更新
+let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
 let viewMode = 'sim';
 
@@ -566,6 +570,30 @@ function listSwaps(){
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
 let srcBitmap=null, srcLabel='';    // 原始點陣圖，供改輸出尺寸時自動重取樣
 const GRID_MAX=1600;                // 長邊格數上限（防瀏覽器/3MF 爆量）；1600＝12cm 邊 @0.1mm 仍不觸頂（Eric 定要更細）
+const SIZE_MIN_MM=20, SIZE_MAX_MM=400;
+const {clampSizeMm, fitAspectSize, roundMm}=window.PingPhotoTileSize;
+
+function syncSizeInputs(){
+  document.getElementById('wIn').value=params.width;
+  document.getElementById('hIn').value=params.height;
+}
+function applySizeChange(changed, rawValue, rebuild=true){
+  if(sizeAspectLocked && srcBitmap){
+    const next=fitAspectSize({
+      width:changed==='width' ? rawValue : params.width,
+      height:changed==='height' ? rawValue : params.height,
+      aspect:imgAspect, changed, min:SIZE_MIN_MM, max:SIZE_MAX_MM, digits:1
+    });
+    params.width=next.width; params.height=next.height;
+  }else if(changed==='width'){
+    params.width=roundMm(clampSizeMm(rawValue,params.width,SIZE_MIN_MM,SIZE_MAX_MM),1);
+  }else{
+    params.height=roundMm(clampSizeMm(rawValue,params.height,SIZE_MIN_MM,SIZE_MAX_MM),1);
+  }
+  syncSizeInputs();
+  if(rebuild && img){ buildGrid(); suggest(); }
+  else updateSizeInfo();
+}
 /* 由系統依實體尺寸自動採 0.1 mm 高精度取樣；這是 3MF 幾何實作細節，不要求使用者判斷。
    正方格、aspect 由圖片決定並已連動 params.height。
    ⚠ 舊版固定 MAXW=220 與 mm 脫鉤 → 12cm 高只給 220 格＝每格 0.55mm，遠粗於 0.2 層高能印的 600 格，
@@ -599,8 +627,8 @@ function buildGrid(){
 function loadBitmap(bmp, label){
   srcBitmap=bmp; srcLabel=label;
   imgAspect=bmp.height/bmp.width;                      // 高/寬，尺寸寬高比連動
-  params.height=Math.max(20,Math.round(params.width*imgAspect));
-  const hEl=document.getElementById('hIn'); if(hEl) hEl.value=params.height;
+  if(sizeAspectLocked) applySizeChange('width',params.width,false);
+  else syncSizeInputs();
   buildGrid();
   document.getElementById('dropHint').style.display='none';
   suggest();           // 開圖即自動建議＋出模擬（零點擊先看到結果）
@@ -875,7 +903,13 @@ function syncOrientUI(){
 function pillarSide(){ return params.pillarXY; }
 function updateSizeInfo(){
   const el=document.getElementById('sizeInfo');
-  if(el) el.textContent=`厚度＝換色清料空間`;
+  if(el){
+    const ratio=srcBitmap ? `原圖 ${srcBitmap.width}×${srcBitmap.height}` : '載入圖片後';
+    el.classList.toggle('warn',!sizeAspectLocked);
+    el.textContent=sizeAspectLocked
+      ? `${ratio}；改寬或高，另一邊會自動等比例換算，不會變形。厚度＝換色清料空間`
+      : `⚠ 已解除比例鎖定；寬高比例不同時，照片磚會變形。厚度＝換色清料空間`;
+  }
   const pe=document.getElementById('pillarInfo');
   if(pe) pe.textContent=params.pillar
     ? `→ ${params.pillarXY}×${params.pillarXY} mm 實心方柱（磚右側 15mm）`
@@ -892,18 +926,17 @@ document.getElementById('levelsIn').onchange=e=>{
   params.klevels=Math.max(2,Math.min(48,+e.target.value||8));
   e.target.value=params.klevels; queue();
 };
-/* 尺寸（垂直）：寬↔高依圖片比例連動（改一邊另一邊跟著），厚度獨立 */
+/* 尺寸（垂直）：預設鎖定原圖比例；解除後才允許寬高獨立，厚度永遠獨立 */
 document.getElementById('wIn').onchange=e=>{
-  params.width=Math.max(20,Math.min(400,+e.target.value||100)); e.target.value=params.width;
-  params.height=Math.max(20,Math.round(params.width*imgAspect));
-  document.getElementById('hIn').value=params.height;
-  if(img){ buildGrid(); suggest(); } else updateSizeInfo();   // 尺寸變＝系統自動重建高精度幾何
+  applySizeChange('width',e.target.value);                    // 尺寸變＝系統自動重建高精度幾何
 };
 document.getElementById('hIn').onchange=e=>{
-  params.height=Math.max(20,Math.min(400,+e.target.value||75)); e.target.value=params.height;
-  params.width=Math.max(20,Math.round(params.height/imgAspect));
-  document.getElementById('wIn').value=params.width;
-  if(img){ buildGrid(); suggest(); } else updateSizeInfo();
+  applySizeChange('height',e.target.value);
+};
+document.getElementById('aspectLock').onchange=e=>{
+  sizeAspectLocked=e.target.checked;
+  if(sizeAspectLocked && srcBitmap) applySizeChange('width',params.width);
+  else updateSizeInfo();
 };
 document.getElementById('tIn').onchange=e=>{
   params.thick=Math.max(2,Math.min(30,parseFloat(e.target.value)||6)); e.target.value=params.thick;
