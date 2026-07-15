@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>照片磚 · 彩色模擬原型 v2.4</title>
+<title>照片磚工作室</title>
 <style>
   :root{ --orange:#EA4E16; --black:#202221; --gray:#EFEFEF; }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -60,6 +60,7 @@
   .metric b{color:var(--orange); font-family:Inter,Arial,sans-serif;}
   .disclaim{font-size:12px; color:#999; padding:10px 14px 4px;}
   .viewseg{margin-left:auto;}
+  body.embedded header{position:sticky; top:0; z-index:10; background:#fff;}
   @media (max-width:1280px){ main{grid-template-columns:1fr 1fr;} .panel.ctrl{grid-column:1/-1;} }
 </style>
 </head>
@@ -68,10 +69,11 @@
 <header>
   <span class="brand">PING</span>
   <div>
-    <h1>照片磚 · 彩色模擬原型 <span class="sub">v2.4 灰階平滑版</span></h1>
-    <div class="sub">把照片變成有限色料的層疊列印 — 拖圖進來、或直接 Ctrl+V 貼上截圖</div>
+    <h1>照片磚工作室</h1>
+    <div class="sub">選圖片、調整色階與尺寸，完成後直接放到列印板</div>
   </div>
   <div class="grow"></div>
+  <button class="btn" id="btnBack" style="display:none">返回首頁</button>
   <div class="seg" id="orientSeg">
     <button data-o="flat" class="on">平躺（疊色）</button>
     <button data-o="vertical">垂直（混色）</button>
@@ -188,6 +190,8 @@
 <script src="size_ratio.js"></script>
 <script>
 "use strict";
+const startupQuery=new URLSearchParams(location.search);
+const embeddedMode=startupQuery.get('embedded')==='1';
 /* ================= 色彩數學 ================= */
 const GAM = 2.2;
 const s2l = c => Math.pow(c/255, GAM);                       // sRGB→線性
@@ -638,6 +642,26 @@ async function loadFile(f){
   try{ loadBitmap(await createImageBitmap(f), f.name||'貼上的圖'); }
   catch(e){ document.getElementById('srcStat').textContent='這張圖讀不進來，換一張試試'; }
 }
+
+/* Orca 原生拖放會分段送入圖片，避免把大型相片塞進單一 JavaScript 呼叫。 */
+let nativeImageMeta=null, nativeImageChunks=[];
+window.PINGPhotoTile={
+  beginImage(meta){
+    nativeImageMeta=meta||{}; nativeImageChunks=[];
+    document.getElementById('srcStat').textContent='正在載入拖入的圖片…';
+  },
+  appendImageChunk(chunk){ nativeImageChunks.push(chunk); },
+  async finishImage(){
+    try{
+      const meta=nativeImageMeta||{};
+      const response=await fetch(`data:${meta.mime||'image/png'};base64,${nativeImageChunks.join('')}`);
+      const blob=await response.blob();
+      loadBitmap(await createImageBitmap(blob),meta.name||'拖入的圖片');
+    }catch(e){ this.imageError('這張圖讀不進來，請按「開啟圖片」重試。'); }
+    finally{ nativeImageMeta=null; nativeImageChunks=[]; }
+  },
+  imageError(message){ document.getElementById('srcStat').textContent=message; }
+};
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault(); dz.classList.add('drag');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
@@ -1155,25 +1179,61 @@ ${palLines.join('\n')}`;
           noiseChanged:noiseStats?noiseStats.changedPixels:0, noiseMm};
 }
 window.__buildExport=build3mf;   // 自動化測試鉤子
+function slicerBridgeReady(){
+  return embeddedMode && window.wx && typeof window.wx.postMessage==='function';
+}
+function sendSlicerMessage(command,data={}){
+  window.wx.postMessage(JSON.stringify({sequence_id:String(Date.now()),command,data}));
+}
+function bytesToBase64(bytes){
+  let binary='';
+  for(let i=0;i<bytes.length;i+=0x8000)
+    binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
+  return btoa(binary);
+}
+async function send3mfToSlicer(r,st){
+  const bytes=new Uint8Array(await r.blob.arrayBuffer());
+  const rawChunkSize=96*1024;                    // 可被 3 整除，不會在中段產生 base64 padding
+  const chunks=Math.ceil(bytes.length/rawChunkSize);
+  sendSlicerMessage('phototile_export_begin',{
+    name:'照片磚_連通網格版.3mf',size:bytes.length,chunks
+  });
+  for(let i=0;i<chunks;i++){
+    const raw=bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize));
+    sendSlicerMessage('phototile_export_chunk',{index:i,base64:bytesToBase64(raw)});
+    st.textContent=`正在送入列印板… ${i+1}/${chunks}`;
+    await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  sendSlicerMessage('phototile_export_end',{name:'照片磚_連通網格版.3mf'});
+}
 document.getElementById('btnExport').onclick=async()=>{
   const st=document.getElementById('exportStat');
   st.style.display=''; st.textContent='產生中…';
-  clearTimeout(tq); simulate();                    // 先套用畫面上最新的濾除門檻
-  const r=await build3mf();
-  if(!r){ st.textContent='先載入圖片再輸出'; return; }
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(r.blob);
-  a.download='照片磚_連通網格版.3mf';
-  a.click();
-  st.textContent=`已輸出：${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、${r.components} 個連通區、`+
-    `${r.triangles} 個三角形、${(r.blob.size/1024).toFixed(0)} KB。`+
-    `雜訊門檻 ${r.noiseMm.toFixed(1)} mm，已平滑／合併 ${r.noiseChanged} 格、移除 ${r.noiseRemoved} 個小色塊（不留空洞）。`+
-    `PingSlicer 開檔後會只保留 ${r.extruders} 個對應線材槽、自動套用預覽色，`+
-    `並檢查每個零件的配方與槽號是否完整；曲線建議使用 0.1 mm 層高切片。`;
+  const button=document.getElementById('btnExport'); button.disabled=true;
+  try{
+    clearTimeout(tq); simulate();                  // 先套用畫面上最新的濾除門檻
+    const r=await build3mf();
+    if(!r){ st.textContent='請先載入圖片'; return; }
+    if(slicerBridgeReady()){
+      await send3mfToSlicer(r,st);
+      st.textContent='3MF 已產生，正在載入列印板…';
+    }else{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(r.blob);
+      a.download='照片磚_連通網格版.3mf';
+      a.click();
+      st.textContent=`已輸出：${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、${r.components} 個連通區、`+
+        `${r.triangles} 個三角形、${(r.blob.size/1024).toFixed(0)} KB。`+
+        `雜訊門檻 ${r.noiseMm.toFixed(1)} mm，已平滑／合併 ${r.noiseChanged} 格、移除 ${r.noiseRemoved} 個小色塊（不留空洞）。`+
+        `PingSlicer 開檔後會只保留 ${r.extruders} 個對應線材槽、自動套用預覽色，`+
+        `並檢查每個零件的配方與槽號是否完整；曲線建議使用 0.1 mm 層高切片。`;
+    }
+  }catch(e){
+    st.textContent=`產生失敗：${e && e.message ? e.message : '請重試'}`;
+  }finally{ button.disabled=false; }
 };
 
 /* ================= 啟動：直接給結果 ================= */
-const startupQuery=new URLSearchParams(location.search);
 if(startupQuery.get('mode')==='vertical'){
   params.orient='vertical';
   for(const b of document.getElementById('orientSeg').children)
@@ -1184,7 +1244,18 @@ if(Number.isFinite(startupNoise)){
   params.noiseMm=Math.max(0,Math.min(20,startupNoise));
   document.getElementById('noiseIn').value=params.noiseMm.toFixed(1);
 }
-renderSlots(); thick(); syncOrientUI(); makeDemo();
+if(embeddedMode){
+  document.body.classList.add('embedded');
+  document.getElementById('btnBack').style.display='';
+  document.getElementById('btnDemo').style.display='none';
+  document.getElementById('btnExport').textContent='產生並載入列印板';
+}
+document.getElementById('btnBack').onclick=()=>{
+  if(window.wx && typeof window.wx.postMessage==='function')
+    sendSlicerMessage('phototile_home');
+};
+renderSlots(); thick(); syncOrientUI();
+if(embeddedMode) simulate(); else makeDemo();
 </script>
 </body>
 </html>
