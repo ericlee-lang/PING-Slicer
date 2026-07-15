@@ -110,12 +110,14 @@ private:
 
     wxWebView* m_browser;
     wxBoxSizer *bSizer_toolbar;
-    wxButton *  m_button_back;
-    wxButton *  m_button_forward;
-    wxButton *  m_button_stop;
-    wxButton *  m_button_reload;
-    wxTextCtrl *m_url;
-    wxButton *  m_button_tools;
+    // These controls are not created in public Release builds. Keep them
+    // explicitly null so shared navigation helpers can safely run there.
+    wxButton *  m_button_back    {nullptr};
+    wxButton *  m_button_forward {nullptr};
+    wxButton *  m_button_stop    {nullptr};
+    wxButton *  m_button_reload  {nullptr};
+    wxTextCtrl *m_url            {nullptr};
+    wxButton *  m_button_tools   {nullptr};
 
     wxMenu* m_tools_menu;
     wxMenuItem* m_tools_handle_navigation;
