@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>照片磚 · 彩色模擬原型 v1</title>
+<title>照片磚 · 彩色模擬原型 v2.4</title>
 <style>
   :root{ --orange:#EA4E16; --black:#202221; --gray:#EFEFEF; }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -67,7 +67,7 @@
 <header>
   <span class="brand">PING</span>
   <div>
-    <h1>照片磚 · 彩色模擬原型 <span class="sub">v2.1</span></h1>
+    <h1>照片磚 · 彩色模擬原型 <span class="sub">v2.4 灰階平滑版</span></h1>
     <div class="sub">把照片變成有限色料的層疊列印 — 拖圖進來、或直接 Ctrl+V 貼上截圖</div>
   </div>
   <div class="grow"></div>
@@ -150,12 +150,12 @@
         厚 <input type="number" id="tIn" value="6" min="2" max="30" step="0.5" style="width:64px"> mm
         <span class="sub" id="sizeInfo"></span>
       </div>
-      <div class="row" id="resRow" style="display:none"><label>解析度</label>
-        每格 <input type="number" id="cellIn" value="0.1" min="0.1" max="0.6" step="0.05" style="width:64px"> mm
-        <span class="sub" id="resInfo"></span>
+      <div class="row" id="noiseRow" style="display:none"><label>雜訊濾除</label>
+        雜訊尺寸 ≤ <input type="number" id="noiseIn" value="2.0" min="0" max="20" step="0.1" style="width:64px"> mm
+        <span class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</span>
       </div>
       <div class="row" id="teethRow" style="display:none"><label>邊界</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn" checked> 交錯齒（消零件交界長溝＋互相咬合；齒寬=1像素≈1線寬）</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 25×4 全料同出柱（防久未用料空燒）</label>
@@ -182,6 +182,7 @@
   </section>
 </main>
 
+<script src="mesh_union.js"></script>
 <script>
 "use strict";
 /* ================= 色彩數學 ================= */
@@ -212,11 +213,12 @@ const SLOT_DEFAULT = [
 ];
 let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
+const AUTO_CELL_MM=0.1;                            // 內部自動高精度；不再把幾何取樣暴露成使用者參數
 let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'flat', klevels:8,
                width:100, height:75, thick:6,     // 垂直模式實體尺寸（mm）
-               cell:0.1,                          // 模型格點大小（mm/格）＝解析度；預設 0.1＝Eric 2026-07-07 定「直接做到更細」（同進混色換色＝M6052 指令非換料→解析度幾乎不吃列印時間，只變檔案大小）。橫向/斜邊會明顯更順；縱向色帶仍受 0.2 層高上限（要更細須降層高）。舊版固定 MAXW=220 與 mm 脫鉤→12cm 高只給 220 格(每格0.55mm)＝取樣不足鋸齒之因（非物理極限）
+               noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
-               teeth:true };                      // 交錯齒邊界（Eric 2026-07-06 A案：長溝→短碎交錯縫＋零件咬合；2026-07-07 實印否決＝溝是每色區各自描牆的切片本質、交錯齒補不了）
+               teeth:false };                     // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
 let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
 let viewMode = 'sim';
@@ -308,6 +310,34 @@ function w100(w){                       // 混比→加總=100 的整數百分�
   while(diff!==0){ const i=r.indexOf(Math.max(...r)); r[i]+=Math.sign(diff); diff-=Math.sign(diff); }
   return r;
 }
+function updateNoiseStat(result){
+  const el=document.getElementById('noiseStat'); if(!el) return;
+  if(params.noiseMm<=0){ el.textContent='已關閉；所有量化後色塊都會保留'; return; }
+  if(!img || !result){
+    el.textContent=`會平滑尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉`;
+    return;
+  }
+  if(!result.changedPixels){
+    el.textContent=`沒有找到尺寸 ≤ ${params.noiseMm.toFixed(1)} mm 的灰階雜訊；0＝關閉`;
+    return;
+  }
+  el.textContent=`已平滑／合併 ${result.changedPixels.toLocaleString()} 格（${result.changedAreaMm2.toFixed(2)} mm²），另移除 ${result.removedComponents.toLocaleString()} 個小色塊；不留空洞`;
+}
+function filterVerticalLabels(labels,paletteSize,strategy){
+  if(!window.PhotoTileMesh || !img){ updateNoiseStat(null); return new Uint8Array(labels); }
+  const sx=params.width/img.w, sz=params.height/img.h;
+  const smooth=PhotoTileMesh.smoothLabelNoise(labels,img.w,img.h,paletteSize,sx,sz,params.noiseMm,strategy);
+  const result=PhotoTileMesh.filterSmallComponents(smooth.labels,img.w,img.h,sx,sz,params.noiseMm,
+    {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
+  let changedPixels=0;
+  for(let i=0;i<labels.length;i++) if(result.labels[i]!==labels[i]) changedPixels++;
+  const stats={removedComponents:result.removedComponents, changedPixels,
+    smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
+    passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
+  window.__noiseStats=stats;
+  updateNoiseStat(stats);
+  return result.labels;
+}
 function simulateVerticalQuad(){
   /* 四料垂直（v1.8，Eric 定的調色盤結構）：候選色＝「兩兩成對的色階線」——
      白↔B、白↔C、白↔D ＋ B↔C、B↔D、C↔D 共 6 條，每條「色階數」階
@@ -365,6 +395,11 @@ function simulateVerticalQuad(){
     palette=cands.map(c=>({w:c.w, lin:c.lin, lab:c.lab, rgb:c.lin.map(l2s)}));
     palette.sort((a,b)=>b.lab[0]-a.lab[0]);
   }
+  if(img){
+    labArr=filterVerticalLabels(labArr,palette.length,'mode');
+    usageF.fill(0);
+    for(let p=0;p<n;p++) usageF[labArr[p]]++;
+  }else updateNoiseStat(null);
   const W=coreCanvas.width,H=coreCanvas.height,bw=W/palette.length;
   for(let i=0;i<palette.length;i++){ coreCtx.fillStyle=rgbHex(...palette[i].rgb); coreCtx.fillRect(i*bw,0,Math.ceil(bw),H); }
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
@@ -393,7 +428,8 @@ function simulateVerticalQuad(){
             : [(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0];
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
   }
-  lastExport={labels:labArr, palette, mode:'quad'};   // 3MF 輸出用
+  lastExport={labels:labArr, palette, mode:'quad', noiseMm:params.noiseMm,
+    noiseStats:window.__noiseStats};                 // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——換料 B/C/D 的顏色試試（例如補圖中缺的色系）';
@@ -416,21 +452,23 @@ function simulateVertical(){
   for(let i=1;i<K;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
   listVertical(levels);
-  if(!img) return;
+  if(!img){ updateNoiseStat(null); return; }
   const t0=performance.now();
   const out=simCtx.createImageData(img.w,img.h); const od=out.data; const n=img.w*img.h;
-  const labArr=new Uint8Array(n);
+  const rawLabels=new Uint8Array(n);
+  for(let p=0;p<n;p++) rawLabels[p]=Math.round((1-img.lum[p])*(K-1)); // 亮→料A、暗→料B
+  const labArr=filterVerticalLabels(rawLabels,K,'median');
   let sumDE=0;
   for(let p=0;p<n;p++){
-    const k=Math.round((1-img.lum[p])*(K-1));         // 亮→料A、暗→料B
+    const k=labArr[p];
     const lv=levels[k];
-    labArr[p]=k;
     const c = viewMode==='sim' ? lv.rgb : [(k/(K-1)*255)|0,(k/(K-1)*255)|0,(k/(K-1)*255)|0];
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
     const dl=img.lab[p*3]-lv.lab[0], da=img.lab[p*3+1]-lv.lab[1], db=img.lab[p*3+2]-lv.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
   }
-  lastExport={labels:labArr, palette:levels, mode:'dual'};   // 3MF 輸出用
+  lastExport={labels:labArr, palette:levels, mode:'dual', noiseMm:params.noiseMm,
+    noiseStats:window.__noiseStats};                         // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   document.getElementById('metric').innerHTML =
@@ -526,17 +564,17 @@ function listSwaps(){
 
 /* ================= 圖片載入 ================= */
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
-let srcBitmap=null, srcLabel='';    // 原始點陣圖，供改尺寸/解析度時重取樣
+let srcBitmap=null, srcLabel='';    // 原始點陣圖，供改輸出尺寸時自動重取樣
 const GRID_MAX=1600;                // 長邊格數上限（防瀏覽器/3MF 爆量）；1600＝12cm 邊 @0.1mm 仍不觸頂（Eric 定要更細）
-/* 依「實體尺寸 ÷ 格點大小」決定模型解析度——直接對到印表機能印的最小單位（每格≈params.cell mm）。
+/* 由系統依實體尺寸自動採 0.1 mm 高精度取樣；這是 3MF 幾何實作細節，不要求使用者判斷。
    正方格、aspect 由圖片決定並已連動 params.height。
    ⚠ 舊版固定 MAXW=220 與 mm 脫鉤 → 12cm 高只給 220 格＝每格 0.55mm，遠粗於 0.2 層高能印的 600 格，
    照片鋸齒即由此取樣不足而來（Eric 2026-07-07 實印判定；非物理極限）。 */
 function buildGrid(){
   if(!srcBitmap) return;
   const bmp=srcBitmap;
-  let gw=Math.max(2,Math.round(params.width/params.cell));
-  let gh=Math.max(2,Math.round(params.height/params.cell));
+  let gw=Math.max(2,Math.round(params.width/AUTO_CELL_MM));
+  let gh=Math.max(2,Math.round(params.height/AUTO_CELL_MM));
   const long=Math.max(gw,gh);
   if(long>GRID_MAX){ const s=GRID_MAX/long; gw=Math.max(2,Math.round(gw*s)); gh=Math.max(2,Math.round(gh*s)); }
   const off=new OffscreenCanvas(gw,gh), c=off.getContext('2d');
@@ -554,9 +592,8 @@ function buildGrid(){
   for(let p=0;p<n;p+=stride) tl.push(lab[p*3],lab[p*3+1],lab[p*3+2]);
   img={w:gw,h:gh,data:d.data,lab,lum,thumbLab:tl};
   srcCanvas.width=gw; srcCanvas.height=gh; srcCtx.putImageData(d,0,0);
-  const cellEff=Math.max(params.width/gw, params.height/gh);   // 撞 GRID_MAX 上限時實際每格會比設定大
   document.getElementById('srcStat').textContent=
-    `${srcLabel}：${bmp.width}×${bmp.height} → 模型格點 ${gw}×${gh}（每格≈${cellEff.toFixed(2)}mm，${(n/1000).toFixed(0)}k 格）`;
+    `${srcLabel}：${bmp.width}×${bmp.height} → 輸出 ${params.width}×${params.height} mm（系統自動高精度處理）`;
   updateSizeInfo();
 }
 function loadBitmap(bmp, label){
@@ -827,23 +864,18 @@ function syncOrientUI(){
     document.getElementById(id).style.display=v?'none':'';
   document.getElementById('levelsRow').style.display=v?'':'none';
   document.getElementById('sizeRow').style.display=v?'':'none';
-  document.getElementById('resRow').style.display=v?'':'none';       // 解析度＝垂直模式限定
+  document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
   document.getElementById('btnExport').style.display=v?'':'none';   // 3MF 輸出＝垂直模式限定
   if(!v) document.getElementById('exportStat').style.display='none';
+  if(!img) updateNoiseStat(null);
   updateSizeInfo();
 }
 function pillarSide(){ return params.pillarXY; }
 function updateSizeInfo(){
   const el=document.getElementById('sizeInfo');
   if(el) el.textContent=`厚度＝換色清料空間`;
-  const re=document.getElementById('resInfo');
-  if(re){
-    const gw=img?img.w:Math.max(2,Math.round(params.width/params.cell)), gh=img?img.h:Math.max(2,Math.round(params.height/params.cell));
-    const cellEff=Math.max(params.width/gw, params.height/gh);
-    re.textContent=`模型 ${gw}×${gh} 格（每格≈${cellEff.toFixed(2)}mm，${(gw*gh/1000).toFixed(0)}k）｜0.1=最細(斜邊更順;縱向仍受0.2層高)、0.2=貼層高、0.4=貼線寬。同進混色→解析度幾乎不吃列印時間`;
-  }
   const pe=document.getElementById('pillarInfo');
   if(pe) pe.textContent=params.pillar
     ? `→ ${params.pillarXY}×${params.pillarXY} mm 實心方柱（磚右側 15mm）`
@@ -865,7 +897,7 @@ document.getElementById('wIn').onchange=e=>{
   params.width=Math.max(20,Math.min(400,+e.target.value||100)); e.target.value=params.width;
   params.height=Math.max(20,Math.round(params.width*imgAspect));
   document.getElementById('hIn').value=params.height;
-  if(img){ buildGrid(); suggest(); } else updateSizeInfo();   // 尺寸變＝格數變（解析度連動）
+  if(img){ buildGrid(); suggest(); } else updateSizeInfo();   // 尺寸變＝系統自動重建高精度幾何
 };
 document.getElementById('hIn').onchange=e=>{
   params.height=Math.max(20,Math.min(400,+e.target.value||75)); e.target.value=params.height;
@@ -876,9 +908,14 @@ document.getElementById('hIn').onchange=e=>{
 document.getElementById('tIn').onchange=e=>{
   params.thick=Math.max(2,Math.min(30,parseFloat(e.target.value)||6)); e.target.value=params.thick;
 };
-document.getElementById('cellIn').onchange=e=>{
-  params.cell=Math.max(0.1,Math.min(0.6,parseFloat(e.target.value)||0.1)); e.target.value=params.cell;
-  if(img){ buildGrid(); suggest(); } else updateSizeInfo();   // 解析度變＝重取樣重出模擬
+const noiseIn=document.getElementById('noiseIn');
+noiseIn.oninput=e=>{
+  const value=parseFloat(e.target.value);
+  if(Number.isFinite(value)){ params.noiseMm=Math.max(0,Math.min(20,value)); queue(); }
+};
+noiseIn.onchange=e=>{
+  params.noiseMm=Math.max(0,Math.min(20,parseFloat(e.target.value)||0));
+  e.target.value=params.noiseMm.toFixed(1); queue();
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); if(img) suggest(); };
@@ -898,7 +935,8 @@ function queue(){ clearTimeout(tq); tq=setTimeout(simulate,60); }
 /* ================= 3MF 輸出（垂直多零件，v1.7）=================
    Eric 定的工作流：照片變厚→按顏色分區塊→每區塊＝獨立零件往後延伸→每零件一個混色比例。
    輸出＝Orca 專案格式 3MF：3dmodel.model（每零件一個 mesh＋components 組回單一物件）
-   ＋ Metadata/model_settings.config（每 part 帶 extruder=零件編號 → PingSlicer 開檔自動指定線材）
+   ＋ Metadata/model_settings.config（每 part 帶 extruder=零件編號，名稱帶 #RRGGBB 預覽色
+     → PingSlicer 開檔自動縮成實際槽數、套色並檢查指派完整性）
    ＋ Metadata/ping_palette.txt（零件↔M6052/M6051 配比表，後處理與人讀用）。 */
 let lastExport=null;
 const CRC_TABLE=(()=>{ const t=new Uint32Array(256);
@@ -950,22 +988,12 @@ async function makeZip(entries){
 function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 async function build3mf(){
   if(!img || !lastExport) return null;
-  const {labels,palette,mode}=lastExport;
-  const w=img.w,h=img.h,n=w*h;
-  /* 1) 3×3 眾數濾波 ×2：去掉零星雜點，免得零件碎成印不出的細屑 */
-  let L=labels;
-  for(let pass=0;pass<2;pass++){
-    const O=new Uint8Array(L);
-    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
-      const cnt={}; let best=L[y*w+x],bc=0;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-        const v=L[(y+dy)*w+(x+dx)]; cnt[v]=(cnt[v]||0)+1;
-        if(cnt[v]>bc){bc=cnt[v];best=v;}
-      }
-      O[y*w+x]=best;
-    }
-    L=O;
-  }
+  const {labels,palette,mode,noiseMm=0,noiseStats=null}=lastExport;
+  const w=img.w,h=img.h;
+  if(!window.PhotoTileMesh) throw new Error('連通網格模組未載入，請重新整理頁面');
+  /* 1) 預覽階段已依畫面上的 mm 門檻完成灰階平滑與小色塊濾除；匯出直接複製同一份標籤，
+     避免 3MF 再做隱藏濾波而與使用者看到的預覽不同。 */
+  let L=new Uint8Array(labels);
   /* 1.5) 交錯齒邊界（v2.1，Eric 定 A案）：奇數像素列把「垂直邊界」往右咬 1 像素——
      層內左右零件交界的長直溝（外牆內縮的幾何本質）被打碎成單列錯位短縫（視覺 dithering）
      ＋相鄰零件互相咬合。只動垂直邊界：水平邊界沒有內縮溝、做齒反而會產生
@@ -980,43 +1008,29 @@ async function build3mf(){
     L=O;
   }
   window.__teethStats=teethFlips;
-  /* 2) 每零件色 → 貪婪矩形合併（run 相同者向下併），矩形微加 5µm 讓相鄰盒重疊成聯集 */
-  const sx=params.width/w, sz=params.height/h, T=params.thick, EPS=0.005;
-  const parts=[]; let totalRects=0;
-  for(let k=0;k<palette.length;k++){
-    const used=new Uint8Array(n); const rects=[];
-    for(let y=0;y<h;y++) for(let x=0;x<w;){
-      if(L[y*w+x]!==k||used[y*w+x]){x++;continue;}
-      let x1=x; while(x1<w&&L[y*w+x1]===k&&!used[y*w+x1])x1++;
-      let y1=y+1;
-      outer: while(y1<h){
-        for(let xx=x;xx<x1;xx++) if(L[y1*w+xx]!==k||used[y1*w+xx]) break outer;
-        y1++;
-      }
-      for(let yy=y;yy<y1;yy++)for(let xx=x;xx<x1;xx++)used[yy*w+xx]=1;
-      rects.push([x,x1,y,y1]); x=x1;
-    }
-    if(rects.length){ parts.push({k,rects}); totalRects+=rects.length; }
-  }
-  /* 3) mesh XML：每 rect 一個 box（8 頂點 12 三角、外向繞序）；直立擺（X寬 Y厚 Z高） */
+  /* 2) 四向連通分析＋同色外殼網格。
+     每一個連通色塊只保留外表面，移除舊版每個矩形各自封盒造成的內牆、重疊面與碎路徑。 */
+  const sx=params.width/w, sz=params.height/h, T=params.thick;
+  const collected=PhotoTileMesh.collectParts(L,w,h,palette.length);
+  const parts=collected.parts;
+  let totalTiles=0,totalVertices=0,totalTriangles=0;
   const TRI=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,6,2],[3,7,6],[0,7,3],[0,4,7],[1,2,6],[1,6,5]];
   const f=v=>Math.round(v*1000)/1000;
   const objXml=[]; const cfgParts=[]; const palLines=[];
+  const meshStats=[];
   parts.forEach((part,pi)=>{
-    const V=[],F=[]; let base=0;
-    for(const [x0,x1,y0,y1] of part.rects){
-      const X0=f(x0*sx), X1=f(x1*sx+EPS), Z0=f((h-y1)*sz), Z1=f((h-y0)*sz+EPS), Y0=0, Y1=T;
-      const p=[[X0,Y0,Z0],[X1,Y0,Z0],[X1,Y1,Z0],[X0,Y1,Z0],[X0,Y0,Z1],[X1,Y0,Z1],[X1,Y1,Z1],[X0,Y1,Z1]];
-      for(const v of p) V.push(`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`);
-      for(const t of TRI) F.push(`<triangle v1="${base+t[0]}" v2="${base+t[1]}" v3="${base+t[2]}"/>`);
-      base+=8;
-    }
+    const mesh=PhotoTileMesh.buildLabelMesh(L,w,h,part.k,part.runs,sx,sz,T);
+    const V=mesh.vertices.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`);
+    const F=mesh.triangles.map(t=>`<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`);
+    totalTiles+=mesh.tiles; totalVertices+=V.length; totalTriangles+=F.length;
+    meshStats.push({label:part.k,components:mesh.components,tiles:mesh.tiles,vertices:V.length,triangles:F.length});
     const oid=pi+1;
     objXml.push(`<object id="${oid}" type="model"><mesh><vertices>${V.join('')}</vertices><triangles>${F.join('')}</triangles></mesh></object>`);
     const pal=palette[part.k];
+    const previewColor=rgbHex(...pal.rgb).toUpperCase();
     const name = mode==='quad'
-      ? `零件色${pi+1} A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
-      : `零件色${pi+1} S${Math.round((1-pal.t)*100)/100}`;
+      ? `零件色${pi+1} ${previewColor} A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
+      : `零件色${pi+1} ${previewColor} S${Math.round((1-pal.t)*100)/100}`;
     cfgParts.push(
       `    <part id="${oid}" subtype="normal_part">\n`+
       `      <metadata key="name" value="${xmlEsc(name)}"/>\n`+
@@ -1024,9 +1038,10 @@ async function build3mf(){
       `      <metadata key="extruder" value="${pi+1}"/>\n`+
       `    </part>`);
     palLines.push( mode==='quad'
-      ? `extruder ${pi+1} = M6052 A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
-      : `extruder ${pi+1} = M6051 S${Math.round((1-pal.t)*100)/100}`);
+      ? `extruder ${pi+1} color ${previewColor} = M6052 A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
+      : `extruder ${pi+1} color ${previewColor} = M6051 S${Math.round((1-pal.t)*100)/100}`);
   });
+  window.__meshStats={parts:meshStats,totalComponents:collected.components,totalRuns:collected.totalRuns,totalTiles,totalVertices,totalTriangles};
   /* 3.5) 洗料柱（v1.9 加入、v2.0 改固定 XY——Eric 定：取代換料塔）：獨立方柱零件、
      25×4（雙料 S0.5）全料同出，每層都會被印到一次 → 四支料每層都動、不空燒。
      只設 XY（預設 25mm 方柱、100% 填充）；層高歸切片器管、原型不碰＝不會 Double。
@@ -1042,7 +1057,10 @@ async function build3mf(){
     const V=pv.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`).join('');
     const F=TRI.map(t=>`<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`).join('');
     objXml.push(`<object id="${pillarOid}" type="model"><mesh><vertices>${V}</vertices><triangles>${F}</triangles></mesh></object>`);
-    const pname = mode==='quad' ? '洗料柱 A25 B25 C25 D25' : '洗料柱 S0.5';
+    const sourceLin=slots.slice(0,mode==='quad'?4:2).map(s=>hexLin(s.color));
+    const pillarLin=[0,1,2].map(ch=>sourceLin.reduce((sum,c)=>sum+c[ch],0)/sourceLin.length);
+    const pillarColor=rgbHex(...pillarLin.map(l2s)).toUpperCase();
+    const pname = mode==='quad' ? `洗料柱 ${pillarColor} A25 B25 C25 D25` : `洗料柱 ${pillarColor} S0.5`;
     cfgParts.push(
       `    <part id="${pillarOid}" subtype="normal_part">\n`+
       `      <metadata key="name" value="${xmlEsc(pname)}"/>\n`+
@@ -1051,8 +1069,8 @@ async function build3mf(){
       `      <metadata key="sparse_infill_density" value="100%"/>\n`+
       `    </part>`);
     palLines.push( mode==='quad'
-      ? `extruder ${pillarOid} = M6052 A25 B25 C25 D25（洗料柱 ${side}×${side}mm 實心方柱）`
-      : `extruder ${pillarOid} = M6051 S0.5（洗料柱 ${side}×${side}mm 實心方柱）`);
+      ? `extruder ${pillarOid} color ${pillarColor} = M6052 A25 B25 C25 D25（洗料柱 ${side}×${side}mm 實心方柱）`
+      : `extruder ${pillarOid} color ${pillarColor} = M6051 S0.5（洗料柱 ${side}×${side}mm 實心方柱）`);
   }
   const MID=1000;
   const nObjs=parts.length+(pillarOid?1:0);
@@ -1088,7 +1106,8 @@ ${cfgParts.join('\n')}
 </Types>`;
   const palTxt=
 `PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
-尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜矩形 ${totalRects}
+尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
+雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
 ${palLines.join('\n')}`;
   const blob=await makeZip([
     {name:'[Content_Types].xml', data:types},
@@ -1097,24 +1116,41 @@ ${palLines.join('\n')}`;
     {name:'Metadata/model_settings.config', data:cfg},
     {name:'Metadata/ping_palette.txt', data:palTxt},
   ]);
-  return {blob, parts:parts.length, rects:totalRects, pillar:!!pillarOid, extruders:nObjs};
+  return {blob, parts:parts.length, components:collected.components, tiles:totalTiles,
+          vertices:totalVertices, triangles:totalTriangles, pillar:!!pillarOid, extruders:nObjs,
+          noiseRemoved:noiseStats?noiseStats.removedComponents:0,
+          noiseChanged:noiseStats?noiseStats.changedPixels:0, noiseMm};
 }
 window.__buildExport=build3mf;   // 自動化測試鉤子
 document.getElementById('btnExport').onclick=async()=>{
   const st=document.getElementById('exportStat');
   st.style.display=''; st.textContent='產生中…';
+  clearTimeout(tq); simulate();                    // 先套用畫面上最新的濾除門檻
   const r=await build3mf();
   if(!r){ st.textContent='先載入圖片再輸出'; return; }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(r.blob);
-  a.download='照片磚_多零件.3mf';
+  a.download='照片磚_連通網格版.3mf';
   a.click();
-  st.textContent=`已輸出：${r.parts} 個零件${r.pillar?'＋洗料柱':''}、${r.rects} 個矩形、${(r.blob.size/1024).toFixed(0)} KB。`+
-    `PingSlicer 開檔後每零件已自動指定線材 1~${r.extruders}（配比表在檔內 ping_palette.txt）；`+
-    `機器選「FF800 同進照片磚」槽位自動開滿`;
+  st.textContent=`已輸出：${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、${r.components} 個連通區、`+
+    `${r.triangles} 個三角形、${(r.blob.size/1024).toFixed(0)} KB。`+
+    `雜訊門檻 ${r.noiseMm.toFixed(1)} mm，已平滑／合併 ${r.noiseChanged} 格、移除 ${r.noiseRemoved} 個小色塊（不留空洞）。`+
+    `PingSlicer 開檔後會只保留 ${r.extruders} 個對應線材槽、自動套用預覽色，`+
+    `並檢查每個零件的配方與槽號是否完整；曲線建議使用 0.1 mm 層高切片。`;
 };
 
 /* ================= 啟動：直接給結果 ================= */
+const startupQuery=new URLSearchParams(location.search);
+if(startupQuery.get('mode')==='vertical'){
+  params.orient='vertical';
+  for(const b of document.getElementById('orientSeg').children)
+    b.classList.toggle('on',b.dataset.o==='vertical');
+}
+const startupNoise=parseFloat(startupQuery.get('noise'));
+if(Number.isFinite(startupNoise)){
+  params.noiseMm=Math.max(0,Math.min(20,startupNoise));
+  document.getElementById('noiseIn').value=params.noiseMm.toFixed(1);
+}
 renderSlots(); thick(); syncOrientUI(); makeDemo();
 </script>
 </body>

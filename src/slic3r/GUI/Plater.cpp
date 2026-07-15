@@ -5751,6 +5751,105 @@ void read_binary_stl(const std::string& filename, std::string& model_id, std::st
     return;
 }
 
+static PingMix::PhotoPaletteStatus ping_analyze_photo_tile_import(const Model& model,
+                                                                  PingMix::PhotoPalette& palette,
+                                                                  std::string& reason)
+{
+    std::vector<PingMix::PhotoPartAssignment> parts;
+    for (const ModelObject* object : model.objects) {
+        for (const ModelVolume* volume : object->volumes) {
+            if (!volume->is_model_part()) continue;
+            const ConfigOption* extruder = volume->config.option("extruder");
+            if ((extruder == nullptr || extruder->getInt() == 0) && volume->get_object() != nullptr)
+                extruder = volume->get_object()->config.option("extruder");
+            const int explicit_tool = extruder != nullptr && extruder->getInt() > 0 ? extruder->getInt() - 1 : -1;
+            parts.push_back({explicit_tool, volume->name});
+        }
+    }
+    return PingMix::collect_photo_palette(parts, palette, reason);
+}
+
+static void ping_notify_photo_tile_import(Plater* plater,
+                                          NotificationManager::NotificationLevel level,
+                                          const wxString& message)
+{
+    plater->get_notification_manager()->push_notification(
+        NotificationType::CustomNotification, level, into_u8(message));
+}
+
+// Only a standalone photo-tile project may replace the project's material list. Importing
+// into a populated plate must preserve that project's existing material assignments.
+static bool ping_apply_photo_tile_materials(Plater* plater,
+                                            const PingMix::PhotoPalette& palette,
+                                            bool standalone_project)
+{
+    if (!standalone_project) {
+        ping_notify_photo_tile_import(
+            plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
+            wxString::FromUTF8("偵測到照片磚 3MF，但目前專案已有模型；為避免改動原專案的線材槽，未自動縮減。請將此 3MF 單獨以「開啟專案」匯入。"));
+        return false;
+    }
+
+    const size_t material_count = palette.recipes.size();
+    if (material_count == 0 || palette.colors.size() != material_count) return false;
+    if (material_count > MAXIMUM_EXTRUDER_NUMBER) {
+        ping_notify_photo_tile_import(
+            plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
+            wxString::Format(wxString::FromUTF8("照片磚需要 %d 個線材槽，已超過 PING Slicer 上限 %d；未自動改色。"),
+                             (int) material_count, (int) MAXIMUM_EXTRUDER_NUMBER));
+        return false;
+    }
+
+    std::vector<std::string> colors = palette.colors;
+    size_t                   unresolved_colors = 0;
+    for (std::string& color : colors) {
+        if (color.empty()) {
+            color = "#FF00FF"; // Missing preview metadata is deliberately conspicuous.
+            ++unresolved_colors;
+        }
+    }
+
+    PresetBundle* preset_bundle = wxGetApp().preset_bundle;
+    preset_bundle->set_num_filaments((unsigned int) material_count);
+
+    DynamicPrintConfig& project_config = preset_bundle->project_config;
+    project_config.option<ConfigOptionStrings>("filament_colour")->values       = colors;
+    project_config.option<ConfigOptionStrings>("filament_multi_colour")->values = colors;
+    project_config.option<ConfigOptionStrings>("filament_colour_type")->values  =
+        std::vector<std::string>(material_count, "1");
+    project_config.option<ConfigOptionInts>("filament_map")->values =
+        std::vector<int>(material_count, 1);
+
+    // The AMS cache is independent from project_config. Reusing its old multi-colour
+    // entries would make a newly imported single-colour slot render with stale colours.
+    preset_bundle->ams_multi_color_filment.assign(material_count, {});
+
+    plater->on_filament_count_change(material_count);
+    plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
+    plater->sidebar().obj_list()->update_filament_colors();
+    plater->sidebar().update_dynamic_filament_list();
+    wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
+
+    for (size_t i = 0; i < material_count; ++i) {
+        BOOST_LOG_TRIVIAL(info) << "PING photo-tile import: T" << i << " preview " << colors[i]
+                                << " recipe " << palette.recipes.at((int) i);
+    }
+
+    if (unresolved_colors == 0) {
+        ping_notify_photo_tile_import(
+            plater, NotificationManager::NotificationLevel::RegularNotificationLevel,
+            wxString::Format(wxString::FromUTF8("照片磚：已依零件配方保留 %d 個線材槽，並套用對應預覽色。"),
+                             (int) material_count));
+    } else {
+        ping_notify_photo_tile_import(
+            plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
+            wxString::Format(
+                wxString::FromUTF8("照片磚：已保留 %d 個線材槽；其中 %d 槽的舊 3MF 未帶預覽色，已以洋紅色標示。"),
+                (int) material_count, (int) unresolved_colors));
+    }
+    return true;
+}
+
 // BBS: backup & restore
 std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_files, LoadStrategy strategy, bool ask_multi)
 {
@@ -6617,6 +6716,21 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
         if (!dlg_cont) {
             q->skip_thumbnail_invalid = false;
             return empty_result;
+        }
+
+        if (type_3mf && load_model) {
+            PingMix::PhotoPalette palette;
+            std::string           reason;
+            const auto status = ping_analyze_photo_tile_import(model, palette, reason);
+            if (status == PingMix::PhotoPaletteStatus::Valid) {
+                ping_apply_photo_tile_materials(q, palette, q->model().objects.empty());
+            } else if (status == PingMix::PhotoPaletteStatus::Invalid) {
+                BOOST_LOG_TRIVIAL(warning) << "PING photo-tile import: invalid material assignments: " << reason;
+                ping_notify_photo_tile_import(
+                    q, NotificationManager::NotificationLevel::WarningNotificationLevel,
+                    wxString::FromUTF8("照片磚材料指派不完整，未自動縮減線材槽。請檢查未指派零件；這可能造成錯色或錯誤混色，請先排除後再判讀界線缺口。\n詳細：")
+                        + from_u8(reason));
+            }
         }
 
         if (one_by_one) {
