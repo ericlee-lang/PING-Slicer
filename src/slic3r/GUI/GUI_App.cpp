@@ -5002,6 +5002,7 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     if (!mainframe || !mainframe->m_webview)
         return;
 
+    BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
     mainframe->m_webview->ShowPhotoTile(image_path);
 }
