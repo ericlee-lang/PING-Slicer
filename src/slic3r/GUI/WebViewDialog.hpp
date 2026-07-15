@@ -40,6 +40,8 @@ public:
     virtual ~WebViewPanel();
 
     void load_url(wxString& url);
+    void ShowHomepage();
+    void ShowPhotoTile(const wxString& image_path = wxEmptyString);
 
     void UpdateState();
     void OnIdle(wxIdleEvent& evt);
@@ -153,6 +155,9 @@ private:
     // Last executed JavaScript snippet, for convenience.
     wxString m_javascript;
     wxString m_response_js;
+    wxString m_pending_photo_tile_image;
+
+    void SendPendingPhotoTileImage();
 
     DECLARE_EVENT_TABLE()
 };
