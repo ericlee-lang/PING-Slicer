@@ -14,6 +14,8 @@
 #include <wx/display.h>
 #ifdef _WIN32
 #include <wx/richtooltip.h>
+#include <wx/custombgwin.h>
+#include <wx/popupwin.h>
 #endif
 
 #include <algorithm>
