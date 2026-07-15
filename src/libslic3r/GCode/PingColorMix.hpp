@@ -40,6 +40,23 @@ struct Recipe {
     double                min_flow = 0.10;    // 四料每料下限（進階模式 0.05）
 };
 
+// 照片磚 3MF 匯入時的純資料描述。tool 是 0-based（T0, T1...）。
+struct PhotoPartAssignment {
+    int         tool = -1;
+    std::string name;
+};
+
+enum class PhotoPaletteStatus {
+    NotPhotoTile, // 沒有任何可辨識的照片磚配方，普通專案不動
+    Valid,        // 所有列印零件都有配方，且槽號從 T0 連續排列
+    Invalid       // 僅部分零件有配方，或槽號／配方衝突
+};
+
+struct PhotoPalette {
+    std::map<int, std::string> recipes; // tool -> M6051/M6052
+    std::vector<std::string>   colors;  // tool -> #RRGGBB；舊檔無顏色資料時留空
+};
+
 // —— 取樣（公開以便預覽著色/測試共用）——
 // 雙料：位置 t(0~1) → E1 比例（已 clamp 到 [MIN_S, MAX_S]）
 double sample_ratio(const std::vector<Stop>& stops, double t, CurveMode mode);
@@ -74,6 +91,18 @@ void quad_color(const double mix[4], const int colors[4][3], int out_rgb[3]);
 // 只認「名稱尾端」的 pattern（前面至少要有一個名稱 token）；數字 token 逐字沿用
 // （不重新格式化浮點）。四料驗和=100（±0.5 容差）。不是配比名稱 → 回 false。
 bool parse_photo_part_name(const std::string& name, std::string& out_cmd);
+
+// 新版照片磚名稱可在配方前攜帶預覽色：
+//   "零件色3 #7F7F7F S0.5" / "零件色3 #C07055 A70 B30 C0 D0"
+// 嵌入色優先；舊雙料檔無嵌入色時，提供 S0=黑、S1=白的中性灰階診斷色。
+// 四料舊檔無法從配比反推實際原料色，因此回 false。
+bool parse_photo_part_color(const std::string& name, std::string& out_color);
+
+// 全有全無的指派完整性檢查，供匯入 UI 與 G-code 後處理共用。
+// Invalid 時 reason 為可記錄／顯示的英文原因；NotPhotoTile 不顯示警告。
+PhotoPaletteStatus collect_photo_palette(const std::vector<PhotoPartAssignment>& parts,
+                                         PhotoPalette& out,
+                                         std::string& reason);
 
 // palette：0-based 工具號（＝零件 extruder-1，見 3MF part metadata extruder）→ 混色指令。
 // 掃 gcode，把「整行 T<n>」（n 在 palette 內）換成對應 M605x（原 T 號留在行尾註解供追溯）；
