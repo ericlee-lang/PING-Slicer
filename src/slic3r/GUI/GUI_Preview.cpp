@@ -299,6 +299,9 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // 右上角（比照摺疊側邊欄的浮動 <> 鈕）。不入 sizer、on size 重定位、Raise 蓋在畫布上
     //（GL canvas 帶 WS_CLIPSIBLINGS，浮鈕區域不會被 GL 繪掉）。
     m_ping_mix_strip = new wxPanel(this, wxID_ANY);
+    // StaticBox/Button clears its rounded corners with the parent colour. Match the GL canvas
+    // background so no white square remains behind the rounded floating control.
+    m_ping_mix_strip->SetBackgroundColour(wxGetApp().dark_mode() ? wxColour(84, 84, 90) : wxColour(231, 231, 231));
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         // 軟體標準 Button（Regular＝hover 變灰、focus 橘框；直排文字同校正頁 btn_sync 前例）
@@ -306,7 +309,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
         open_btn->SetVertical(true);
         open_btn->SetMinSize(wxSize(FromDIP(28), FromDIP(64)));
-        open_btn->SetToolTip(wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
+        bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
             if (wxGetApp().plater() != nullptr)

@@ -945,7 +945,7 @@ endif ()
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE.txt DESTINATION ".")
 configure_file(${LIBDIR}/dev-utils/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/dev-utils/platform/unix/fhs.hpp)
 
-set (CPACK_PACKAGE_NAME "PING Slicer V3.5")
+set (CPACK_PACKAGE_NAME "PING Slicer V3.6")
 set (CPACK_PACKAGE_VENDOR "PING 3D Printer")
 set (CPACK_PACKAGE_VERSION_MAJOR "${ORCA_VERSION_MAJOR}")
 set (CPACK_PACKAGE_VERSION_MINOR "${ORCA_VERSION_MINOR}")
@@ -959,14 +959,14 @@ set (CPACK_NSIS_MUI_ICON "${CPACK_PACKAGE_ICON}")
 set (CPACK_NSIS_MUI_UNIICON "${CPACK_PACKAGE_ICON}")
 set (CPACK_NSIS_INSTALLED_ICON_NAME  "$INSTDIR\\\\ping-slicer.exe")
 set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
-    CreateShortCut \\\"$DESKTOP\\\\PING Slicer V3.5.lnk\\\" \\\"$INSTDIR\\\\ping-slicer.exe\\\"
+    CreateShortCut \\\"$DESKTOP\\\\PING Slicer V3.6.lnk\\\" \\\"$INSTDIR\\\\ping-slicer.exe\\\"
 ")
 set (CPACK_PACKAGE_CHECKSUM SHA256)
 set (CPACK_PACKAGE_INSTALL_REGISTRY_KEY "PINGSlicer")
 set (CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
 set (CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 # set (CPACK_NSIS_MODIFY_PATH "ON")
-set(CPACK_PACKAGE_EXECUTABLES "ping-slicer;PING Slicer V3.5")
+set(CPACK_PACKAGE_EXECUTABLES "ping-slicer;PING Slicer V3.6")
 set(CPACK_CREATE_DESKTOP_LINKS "ping-slicer")
 set (CPACK_RESOURCE_FILE_LICENSE ${CMAKE_SOURCE_DIR}/LICENSE.txt) # must also include in install command
 

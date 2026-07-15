@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "EDU 200",
+    "model_id": "PING_EDU_200",
+    "nozzle_diameter": "0.6",
+    "machine_tech": "FFF",
+    "family": "Classic",
+    "bed_model": "",
+    "bed_texture": "ping_buildplate_texture.png",
+    "hotend_model": "",
+    "default_materials": "PING PLA - EDU Classic"
+}
