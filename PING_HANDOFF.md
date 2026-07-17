@@ -10,34 +10,34 @@
 >
 > 這份是「接手用」文件：給下一個 Session（或維護者）快速接續 + 避免重踩坑。
 > 搭配 `PING_CUSTOMIZATION.md`（AGPL 修改紀錄）一起看。
-> 歷次 session 圖文總結都在 `D:\dev\2026claude\20260604 ORCA客製\_封存\session總結\`（最新 `PING_session_summary_20260703.html`）。
+> 歷次 session 圖文總結都在 `D:\dev\2026claude\20260604 ORCA客製\_封存\session總結\`（最新 `PING_session_summary_20260717.html`）。
 
 ---
 
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🆕 V3.6 Classic 前代機支援（2026-07-15，已實作／未 build）
-- 正式維護線進版 `3.6.0`；內建參數包 `PING.json` 49→51，讓既有 3.5 安裝可收到新機型。尚未 push／build／部署。
-- 選機精靈的首次設定（21）與後續新增印表機（24）都在同一頁新增 **Fast／Classic** 分頁；預設 Fast，搜尋時跨兩頁顯示結果，「全選／清空」只作用目前可見頁。
-- Classic 八機型與 V2.1 名稱／尺寸／預設口徑：`EDU 200(0.6)`、`PING 200(0.4)`、`PING 270(0.4)`、`PING 300+(0.4)`、`DUAL 300(0.4)`、`DUAL 450/600/800(0.6)`。
-- 舊機全部隔離為 Marlin legacy：`emit_machine_limits_to_gcode=0`、製程加速度/jerk=0（不產生 M204）、`use_firmware_retraction=0`、Classic 專用線材 PA=0 且無 Klipper `SET_RETRACTION`。
-- 回抽定稿：EDU（料管約 40cm）`4/30`、PING 270（約 70cm）`6/60`、PING 200／300+ `2/20`、DUAL 300 `2/20`、DUAL 450/600/800 `3/30`。EDU 專屬線材床溫 0，Start/End G-code 無 M140/M190。
-- 速度按 V2.1：單料 40、DUAL 300 40、DUAL 450+ 外牆40／內牆80／填充60，空駛250；0.6 DUAL 標準層高 0.25。`verify_profiles.py` 已加入完整硬閘門，regen 後 294 presets／76 machines 參照全過；21/24.js Node 語法全過。
-- `DL1016` 依 Eric 2026-07-15 裁定只保留在既有 Portable 本機用途，正式 V3.6 不打包、不更新，也不碰 `%APPDATA%`；未來確實需要新版 Portable 再由 `..\DL1016_本機注入備援\` 回注。本次 build 不處理 DL1016。
+### 🏁 V3.6 正式維護版已完成（2026-07-16～17）
+- **二進位權威**：`release/v3.6` commit `52a4b935`；GitHub Actions run `29427421714`。Windows installer／portable、Linux、macOS x86／arm／Universal 的產品 build 均成功；整體紅燈仍只來自既知 Flatpak×2＋Unit Tests，不能當成 Windows 產品失敗。
+- **版本／參數包**：程式 `3.6.0`，內建 `PING.json` v51；正式線功能實作 commit `8470db1e`，Windows 深色提示框編譯補丁 `52a4b935`。
+- **Classic 八機型**：`EDU 200(0.6)`、`PING 200(0.4)`、`PING 270(0.4)`、`PING 300+(0.4)`、`DUAL 300(0.4)`、`DUAL 450/600/800(0.6)`；Fast／Classic 於選機精靈分頁呈現。
+- **Classic 隔離規則**：全為 Marlin legacy；不輸出機器限制、製程加速度／jerk=0、韌體回抽關閉、PA=0、無 Klipper `SET_RETRACTION`。回抽定稿：EDU `4/30`、PING 270 `6/60`、PING 200／300+ `2/20`、DUAL 300 `2/20`、DUAL 450/600/800 `3/30`；EDU 床溫 0 且 Start/End 無床加熱碼。
+- **正式線參數**：一般製程 `sparse_infill_acceleration=5000`、`travel_acceleration=5000`、`seam_position=aligned`；副本預設名簡化為如 `0.2mm PLA+SUP - 複製`。
+- **精靈／介面**：略過歡迎與區域頁、區域固定 Asia-Pacific；黑底白字提示；混色鈕白色方背已去除；色彩選擇器固定在所點色票旁；同家族排序為基本款→同進→3in1→單料頭。
+- **支撐預設**：FD300 全家族樹狀；FF600／FF600 3in1 普通；FF600 同進樹狀。產生器與 `verify_profiles.py` 皆有硬閘門。
+- **DL1016**：依 Eric 裁定不進正式 V3.6，僅保留既有本機 Portable／`..\DL1016_本機注入備援\`，未來有需求再另案回注。
 
-### ✅ 介面／精靈／支撐預設確認批（2026-07-15，依 Eric 指示暫不 build）
-- 安裝精靈直接從「選擇 3D 列印機」開始；歡迎頁與區域頁都不再進入，隱藏區域固定 `Asia-Pacific`，選機首屏也移除返回歡迎頁的按鈕。
-- 混色區提示統一黑底白字；浮動「混色」圓角按鈕的父背景改為貼合 GL 畫布，消除白色方背；色彩選擇器固定在所點色票旁並限制在當前螢幕工作區。
-- 精靈同家族順序改為「基本款 → 同進 → 3in1 → 單料頭」，需要實際換噴頭的單料頭固定最右。
-- 支撐模式硬閘門：FD300 全家族樹狀；FF600／FF600 3in1 普通；FF600 同進樹狀。來源在 `embed_params.py`，`verify_profiles.py` 同步驗證。
-- 本批 C++／web／產生器已同步正式維護線與照片磚線；正式線 profiles 已重生 144 支並通過參照／安全值／支撐矩陣／精靈排序驗證。遵照指示不 build，實際像素驗收留待下一次合併 build。尚未 commit、push、部署。
+### 📦 內部測試下載位置已換成 V3.6
+- 固定根目錄：`G:\我的雲端硬碟\2026claude\PING Slicer`；根目錄只放最新版 installer、portable、`版本資訊.txt` 與 `old\`，讓內部人員沿用同一路徑。
+- V3.5.5 r6 installer／portable／版本資訊已移入 `old\`，**未刪除**；雲端端已重新讀回確認根目錄與 old 的檔案狀態。
+- installer：`PING_Slicer_Windows_Installer_V3.6.0.exe`，SHA-256 `5864F15DFA373321DCB6EAACA17AB16656C912213A73F54A4DA89DF8630213BC`。
+- portable：`PING_Slicer_Windows_V3.6.0_portable.zip`，SHA-256 `310C217AABAA0DFEAF90A81DF990019B33B65B30EB4EEFBB3B07C384847056E3`。
+- Portable 已離線核對：bundle v51、Classic 八機皆存在、DL1016 不存在。完整發布流程見 `SOP_內部測試版發布.md`。
 
-### ✅ 兩線對齊：正式線保守加速度／接縫對齊／副本短名稱（2026-07-15）
-- 本線 144 支一般製程已重生為：`sparse_infill_acceleration=5000`、`travel_acceleration=5000`、`seam_position=aligned`；原因＝高加速度會造成馬達錯位／失步。
-- 儲存系統列印參數副本時，預設名稱移除 `@機型 (口徑)`，例：`0.2mm PLA+SUP - 複製`；只套 `TYPE_PRINT`。
-- `embed_params.py` 與 `verify_profiles.py` 已同步硬閘門；驗證＝144 一般／0 照片磚、參照完整性通過。
-- 尚未 commit、push、build、部署 `%APPDATA%`／portable；`PING.json` 版號維持 49，發版遷移另行裁定。
+### ▶ 下一個 Session 的第一步
+1. 先讓內部人員安裝／解壓 V3.6，針對首次精靈、Fast／Classic 分頁、八台 Classic 機型與混色介面做實際畫面驗收。
+2. 用 Classic 代表機型各切一份 G-code，確認無 M204、無 `SET_RETRACTION`、無韌體回抽；EDU 另確認無床加熱碼。
+3. 有回饋時只在 `release/v3.6` 維護；照片磚工作只進 `ping/photo-tile`，不要回到 `ping/v3.5`。
 
 ### 🏁 V3.5.5 無照片磚版 build 綠＋portable 已換裝（2026-07-09）
 - run **28952768359** @ `98a7e2b6`（Eric 授權發車；整體 failure＝Flatpak×2＋UnitTests 坑#10，本體全綠、artifact 齊：Windows 安裝檔+portable/Mac Universal/Linux）。
