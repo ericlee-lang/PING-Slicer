@@ -387,12 +387,12 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
         proc["sparse_infill_acceleration"] = "5000"
     return proc
 
-# ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md）：
-# 全庫統一 寬 30→15＋外牆肋條（rib）。肋寬/圓角吃引擎預設（肋寬 8；寬 15 時被引擎夾到 7.5
-# ＝正常行為，PrintConfig.cpp wipe_tower_rib_width tooltip）。單料機不顯示換料塔、寫入無副作用
-# → 不分機型全寫（含 FF 範本/照片磚範本）。
+# ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md；
+# 寬度 2026-07-17 Eric 改裁 15→25，新規蓋舊規）：全庫統一 寬 25＋外牆肋條（rib）。
+# 肋寬/圓角吃引擎預設（PrintConfig.cpp wipe_tower_rib_width tooltip）。單料機不顯示換料塔、
+# 寫入無副作用 → 不分機型全寫（含 FF 範本/照片磚範本——照片磚 enable_prime_tower=0 無副作用）。
 def normalize_prime_tower(proc):
-    proc["prime_tower_width"] = "15"
+    proc["prime_tower_width"] = "25"
     proc["wipe_tower_wall_type"] = "rib"
     return proc
 
@@ -742,6 +742,25 @@ def main(src_base):
         sr_added += 1
     if sr_added:
         print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
+
+    # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭）60；
+    # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
+    # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。
+    pv_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        bn = os.path.basename(fp_path)
+        if "四料高流量噴頭" in bn or "(3in1)" in bn:
+            continue
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        want = "60" if "SupPLA" in bn else "30"
+        cur = fd.get("filament_minimal_purge_on_wipe_tower")
+        if (cur[0] if isinstance(cur, list) else cur) == want:
+            continue
+        fd["filament_minimal_purge_on_wipe_tower"] = [want]
+        jdump(fp_path, fd)
+        pv_set += 1
+    if pv_set:
+        print("  線材洗料塔最小清理量 30/60：改 %d 支（FF 四料/3in1 特調 120 不動）" % pv_set)
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
