@@ -32,7 +32,9 @@ CloneDialog::CloneDialog(wxWindow *parent)
     auto arrange_label = new wxStaticText(this, wxID_ANY, _L("Auto arrange plate after cloning") + ":", wxDefaultPosition, wxDefaultSize, 0);
     arrange_label->Wrap(FromDIP(300));
     m_arrange_cb = new ::CheckBox(this);
-    m_arrange_cb->SetValue(m_config->get("auto_arrange") == "true");
+    // PING(2026-07-17 Eric)：複製後自動排列預設「不勾」（原跟全域 auto_arrange 設定走，
+    // 會把整盤重排、動到使用者已擺好的位置）；要排的人自己勾。
+    m_arrange_cb->SetValue(false);
 
     f_sizer->Add(arrange_label, 0, wxEXPAND | wxALIGN_CENTER_VERTICAL);
     f_sizer->Add(m_arrange_cb , 0, wxALIGN_CENTER_VERTICAL | wxTOP | wxBOTTOM, FromDIP(5));
