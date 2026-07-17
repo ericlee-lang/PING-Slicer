@@ -35,8 +35,26 @@ SavePresetDialog::Item::Item(Preset::Type type, const std::string &suffix, wxBox
     assert(tab);
     m_presets = tab->get_presets();
 
-    const Preset &sel_preset  = m_presets->get_selected_preset();
-    std::string   preset_name = sel_preset.is_default ? "Untitled" : sel_preset.is_system ? (boost::format(("%1% - %2%")) % sel_preset.name % suffix).str() : sel_preset.name;
+    const Preset &sel_preset = m_presets->get_selected_preset();
+    std::string   preset_name;
+    if (sel_preset.is_default) {
+        preset_name = "Untitled";
+    } else if (sel_preset.is_system) {
+        std::string copy_base = sel_preset.name;
+        // PING(2026-07-15 Eric)：另存列印參數副本時，機型／口徑已由目前選用的列印設備決定，
+        // 預設名稱只保留製程本身，例："0.2mm PLA+SUP @FD300 (0.4)" -> "0.2mm PLA+SUP - 複製"。
+        // 只套 TYPE_PRINT，避免改到列印設備、線材等其他預設的既有命名。
+        if (m_type == Preset::TYPE_PRINT) {
+            const size_t printer_suffix = copy_base.find('@');
+            if (printer_suffix != std::string::npos) {
+                copy_base.erase(printer_suffix);
+                boost::trim_right(copy_base);
+            }
+        }
+        preset_name = (boost::format(("%1% - %2%")) % copy_base % suffix).str();
+    } else {
+        preset_name = sel_preset.name;
+    }
 
     // if name contains extension
     if (boost::iends_with(preset_name, ".ini")) {
