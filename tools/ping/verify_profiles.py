@@ -11,6 +11,9 @@
    照片磚維持其獨立特調：稀疏填充加速度 10000、空駛加速度 3000、接縫 back
 7. 支撐幾何口徑連動（Eric 2026-07-17 裁）：樹狀支撐分支直徑＝口徑×10、
    主體圖案線距＝口徑×8（=支撐線寬/密度12.5%，分子用口徑名目值）；照片磚不套
+8. 洗料塔寬度全庫 25（Eric 2026-07-17 裁，蓋掉 0708 的 15；含照片磚——其塔關閉無副作用）
+9. 線材洗料塔最小清理量（Eric 2026-07-17 裁）：一般 30、SupPLA 系 60、
+   FF 四料高流量噴頭/(3in1) 維持特調 120（同日裁「不蓋」）
 """
 import io
 import json
@@ -86,6 +89,16 @@ for name, (kind, d) in presets.items():
                                    ("support_base_pattern_spacing", "%g" % (nz * 8))):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            if d.get("prime_tower_width") != "25":
+                err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
+    if kind == "filament":
+        if d.get("instantiation") == "true":
+            pv = d.get("filament_minimal_purge_on_wipe_tower")
+            pv = pv[0] if isinstance(pv, list) and pv else pv
+            expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
+                           else "60" if "SupPLA" in name else "30")
+            if pv is not None and pv != expected_pv:
+                err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
         fmt = d.get("filename_format", "")
         if fmt:
             if ord(fmt[0]) > 127:
