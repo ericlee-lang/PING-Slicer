@@ -688,7 +688,11 @@ def main(src_base):
                 "filament_colors":[color],"default_filament_colors":[color]})
             fp.pop("compatible_printers", None)   # 不限機型
             if sup: fp["filament_is_support"] = ["1"]
-            # 清洗量維持實機 120（FF 換色需大量清洗；FD 的 30/60 規則不適用，待裁定）
+            # 清洗量維持實機 120（FF 換色需大量清洗；Eric 2026-07-17 裁「不蓋」＝30/60 規則不套 FF）
+            # 噴溫一律 210/210（Eric 2026-07-17 裁：0.6 實機 190 塞頭，四料全家族統一拉齊
+            # 通用高流量/3in1 的 210；蓋掉交付檔源值 190/185）
+            fp["nozzle_temperature_initial_layer"] = ["210"]
+            fp["nozzle_temperature"] = ["210"]
             jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
             fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
     # 舊名檔清除（改名後不留雙份；PING.json 舊條目在 4d 過濾）
