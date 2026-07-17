@@ -309,7 +309,7 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
         open_btn->SetVertical(true);
         open_btn->SetMinSize(wxSize(FromDIP(28), FromDIP(64)));
-        bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
+        open_btn->SetToolTip(wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
             if (wxGetApp().plater() != nullptr)

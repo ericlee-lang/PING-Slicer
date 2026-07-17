@@ -12,11 +12,6 @@
 #include <wx/dcclient.h>
 #include <wx/colordlg.h>
 #include <wx/display.h>
-#ifdef _WIN32
-#include <wx/richtooltip.h>
-#include <wx/custombgwin.h>
-#include <wx/popupwin.h>
-#endif
 
 #include <algorithm>
 #include <cmath>
@@ -34,48 +29,6 @@ static const wxColour COL_LABEL(0x9A, 0x9A, 0x9A);      // 軸標
 static const wxColour COL_PCT(0x66, 0x66, 0x66);        // 比例%
 static const wxColour COL_POS(0xAA, 0xAA, 0xAA);        // 高度%
 static const wxColour COL_PLOT_BG(0xFF, 0xFF, 0xFF);    // 繪圖區白底（顏色判讀基準，深色模式亦同）
-
-#ifdef _WIN32
-using PingRichToolTipPopup = wxCustomBackgroundWindow<wxPopupTransientWindow>;
-
-static PingRichToolTipPopup* ping_rich_tooltip_popup(wxWindow* target)
-{
-    for (wxWindow* child : target->GetChildren())
-        if (child->IsShown())
-            if (auto* popup = dynamic_cast<PingRichToolTipPopup*>(child))
-                return popup;
-    return nullptr;
-}
-#endif
-
-void bind_ping_dark_tooltip(wxWindow* target, const wxString& text)
-{
-    if (target == nullptr || text.IsEmpty())
-        return;
-
-    target->UnsetToolTip();
-#ifdef _WIN32
-    target->Bind(wxEVT_ENTER_WINDOW, [target, text](wxMouseEvent& event) {
-        wxRichToolTip tip(text, wxEmptyString);
-        tip.SetIcon(wxICON_NONE);
-        tip.SetTipKind(wxTipKind_BottomRight);
-        tip.SetTitleFont(wxGetApp().normal_font());
-        tip.SetBackgroundColour(COL_CHARCOAL);
-        tip.ShowFor(target);
-        if (PingRichToolTipPopup* popup = ping_rich_tooltip_popup(target))
-            for (wxWindow* child : popup->GetChildren())
-                child->SetForegroundColour(*wxWHITE);
-        event.Skip();
-    });
-    target->Bind(wxEVT_LEAVE_WINDOW, [target](wxMouseEvent& event) {
-        if (PingRichToolTipPopup* popup = ping_rich_tooltip_popup(target))
-            popup->Dismiss();
-        event.Skip();
-    });
-#else
-    target->SetToolTip(text);
-#endif
-}
 
 static wxColour ping_hex_to_wx(const std::string& hex)
 {
@@ -647,6 +600,10 @@ void PingMixCanvas::on_left_dclick(wxMouseEvent& evt)
 PingMixEditor::PingMixEditor(wxWindow* parent)
     : wxPanel(parent, wxID_ANY)
 {
+    // 編輯器整面白底（含深色模式——顏色判讀基準同 COL_PLOT_BG）。必須在建子控件前設定：
+    // StaticBox/Button 建構時抓「當下的父背景色」清圓角外緣，父色沒先設好會殘灰方塊
+    //（Eric 2026-07-17 回饋：收合/範本/模式鈕後方灰底；同 GUI_Preview 浮動混色鈕的修法）。
+    SetBackgroundColour(COL_PLOT_BG);
     build_controls();
 }
 
@@ -664,8 +621,7 @@ void PingMixEditor::build_controls()
     title_row->AddStretchSpacer(1);
     m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合 ▶"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
-    bind_ping_dark_tooltip(m_collapse_btn,
-        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
+    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)
@@ -687,7 +643,7 @@ void PingMixEditor::build_controls()
         tpl_row->Add(m_tpl_btns[i], 0, wxRIGHT, FromDIP(4));
     }
     m_low_flow = new wxCheckBox(this, wxID_ANY, wxString::FromUTF8("低流量"));
-    bind_ping_dark_tooltip(m_low_flow, wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
+    m_low_flow->SetToolTip(wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
     m_low_flow->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { on_low_flow_toggled(); });
     tpl_row->Add(m_low_flow, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(4));
     vbox->Add(tpl_row, 0, wxLEFT | wxTOP, FromDIP(8));
