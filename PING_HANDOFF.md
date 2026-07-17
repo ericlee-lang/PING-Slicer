@@ -15,6 +15,21 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🚀 現況（2026-07-17 — 🔴 客訴：V3.6 選機不帶高流量線材，根因已追到 code 層）
+
+- 客戶端 V3.6.0 選到機器後高流量線材不出現，需「設備→全部清空→選別台→確定→再清空→選回本機→確定」才出現（Eric 07-16 實地驗證）。
+- **根因三連**：①切機 carry-over——舊線材相容就沿用、永不套機器預設（Tab.cpp:5989）②「選擇3D列印機」對話框（guide 24 頁）不跑 ChooseDefaultFilament、重選同一台被 apply_config 判「沒變」early-out（WebGuideDialog.cpp:746-753）③load_installed_filaments 只要有任一相容線材就跳過補 default_materials（PresetBundle.cpp:1768-1786）→ 升級客戶永遠拿不到新預設線材。
+- 完整分析＋暫行 SOP＋三個修法候選（等 Eric 裁）：**`..\_客戶問題記錄_V36選機不帶高流量線材_20260717.md`**。出貨包資源端已驗無辜（8 支都在、註冊/alias/版號 51 皆正確）。
+
+---
+### 🚀 現況（2026-07-15 — 主線保守加速度／接縫對齊／副本短名稱）
+
+- `ping/v3.5` 主線一般製程 144 支：`sparse_infill_acceleration` **10000→5000**、`travel_acceleration` **20000→5000**（20000 會造成馬達錯位／失步）、`seam_position` **aligned_back→aligned**（UI「對齊」）。
+- 照片磚 5 支維持獨立特調 `10000／3000／back`，`ping/photo-tile` worktree／branch 未動。
+- `SavePresetDialog.cpp`：另存系統列印參數時去掉 ` @機型 (口徑)`，例 `0.2mm PLA+SUP - 複製`；只套 `TYPE_PRINT`，機器／線材命名不受影響。
+- durable：`embed_params.py` 已同步；`verify_profiles.py` 新增主線 144 支＋照片磚 5 支硬閘門；`PING.json` **v48→v49**（仍 `< %APPDATA% v50`，DL1016 紅線不破）。跨線規格＝專案根目錄 `_切片規則同步_來自orca_主線保守加速度與接縫_20260715.md`，已主動通知切片參數 session 回填 ping-slicer SSOT。
+
+---
 ### 🚀 現況（2026-07-14 — 支撐四規則落地＋SupPLA 高流量「看不到」真因抓到，⏳ 等 Eric 關 app 補 conf）
 
 **Eric 2026-07-14 裁「支撐四規則」已嵌（commit `c8c3e751`，ping/v3.5；repo＋%APPDATA% 各 51 檔同步改）**：

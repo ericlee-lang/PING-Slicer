@@ -325,22 +325,22 @@ def proc_overrides(kind, base, is_single_mode):
     2026-06-11 大清理（吃當日交付驗證）：加速度(3000/1500)、scarf=none、速度兩線新裁定
     （雙料/FP 60-80-150、單料頭/同進 50-60-150、口徑連動填充）——源檔已全套→override 拿掉
     （「源檔套完→拿掉 embed override」原則）。
-    2026-07-12：舊「seam_position=aligned（2026-06-10）」被統一四值的 aligned_back 取代
-    （normalize_unified_values 新規蓋舊規），此處不再覆寫。"""
+    接縫與兩個加速度由 normalize_unified_values 集中套用，此處不再覆寫。"""
     return {}
 
-# ★ 製程統一四值之①②③（2026-07-12 Eric 定，規格 _切片規則同步_來自pingslicer_製程統一四值_20260712.md）：
+# ★ 主線製程統一值（Eric 2026-07-15 最新裁定；取代 2026-07-12 的 aligned_back／travel 20000，
+# 規格 _切片規則同步_來自orca_主線保守加速度與接縫_20260715.md）：
 # ①首層流量比 1.1（set_other_flow_ratios 開；其餘流量比維持預設 1）
-# ②接縫位置＝背部對齊 aligned_back（⚠ enum 對映：UI「背部對齊」=aligned_back、「背面」=back；
+# ②接縫位置＝對齊 aligned（⚠ enum 對映：UI「對齊」=aligned；「背部對齊」=aligned_back；
 #   照片磚特調用的是 back＋seam_gap0——本函式不套照片磚，見 emit_phototile 註）
-# ③空駛加速度 20000（Eric user 製程「-調教/空跑加速2W」存檔實證值；空駛速度 250 不變）
+# ③空駛加速度 5000（20000 會造成馬達錯位／失步；空駛速度 250 不變）
 # 全 PING 製程套（含棧板雙生＝從已正規化的 proc 派生自然繼承）；DL1016 不在 repo 自然跳過；
-# 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。新規蓋舊規（seam aligned→aligned_back）。
+# 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。
 def normalize_unified_values(proc):
     proc["set_other_flow_ratios"] = "1"
     proc["first_layer_flow_ratio"] = "1.1"
-    proc["seam_position"] = "aligned_back"
-    proc["travel_acceleration"] = "20000"
+    proc["seam_position"] = "aligned"
+    proc["travel_acceleration"] = "5000"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
@@ -354,17 +354,26 @@ def normalize_support_interface(proc):
         proc["support_interface_spacing"] = "0.1"
     return proc
 
+# ★ 支撐幾何口徑連動（Eric 2026-07-17 裁）：樹狀支撐分支直徑＝口徑×10、
+# 主體圖案線距＝支撐線寬/支撐密度 12.5%＝口徑×8。分子用口徑名目值
+#（FF 微調線寬 0.41/0.62/1.02 不入分子，全庫統一 3.2/4.8/8）；全口徑含 0.2/0.25
+# 照公式（0.2→2/1.6、0.25→2.5/2）；照片磚維持獨立特調不套（emit_phototile 不呼叫）。
+def normalize_support_geometry(proc, nozzle):
+    proc["tree_support_branch_diameter"] = "%g" % (float(nozzle) * 10)
+    proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 8)
+    return proc
+
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
 #   外牆 60（統一，含單料/同進/四色）；內牆 min(現值,80)（只降不升——單料/同進內 60 不升）；
-#   填充 150；填充加速度 sparse_infill_acceleration=10000（源檔多為 100%，需覆寫）。
+#   填充 150；填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
 #   首層速度 initial_layer_speed 不動；solid/top/gap 不在規格 → 交回源檔（順帶對齊 Cura V2.1）。
 # ⚠ 此規（2026-07-03）取代舊 HF_SPEED「速度＝口徑×流量上限、75/100/150 暫定」的 2026-06-11 裁定
 #   （新規蓋舊規：牆慢統一 60，不再逐口徑寫死高流量速度）。
 # 例外（不套、維持材料特例）：PA-CF crater（材料專屬製程另出，is_pacf=True 跳過）；
 #   TPE 軟料 40/70（目前無 TPE 製程檔，故①不觸及；未來若出 TPE 製程一樣要跳過）。
-def normalize_fast_speed(proc, is_pacf=False):
+def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False):
     if is_pacf:
         return proc   # PA-CF 火山口製程走自己的 50/80/80，見 pacf_overrides
     try:
@@ -374,7 +383,8 @@ def normalize_fast_speed(proc, is_pacf=False):
     proc["outer_wall_speed"] = "60"
     proc["inner_wall_speed"] = "%g" % min(cur_inner, 80.0)
     proc["sparse_infill_speed"] = "150"
-    proc["sparse_infill_acceleration"] = "10000"
+    if not preserve_sparse_acceleration:
+        proc["sparse_infill_acceleration"] = "5000"
     return proc
 
 # ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md）：
@@ -470,7 +480,10 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
-        normalize_unified_values(d)  # 統一四值①②③（2026-07-12）
+        normalize_unified_values(d)  # 主線統一值（2026-07-15 最新裁定）
+        m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
+        if m_nz:
+            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×8（2026-07-17，FF 範本同套）
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -486,8 +499,8 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
 
 def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     """照片磚範本併入（比照 emit_ff_extra 範本複製法）：machine_model×2＋口徑變體×5＋製程×5＋cover×2。
-    製程套 normalize_fast_speed（2026-07-03 牆速新規＝全 Fast 系列統一含同進衍生；
-    範本源值 75/100/accel100% 是 %APPDATA% 建置當時未同步正規化的舊值→進 repo 時對齊）。
+    製程套 normalize_fast_speed 的牆速／填充速度，但保留照片磚專屬 sparse acceleration；
+    範本源值 75/100 是 %APPDATA% 建置當時未同步正規化的舊值→進 repo 時對齊。
     其餘照範本不改值、只重編 setting_id。回傳 (gm, gp, pt_models)。"""
     pt_models = []
     for fn in sorted(os.listdir(os.path.join(PHOTOTILE, "machine"))):
@@ -507,11 +520,10 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         mac_list.append({"name": name, "sub_path": "machine/%s.json" % name})
     for name in PHOTOTILE_PROCS:
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
-        normalize_fast_speed(d)
+        normalize_fast_speed(d, preserve_sparse_acceleration=True)
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
-        # ⚠ 統一四值①②③「不套」照片磚（2026-07-12 對衝突結論）：②aligned_back 會蓋掉
-        # 照片磚特調 back＋seam_gap0（接縫藏背面定案）；③travel 20000 對數千次換料路徑
-        # 未驗證；①首層流量 1.1 動已實印驗證的首層。已回報參數端。
+        # ⚠ 主線統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000，
+        # 稀疏填充加速度也保留特調範本值；主線 2026-07-15 保守值不得蓋進照片磚。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
@@ -599,10 +611,11 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
-                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel10000；首層不動）
+                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
-                    normalize_unified_values(proc)  # 統一四值①②③（2026-07-12）
+                    normalize_unified_values(proc)  # 主線統一值（2026-07-15 最新裁定）
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
+                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×8（2026-07-17）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
