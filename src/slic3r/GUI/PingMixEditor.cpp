@@ -11,11 +11,14 @@
 #include <wx/dcgraph.h>
 #include <wx/dcclient.h>
 #include <wx/colordlg.h>
+#include <wx/popupwin.h>
+#include <wx/timer.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 
 namespace Slic3r {
 namespace GUI {
@@ -28,6 +31,71 @@ static const wxColour COL_LABEL(0x9A, 0x9A, 0x9A);      // 軸標
 static const wxColour COL_PCT(0x66, 0x66, 0x66);        // 比例%
 static const wxColour COL_POS(0xAA, 0xAA, 0xAA);        // 高度%
 static const wxColour COL_PLOT_BG(0xFF, 0xFF, 0xFF);    // 繪圖區白底（顏色判讀基準，深色模式亦同）
+
+// —— 深色提示框：仿畫布 ImGui canvas_tooltip 的長相（Eric 2026-07-17 指定樣式）——
+// 規格照抄 GLCanvas3D::Tooltip::render＋ImGuiWrapper::COL_WINDOW_BACKGROUND：
+// 底色 RGB(26,26,26)、整窗 alpha 0.8（=204，半透黑）、圓角 0、無尖角箭頭、
+// 白字、顯示在滑鼠下方 16px、500ms 延遲。勿用 wxRichToolTip（白框＋尖角氣泡）。
+namespace {
+class PingDarkTooltip : public wxPopupWindow
+{
+public:
+    PingDarkTooltip(wxWindow* parent, const wxString& text)
+        : wxPopupWindow(parent, wxBORDER_NONE), m_text(text)
+    {
+        m_pad = parent->FromDIP(5);
+        wxClientDC mdc(parent);
+        mdc.SetFont(wxGetApp().normal_font());
+        const wxSize ts = mdc.GetTextExtent(m_text);
+        SetSize(wxSize(ts.x + 2 * m_pad, ts.y + 2 * m_pad));
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
+        SetTransparent(204);   // 0.8 × 255——整窗半透（白字會同帶 0.8，視覺與畫布提示一致）
+        Bind(wxEVT_PAINT, [this](wxPaintEvent&) {
+            wxPaintDC dc(this);
+            dc.SetPen(*wxTRANSPARENT_PEN);
+            dc.SetBrush(wxBrush(wxColour(26, 26, 26)));
+            dc.DrawRectangle(GetClientRect());
+            dc.SetFont(wxGetApp().normal_font());
+            dc.SetTextForeground(*wxWHITE);
+            dc.DrawText(m_text, m_pad, m_pad);
+        });
+    }
+    void show_below_cursor()
+    {
+        // Position() 以「錨矩形」定位：錨＝滑鼠點往下 16px，超出螢幕會自動翻到上方
+        Position(wxGetMousePosition(), wxSize(0, FromDIP(16)));
+        Show();
+    }
+private:
+    wxString m_text;
+    int      m_pad;
+};
+} // namespace
+
+void bind_ping_dark_tooltip(wxWindow* target, const wxString& text)
+{
+    if (target == nullptr || text.IsEmpty())
+        return;
+    struct State { PingDarkTooltip* tip = nullptr; wxTimer timer; };
+    auto st = std::make_shared<State>();
+    st->timer.SetOwner(target);
+    target->Bind(wxEVT_ENTER_WINDOW, [st](wxMouseEvent& e) {
+        st->timer.StartOnce(500);   // 同畫布提示的 500ms 延遲
+        e.Skip();
+    });
+    target->Bind(wxEVT_TIMER, [st, target, text](wxTimerEvent&) {
+        if (st->tip == nullptr)
+            st->tip = new PingDarkTooltip(target, text);
+        st->tip->show_below_cursor();
+    });
+    auto hide = [st](wxEvent& e) {
+        st->timer.Stop();
+        if (st->tip != nullptr) { st->tip->Destroy(); st->tip = nullptr; }
+        e.Skip();
+    };
+    target->Bind(wxEVT_LEAVE_WINDOW, hide);
+    target->Bind(wxEVT_LEFT_DOWN, hide);
+}
 
 static wxColour ping_hex_to_wx(const std::string& hex)
 {
@@ -620,7 +688,8 @@ void PingMixEditor::build_controls()
     title_row->AddStretchSpacer(1);
     m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合 ▶"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
-    m_collapse_btn->SetToolTip(wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
+    bind_ping_dark_tooltip(m_collapse_btn,
+        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)
@@ -642,7 +711,7 @@ void PingMixEditor::build_controls()
         tpl_row->Add(m_tpl_btns[i], 0, wxRIGHT, FromDIP(4));
     }
     m_low_flow = new wxCheckBox(this, wxID_ANY, wxString::FromUTF8("低流量"));
-    m_low_flow->SetToolTip(wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
+    bind_ping_dark_tooltip(m_low_flow, wxString::FromUTF8("進階：單料下限 10% → 5%（韌體絕對下限）"));
     m_low_flow->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) { on_low_flow_toggled(); });
     tpl_row->Add(m_low_flow, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(4));
     vbox->Add(tpl_row, 0, wxLEFT | wxTOP, FromDIP(8));

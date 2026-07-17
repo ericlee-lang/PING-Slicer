@@ -26,6 +26,10 @@ namespace GUI {
 
 class PingMixEditor;
 
+// 深色提示框：仿畫布 ImGui canvas_tooltip（半透黑 0.8、無尖角、滑鼠下方 16px、白字、500ms 延遲）。
+// Eric 2026-07-17 指定樣式；勿用 wxRichToolTip（白框＋尖角氣泡）與原生 SetToolTip（白底黑字）。
+void bind_ping_dark_tooltip(wxWindow* target, const wxString& text);
+
 // —— 自繪畫布（曲線／堆疊帶＋拖曳互動）——
 class PingMixCanvas : public wxWindow
 {
