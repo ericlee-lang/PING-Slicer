@@ -93,6 +93,19 @@ for name, (kind, d) in presets.items():
         for f in d.get("default_filament_profile", []) or []:
             if f not in presets:
                 err(f"[default_filament_profile missing] {name} -> {f!r}")
+        # 檢查 10（Eric 2026-07-17 裁「全機隊」）：機器動力學＝Klipper 實值（時間預估校正）；
+        # DL1016 與 Classic 前代機跳過
+        if ("machine_max_acceleration_x" in d and "DL1016" not in name
+                and not classic_model_for_machine(name)):
+            V, A, J = ("200", "1500", "56") if "FF" in name else ("400", "5000", "7")
+            for key, value in (("machine_max_speed_x", [V, V]), ("machine_max_speed_y", [V, V]),
+                               ("machine_max_acceleration_x", [A, A]), ("machine_max_acceleration_y", [A, A]),
+                               ("machine_max_acceleration_extruding", [A, A]),
+                               ("machine_max_acceleration_travel", [A, A]),
+                               ("machine_max_acceleration_retracting", [A, A]),
+                               ("machine_max_jerk_x", [J, J]), ("machine_max_jerk_y", [J, J])):
+                if d.get(key) != value:
+                    err(f"[機器動力學 Klipper 實值] {name}: {key}={d.get(key)!r}, expected {value!r}")
         classic_model = classic_model_for_machine(name)
         if classic_model:
             spec = CLASSIC[classic_model]
