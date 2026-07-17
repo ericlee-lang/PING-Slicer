@@ -20,6 +20,7 @@
 - 客戶端 V3.6.0 選到機器後高流量線材不出現，需「設備→全部清空→選別台→確定→再清空→選回本機→確定」才出現（Eric 07-16 實地驗證）。
 - **根因三連**：①切機 carry-over——舊線材相容就沿用、永不套機器預設（Tab.cpp:5989）②「選擇3D列印機」對話框（guide 24 頁）不跑 ChooseDefaultFilament、重選同一台被 apply_config 判「沒變」early-out（WebGuideDialog.cpp:746-753）③load_installed_filaments 只要有任一相容線材就跳過補 default_materials（PresetBundle.cpp:1768-1786）→ 升級客戶永遠拿不到新預設線材。
 - 完整分析＋暫行 SOP＋三個修法候選（等 Eric 裁）：**`..\_客戶問題記錄_V36選機不帶高流量線材_20260717.md`**。出貨包資源端已驗無辜（8 支都在、註冊/alias/版號 51 皆正確）。
+- ✅ **0717 支撐幾何口徑連動已落地（Eric 三裁：小口徑照公式/分子口徑名目值/全庫 144 支）**：樹狀分支直徑=口徑×10（原一律 5）、主體圖案線距=口徑×8（=線寬/密度12.5%；原 2.5、FF 特調 4 一併收編）。commit `8ce3bec3`（含 embed normalize_support_geometry＋verify 檢查 7）＋%APPDATA% 144 支（.bak-supgeo）；照片磚 5 支不套。前顆 `60aeb77c`＝補提交 0715 保守批遺留（v49/SavePresetDialog/common）。跨線同步單：`..\_切片規則同步_來自orca_支撐樹狀直徑與主體線距_20260717.md`。⏳ 等 Eric 重啟驗 0.6→6/4.8。
 
 ---
 ### 🚀 現況（2026-07-15 — 主線保守加速度／接縫對齊／副本短名稱）
