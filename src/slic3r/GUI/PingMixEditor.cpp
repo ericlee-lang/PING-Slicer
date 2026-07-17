@@ -599,6 +599,10 @@ void PingMixCanvas::on_left_dclick(wxMouseEvent& evt)
 PingMixEditor::PingMixEditor(wxWindow* parent)
     : wxPanel(parent, wxID_ANY)
 {
+    // 編輯器整面白底（含深色模式——顏色判讀基準同 COL_PLOT_BG）。必須在建子控件前設定：
+    // StaticBox/Button 建構時抓「當下的父背景色」清圓角外緣，父色沒先設好會殘灰方塊
+    //（Eric 2026-07-17 回饋：收合/範本/模式鈕後方灰底；同 GUI_Preview 浮動混色鈕的修法）。
+    SetBackgroundColour(COL_PLOT_BG);
     build_controls();
 }
 

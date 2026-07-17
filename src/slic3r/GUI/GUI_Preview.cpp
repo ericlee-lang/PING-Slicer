@@ -299,6 +299,9 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // 右上角（比照摺疊側邊欄的浮動 <> 鈕）。不入 sizer、on size 重定位、Raise 蓋在畫布上
     //（GL canvas 帶 WS_CLIPSIBLINGS，浮鈕區域不會被 GL 繪掉）。
     m_ping_mix_strip = new wxPanel(this, wxID_ANY);
+    // StaticBox/Button 建構時抓父背景色清圓角外緣——先把浮鈕底板調成 GL 畫布同色，
+    // 圓角外才不會殘白方塊（release/v3.6 已驗證有效，2026-07-17 回移主線）。
+    m_ping_mix_strip->SetBackgroundColour(wxGetApp().dark_mode() ? wxColour(84, 84, 90) : wxColour(231, 231, 231));
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         // 軟體標準 Button（Regular＝hover 變灰、focus 橘框；直排文字同校正頁 btn_sync 前例）
