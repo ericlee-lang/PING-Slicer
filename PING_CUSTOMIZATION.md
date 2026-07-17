@@ -42,9 +42,11 @@ maintained by **PING 3D Printer (聯造實業 / LINKIN FACTORY Co., Ltd.)** for 
 - ✅ wizard 不顯示多餘「PING Family」：machine_model `family` 清空（橘色廠商徽章保留）。
 - ✅ 雙噴頭機型預設 **2 線材槽**：`nozzle_diameter`=進料數 + SEMM=1 + offset 0x0（2 進 1 出共用 1 實體噴頭，G-code 正確）；FF 四噴頭=4 槽、FP 單噴頭=1 槽。
 - ✅ web 簡中→繁中：`resources/web/data/text.js` `TranslatePage()` zh_CN→zh_TW 重導。
+- ✅ 另存系統列印參數時，副本預設名稱去掉 ` @機型 (口徑)`，例如 `0.2mm PLA+SUP - 複製`；機器／線材等其他預設維持原命名。
 
 ## 3. PING 機型 profiles + 圓盤底板 / Profiles  ✅ (v4, 原廠確認 + Orca 驗證底稿校準)
 - `resources/profiles/PING.json` + `PING/{machine,filament,process}/`，以內建 **FLSun delta** 為範本。
+- 一般製程採保守運動值：稀疏填充加速度 **5000**、空駛加速度 **5000**、接縫位置 **對齊 (`aligned`)**；照片磚維持獨立特調 **10000／3000／`back`**。
 - **7 款** delta 機型、**21 機器 / 23 process / 12 filament**（已過官方 C++ 驗證器）。
 - **原廠確認規格**（高度為實際建構值，與直徑無關）：
 
