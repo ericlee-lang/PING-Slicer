@@ -396,6 +396,15 @@ def normalize_support_interface(proc):
         proc["support_interface_spacing"] = "0.1"
     return proc
 
+# ★ 支撐幾何口徑連動（Eric 2026-07-17 裁）：樹狀支撐分支直徑＝口徑×10、
+# 主體圖案線距＝支撐線寬/支撐密度 12.5%＝口徑×8。分子用口徑名目值
+#（FF 微調線寬 0.41/0.62/1.02 不入分子，全庫統一 3.2/4.8/8）；全口徑含 0.2/0.25
+# 照公式（0.2→2/1.6、0.25→2.5/2）；照片磚維持獨立特調不套；Classic 由 Fast 複製自然繼承。
+def normalize_support_geometry(proc, nozzle):
+    proc["tree_support_branch_diameter"] = "%g" % (float(nozzle) * 10)
+    proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 8)
+    return proc
+
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
@@ -425,7 +434,8 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 # ＝正常行為，PrintConfig.cpp wipe_tower_rib_width tooltip）。單料機不顯示換料塔、寫入無副作用
 # → 不分機型全寫（含 FF 範本/照片磚範本）。
 def normalize_prime_tower(proc):
-    proc["prime_tower_width"] = "15"
+    # 寬度 2026-07-17 Eric 改裁 15→25（新規蓋舊規）
+    proc["prime_tower_width"] = "25"
     proc["wipe_tower_wall_type"] = "rib"
     return proc
 
@@ -531,6 +541,9 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         compatible = d.get("compatible_printers", []) or []
         if compatible:
             normalize_support_mode(d, compatible[0])
+        m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
+        if m_nz:
+            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×8（2026-07-17，FF 範本同套）
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -827,6 +840,7 @@ def main(src_base):
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc)  # 正式製程統一值（2026-07-15 最新裁定）
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
+                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×8（2026-07-17）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
@@ -962,6 +976,25 @@ def main(src_base):
         sr_added += 1
     if sr_added:
         print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
+
+    # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭/Classic）60；
+    # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
+    # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。
+    pv_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        bn = os.path.basename(fp_path)
+        if "四料高流量噴頭" in bn or "(3in1)" in bn:
+            continue
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        want = "60" if "SupPLA" in bn else "30"
+        cur = fd.get("filament_minimal_purge_on_wipe_tower")
+        if (cur[0] if isinstance(cur, list) else cur) == want:
+            continue
+        fd["filament_minimal_purge_on_wipe_tower"] = [want]
+        jdump(fp_path, fd)
+        pv_set += 1
+    if pv_set:
+        print("  線材洗料塔最小清理量 30/60：改 %d 支（FF 四料/3in1 特調 120 不動）" % pv_set)
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
