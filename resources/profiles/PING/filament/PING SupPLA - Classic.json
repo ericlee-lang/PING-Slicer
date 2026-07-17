@@ -40,7 +40,7 @@
         "1"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "30"
+        "60"
     ],
     "filament_colors": [
         "#D3D3D3"

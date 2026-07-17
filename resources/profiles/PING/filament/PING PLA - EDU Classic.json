@@ -43,7 +43,7 @@
         "#EA4E16"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "15"
+        "30"
     ],
     "filament_start_gcode": [
         "; Classic Marlin filament - machine retraction only\n"

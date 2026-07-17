@@ -135,6 +135,16 @@ for name, (kind, d) in presets.items():
             for key, value in expected.items():
                 if d.get(key) != value:
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            # 檢查 7/8（Eric 2026-07-17 裁）：支撐幾何口徑連動＋洗料塔寬 25（照片磚不在 release 線）
+            m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
+            if m_nz and "照片磚" not in name:
+                nz_v = float(m_nz.group(1))
+                for key, value in (("tree_support_branch_diameter", "%g" % (nz_v * 10)),
+                                   ("support_base_pattern_spacing", "%g" % (nz_v * 8))):
+                    if d.get(key) != value:
+                        err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            if "照片磚" not in name and d.get("prime_tower_width") != "25":
+                err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
             support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
@@ -152,6 +162,16 @@ for name, (kind, d) in presets.items():
             for i, ch in enumerate(fmt[1:], 1):
                 if ord(ch) > 127 and fmt[i - 1] == "}":
                     err(f"[filename_format '}}' 後接非 ASCII — 會炸] {name}: ...{fmt[max(0,i-5):i+5]}...")
+    if kind == "filament":
+        # 檢查 9（Eric 2026-07-17 裁）：洗料塔最小清理量——一般 30、SupPLA 系 60、
+        # FF 四料高流量噴頭/(3in1) 維持特調 120（同日裁「不蓋」）
+        if d.get("instantiation") == "true":
+            pv = d.get("filament_minimal_purge_on_wipe_tower")
+            pv = pv[0] if isinstance(pv, list) and pv else pv
+            expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
+                           else "60" if "SupPLA" in name else "30")
+            if pv is not None and pv != expected_pv:
+                err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
 
 # Wizard order is driven by machine_model_list. Verify each family independently so a regen
 # cannot silently put the hardware-swap single-head card back between dual-head modes.
