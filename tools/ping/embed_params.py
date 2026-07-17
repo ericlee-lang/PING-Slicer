@@ -766,6 +766,36 @@ def main(src_base):
     if pv_set:
         print("  線材洗料塔最小清理量 30/60：改 %d 支（FF 四料/3in1 特調 120 不動）" % pv_set)
 
+    # 4b-4. ★ 機器動力學＝Klipper 實值（Eric 2026-07-17 裁「全機隊直接改」）：
+    # 時間預估器用機器檔 machine_max_* 模擬，原值 20000/jerk100 是幻想 → 29h 估 vs 33h 實差 14%。
+    # 實值來源＝機隊 repo range cfg：FD/FP＝max_velocity 400/max_accel 5000/SCV 5（jerk≈5×√2≈7）；
+    # FF＝200/1500/SCV 40（jerk≈56）。只影響時間預估與 M201/M203（Klipper 忽略），不改列印行為。
+    # DL1016（無實測值）與 Classic 前代機（Marlin 另案）跳過。
+    mm_set = 0
+    for mp_path in glob.glob(os.path.join(PINGDIR, "machine", "*.json")):
+        try:
+            md_ = json.load(io.open(mp_path, encoding="utf-8"))
+        except Exception:
+            continue
+        if md_.get("type") != "machine" or "machine_max_acceleration_x" not in md_:
+            continue
+        mname = md_.get("name", "")
+        if "DL1016" in mname or re.match(r"^(EDU|DUAL|PING 2|PING 3)", mname):
+            continue
+        V, A, J = ("200", "1500", "56") if "FF" in mname else ("400", "5000", "7")
+        want = {"machine_max_speed_x": [V, V], "machine_max_speed_y": [V, V],
+                "machine_max_acceleration_x": [A, A], "machine_max_acceleration_y": [A, A],
+                "machine_max_acceleration_extruding": [A, A], "machine_max_acceleration_travel": [A, A],
+                "machine_max_acceleration_retracting": [A, A],
+                "machine_max_jerk_x": [J, J], "machine_max_jerk_y": [J, J]}
+        if all(md_.get(k) == v for k, v in want.items()):
+            continue
+        md_.update(want)
+        jdump(mp_path, md_)
+        mm_set += 1
+    if mm_set:
+        print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、FF 200/1500/56）" % mm_set)
+
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）

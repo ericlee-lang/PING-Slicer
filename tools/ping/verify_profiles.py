@@ -14,6 +14,8 @@
 8. 洗料塔寬度全庫 25（Eric 2026-07-17 裁，蓋掉 0708 的 15；含照片磚——其塔關閉無副作用）
 9. 線材洗料塔最小清理量（Eric 2026-07-17 裁）：一般 30、SupPLA 系 60、
    FF 四料高流量噴頭/(3in1) 維持特調 120（同日裁「不蓋」）
+10. 機器動力學＝Klipper 實值（Eric 2026-07-17 裁「全機隊」）：FD/FP＝400/5000/jerk7、
+    FF＝200/1500/jerk56；DL1016 與 Classic 前代機跳過。時間預估校正用，不改列印行為
 """
 import io
 import json
@@ -68,6 +70,17 @@ for name, (kind, d) in presets.items():
         for f in d.get("default_filament_profile", []) or []:
             if f not in presets:
                 err(f"[default_filament_profile missing] {name} -> {f!r}")
+        if ("machine_max_acceleration_x" in d and "DL1016" not in name
+                and not re.match(r"^(EDU|DUAL|PING 2|PING 3)", name)):
+            V, A, J = ("200", "1500", "56") if "FF" in name else ("400", "5000", "7")
+            for key, value in (("machine_max_speed_x", [V, V]), ("machine_max_speed_y", [V, V]),
+                               ("machine_max_acceleration_x", [A, A]), ("machine_max_acceleration_y", [A, A]),
+                               ("machine_max_acceleration_extruding", [A, A]),
+                               ("machine_max_acceleration_travel", [A, A]),
+                               ("machine_max_acceleration_retracting", [A, A]),
+                               ("machine_max_jerk_x", [J, J]), ("machine_max_jerk_y", [J, J])):
+                if d.get(key) != value:
+                    err(f"[機器動力學 Klipper 實值] {name}: {key}={d.get(key)!r}, expected {value!r}")
     if kind == "process":
         if d.get("instantiation") == "true":
             expected = ({
