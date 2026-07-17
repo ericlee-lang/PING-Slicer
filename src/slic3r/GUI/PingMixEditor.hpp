@@ -26,10 +26,6 @@ namespace GUI {
 
 class PingMixEditor;
 
-// PING mix controls use one high-contrast tooltip treatment instead of mixing native light
-// tooltips with the application's dark canvas tooltips (Eric 2026-07-15).
-void bind_ping_dark_tooltip(wxWindow* target, const wxString& text);
-
 // —— 自繪畫布（曲線／堆疊帶＋拖曳互動）——
 class PingMixCanvas : public wxWindow
 {
