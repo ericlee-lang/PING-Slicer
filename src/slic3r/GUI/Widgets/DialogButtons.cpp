@@ -143,8 +143,12 @@ void DialogButtons::UpdateButtons() {
         m_sizer->AddSpacer(btn_gap);
 
     for (int i = 0; i < m_buttons.size(); i++) {
-        if(m_left_aligned_buttons_count == i)
+        if(m_left_aligned_buttons_count == i){
+            // PING(2026-07-17 Eric)：對話框被 Fit 到最小寬時 stretch 會塌成 0，左右兩群按鈕
+            // 會黏住（複製對話框 填充/確認 實例）——保底一個 btn_gap 固定間距。
+            m_sizer->AddSpacer(btn_gap);
             m_sizer->AddStretchSpacer();
+        }
 
         auto margin_to = (i >= m_left_aligned_buttons_count ? wxRIGHT : wxLEFT);
         m_sizer->Add(m_buttons[i], 0, margin_to | wxTOP | wxBOTTOM | wxALIGN_CENTER_VERTICAL, btn_gap);
