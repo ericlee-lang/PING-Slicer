@@ -1,7 +1,7 @@
 # SOP — PING Slicer 內部測試版發布
 
-> 適用範圍：正式維護線的 Windows installer／portable 完成 build 後，更新內部共用下載資料夾。  
-> 固定入口：`G:\我的雲端硬碟\2026claude\PING Slicer`。  
+> 適用範圍：正式維護線的 Windows installer／portable 完成 build 後，更新內部共用下載資料夾。
+> 固定入口：`G:\我的雲端硬碟\2026claude\PING Slicer`。
 > 原則：根目錄永遠是最新版；舊版只移入 `old\`，不刪除；更新後必須做雲端端讀回驗證。
 
 ## 1. 發布權威與前置閘門
@@ -45,9 +45,8 @@
 
 - Binary commit：`52a4b935`
 - GitHub Actions run：`29427421714`
-- Installer：`PING_Slicer_Windows_Installer_V3.6.0.exe`  
+- Installer：`PING_Slicer_Windows_Installer_V3.6.0.exe`
   SHA-256：`5864F15DFA373321DCB6EAACA17AB16656C912213A73F54A4DA89DF8630213BC`
-- Portable：`PING_Slicer_Windows_V3.6.0_portable.zip`  
+- Portable：`PING_Slicer_Windows_V3.6.0_portable.zip`
   SHA-256：`310C217AABAA0DFEAF90A81DF990019B33B65B30EB4EEFBB3B07C384847056E3`
 - Portable 核對：bundle v51、Classic 八機存在、DL1016 不存在。
-
