@@ -45,7 +45,7 @@
         "1"
     ],
     "enable_pressure_advance": [
-        "0"
+        "1"
     ],
     "eng_plate_temp": [
         "60"
@@ -102,7 +102,7 @@
         "nil"
     ],
     "filament_max_volumetric_speed": [
-        "20"
+        "30"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "120"
@@ -201,10 +201,10 @@
         "10"
     ],
     "hot_plate_temp": [
-        "50"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "50"
+        "60"
     ],
     "idle_temperature": [
         "0"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.02"
+        "0.12"
     ],
     "reduce_fan_stop_start_freq": [
         "1"
@@ -267,12 +267,12 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA - 四料高流量噴頭 1.0",
+    "name": "PING SupPLA - 四料高流量噴頭",
     "alias": "PING SupPLA - 四料高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFSUP10",
-    "filament_id": "PINGFILHFSUP10",
+    "setting_id": "PINGFILHFSUP",
+    "filament_id": "PINGFILHFSUP",
     "inherits": "fdm_filament_pla",
     "filament_colors": [
         "#D3D3D3"

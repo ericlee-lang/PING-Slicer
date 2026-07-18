@@ -163,8 +163,11 @@ def def_fil_single_for(base):
 FF_FIL_ALIAS = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
 FF_FIL_RENAME = {}   # 舊名→新名（4b 填入，供 ff_extra/照片磚範本 default 引用改名）
 for _nz in ("0.4", "0.6", "1.0"):
-    FF_FIL_RENAME["PING PLA - 高流量 @FF %s" % _nz] = "%s %s" % (FF_FIL_ALIAS["PLA"], _nz)
-    FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = "%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)
+    # 2026-07-18 口徑合一：舊「@FF 口徑」與「四料高流量噴頭 口徑」一律指到合併支（無口徑尾碼）
+    FF_FIL_RENAME["PING PLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["PLA"]
+    FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["SupPLA"]
+    FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]
+    FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
 def rename_ff_filament_refs(d):
     """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）"""
     v = d.get("default_filament_profile")
@@ -177,7 +180,8 @@ def rename_ff_filament_refs(d):
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
-    return ["%s %s" % (FF_FIL_ALIAS["PLA"], nz)]*3 + ["%s %s" % (FF_FIL_ALIAS["SupPLA"], nz)]
+    # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
+    return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
                         "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
@@ -903,30 +907,31 @@ def main(src_base):
         for (nz, mk), c in parse_dir(src_base, fam).items():
             if mk == "四色":
                 ff_cfg.setdefault(nz, c)
-    for nz in sorted(ff_cfg, key=float):
-        F = split(ff_cfg[nz])["F"]
-        # 2026-07-12 Eric 裁定：改名「四料高流量噴頭」系＋解除機型綁定（無 compatible_printers）；
-        # setting_id/filament_id 沿用（同一支材料身份）。
-        sfx = nz.replace(".","")   # 0.6 -> 06
-        for slot, mat, fid_p, alias, color, sup in (
+    # 2026-07-18 Eric 裁「口徑合一」：四料高流量噴頭 PLA/SupPLA 各合併為一支——
+    # 同一支噴頭只換嘴，原 0.4/0.6/1.0 三支的差異鍵統一為：PA 一律開、最大體積流量 30、
+    # 床溫 60/60（噴溫 210 承 0717 裁定）。以 0.6 交付檔為基底。
+    src_nz = "0.6" if "0.6" in ff_cfg else (sorted(ff_cfg, key=float)[0] if ff_cfg else None)
+    if src_nz:
+        F = split(ff_cfg[src_nz])["F"]
+        for slot, mat, fid, alias, color, sup in (
                 (0, "PLA",    "PINGFILHFPLA", FF_FIL_ALIAS["PLA"],    "#EA4E16", False),
                 (3, "SupPLA", "PINGFILHFSUP", FF_FIL_ALIAS["SupPLA"], "#D3D3D3", True)):
             fp = fil_at(F, slot, 4)
-            name = "%s %s" % (alias, nz)
-            fid = fid_p + sfx
-            fp.update({"type":"filament","name":name,"alias":alias,"from":"system",
+            fp.update({"type":"filament","name":alias,"alias":alias,"from":"system",
                 "instantiation":"true","setting_id":fid,"filament_id":fid,
                 "inherits":"fdm_filament_pla",
-                "filament_colors":[color],"default_filament_colors":[color]})
+                "filament_colors":[color],"default_filament_colors":[color],
+                "enable_pressure_advance":["1"],
+                "filament_max_volumetric_speed":["30"],
+                "hot_plate_temp":["60"],"hot_plate_temp_initial_layer":["60"]})
             fp.pop("compatible_printers", None)   # 不限機型
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；Eric 2026-07-17 裁「不蓋」＝30/60 規則不套 FF）
-            # 噴溫一律 210/210（Eric 2026-07-17 裁：0.6 實機 190 塞頭，四料全家族統一拉齊
-            # 通用高流量/3in1 的 210；蓋掉交付檔源值 190/185）
+            # 噴溫一律 210/210（Eric 2026-07-17 裁：0.6 實機 190 塞頭）
             fp["nozzle_temperature_initial_layer"] = ["210"]
             fp["nozzle_temperature"] = ["210"]
-            jdump(os.path.join(PINGDIR,"filament","%s.json"%name), fp)
-            fil_new.append({"name":name,"sub_path":"filament/%s.json"%name})
+            jdump(os.path.join(PINGDIR,"filament","%s.json"%alias), fp)
+            fil_new.append({"name":alias,"sub_path":"filament/%s.json"%alias})
     # 舊名檔清除（改名後不留雙份；PING.json 舊條目在 4d 過濾）
     for old in FF_FIL_RENAME:
         oldp = os.path.join(PINGDIR, "filament", "%s.json" % old)
