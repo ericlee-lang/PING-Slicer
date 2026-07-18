@@ -66,5 +66,11 @@
     ],
     "eng_plate_temp_initial_layer": [
         "0"
+    ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
     ]
 }
