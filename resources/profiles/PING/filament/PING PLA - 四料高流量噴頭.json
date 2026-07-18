@@ -102,7 +102,7 @@
         "nil"
     ],
     "filament_max_volumetric_speed": [
-        "20"
+        "30"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "120"
@@ -267,12 +267,12 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 四料高流量噴頭 0.4",
+    "name": "PING PLA - 四料高流量噴頭",
     "alias": "PING PLA - 四料高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFPLA04",
-    "filament_id": "PINGFILHFPLA04",
+    "setting_id": "PINGFILHFPLA",
+    "filament_id": "PINGFILHFPLA",
     "inherits": "fdm_filament_pla",
     "filament_colors": [
         "#EA4E16"

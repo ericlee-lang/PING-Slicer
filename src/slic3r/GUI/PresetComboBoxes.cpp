@@ -1141,6 +1141,10 @@ void PlaterPresetComboBox::update()
     std::map<wxString, std::string> preset_filament_vendors;
     std::map<wxString, std::string> preset_filament_types;
     std::map<wxString, std::string> preset_filament_names; // ORCA
+    // PING(2026-07-18 Eric)：系統線材下拉第一層＝材料類別（PLA/SUP/ABS/PETG/PA…），
+    // 類別由 filament_type 推導、支撐材（filament_is_support）獨立成 SUP 類——
+    // 不另外維護清單，新線材依欄位自動歸類。
+    std::map<wxString, std::string> preset_filament_cats;
     //BBS:  move system to the end
     wxString selected_system_preset;
     wxString selected_user_preset;
@@ -1194,6 +1198,11 @@ void PlaterPresetComboBox::update()
                     preset_filament_vendors[name] = "Bambu";
                 preset_filament_types[name] = preset.config.option<ConfigOptionStrings>("filament_type")->values.at(0);
                 preset_filament_names[name] = name.ToStdString(); // ORCA
+                {   // PING(2026-07-18)：材料類別＝支撐材歸 SUP、其餘用 filament_type
+                    auto *sup_opt = preset.config.option<ConfigOptionBools>("filament_is_support");
+                    preset_filament_cats[name] = (sup_opt && !sup_opt->values.empty() && sup_opt->values.front())
+                                                     ? std::string("SUP") : preset_filament_types[name];
+                }
             //}
         }
         wxBitmap* bmp = get_bmp(preset);
@@ -1262,7 +1271,7 @@ void PlaterPresetComboBox::update()
                                                 "Bambu PLA Galaxy", "Bambu PLA Metal", "Bambu PLA Marble", "Bambu PETG-CF", "Bambu PETG Translucent", "Bambu ABS-GF"};
     std::vector<std::string> first_vendors     = {"", "Bambu", "Generic"}; // Empty vendor for non-system presets
     std::vector<std::string> first_types     = {"PLA", "PETG", "ABS", "TPU"};
-    auto  add_presets       = [this, &preset_descriptions, &filament_orders, &preset_filament_vendors, &first_vendors, &preset_filament_types, &preset_filament_names, &first_types, &selected_in_ams]
+    auto  add_presets       = [this, &preset_descriptions, &filament_orders, &preset_filament_vendors, &first_vendors, &preset_filament_types, &preset_filament_names, &preset_filament_cats, &first_types, &selected_in_ams]
             (std::map<wxString, wxBitmap *> const &presets, wxString const &selected, std::string const &group, wxString const &groupName) {
         if (!presets.empty()) {
             set_label_marker(Append(_L(group), wxNullBitmap, DD_ITEM_STYLE_SPLIT_ITEM));
@@ -1275,7 +1284,16 @@ void PlaterPresetComboBox::update()
                 //    else SetString(GetCount() - 1, "");
                 //}
                 if (group == "System presets" || group == "Unsupported presets")
-                    std::sort(list.begin(), list.end(), [&filament_orders, &preset_filament_vendors, &first_vendors, &preset_filament_types, &first_types](auto *l, auto *r) {
+                    std::sort(list.begin(), list.end(), [&filament_orders, &preset_filament_vendors, &first_vendors, &preset_filament_types, &first_types, &preset_filament_cats](auto *l, auto *r) {
+                        { // PING(2026-07-18)：先比材料類別（PLA→SUP→ABS→PETG→PA，未列的類別排後、字母序）
+                            static const std::vector<std::string> cat_order = {"PLA", "SUP", "ABS", "PETG", "PA"};
+                            auto ci1 = std::find(cat_order.begin(), cat_order.end(), preset_filament_cats[l->first]);
+                            auto ci2 = std::find(cat_order.begin(), cat_order.end(), preset_filament_cats[r->first]);
+                            if (ci1 != ci2)
+                                return ci1 < ci2;
+                            if (ci1 == cat_order.end() && preset_filament_cats[l->first] != preset_filament_cats[r->first])
+                                return preset_filament_cats[l->first] < preset_filament_cats[r->first];
+                        }
                         { // Compare order
                             auto iter1 = std::find(filament_orders.begin(), filament_orders.end(), l->first);
                             auto iter2 = std::find(filament_orders.begin(), filament_orders.end(), r->first);
@@ -1317,10 +1335,11 @@ void PlaterPresetComboBox::update()
                 bool unsupported = group == "Unsupported presets";
                 for (auto it : list) {
                     // ORCA add sorting support for vendor / type for user presets
+                    // PING(2026-07-18 Eric)：系統預設第一層改「材料類別」（原為廠商 PING 一大包）
                     auto groupName2 = groupName == "by_type"   ? (preset_filament_types[it->first].empty()   ? _L("Unspecified") : preset_filament_types[it->first])
                                     : groupName == "by_vendor" ? (preset_filament_vendors[it->first].empty() ? _L("Unspecified") : preset_filament_vendors[it->first])
                                     : groupByGroup             ? groupName
-                                    : preset_filament_vendors[it->first];
+                                    : wxString(preset_filament_cats[it->first]);
                     int  index = Append(it->first, *it->second, groupName2, nullptr, unsupported ? DD_ITEM_STYLE_DISABLED : 0);
                     if (unsupported)
                         set_label_marker(index, LABEL_ITEM_DISABLED);
