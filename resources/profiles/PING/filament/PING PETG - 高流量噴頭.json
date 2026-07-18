@@ -1,10 +1,10 @@
 {
     "type": "filament",
-    "name": "PING PETG",
+    "name": "PING PETG - 高流量噴頭",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "GPINGPETG",
-    "filament_id": "GPINGPETG",
+    "setting_id": "PINGFILHFNPETG",
+    "filament_id": "PINGFILHFNPETG",
     "inherits": "fdm_filament_pet",
     "filament_vendor": [
         "PING"
@@ -17,6 +17,12 @@
     ],
     "nozzle_temperature_initial_layer": [
         "235"
+    ],
+    "nozzle_temperature_range_low": [
+        "220"
+    ],
+    "nozzle_temperature_range_high": [
+        "260"
     ],
     "hot_plate_temp": [
         "75"
@@ -35,6 +41,12 @@
     ],
     "fan_min_speed": [
         "50"
+    ],
+    "filament_density": [
+        "1.27"
+    ],
+    "temperature_vitrification": [
+        "80"
     ],
     "filament_retraction_length": [
         "2"
@@ -55,6 +67,28 @@
         "1"
     ],
     "pressure_advance": [
-        "0.12"
-    ]
+        "0.2"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
+    ],
+    "filament_retract_restart_extra": [
+        "0.6"
+    ],
+    "filament_retraction_minimum_travel": [
+        "3"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "5"
+    ],
+    "filament_retract_before_wipe": [
+        "100%"
+    ],
+    "alias": "PING PETG - 高流量噴頭"
 }
