@@ -693,6 +693,8 @@ def main(src_base):
                 "inherits":"fdm_filament_pla",
                 "filament_colors":[color],"default_filament_colors":[color],
                 "enable_pressure_advance":["1"],
+                # 2026-07-18 Eric 裁：四料兩支 PA 統一 0.4（原 SupPLA 承 0.6 基底帶到 0.12＝漏改）
+                "pressure_advance":["0.4"],
                 "filament_max_volumetric_speed":["30"],
                 "hot_plate_temp":["60"],"hot_plate_temp_initial_layer":["60"]})
             fp.pop("compatible_printers", None)   # 不限機型
