@@ -246,7 +246,8 @@ void AppConfig::set_defaults()
         set("drc_bits", DRC_BITS_DEFAULT_STR);
 
     if (get("show_gcode_window").empty())
-        set_bool("show_gcode_window", true);
+        // PING(2026-07-18 Eric 裁 B 案)：G-code 行視窗預設關（既有 config 不受影響，使用者可自行開）
+        set_bool("show_gcode_window", false);
 
     if (get("show_3d_navigator").empty())
         set_bool("show_3d_navigator", true);
