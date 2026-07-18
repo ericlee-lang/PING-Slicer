@@ -117,6 +117,14 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+        # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
+        # 缺 T 時切片器會自動補「槽位序號」T（第2槽→T1）→機上無此巨集→Klipper 只警告不停
+        # →三路同步進料靜默失效（0717 同事 T1 事故機制）。T4/T012/T3 皆可（^T 開頭即過）。
+        if "(3in1)" in name:
+            sg = d.get("filament_start_gcode")
+            sg = sg[0] if isinstance(sg, list) and sg else (sg or "")
+            if not re.search(r"^\s*T\S+", sg, re.M):
+                err(f"[3in1 起始gcode 缺 T 指令 — 同步進料會靜默失效] {name}")
         fmt = d.get("filename_format", "")
         if fmt:
             if ord(fmt[0]) > 127:
