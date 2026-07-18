@@ -25,6 +25,27 @@
 	margin-right: 0px; /* ORCA align buttons with end of horizontal separator/line */
 }
 
+/* PING(2026-07-18 Eric)：「全選/清空」是兩顆鈕，先前類別無樣式＝渲染成黏在一起的
+   灰字「全部清空」，被誤讀成單顆切換鈕（第一下其實點到全選、第二下點到清空）。
+   補按鈕樣式＋間距，可按性一眼可辨（ping-ux HIE-16）；文案 t11 全部→全選 防連讀。 */
+.SmallBtn, .SmallBtn_Green
+{
+	padding: 0px 12px;
+	height: 26px;
+	line-height: 26px;
+	border-radius: 4px;
+	cursor: pointer;
+	margin-left: 8px;
+	background-color: #EFEFEF;
+	color: #202221;
+}
+.SmallBtn_Green
+{
+	background-color: #EA4E16;
+	color: #FFFFFF;
+}
+
+
 .BlockBanner  a
 {
 	display: inline-block;
