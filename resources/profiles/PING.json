@@ -815,6 +815,14 @@
         {
             "name": "PING SupPLA - 高流量噴頭",
             "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
+        },
+        {
+            "name": "PING TPE",
+            "sub_path": "filament/PING TPE.json"
+        },
+        {
+            "name": "PING SupTPE",
+            "sub_path": "filament/PING SupTPE.json"
         }
     ],
     "machine_list": [
