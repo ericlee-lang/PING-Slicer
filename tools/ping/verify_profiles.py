@@ -185,6 +185,11 @@ for name, (kind, d) in presets.items():
                            else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
+            # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒
+            if d.get("slow_down_for_layer_cooling") != ["1"]:
+                err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
+            if d.get("slow_down_layer_time") != ["10"]:
+                err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
 
 # Wizard order is driven by machine_model_list. Verify each family independently so a regen
 # cannot silently put the hardware-swap single-head card back between dual-head modes.

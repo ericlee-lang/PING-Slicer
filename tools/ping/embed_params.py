@@ -1039,6 +1039,22 @@ def main(src_base):
     if mm_set:
         print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、FF 200/1500/56）" % mm_set)
 
+    # 4b-5. ★ 冷卻降速統一（Eric 2026-07-18 裁「擴及所有材料」）：
+    # slow_down_for_layer_cooling 一律開＋slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
+    #（原預設 5 與 FF 7/基底 2~8 特調一併統一）。
+    cd_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("slow_down_for_layer_cooling") == ["1"] and fd.get("slow_down_layer_time") == ["10"]:
+            continue
+        fd["slow_down_for_layer_cooling"] = ["1"]
+        fd["slow_down_layer_time"] = ["10"]
+        jdump(fp_path, fd)
+        cd_set += 1
+    if cd_set:
+        print("  冷卻降速統一（開＋10 秒）：改 %d 支" % cd_set)
+
+
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）

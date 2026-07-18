@@ -240,10 +240,10 @@
         "0"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
-        "5"
+        "10"
     ],
     "slow_down_min_speed": [
         "10"
