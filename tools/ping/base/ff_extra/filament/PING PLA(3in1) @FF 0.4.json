@@ -168,7 +168,7 @@
         "0"
     ],
     "filament_start_gcode": [
-        "T4\n"
+        "T012\n"
     ],
     "filament_toolchange_delay": [
         "0"
