@@ -958,6 +958,33 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
+    # 4b-1c. ★ TPE 軟料一對（Eric 2026-07-18 裁，承 V2.1 Cura 線 TPE 工程定稿）：
+    # PING TPE（本體，軟慢）＋ PING SupTPE（TPU 系支撐料，可快）。
+    # 「軟慢/硬快」靠 filament_max_volumetric_speed 天花板實現（TPE 3.2＝速度上限 40、
+    # SupTPE 5.5＝支撐可跑 60+），製程速度欄不必為軟料改值。噴溫 220 兩側一致（定稿）、
+    # 床溫承 PLA 慣例 60（Eric 實跑基底）、回抽 3/z-hop 0.6、TPE 風扇 50/SupTPE 100、
+    # PA 關（軟料待實測）。不限機型；SET_RETRACTION 行由 4b-2 sweep 保證。
+    for new_name, fid, is_sup in (("PING TPE", "PINGFILTPE", False),
+                                  ("PING SupTPE", "PINGFILSUPTPE", True)):
+        fd_ = {"type": "filament", "name": new_name, "alias": new_name, "from": "system",
+               "instantiation": "true", "inherits": "fdm_filament_tpu",
+               "setting_id": fid, "filament_id": fid,
+               "filament_type": ["TPU"],
+               "nozzle_temperature_initial_layer": ["220"], "nozzle_temperature": ["220"],
+               "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
+               "fan_min_speed": ["100" if is_sup else "50"],
+               "fan_max_speed": ["100" if is_sup else "50"],
+               "filament_max_volumetric_speed": ["5.5" if is_sup else "3.2"],
+               "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
+               "enable_pressure_advance": ["0"], "pressure_advance": ["0"],
+               "slow_down_for_layer_cooling": ["1"], "slow_down_layer_time": ["10"],
+               "filament_minimal_purge_on_wipe_tower": ["30"]}
+        if is_sup:
+            fd_.update({"filament_is_support": ["1"],
+                        "filament_colors": ["#D3D3D3"], "default_filament_colors": ["#D3D3D3"]})
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
+        fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
+
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
     # ——免機端 wrapper、全機隊（含舊 C8/單料/四料）原生支援、老檔無指令＝機器 config 預設、

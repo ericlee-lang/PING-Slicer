@@ -867,6 +867,14 @@
         {
             "name": "PING PLA - EDU Classic",
             "sub_path": "filament/PING PLA - EDU Classic.json"
+        },
+        {
+            "name": "PING TPE",
+            "sub_path": "filament/PING TPE.json"
+        },
+        {
+            "name": "PING SupTPE",
+            "sub_path": "filament/PING SupTPE.json"
         }
     ],
     "machine_list": [
