@@ -757,6 +757,10 @@
             "sub_path": "filament/PING PETG - 235.json"
         },
         {
+            "name": "PING PETG - 高流量噴頭",
+            "sub_path": "filament/PING PETG - 高流量噴頭.json"
+        },
+        {
             "name": "PING PETG",
             "sub_path": "filament/PING PETG.json"
         },
