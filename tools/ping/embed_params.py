@@ -143,6 +143,7 @@ DEF_FIL_SINGLE = ["PING PLA - 220"]
 # 欄樣本未覆蓋＝吃機器層，照「權威＝樣本」抄 4 鍵，偏差已回報參數端）。
 HFN_PLA = "PING PLA - 高流量噴頭"
 HFN_SUP = "PING SupPLA - 高流量噴頭"
+HFN_PETG = "PING PETG - 高流量噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
 # 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
 # 2026-07-12 統一四值④：PA 0.2 兩支都套；噴溫 210/210 只 PLA 版（SupPLA 版溫度待 Eric 裁）
 HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed": ["30"],
@@ -152,7 +153,9 @@ HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed
                  "enable_pressure_advance": ["1"], "pressure_advance": ["0.2"]}
 # 2026-07-12 Eric 補裁：SupPLA 版噴溫同 210（高流量噴頭組整組統一 210/210，不套 SUP=220 慣例）
 HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
-             HFN_SUP: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]}}
+             HFN_SUP: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
+             # PETG 高流量（2026-07-18 Eric）：235/床75 承 PETG-235 基底、PA 0.2 由 HFN_OVERRIDES 帶
+             HFN_PETG: {}}
 # FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
@@ -185,7 +188,7 @@ def def_fil_ff(nz):
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
                         "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
-                        "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭")
+                        "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
 BED_TEXTURE = "ping_buildplate_texture.png"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
@@ -708,8 +711,9 @@ def main(src_base):
 
     # 4b-1b. ★ 高流量噴頭專用線材 2 支（A 案）：承 PLA-220/SupPLA 本體＋樣本 4 鍵覆蓋、
     # 不限機型；SET_RETRACTION 四欄行由基底帶入/4b-2 sweep 保證。
-    for base_name, new_name, fid in ((("PING PLA - 220"), HFN_PLA, "PINGFILHFNPLA"),
-                                     (("PING SupPLA"),    HFN_SUP, "PINGFILHFNSUP")):
+    for base_name, new_name, fid in ((("PING PLA - 220"),  HFN_PLA,  "PINGFILHFNPLA"),
+                                     (("PING SupPLA"),     HFN_SUP,  "PINGFILHFNSUP"),
+                                     (("PING PETG - 235"), HFN_PETG, "PINGFILHFNPETG")):
         bp = os.path.join(PINGDIR, "filament", "%s.json" % base_name)
         fd_ = json.load(io.open(bp, encoding="utf-8"))
         fd_.update(HFN_OVERRIDES)
