@@ -15,6 +15,24 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-18 — 兩日大批：參數五批＋UI 六修＋T012 契約＋G 槽輪替至第4版）
+
+**主線 `872a4a5e`／release `4b27ec70`（bundle 55）皆已 push；本 session commit 範圍＝主線 `60aeb77c..872a4a5e`、release `9bad4cef..4b27ec70`。**
+
+**參數批（全部三處同步：兩線 repo＋%APPDATA%，各有 .bak-* 備份；durable＝embed sweep＋verify 檢查 7~11）**：
+① 支撐幾何口徑連動（樹狀×10／線距×8=口徑/12.5%）② 洗料塔寬 25＋洗料量 30/SupPLA 60/FF 120 ③ 四料噴溫 210（塞頭）④ 機器動力學=Klipper 實值（FD/FP 400/5000/jerk7、FF 200/1500/jerk56——29h 估 vs 33h 實印 +14% 根因=轉角模型；DL1016/Classic 跳過）⑤ 四料口徑合一（PA開/流量30/床60）＋PETG 開 PA 0.12＋新支 PETG-高流量噴頭（PA 0.2）＋冷卻降速全開/降速層時間 10 秒。跨線同步單 5 份在專案根 `_切片規則同步_來自orca_*_2026071[78].md`，**切片參數 session 待回填 ping-slicer SSOT**。
+
+**UI/C++（兩線同碼）**：混色提示框仿畫布 ImGui 樣式（PingDarkTooltip，勿用 RichToolTip/原生）＋混色面板白底（StaticBox 圓角清背=建構時父色，先設父色再建鈕）；複製對話框保底間距（DialogButtons 通用修）＋自動排列預設不勾；線材下拉「系統預設」第一層=材料類別（filament_type＋is_support 自動推導，PLA→SUP→ABS→PETG→PA）；選機頁「全選/清空」補按鈕樣式＋t11 改「全選」（resource 免 build）。**Eric 已親驗**：分類樹✓四料合一✓FD300 直選 2 槽✓。
+
+**發布**：G 槽根層＝V3.6.0 **第4版**（run 29630307476，bundle 54）；🚌 **最終 build run 29635524383（bundle 55＝＋冷卻批＋選機頁按鈕）監看中——綠了照規則輪替第5版**（背景 task bmt200uoe，若 session 已換手→下一棒下載抽驗（bundle 55/冷卻 1+10/按鈕樣式）→G 槽輪替＋版本資訊）。Eric D 槽 portable＝r4（bundle 54；冷卻批他 %APPDATA% 已有，重啟即見；**選機頁按鈕樣式已直接修進他的 portable web 資源**）。
+
+**🟡 T012 跨系統契約（備好不打）**：T4→T012、T5→T0123（Eric 裁；契約單 `..\integration-t012-toolnaming_20260718.md` 兩邊一式＋PROJECTS.md 紅線 5）。切片端主線已改（c70dc374）；**出貨線在待命分支 `release/t012-pending`（3e7bd9fa）勿併**——Klipper 端 🟠 四料母版+.24 完成、**3in1 機隊未完**；閘門＝Klipper 回報「3in1 存量機隊全綠」才併＋進版。alias 去留提案在 Eric 手上。
+
+**工具新增**：`tools/ping/clean_user_presets.py`（清 user 線材/製程、機器保留、全量 zip 備份）＋`patch_conf_ff_merge.py`（口徑合一 conf 修補，已執行）。Eric user 夾已清 18 支實驗參數（備份 user_backup_20260718142549.zip）。
+
+**⏳ 等 Eric/外部**：①同事 G 槽驗證回報 ②時間預估閉環（重切 FD600 PLA+SUP 對 33h 實印）③三未決：G-code 視窗兩案／3in1 T1 疑案 gcode／一般 PETG PA 值 0.12 屬推定 ④FD300 槽數間歇 bug 掛觀察（再遇記「從哪台切過去」＋截圖）⑤Klipper 3in1 全綠回報。詳見 `D:\dev\2026claude\待確認\20260604 ORCA客製.md`。
+
+---
 ### 🚀 現況（2026-07-17b — V3.6.0 r2 上架 G 槽：bundle 52＋四料噴溫 210＋混色/複製 UI 修正）
 
 - **G 槽根層＝V3.6.0 r2**（run **29570398619** @ release `e57bbbae`；r1 已移 old\）：①支撐幾何口徑連動＋洗料塔 25/30·60（bundle 51→52，Classic 也套）②四料高流量六支噴溫 190/185→210（0.6 實機塞頭，Eric 裁全家族統一）③混色提示框仿畫布 ImGui 樣式＋編輯器白底 ④複製對話框按鈕保底間距（DialogButtons 全 app 通用）＋自動排列預設不勾。成品抽驗過（bundle52/210/6·4.8/塔寬25/FF purge120）。
