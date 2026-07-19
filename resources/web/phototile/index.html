@@ -147,6 +147,14 @@
         <input type="number" id="levelsIn" value="8" min="2" max="48" step="1">
         <span class="sub">階＝拆成幾種混色色塊零件（雙料＝漸層階數；邊界＝層線，銳利）</span>
       </div>
+      <div class="row" id="nozzleRow" style="display:none"><label>口徑</label>
+        <select id="nozzleSel">
+          <option value="0.4" selected>0.4</option>
+          <option value="0.6">0.6</option>
+          <option value="1.0">1.0</option>
+        </select>
+        <span class="sub" id="nozzleInfo">mm</span>
+      </div>
       <div class="row" id="sizeRow" style="display:none"><label>尺寸</label>
         寬 <input type="number" id="wIn" value="100" min="20" max="400" step="0.1" style="width:70px">
         高 <input type="number" id="hIn" value="75" min="20" max="400" step="0.1" style="width:70px">
@@ -222,6 +230,7 @@ let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
 let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'flat', klevels:8,
+               nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:6,     // 垂直模式實體尺寸（mm）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
@@ -335,16 +344,30 @@ function filterVerticalLabels(labels,paletteSize,strategy){
   if(!window.PhotoTileMesh || !img){ updateNoiseStat(null); return new Uint8Array(labels); }
   const sx=params.width/img.w, sz=params.height/img.h;
   const smooth=PhotoTileMesh.smoothLabelNoise(labels,img.w,img.h,paletteSize,sx,sz,params.noiseMm,strategy);
-  const result=PhotoTileMesh.filterSmallComponents(smooth.labels,img.w,img.h,sx,sz,params.noiseMm,
+  /* 口徑最小寬（Eric 2026-07-19 定，縫隙根因）：零件水平剖面窄於 2×口徑＝噴頭進得去、
+     繞不出來 → 白縫。只管水平向（垂直靠層高離散不受限）；與雜訊濾除獨立、恆開。 */
+  const minWidthMm=2*params.nozzle;
+  const wide=PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,
+    Math.max(1,Math.round(minWidthMm/sx)));
+  const result=PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,params.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
   let changedPixels=0;
   for(let i=0;i<labels.length;i++) if(result.labels[i]!==labels[i]) changedPixels++;
   const stats={removedComponents:result.removedComponents, changedPixels,
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
+    widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
     passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
   window.__noiseStats=stats;
   updateNoiseStat(stats);
+  updateNozzleStat(stats);
   return result.labels;
+}
+function updateNozzleStat(stats){
+  const el=document.getElementById('nozzleInfo'); if(!el) return;
+  const base=`mm——窄於 ${(2*params.nozzle).toFixed(1)} mm（2×口徑）的水平細條會併入鄰色（噴頭進去要繞得出來；垂直細節不受影響）`;
+  el.textContent=(stats && stats.widthChangedPixels)
+    ? base+`；本圖已併 ${stats.widthChangedPixels.toLocaleString()} 格`
+    : base;
 }
 function simulateVerticalQuad(){
   /* 四料垂直（v1.8，Eric 定的調色盤結構）：候選色＝「兩兩成對的色階線」——
@@ -932,6 +955,7 @@ function syncOrientUI(){
   for(const id of ['lhRow','layersRow','baseRow','mapRow'])
     document.getElementById(id).style.display=v?'none':'';
   document.getElementById('levelsRow').style.display=v?'':'none';
+  document.getElementById('nozzleRow').style.display=v?'':'none';   // 口徑＝垂直模式限定（決定水平最小色塊寬）
   document.getElementById('sizeRow').style.display=v?'':'none';
   document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
@@ -966,6 +990,9 @@ document.getElementById('orientSeg').addEventListener('click',e=>{
 document.getElementById('levelsIn').onchange=e=>{
   params.klevels=Math.max(2,Math.min(48,+e.target.value||8));
   e.target.value=params.klevels; queue();
+};
+document.getElementById('nozzleSel').onchange=e=>{
+  params.nozzle=parseFloat(e.target.value)||0.4; queue();   // 改口徑即時重算（水平最小寬跟著變）
 };
 /* 尺寸（垂直）：預設鎖定原圖比例；解除後才允許寬高獨立，厚度永遠獨立 */
 document.getElementById('wIn').onchange=e=>{
@@ -1181,6 +1208,7 @@ ${cfgParts.join('\n')}
   const palTxt=
 `PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
 尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
+口徑 ${params.nozzle} mm（水平最小色塊寬 ≥ ${(2*params.nozzle).toFixed(1)} mm，窄條已併入鄰色）
 雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
 ${palLines.join('\n')}`;
   const blob=await makeZip([
