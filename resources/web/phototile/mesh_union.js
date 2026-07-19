@@ -422,7 +422,11 @@
     return { parts, totalRuns, components };
   }
 
-  function buildLabelMesh(labels, w, h, k, runs, sx, sz, thickness) {
+  // seamNotch（Eric 2026-07-20 定「方塊中間做小V」）：{depth,width} mm——在零件「右端交界」
+  // 的深度中央切一個內埋 V 溝（空腔，右鄰零件保持平面）：每層迴路多出一個尖銳凹角＝
+  // 縫的天然磁鐵，縫藏進磚體正中央、正反面乾淨。只在交界垂直穩定段開溝（上下列同位
+  // 交界才開），行間過渡用三角蓋片封死；外緣與過窄零件自動跳過。
+  function buildLabelMesh(labels, w, h, k, runs, sx, sz, thickness, seamNotch) {
     const vertices = [];
     const triangles = [];
     const vertexIds = new Map();
@@ -430,6 +434,14 @@
     let tiles = 0;
 
     const round3 = value => Math.round(value * 1000) / 1000;
+    const notchOn = !!(seamNotch && seamNotch.depth > 0 && seamNotch.width > 0 && thickness >= seamNotch.width * 2);
+    const nD = notchOn ? seamNotch.depth : 0;                  // 溝深（往 -X 切入左零件）
+    const nYA = notchOn ? round3(thickness / 2 - seamNotch.width / 2) : 0;
+    const nYB = notchOn ? round3(thickness / 2 + seamNotch.width / 2) : 0;
+    const nYM = round3(thickness / 2);
+    // 交界在 (y,xe) 是否為本零件的右端邊界（xe 左側=k、右側=其他標籤）
+    const boundaryAt = (yy, xe) => yy >= 0 && yy < h && xe > 0 && xe < w &&
+      labels[yy * w + xe - 1] === k && labels[yy * w + xe] !== k;
     function sectorAtVertex(gx, gz, cellX, cellY) {
       if (!Number.isInteger(gx) || !Number.isInteger(gz))
         return "";
@@ -477,6 +489,22 @@
       return cuts;
     }
 
+    // 溝槽列判定（含鄰列一致性：本列與該列自己的 cuts 條件完全同式，供鄰列互查）
+    const runX0 = (yy, xe) => { let x = xe - 1; while (x > 0 && labels[yy * w + x - 1] === k) x--; return x; };
+    function rowNotched(yy, xe) {
+      if (!notchOn || !boundaryAt(yy, xe) || !boundaryAt(yy - 1, xe) || !boundaryAt(yy + 1, xe))
+        return false;
+      const rx0 = runX0(yy, xe);
+      if ((xe - rx0) * sx < nD + 1.6) return false;
+      const apex = xe - nD / sx;
+      const bc = neighbourCuts(yy + 1, rx0, xe);
+      const tc = neighbourCuts(yy - 1, rx0, xe);
+      const bXa = bc[bc.length - 2], tXa = tc[tc.length - 2];
+      const bExp = !(yy + 1 < h && labels[(yy + 1) * w + bXa] === k);
+      const tExp = !(yy > 0 && labels[(yy - 1) * w + tXa] === k);
+      return (!bExp || bXa <= apex) && (!tExp || tXa <= apex);
+    }
+
     for (const [y, x0, x1, component] of runs) {
       componentIds.add(component);
       const z0 = h - y - 1;
@@ -485,8 +513,29 @@
         const cellX = Math.max(x0, Math.min(x1 - 1, Math.floor(gx)));
         return vertex(component, gx, side, gz, cellX, y);
       };
+      const vn = (gx, ymm, gz) => {
+        const key = `${component}|${round3(gx)}|n${ymm}|${gz}`;
+        let id = vertexIds.get(key);
+        if (id === undefined) {
+          id = vertices.length; vertexIds.set(key, id);
+          vertices.push([round3(gx * sx), ymm, round3(gz * sz)]);
+        }
+        return id;
+      };
+      const notched = rowNotched(y, x1);
+      const apexGx = x1 - nD / sx;
       const bottomCuts = neighbourCuts(y + 1, x0, x1);
       const topCuts = neighbourCuts(y - 1, x0, x1);
+      if (notched) {
+        // apex 只在「該側末段外露（會出挖口蓋片）」時才進 cuts——內部過渡線兩側扇形
+        // 頂點集必須一致，多插會造成 T 接點開放邊
+        const bXa0 = bottomCuts[bottomCuts.length - 2];
+        if (!(y + 1 < h && labels[(y + 1) * w + Math.floor(bXa0)] === k))
+          bottomCuts.splice(bottomCuts.length - 1, 0, apexGx);
+        const tXa0 = topCuts[topCuts.length - 2];
+        if (!(y > 0 && labels[(y - 1) * w + Math.floor(tXa0)] === k))
+          topCuts.splice(topCuts.length - 1, 0, apexGx);
+      }
       const boundary = [];
       for (const x of bottomCuts)
         boundary.push([x, z0]);
@@ -522,18 +571,51 @@
         v(x0, 1, z1),
         v(x0, 1, z0)
       );
-      quad(
-        v(x1, 0, z0),
-        v(x1, 1, z0),
-        v(x1, 1, z1),
-        v(x1, 0, z1)
-      );
+      if (notched) {
+        // 右端＝V 溝面：上下平帶＋兩斜面（每層迴路多一個尖銳凹角＝縫的磁鐵）
+        const pt = (gx, ym, gz) => ym === 0 ? v(x1, 0, gz) : (ym === thickness ? v(x1, 1, gz) : vn(gx, ym, gz));
+        const PL = [[x1, 0], [x1, nYA], [apexGx, nYM], [x1, nYB], [x1, thickness]];
+        for (let i = 0; i + 1 < PL.length; i++)
+          quad(pt(PL[i][0], PL[i][1], z0), pt(PL[i + 1][0], PL[i + 1][1], z0),
+               pt(PL[i + 1][0], PL[i + 1][1], z1), pt(PL[i][0], PL[i][1], z1));
+        if (boundaryAt(y - 1, x1) && !rowNotched(y - 1, x1))   // 上鄰平端 → 空腔天花板（-z）
+          triangles.push([vn(x1, nYA, z1), vn(apexGx, nYM, z1), vn(x1, nYB, z1)]);
+        if (boundaryAt(y + 1, x1) && !rowNotched(y + 1, x1))   // 下鄰平端 → 空腔地板（+z）
+          triangles.push([vn(x1, nYA, z0), vn(x1, nYB, z0), vn(apexGx, nYM, z0)]);
+      } else {
+        // 平端；鄰列若是溝槽列，該側 z 邊在 nYA/nYB 細分（與溝槽帶逐邊配對，保水密）
+        const splitB = notchOn && rowNotched(y + 1, x1);
+        const splitT = notchOn && rowNotched(y - 1, x1);
+        if (!splitB && !splitT) {
+          quad(v(x1, 0, z0), v(x1, 1, z0), v(x1, 1, z1), v(x1, 0, z1));
+        } else {
+          const eB = splitB ? [0, nYA, nYB, thickness] : [0, thickness];
+          const eT = splitT ? [0, nYA, nYB, thickness] : [0, thickness];
+          const poly = [];
+          for (const ym of eB)
+            poly.push(ym === 0 ? v(x1, 0, z0) : (ym === thickness ? v(x1, 1, z0) : vn(x1, ym, z0)));
+          for (let i = eT.length - 1; i >= 0; i--) {
+            const ym = eT[i];
+            poly.push(ym === 0 ? v(x1, 0, z1) : (ym === thickness ? v(x1, 1, z1) : vn(x1, ym, z1)));
+          }
+          for (let i = 1; i + 1 < poly.length; i++)
+            triangles.push([poly[0], poly[i], poly[i + 1]]);
+        }
+      }
 
       for (let i = 0; i + 1 < bottomCuts.length; i++) {
         const xa = bottomCuts[i];
         const xb = bottomCuts[i + 1];
-        if (y + 1 < h && labels[(y + 1) * w + xa] === k)
+        if (y + 1 < h && labels[(y + 1) * w + Math.floor(xa)] === k)
           continue;
+        if (notched && xb === x1 && xa === apexGx) {
+          // 溝槽列末段底面（-z）：兩帶＋兩三角（挖掉 V 缺口）
+          quad(v(apexGx, 0, z0), vn(apexGx, nYA, z0), vn(x1, nYA, z0), v(x1, 0, z0));
+          quad(vn(apexGx, nYB, z0), v(apexGx, 1, z0), v(x1, 1, z0), vn(x1, nYB, z0));
+          triangles.push([vn(apexGx, nYA, z0), vn(apexGx, nYM, z0), vn(x1, nYA, z0)]);
+          triangles.push([vn(apexGx, nYB, z0), vn(x1, nYB, z0), vn(apexGx, nYM, z0)]);
+          continue;
+        }
         quad(
           v(xa, 0, z0),
           v(xa, 1, z0),
@@ -544,8 +626,16 @@
       for (let i = 0; i + 1 < topCuts.length; i++) {
         const xa = topCuts[i];
         const xb = topCuts[i + 1];
-        if (y > 0 && labels[(y - 1) * w + xa] === k)
+        if (y > 0 && labels[(y - 1) * w + Math.floor(xa)] === k)
           continue;
+        if (notched && xb === x1 && xa === apexGx) {
+          // 溝槽列末段頂面（+z）：兩帶＋兩三角
+          quad(v(apexGx, 0, z1), v(x1, 0, z1), vn(x1, nYA, z1), vn(apexGx, nYA, z1));
+          quad(vn(apexGx, nYB, z1), vn(x1, nYB, z1), v(x1, 1, z1), v(apexGx, 1, z1));
+          triangles.push([vn(apexGx, nYA, z1), vn(x1, nYA, z1), vn(apexGx, nYM, z1)]);
+          triangles.push([vn(apexGx, nYB, z1), vn(apexGx, nYM, z1), vn(x1, nYB, z1)]);
+          continue;
+        }
         quad(
           v(xa, 0, z1),
           v(xb, 0, z1),
