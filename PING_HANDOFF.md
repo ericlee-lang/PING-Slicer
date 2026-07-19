@@ -15,7 +15,24 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🏁 收工快照（2026-07-18 — 兩日大批：參數五批＋UI 六修＋T012 契約＋G 槽輪替至第4版）
+### 🏁 收工快照（2026-07-18 晚〜19 — 三未決全裁＋照片磚/T012 進出貨線＋G 槽第5版＋TPE 入系統＋T012 契約閉環）
+
+**主線 `3ac0fa69`（已 push）／release `7142f4f8`（⚠ **2 commits 未推**：TPE 一對 `255a2922`＋conf 工具 `7142f4f8`——**等 Eric 說 build 才推**＝推即觸發 CI；推時 bundle 56→57 進版）。本 session commit 範圍＝主線 `215e9b37..3ac0fa69`、release `4b27ec70..7142f4f8`。**
+
+**Eric 六裁全落地**：①G-code 視窗＝只做 B（預設關，僅新 config 生效）②T012 現在就上（原「先韌體後切片」順序被 Eric 明示覆蓋，風險承接記契約單）③PETG PA 0.12 照收（⬜待 PA 塔實測）④照片磚整合＝主線＋出貨線都要（「不進正式版」舊規則**作廢**，memory 已翻轉）⑤PA 修正：四料 SupPLA 0.4＋3in1 四支開 PA＋SupPLA(3in1) 統一 0.2 ⑥TPE 軟料一對入系統。
+
+**發布：G 槽根層＝V3.6.0 第5版 r5**（run 29638874083 @ `d194b4d7`，bundle 56）＝照片磚工作室＋T012＋PA 三修＋冷卻降速＋視窗預設關。成品抽驗 14/14 過；照片磚 C++ 編譯首驗過（macOS 只敗 DMG 打包=runner flaky）。r4 移 old\。**Eric D 槽 portable＝r5**（備份 -old-v360r4；r3 已清）；%APPDATA%＝版號 57＋T012 九檔（.bak-t012）＋TPE 兩支＋conf 可見 21→23（.bak-tpevisible）。
+
+**✅ T012 契約閉環（2026-07-19）**：Klipper 回報 3in1 機隊 **3/3 全綠**（.24/.147/.29）——新切 3in1 檔可餵全機隊（外售未回廠機除外，G 槽版本資訊已載）。契約單兩邊一字不差。alias 裁撤＝下一四料正式版（quad_V3.9.4-Q4 待 Eric approve）後一週期，Klipper 屆時通知。`release/t012-pending` 已併入出貨線＝**該待命分支已完成使命可刪**。
+
+**TPE 軟料一對（`ae027ac4`+conf 工具 `3ac0fa69`；⬜實印待驗）**：PING TPE＋PING SupTPE（TPU 系支撐料）——噴溫 220/床 60/回抽 3+hop0.6/風扇 50·100/PA 關；★**軟慢硬快＝流量天花板法**（TPE 3.2=上限 40、SupTPE 5.5=支撐 60+，製程速度欄免改；放寬到 50 只改 3.2→4.0）。產生器 4b-1c durable；Eric user 三支（PING TPE/SupTPE/Sup_TPE）已移 `%APPDATA%\PingSlicer\bak-user-tpe-20260718\`。↳ 工藝已沉澱到 ping-slicer skill materials.md「TPE+SupTPE（Orca 線）」節。
+
+**出貨線 cherry-pick 踩坑（下一棒必讀）**：①照片磚 pick 衝突根因＝出貨線缺依賴 `be14c92a`（T→M605x）——**先補依賴再 pick 就順**②首頁磚兩線解法不同：主線=雙料照片+照片磚兩顆、**出貨線只加照片磚**（雙料照片=測試遺產不出貨）③G 槽 zip 打包用 **Windows 內建 bsdtar**（`tar.exe -a -cf out.zip -C dir .`）——python zipfile 會炸 MAX_PATH 長路徑、`\\?\` 前綴無效。
+
+**⏳ 等 Eric/外部**：①**Eric 驗收三件**：TPE 首件（88-0019-2 兩槽選 PING TPE/PING SupTPE，速度著色驗本體 40/支撐 60）／首頁照片磚磚／3in1 切件驗 T012 ②build 令（release 2 commits 待推）③同事 G 槽 r5 驗證回報 ④時間預估 33h 閉環 ⑤FD300 槽數間歇掛觀察 ⑥TPE 覺得 40 慢→流量上限 3.2→4.0。詳見 `D:\dev\2026claude\待確認\20260604 ORCA客製.md`。
+
+---
+### 🏁 前期快照（2026-07-18 — 兩日大批：參數五批＋UI 六修＋T012 契約＋G 槽輪替至第4版）
 
 **主線 `872a4a5e`／release `4b27ec70`（bundle 55）皆已 push；本 session commit 範圍＝主線 `60aeb77c..872a4a5e`、release `9bad4cef..4b27ec70`。**
 
