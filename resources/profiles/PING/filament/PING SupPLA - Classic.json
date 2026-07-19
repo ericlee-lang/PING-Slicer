@@ -51,17 +51,17 @@
     "filament_start_gcode": [
         "; Classic Marlin filament - machine retraction only\n"
     ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
     "alias": "PING SupPLA - Classic",
     "enable_pressure_advance": [
         "0"
     ],
     "pressure_advance": [
         "0"
-    ],
-    "slow_down_for_layer_cooling": [
-        "1"
-    ],
-    "slow_down_layer_time": [
-        "10"
     ]
 }
