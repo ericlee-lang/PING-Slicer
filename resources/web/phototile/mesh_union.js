@@ -626,5 +626,63 @@
     };
   }
 
-  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh };
+  // 水平最小可印寬（Eric 2026-07-19 定，縫隙根因）：零件的水平剖面窄於噴頭「進得去、
+  // 繞得出來」的寬度（≈2×口徑）就印不出來＝白縫。垂直方向靠層高離散、不受此限，
+  // 所以這裡只逐列處理水平向：短於 minCells 的水平連續段併入左右較寬的鄰段。
+  // 連結串列合併、合併後回頭重驗，O(n) 攤還；同標籤相鄰段自動收斂。
+  function enforceMinHorizontalWidth(labels, w, h, minCells) {
+    const out = new Uint8Array(labels);
+    let changed = 0, mergedRuns = 0;
+    if (!(minCells > 1)) return { labels: out, changedPixels: 0, mergedRuns: 0 };
+    const start = new Int32Array(w), len = new Int32Array(w), lab = new Int32Array(w);
+    const prev = new Int32Array(w), next = new Int32Array(w);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let n = 0;
+      for (let x = 0; x < w;) {
+        const v = out[row + x];
+        let x2 = x + 1;
+        while (x2 < w && out[row + x2] === v) x2++;
+        start[n] = x; len[n] = x2 - x; lab[n] = v;
+        prev[n] = n - 1; next[n] = (x2 < w) ? n + 1 : -1;
+        n++; x = x2;
+      }
+      if (n <= 1) continue;
+      let head = 0, i = 0;
+      while (i !== -1) {
+        const p = prev[i], q = next[i];
+        if (len[i] >= minCells || (p === -1 && q === -1)) { i = q; continue; }
+        const pl = (p === -1) ? -1 : len[p];
+        const ql = (q === -1) ? -1 : len[q];
+        mergedRuns++;
+        if (pl >= ql) {                       // 併入左段（含只剩左段）
+          len[p] += len[i];
+          next[p] = q; if (q !== -1) prev[q] = p;
+          if (q !== -1 && lab[q] === lab[p]) { // 左右同標籤 → 一起收斂
+            len[p] += len[q];
+            next[p] = next[q]; if (next[q] !== -1) prev[next[q]] = p;
+          }
+          i = p;                               // 回頭重驗合併後的段
+        } else {                               // 併入右段
+          start[q] = start[i]; len[q] += len[i];
+          prev[q] = p; if (p !== -1) next[p] = q;
+          if (p !== -1 && lab[p] === lab[q]) {
+            start[q] = start[p]; len[q] += len[p];
+            prev[q] = prev[p]; if (prev[p] !== -1) next[prev[p]] = q;
+          }
+          if (prev[q] === -1) head = q;        // 頭段被併走 → 新頭
+          i = (prev[q] !== -1) ? prev[q] : q;
+        }
+      }
+      // 依存活串列重寫該列
+      for (let r = head; r !== -1; r = next[r]) {
+        const v = lab[r], x0 = start[r], x1 = start[r] + len[r];
+        for (let x = x0; x < x1; x++)
+          if (out[row + x] !== v) { out[row + x] = v; changed++; }
+      }
+    }
+    return { labels: out, changedPixels: changed, mergedRuns };
+  }
+
+  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh, enforceMinHorizontalWidth };
 });
