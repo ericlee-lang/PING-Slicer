@@ -79,6 +79,44 @@
 	color: #fff;
 }
 
+.ProductLineTabs
+{
+	display: flex;
+	justify-content: flex-end;
+	gap: 4px;
+	padding-top: 8px;
+	border-bottom: #EA4E16 1px solid;
+}
+
+.ProductLineTab
+{
+	min-width: 96px;
+	padding: 9px 22px;
+	border: 0;
+	border-radius: 6px 6px 0 0;
+	background: #F1F1F1;
+	color: #5A5A5A;
+	font: inherit;
+	cursor: pointer;
+}
+
+.ProductLineTab.active
+{
+	background: #EA4E16;
+	color: #FFFFFF;
+}
+
+.ProductLineTab:focus-visible
+{
+	outline: 2px solid #EA4E16;
+	outline-offset: 2px;
+}
+
+@media (prefers-color-scheme: dark) {
+	.ProductLineTab { background: #3A3D3F; color: #D7D7D7; }
+	.ProductLineTab.active { background: #EA4E16; color: #FFFFFF; }
+}
+
 .PrinterArea
 {
 	padding: 10px 0px; /* ORCA Reduce horizontal paddings to fit 4 items per row */

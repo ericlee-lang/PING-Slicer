@@ -46,12 +46,53 @@ function ShowPrinterThumb(pItem, strImg)
 	$(pItem).attr('onerror',null);
 }
 
+// PING V3.6：同一個印表機選擇頁分 Fast／Classic，避免再增加精靈步驟。
+const PingClassicModels = new Set([
+	'EDU 200', 'PING 200', 'PING 270', 'PING 300+',
+	'DUAL 300', 'DUAL 450', 'DUAL 600', 'DUAL 800'
+]);
+let PingProductLine = 'fast';
+let PingSearchKeyword = '';
+
+function ProductLineOf(vendor, model) {
+	// 照片磚機獨立一類（Eric 2026-07-19 定：照片磚設為一類、含不同範圍的機器）
+	if (vendor == 'PING' && model.indexOf('照片磚') != -1) return 'phototile';
+	return vendor == 'PING' && PingClassicModels.has(model) ? 'classic' : 'fast';
+}
+
+function ProductLineTabs(vendor) {
+	if (vendor != 'PING') return '';
+	return '<div class="ProductLineTabs" role="tablist" aria-label="PING product line">' +
+		'<button type="button" class="ProductLineTab" data-line="fast" onclick="SetPingProductLine(\'fast\')">Fast</button>' +
+		'<button type="button" class="ProductLineTab" data-line="classic" onclick="SetPingProductLine(\'classic\')">Classic</button>' +
+		'<button type="button" class="ProductLineTab" data-line="phototile" onclick="SetPingProductLine(\'phototile\')">照片磚</button>' +
+		'</div>';
+}
+
+function SetPingProductLine(line) {
+	PingProductLine = line;
+	ApplyPingProductLine();
+}
+
+function ApplyPingProductLine() {
+	let searching = PingSearchKeyword.trim() != '';
+	document.querySelectorAll(".OneVendorBlock[vendor='PING'] .PrinterBlock[data-product-line]").forEach(function(card) {
+		card.style.display = (searching || card.dataset.productLine == PingProductLine) ? '' : 'none';
+	});
+	document.querySelectorAll(".OneVendorBlock[vendor='PING'] .ProductLineTab").forEach(function(tab) {
+		let active = tab.dataset.line == PingProductLine;
+		tab.classList.toggle('active', active);
+		tab.setAttribute('aria-selected', active ? 'true' : 'false');
+	});
+}
+
 function HandleModelList( pVal )
 {
 	if( !pVal.hasOwnProperty("model") )
 		return;
 
-    pModel=pVal['model'];
+	pModel=pVal['model'];
+	PingSearchKeyword='';
 	
 	let nTotal=pModel.length;
 	let ModelHtml={};
@@ -80,6 +121,7 @@ function HandleModelList( pVal )
 '	</div>'+
 '	<a>'+sVV+'</a>'+
 '</div>'+
+ProductLineTabs(strVendor)+
 '<div class="PrinterArea">	'+
 '</div>'+
 '</div>';
@@ -91,7 +133,7 @@ function HandleModelList( pVal )
 
 		//Collect Html Node Nozzel Html
 		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
-		let strSeries=ModelName.replace(/\s*(單料頭|單噴頭|同進照片磚|同進|3in1)$/,'');
+		let strSeries=ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1)$/,'');
 		if( !ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor]={};
 		if( !ModelHtml[strVendor].hasOwnProperty(strSeries))
@@ -106,7 +148,7 @@ function HandleModelList( pVal )
 		}
 
 		let CoverImage=OneModel['cover'];
-		ModelHtml[strVendor][strSeries]+='<div class="PrinterBlock">'+
+		ModelHtml[strVendor][strSeries]+='<div class="PrinterBlock" data-product-line="'+ProductLineOf(strVendor, ModelName)+'">'+
 '	<div class="PImg"><img src="'+CoverImage+'"  /></div>'+
 '    <div class="PName">'+OneModel['model']+'</div>'+ HtmlNozzel +'</div>';
 	}
@@ -155,6 +197,7 @@ function HandleModelList( pVal )
 	// 	$("input[nozzel='0.4'][vendor='Custom']").prop("checked", true);
 	// }
 	
+	ApplyPingProductLine();
 	TranslatePage();
 }
 
@@ -208,6 +251,7 @@ function GetModelSelect(vendor, model, nozzel) {
 }
 
 function FilterModelList(keyword) {
+	PingSearchKeyword = keyword;
 
 	//Save checkbox state
 	let ModelSelect = $('input[type=checkbox]');
@@ -252,6 +296,7 @@ function FilterModelList(keyword) {
 				'	</div>' +
 				'	<a>' + sVV + '</a>' +
 				'</div>' +
+				ProductLineTabs(strVendor) +
 				'<div class="PrinterArea">	' +
 				'</div>' +
 				'</div>';
@@ -261,7 +306,7 @@ function FilterModelList(keyword) {
 
 		//Collect Html Node Nozzel Html
 		//PING: 同 HandleModelList，依家族分組(去模式字尾)
-		let strSeries = ModelName.replace(/\s*(單料頭|單噴頭|同進照片磚|同進|3in1)$/,'');
+		let strSeries = ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1)$/,'');
 		if (!ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor] = {};
 		if (!ModelHtml[strVendor].hasOwnProperty(strSeries))
@@ -275,7 +320,7 @@ function FilterModelList(keyword) {
 		}
 
 		let CoverImage = OneModel['cover'];
-		ModelHtml[strVendor][strSeries] += '<div class="PrinterBlock">' +
+		ModelHtml[strVendor][strSeries] += '<div class="PrinterBlock" data-product-line="' + ProductLineOf(strVendor, ModelName) + '">' +
 			'	<div class="PImg"><img src="' + CoverImage + '"  /></div>' +
 			'    <div class="PName">' + OneModel['model'] + '</div>' + HtmlNozzel + '</div>';
 	}
@@ -311,6 +356,7 @@ function FilterModelList(keyword) {
 	// 	$("input[nozzel='0.4'][vendor='Custom']").prop("checked", true);
 	// }
 
+	ApplyPingProductLine();
 	TranslatePage();
 }
 
@@ -318,6 +364,7 @@ function FilterModelList(keyword) {
 function SelectPrinterAll(sVendor) {
     let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
     for (let i = 0; i < inputs.length; i++) {
+		if (sVendor == 'PING' && inputs[i].closest('.PrinterBlock').style.display == 'none') continue;
         inputs[i].checked = true;
         SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), true);
     }
@@ -326,6 +373,7 @@ function SelectPrinterAll(sVendor) {
 function SelectPrinterNone(sVendor) {
     let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
     for (let i = 0; i < inputs.length; i++) {
+		if (sVendor == 'PING' && inputs[i].closest('.PrinterBlock').style.display == 'none') continue;
         inputs[i].checked = false;
         SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), false);
     }
