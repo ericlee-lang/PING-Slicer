@@ -30,6 +30,12 @@
 - 🟡 **追加：「產生並載入列印板」跳『由舊版產生、僅載入幾何』彈窗＝誤報**（Eric 回報「輸出異常」）。根因＝照片磚 3MF 天生不帶專案設定→`config_loaded.empty()`（Plater.cpp:6137）誤判舊版檔；`load_config=false` 只是不套檔內 preset（本來就沒有），**零件名/擠出機/S 配比照常載**（bbs 解析自 model_settings.config，該分支不清 volume config；三份 gcode 全 PASS 同路實證）。**點確認即可正常用**。修法＝認 `model_info.metadata_items["Application"]` 前綴 `PING-PhotoTile` 靜默（Application 進 metadata_items＝bbs_3mf.cpp:3886 無差別收錄、ModelInfo::load 有帶）——主線 `f6def0f0`＋出貨線 `139a2844`。⚠ **C++ 6 行未經編譯驗證**，下次 build 留意。release/v3.6 現累積 **4 commits 未推**（TPE 一對＋conf 工具＋B案＋彈窗修）等 build 令。
 - **⏳ 等 Eric**：切片後貼 gcode 驗 T→M6051／實印驗實機灰梯（C 案校正卡對帳待開）；下次 build 令時裁「出貨線一併推」。
 
+**0719 續（同日第三批）——FD300 照片磚選不到＋「照片磚設為一類」（Eric 指示）**：
+1. **根因**：r5（出貨線）bundle 從未帶照片磚機——`tools/ping/base/phototile/` 母版沒進出貨線→emit_phototile 被 isdir 守衛靜默跳過；選機頁（GuideFrame 讀 `resources_dir()/profiles`＝bundle，非 %APPDATA%）自然列不出。%APPDATA% 5 機一直都在（切片可用、選機動線斷）。
+2. **出貨線修好（commit `13b91e95`，未 push；release 線現 5 commits 等 build 令）**：①補母版＋emit_phototile 特調行 `sparse_infill_acceleration=10000`（出貨線副本缺 0715 主線修正，verify 抓的）②regen bundle 帶 5 機＋PING.json 12 條目、**版號 56→57**（<Eric appdata 59）③**65 檔源漂移全回滾**（G 槽源 0719 變動不隨本案夾帶——注意：出貨線下次 regen 還會撞這批漂移，屆時是「主線參數要不要同步出貨線」的裁定，別誤當本案殘留）④guide 21/24.js `ProductLineOf` 認機名含「照片磚」→ 第三頁籤「Fast｜Classic｜照片磚」；假資料實測三籤路由互斥正確、active 態自動吃 #EA4E16 白字。
+3. **portable 換裝協調（認領簿 c-0719-06）**：主線 session 同日把 D 槽 portable 換成 workshop（主線@183a108c、bundle 51 含照片磚＋DL1016）→ 原熱補計畫全取消（不需要）；**唯一實寫＝補回 photo­tile B案兩檔**（workshop 不含上午 B案＝靜默回歸，.bak-bplan、md5 對 `18e58ece`）。⚠ **workshop 選機頁＝主線家族分列版（無頁籤）**——照片磚勾得到但長相與出貨線頁籤版不同；**兩線選機 UI 收斂待 Eric 裁**（建議下次 build 前決定要不要把頁籤版港到主線）。
+4. 🟡 未辦：user 副本「FF800 同進照片磚」遮蔽系統版（同名坑）——等 Eric 說「清」才移 bak；主線 24.js 若港頁籤版記得 CSS（ProductLineTabs 樣式在出貨線 21/24.css）一起。
+
 ---
 ### 🏁 收工快照（2026-07-18 晚〜19 — 三未決全裁＋照片磚/T012 進出貨線＋G 槽第5版＋TPE 入系統＋T012 契約閉環）
 
