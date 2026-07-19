@@ -193,7 +193,7 @@
     "sparse_infill_filament": "1",
     "sparse_infill_line_width": "1",
     "sparse_infill_pattern": "gyroid",
-    "sparse_infill_speed": "150",
+    "sparse_infill_speed": "100",
     "spiral_mode": "0",
     "spiral_mode_max_xy_smoothing": "200%",
     "spiral_mode_smooth": "0",
@@ -287,6 +287,7 @@
     ],
     "xy_contour_compensation": "0",
     "xy_hole_compensation": "0",
+    "support_object_first_layer_gap": "0.33",
     "wipe_tower_wall_type": "rib",
     "set_other_flow_ratios": "1",
     "first_layer_flow_ratio": "1.1",
@@ -298,6 +299,5 @@
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 1.0 nozzle"
-    ],
-    "support_object_first_layer_gap": "0.33"
+    ]
 }
