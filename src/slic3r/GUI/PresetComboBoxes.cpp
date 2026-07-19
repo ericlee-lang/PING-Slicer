@@ -1202,6 +1202,9 @@ void PlaterPresetComboBox::update()
                     auto *sup_opt = preset.config.option<ConfigOptionBools>("filament_is_support");
                     preset_filament_cats[name] = (sup_opt && !sup_opt->values.empty() && sup_opt->values.front())
                                                      ? std::string("SUP") : preset_filament_types[name];
+                    // PING(2026-07-19 Eric)：分類「顯示」TPU→TPE——PING 軟料產品線叫 TPE（TPU 屬 TPE 家族）。
+                    // 內部 filament_type 保留 TPU 不動＝引擎 TPU 判斷（首層/ToolOrdering/WipeTower）不受影響。
+                    if (preset_filament_cats[name] == "TPU") preset_filament_cats[name] = "TPE";
                 }
             //}
         }
@@ -1285,8 +1288,8 @@ void PlaterPresetComboBox::update()
                 //}
                 if (group == "System presets" || group == "Unsupported presets")
                     std::sort(list.begin(), list.end(), [&filament_orders, &preset_filament_vendors, &first_vendors, &preset_filament_types, &first_types, &preset_filament_cats](auto *l, auto *r) {
-                        { // PING(2026-07-18)：先比材料類別（PLA→SUP→ABS→PETG→PA，未列的類別排後、字母序）
-                            static const std::vector<std::string> cat_order = {"PLA", "SUP", "ABS", "PETG", "PA"};
+                        { // PING(2026-07-18)：先比材料類別（PLA→SUP→ABS→PETG→PA→TPE，未列的類別排後、字母序）
+                            static const std::vector<std::string> cat_order = {"PLA", "SUP", "ABS", "PETG", "PA", "TPE"};
                             auto ci1 = std::find(cat_order.begin(), cat_order.end(), preset_filament_cats[l->first]);
                             auto ci2 = std::find(cat_order.begin(), cat_order.end(), preset_filament_cats[r->first]);
                             if (ci1 != ci2)
