@@ -238,7 +238,7 @@
         parent[i] = find(i);
 
       const counts = new Uint32Array(n);
-      // GRID_MAX is 1600, so 16-bit coordinates save substantial memory here.
+      // GRID_MAX is 3200 — still well within 16-bit coordinates, which save substantial memory here.
       const minX = new Uint16Array(n);
       const maxX = new Uint16Array(n);
       const minY = new Uint16Array(n);
