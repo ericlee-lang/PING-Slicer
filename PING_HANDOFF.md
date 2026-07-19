@@ -26,7 +26,9 @@
 - **驗證（AI 親眼＋數值）**：灰梯 6 階圖 ΔE **1.7**、階梯 L\* 100/80/60/40/20/0 全均分、合成人像深灰域不塌黑（截圖過）；S 值兩位小數 ∈[0,1]，C++ `is_num_token`（PingColorMix.cpp）契約相容**零 C++ 改動免 build**；5.85M 格（100×146mm @0.05）重算 2.6s、3MF 6 零件 484k 三角形 3.2MB 2.5s、console 零錯。
 - **D 槽 portable 已同步**（`D:\PING-Slicer-portable\resources\web\phototile\` 兩檔換入，備份 `.bak-bplan`）——Eric 重開照片磚頁立即生效。
 - **已知取捨**：①重算 ~0.4s→~2.6s（4 倍格點代價；嫌頓可議「預覽粗格/匯出細格」分離，未擅做）②髮絲被吃主因＝「雜訊濾除 2.0mm」預設（≤2mm 全合併），保細節調 0 ③色階數 >12 時暗端相鄰 S 差 <1%。
-- **⏳ 等 Eric**：重丟那張灰階人像驗收；出貨線要不要隨下次 build 一併推。
+- ✅ **Eric 驗收（0719 午後）：「顏色相近了」＝B 案生效**。
+- 🟡 **追加：「產生並載入列印板」跳『由舊版產生、僅載入幾何』彈窗＝誤報**（Eric 回報「輸出異常」）。根因＝照片磚 3MF 天生不帶專案設定→`config_loaded.empty()`（Plater.cpp:6137）誤判舊版檔；`load_config=false` 只是不套檔內 preset（本來就沒有），**零件名/擠出機/S 配比照常載**（bbs 解析自 model_settings.config，該分支不清 volume config；三份 gcode 全 PASS 同路實證）。**點確認即可正常用**。修法＝認 `model_info.metadata_items["Application"]` 前綴 `PING-PhotoTile` 靜默（Application 進 metadata_items＝bbs_3mf.cpp:3886 無差別收錄、ModelInfo::load 有帶）——主線 `f6def0f0`＋出貨線 `139a2844`。⚠ **C++ 6 行未經編譯驗證**，下次 build 留意。release/v3.6 現累積 **4 commits 未推**（TPE 一對＋conf 工具＋B案＋彈窗修）等 build 令。
+- **⏳ 等 Eric**：切片後貼 gcode 驗 T→M6051／實印驗實機灰梯（C 案校正卡對帳待開）；下次 build 令時裁「出貨線一併推」。
 
 ---
 ### 🏁 收工快照（2026-07-18 晚〜19 — 三未決全裁＋照片磚/T012 進出貨線＋G 槽第5版＋TPE 入系統＋T012 契約閉環）
