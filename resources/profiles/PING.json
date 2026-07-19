@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.56",
+    "version": "01.00.00.57",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -19,6 +19,10 @@
         {
             "name": "FD300 單料頭",
             "sub_path": "machine/FD300 單料頭.json"
+        },
+        {
+            "name": "FD300 同進照片磚",
+            "sub_path": "machine/FD300 同進照片磚.json"
         },
         {
             "name": "FD300 Pro",
@@ -91,6 +95,10 @@
         {
             "name": "FF800 3in1",
             "sub_path": "machine/FF800 3in1.json"
+        },
+        {
+            "name": "FF800 同進照片磚",
+            "sub_path": "machine/FF800 同進照片磚.json"
         },
         {
             "name": "EDU 200",
@@ -577,6 +585,26 @@
         {
             "name": "0.45mm @FF800 同進 (1.0)",
             "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
+        },
+        {
+            "name": "0.35mm @FF800 同進照片磚 (0.6)",
+            "sub_path": "process/0.35mm @FF800 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.25mm @FF800 同進照片磚 (0.4)",
+            "sub_path": "process/0.25mm @FF800 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.45mm @FF800 同進照片磚 (1.0)",
+            "sub_path": "process/0.45mm @FF800 同進照片磚 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD300 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD300 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD300 同進照片磚 (0.6).json"
         },
         {
             "name": "0.3mm @EDU 200 (0.6)",
@@ -1149,6 +1177,26 @@
         {
             "name": "FF800 同進 1.0 nozzle",
             "sub_path": "machine/FF800 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FF800 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FF800 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "FD300 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD300 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD300 同進照片磚 0.6 nozzle.json"
         },
         {
             "name": "EDU 200 0.6 nozzle",

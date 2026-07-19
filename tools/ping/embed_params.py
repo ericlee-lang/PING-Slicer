@@ -588,9 +588,11 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     for name in PHOTOTILE_PROCS:
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
         normalize_fast_speed(d, preserve_sparse_acceleration=True)
+        # 照片磚特調稀疏填充加速度＝10000（verify 期望；0715 主線下修 5000 不套照片磚）。
+        # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
+        d["sparse_infill_acceleration"] = "10000"
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
-        # ⚠ 正式製程統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000，
-        # 稀疏填充加速度也保留特調範本值；正式線 2026-07-15 保守值不得蓋進照片磚。
+        # ⚠ 正式製程統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})

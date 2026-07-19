@@ -55,6 +55,8 @@ let PingProductLine = 'fast';
 let PingSearchKeyword = '';
 
 function ProductLineOf(vendor, model) {
+	// 照片磚機獨立一類（Eric 2026-07-19 定：照片磚設為一類、含不同範圍的機器）
+	if (vendor == 'PING' && model.indexOf('照片磚') != -1) return 'phototile';
 	return vendor == 'PING' && PingClassicModels.has(model) ? 'classic' : 'fast';
 }
 
@@ -63,6 +65,7 @@ function ProductLineTabs(vendor) {
 	return '<div class="ProductLineTabs" role="tablist" aria-label="PING product line">' +
 		'<button type="button" class="ProductLineTab" data-line="fast" onclick="SetPingProductLine(\'fast\')">Fast</button>' +
 		'<button type="button" class="ProductLineTab" data-line="classic" onclick="SetPingProductLine(\'classic\')">Classic</button>' +
+		'<button type="button" class="ProductLineTab" data-line="phototile" onclick="SetPingProductLine(\'phototile\')">照片磚</button>' +
 		'</div>';
 }
 
