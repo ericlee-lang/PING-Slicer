@@ -171,6 +171,14 @@ for _nz in ("0.4", "0.6", "1.0"):
     FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["SupPLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
+def _dedup_semilist(s):
+    """分號清單去重（保序）。口徑合一（2026-07-18）後多口徑引用同映到合併支會重複——
+    default_materials 重複無意義，去重＝921921c8 手工清 2 項的 regen-durable 版。"""
+    seen, out = set(), []
+    for x in s.split(";"):
+        if x and x not in seen:
+            seen.add(x); out.append(x)
+    return ";".join(out)
 def rename_ff_filament_refs(d):
     """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）"""
     v = d.get("default_filament_profile")
@@ -178,7 +186,7 @@ def rename_ff_filament_refs(d):
         d["default_filament_profile"] = [FF_FIL_RENAME.get(x, x) for x in v]
     dm = d.get("default_materials")
     if isinstance(dm, str):
-        d["default_materials"] = ";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";"))
+        d["default_materials"] = _dedup_semilist(";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";")))
 # PING(2026-07-02)：範本收編的口徑變體——machine 檔在 ff_extra（無交付 config，Eric 已實機驗收），
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
@@ -307,6 +315,40 @@ def apply_fd300_prime_arc(model, mac):
         block = _fd300_arc_block([(144, None), (142, None)], z, e)
     mac["machine_start_gcode"] = head + "\n" + block
 
+# ★ 預擠點升溫（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料）：
+# header 只留熱床（M140/M190，前加 M117 Bed heating 提示），G28 歸位＋移動全程冷噴頭；
+# 移到預擠第一點（第一個 G0 F8000 接近 travel）後才 M109 升溫等到溫（M117 Nozzle heating），
+# 到溫後恆溫等 60 秒才預擠——每秒一則 M117 倒數（Eric UX 準則 2026-07-19：機器靜止時面板
+# 一定要有提示、顯示要即時、不留資訊空白；步驟可精簡、顯示不可跳格）。結尾 M117 清空提示。
+# 提示文字＝中文（2026-07-19 CLI 實切驗證通過：FD600 Pro 同進 0.4＋高流量 PLA，M117 中文完好、
+# 佔位符正常代入——filename_tpl 的非 ASCII 炸雷是「模板規則邊界」特有，純文字行不觸發）。
+# 引擎不會自動補溫：GCode.cpp _print_first_layer_extruder_temperatures 只檢查 custom gcode 內
+# 「有沒有」M104/M109（custom_gcode_sets_temperature）——M109 搬進預擠點仍在 start gcode 內，
+# 與搬移前走同一分支（只記狀態、不輸出）。post-pass 套所有 machine/*.json（見 main 4e），
+# 主迴圈＋ff_extra＋照片磚一體適用；冪等（marker＝M117 噴頭加熱中）。
+_HEAT_HEAD = re.compile(r"^M10[49] S\[nozzle_temperature_initial_layer\][^\n]*\n", re.M)
+def apply_deferred_heating(mac):
+    sg = mac.get("machine_start_gcode")
+    if not isinstance(sg, str) or "M117 噴頭加熱中" in sg:
+        return False
+    # FF 四色交付源 gcode 帶髒空白（行尾空白＋行首空白＋空行）→ 先逐行 strip 統一格式，
+    # 其餘機檔本就乾淨＝strip 零變化；不 strip 則行首錨定（^M109/^G0）比對不到。
+    sg = "\n".join(l.strip() for l in sg.split("\n") if l.strip())
+    m109 = re.search(r"^M109 S\[nozzle_temperature_initial_layer\][^\n]*$", sg, re.M)
+    if not m109 or not re.search(r"^G0 F8000 ", sg, re.M):
+        return False
+    m109_line = m109.group(0)
+    sg = _HEAT_HEAD.sub("", sg)                                      # header 去 M104/M109
+    sg = sg.replace("\nM140 S[", "\nM117 熱床加熱中\nM140 S[", 1)    # 熱床等待提示
+    heat = ["M117 噴頭加熱中", m109_line]
+    for s in range(60, 0, -1):                                       # 到溫後 60 秒恆溫，每秒倒數
+        heat += ["M117 恆溫等待 %d 秒" % s, "G4 P1000"]
+    heat.append("M117 預擠中")
+    trav = re.search(r"^G0 F8000 [^\n]*$", sg, re.M)                 # 預擠第一點的接近 travel
+    sg = sg[:trav.end()] + "\n" + "\n".join(heat) + sg[trav.end():]
+    mac["machine_start_gcode"] = sg.rstrip("\n") + "\nM117"          # 收尾清空面板提示
+    return True
+
 def tier_of(base):
     # 300 級＝加速度3000＋一般流量（小機單/雙噴頭）；450+＝1500＋高流量（大機標配高流量噴頭）
     # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
@@ -374,7 +416,8 @@ def normalize_support_geometry(proc, nozzle):
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
 #   外牆 60（統一，含單料/同進/四色）；內牆 min(現值,80)（只降不升——單料/同進內 60 不升）；
-#   填充 150；填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
+#   填充 100（2026-07-19 Eric 裁 150→100 全機型，新規蓋舊規）；
+#   填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
 #   首層速度 initial_layer_speed 不動；solid/top/gap 不在規格 → 交回源檔（順帶對齊 Cura V2.1）。
 # ⚠ 此規（2026-07-03）取代舊 HF_SPEED「速度＝口徑×流量上限、75/100/150 暫定」的 2026-06-11 裁定
 #   （新規蓋舊規：牆慢統一 60，不再逐口徑寫死高流量速度）。
@@ -389,7 +432,7 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
         cur_inner = 80.0
     proc["outer_wall_speed"] = "60"
     proc["inner_wall_speed"] = "%g" % min(cur_inner, 80.0)
-    proc["sparse_infill_speed"] = "150"
+    proc["sparse_infill_speed"] = "100"
     if not preserve_sparse_acceleration:
         proc["sparse_infill_acceleration"] = "5000"
     return proc
@@ -485,7 +528,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
-        normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
+        normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/100）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
         normalize_unified_values(d)  # 主線統一值（2026-07-15 最新裁定）
         m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
@@ -528,6 +571,9 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     for name in PHOTOTILE_PROCS:
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
         normalize_fast_speed(d, preserve_sparse_acceleration=True)
+        # 照片磚特調稀疏填充加速度＝10000（verify 期望；0715 主線下修 5000 不套照片磚）。
+        # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
+        d["sparse_infill_acceleration"] = "10000"
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
         # ⚠ 主線統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000，
         # 稀疏填充加速度也保留特調範本值；主線 2026-07-15 保守值不得蓋進照片磚。
@@ -618,7 +664,7 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
-                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel5000；首層不動）
+                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc)  # 主線統一值（2026-07-15 最新裁定）
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
@@ -642,7 +688,8 @@ def main(src_base):
                   "nozzle_diameter":";".join(mm_nzs),"machine_tech":"FFF","family":"",
                   "bed_model":bed_for(model),
                   "bed_texture":BED_OVERRIDE.get(model,{}).get("bed_texture",BED_TEXTURE),"hotend_model":"",
-                  "default_materials": (";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1]))
+                  # FF：口徑合一後各口徑同指合併支 → 去重（921921c8 手工清 2 項的 regen-durable 版）
+                  "default_materials": (_dedup_semilist(";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1])))
                                         if kind=="ff" else DEFAULT_MATERIALS_FD)}
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
             mm_list.append({"name":model,"sub_path":"machine/%s.json"%model})
@@ -921,6 +968,16 @@ def main(src_base):
         for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
             os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
+
+    # 4e. ★ 預擠點升溫 post-pass（2026-07-19 Eric 裁定，見 apply_deferred_heating）——
+    # 收在所有 emit 路徑之後、套全部 machine/*.json（machine_model／fdm 基底無 start gcode 自然跳過）
+    n_heat = 0
+    for f in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
+        d = json.load(io.open(f, encoding="utf-8"))
+        if apply_deferred_heating(d):
+            jdump(f, d); n_heat += 1
+    print("預擠點升溫 post-pass：%d 機檔已套（header 去 M104/M109；預擠點 M109＋60s 每秒倒數）" % n_heat)
+
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
 

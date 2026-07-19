@@ -69,6 +69,12 @@
     "pressure_advance": [
         "0.2"
     ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
     "filament_retraction_speed": [
         "30"
     ],
@@ -90,11 +96,5 @@
     "filament_retract_before_wipe": [
         "100%"
     ],
-    "alias": "PING PETG - 高流量噴頭",
-    "slow_down_for_layer_cooling": [
-        "1"
-    ],
-    "slow_down_layer_time": [
-        "10"
-    ]
+    "alias": "PING PETG - 高流量噴頭"
 }
