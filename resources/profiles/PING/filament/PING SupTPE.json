@@ -52,9 +52,6 @@
     "filament_minimal_purge_on_wipe_tower": [
         "30"
     ],
-    "filament_start_gcode": [
-        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
-    ],
     "filament_is_support": [
         "1"
     ],
@@ -63,5 +60,8 @@
     ],
     "default_filament_colors": [
         "#D3D3D3"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
     ]
 }

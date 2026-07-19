@@ -48,6 +48,12 @@
     "filament_start_gcode": [
         "; Classic Marlin filament - machine retraction only\n"
     ],
+    "slow_down_for_layer_cooling": [
+        "1"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
     "alias": "PING PLA - EDU Classic",
     "enable_pressure_advance": [
         "0"
@@ -66,11 +72,5 @@
     ],
     "eng_plate_temp_initial_layer": [
         "0"
-    ],
-    "slow_down_for_layer_cooling": [
-        "1"
-    ],
-    "slow_down_layer_time": [
-        "10"
     ]
 }

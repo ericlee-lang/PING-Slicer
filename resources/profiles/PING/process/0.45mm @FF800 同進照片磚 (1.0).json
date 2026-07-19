@@ -193,7 +193,7 @@
     "sparse_infill_filament": "1",
     "sparse_infill_line_width": "1",
     "sparse_infill_pattern": "gyroid",
-    "sparse_infill_speed": "150",
+    "sparse_infill_speed": "100",
     "spiral_mode": "0",
     "spiral_mode_max_xy_smoothing": "200%",
     "spiral_mode_smooth": "0",
@@ -291,7 +291,7 @@
     "name": "0.45mm @FF800 同進照片磚 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP113",
+    "setting_id": "PINGP154",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 同進照片磚 1.0 nozzle"

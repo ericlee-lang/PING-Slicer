@@ -154,8 +154,9 @@ HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed
 # 2026-07-12 Eric 補裁：SupPLA 版噴溫同 210（高流量噴頭組整組統一 210/210，不套 SUP=220 慣例）
 HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
              HFN_SUP: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"]},
-             # PETG 高流量（2026-07-18 Eric）：235/床75 承 PETG-235 基底、PA 0.2 由 HFN_OVERRIDES 帶
-             HFN_PETG: {}}
+             # PETG 高流量（2026-07-19 Eric 二裁）：噴溫 230（原 235）；床 75 承 PING PETG 基底、
+             # PA 0.2 由 HFN_OVERRIDES 帶。基底由 PETG-235 改 PING PETG（兩支值全等；235 支同日刪除）
+             HFN_PETG: {"nozzle_temperature_initial_layer": ["230"], "nozzle_temperature": ["230"]}}
 # FD450/600/800 Pro 出廠＝高流量噴頭 → 預設線材改高流量支（FD300 系/FP300 不動）
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
@@ -171,6 +172,14 @@ for _nz in ("0.4", "0.6", "1.0"):
     FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["SupPLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
+def _dedup_semilist(s):
+    """分號清單去重（保序）。口徑合一（2026-07-18）後多口徑引用同映到合併支會重複——
+    default_materials 重複無意義，去重＝921921c8 手工清 2 項的 regen-durable 版。"""
+    seen, out = set(), []
+    for x in s.split(";"):
+        if x and x not in seen:
+            seen.add(x); out.append(x)
+    return ";".join(out)
 def rename_ff_filament_refs(d):
     """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）"""
     v = d.get("default_filament_profile")
@@ -178,7 +187,7 @@ def rename_ff_filament_refs(d):
         d["default_filament_profile"] = [FF_FIL_RENAME.get(x, x) for x in v]
     dm = d.get("default_materials")
     if isinstance(dm, str):
-        d["default_materials"] = ";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";"))
+        d["default_materials"] = _dedup_semilist(";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";")))
 # PING(2026-07-02)：範本收編的口徑變體——machine 檔在 ff_extra（無交付 config，Eric 已實機驗收），
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
@@ -186,7 +195,7 @@ def def_fil_ff(nz):
     # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
     return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
-                        "PING PolyABS;PING SupABS;PING PETG - 235;PING PETG;PING ABS;PING PA-CF;"
+                        "PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
@@ -349,6 +358,37 @@ def apply_fd300_prime_arc(model, mac):
         block = _fd300_arc_block([(144, None), (142, None)], z, e)
     mac["machine_start_gcode"] = head + "\n" + block
 
+# ★ 預擠點升溫（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料；主線移植）：
+# header 只留熱床（M140/M190，前加 M117 熱床加熱中提示），G28 歸位＋移動全程冷噴頭；
+# 移到預擠第一點（第一個接近 travel G0 F8000）後才 M109 升溫等到溫（M117 噴頭加熱中），
+# 到溫後恆溫等 60 秒才預擠——每秒一則 M117 倒數（Eric UX 準則 FBK-21：顯示即時、不留資訊空白）。
+# 結尾 M117 清提示。中文 M117 已於主線 CLI 實切驗證（PlaceholderParser 純文字行不炸）。
+# 引擎不自動補溫（custom_gcode_sets_temperature 只查 custom gcode 內有無 M104/M109）。
+# post-pass 套 machine/*.json（見 main 4e）；冪等（marker＝M117 噴頭加熱中）。
+# ⚠ Classic 前代 8 機（DUAL/EDU/PING 2xx/3xx，Marlin）不套——隔離原則，Eric 未裁前保守排除。
+_HEAT_HEAD = re.compile(r"^M10[49] S\[nozzle_temperature_initial_layer\][^\n]*\n", re.M)
+_CLASSIC_PREFIX = ("DUAL ", "EDU ", "PING 2", "PING 3")
+def apply_deferred_heating(mac):
+    sg = mac.get("machine_start_gcode")
+    if not isinstance(sg, str) or "M117 噴頭加熱中" in sg:
+        return False
+    # 交付源 gcode 髒空白（FF 四色：行尾/行首空白＋空行）→ 先逐行 strip 統一（乾淨檔＝零變化）
+    sg = "\n".join(l.strip() for l in sg.split("\n") if l.strip())
+    m109 = re.search(r"^M109 S\[nozzle_temperature_initial_layer\][^\n]*$", sg, re.M)
+    if not m109 or not re.search(r"^G0 F8000 ", sg, re.M):
+        return False
+    m109_line = m109.group(0)
+    sg = _HEAT_HEAD.sub("", sg)                                      # header 去 M104/M109
+    sg = sg.replace("\nM140 S[", "\nM117 熱床加熱中\nM140 S[", 1)    # 熱床等待提示
+    heat = ["M117 噴頭加熱中", m109_line]
+    for s in range(60, 0, -1):                                       # 到溫後 60 秒恆溫，每秒倒數
+        heat += ["M117 恆溫等待 %d 秒" % s, "G4 P1000"]
+    heat.append("M117 預擠中")
+    trav = re.search(r"^G0 F8000 [^\n]*$", sg, re.M)                 # 預擠第一點的接近 travel
+    sg = sg[:trav.end()] + "\n" + "\n".join(heat) + sg[trav.end():]
+    mac["machine_start_gcode"] = sg.rstrip("\n") + "\nM117"          # 收尾清空面板提示
+    return True
+
 def tier_of(base):
     # 300 級＝加速度3000＋一般流量（小機單/雙噴頭）；450+＝1500＋高流量（大機標配高流量噴頭）
     # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
@@ -416,7 +456,8 @@ def normalize_support_geometry(proc, nozzle):
 # Eric 定「公司不在意快、在意穩定品質」→ 牆（外/內）降速求品質、吞吐靠填充高速＋高加速。
 # 全 Fast 系列（FD/FF/FP）標準製程統一：
 #   外牆 60（統一，含單料/同進/四色）；內牆 min(現值,80)（只降不升——單料/同進內 60 不升）；
-#   填充 150；填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
+#   填充 100（2026-07-19 Eric 裁 150→100 全機型，新規蓋舊規）；
+#   填充加速度 sparse_infill_acceleration=5000（2026-07-15 由 10000 下修，避免錯位／失步）。
 #   首層速度 initial_layer_speed 不動；solid/top/gap 不在規格 → 交回源檔（順帶對齊 Cura V2.1）。
 # ⚠ 此規（2026-07-03）取代舊 HF_SPEED「速度＝口徑×流量上限、75/100/150 暫定」的 2026-06-11 裁定
 #   （新規蓋舊規：牆慢統一 60，不再逐口徑寫死高流量速度）。
@@ -431,7 +472,7 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
         cur_inner = 80.0
     proc["outer_wall_speed"] = "60"
     proc["inner_wall_speed"] = "%g" % min(cur_inner, 80.0)
-    proc["sparse_infill_speed"] = "150"
+    proc["sparse_infill_speed"] = "100"
     if not preserve_sparse_acceleration:
         proc["sparse_infill_acceleration"] = "5000"
     return proc
@@ -468,6 +509,7 @@ def parse_dir(src_base, dirname):
         rest = body[len(nozzle)+1:]
         # PETG 檔（單料頭/同進_PETG，2026-06-11 補 48 檔）：與 PLA 版差異 100% 在 filament 層
         # （235/床75/風扇50/密度1.27，已驗證製程 key 零差異）→ 不出製程，只建 PING PETG - 235 線材
+        # （235 支已於 2026-07-19 Eric 裁刪：留 PING PETG＋PING PETG - 高流量噴頭(230)）
         if "PETG" in rest: continue
         if   rest in ("PLA+SUP","PLA+PLA","ABS+SUP","ABS+ABS"): mode = rest  # 雙料 4 組合各自成製程
         elif rest.startswith("單料頭"):   mode = "單料頭"
@@ -542,7 +584,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
-        normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/150）
+        normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/100）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
         normalize_unified_values(d)  # 正式製程統一值（2026-07-15 最新裁定）
         compatible = d.get("compatible_printers", []) or []
@@ -845,7 +887,7 @@ def main(src_base):
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
                     normalize_support_mode(proc, model)
-                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填150/accel5000；首層不動）
+                    normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc)  # 正式製程統一值（2026-07-15 最新裁定）
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
@@ -869,7 +911,8 @@ def main(src_base):
                   "nozzle_diameter":";".join(mm_nzs),"machine_tech":"FFF","family":"",
                   "bed_model":bed_for(model),
                   "bed_texture":BED_OVERRIDE.get(model,{}).get("bed_texture",BED_TEXTURE),"hotend_model":"",
-                  "default_materials": (";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1]))
+                  # FF：口徑合一後各口徑同指合併支 → 去重（921921c8 手工清 2 項的 regen-durable 版）
+                  "default_materials": (_dedup_semilist(";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1])))
                                         if kind=="ff" else DEFAULT_MATERIALS_FD)}
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
             mm_list.append({"name":model,"sub_path":"machine/%s.json"%model})
@@ -949,7 +992,7 @@ def main(src_base):
     # 不限機型；SET_RETRACTION 四欄行由基底帶入/4b-2 sweep 保證。
     for base_name, new_name, fid in ((("PING PLA - 220"),  HFN_PLA,  "PINGFILHFNPLA"),
                                      (("PING SupPLA"),     HFN_SUP,  "PINGFILHFNSUP"),
-                                     (("PING PETG - 235"), HFN_PETG, "PINGFILHFNPETG")):
+                                     (("PING PETG"),       HFN_PETG, "PINGFILHFNPETG")):
         bp = os.path.join(PINGDIR, "filament", "%s.json" % base_name)
         fd_ = json.load(io.open(bp, encoding="utf-8"))
         fd_.update(HFN_OVERRIDES)
@@ -1165,6 +1208,17 @@ def main(src_base):
         for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
             os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
+    # 4e. ★ 預擠點升溫 post-pass（2026-07-19 Eric 裁定；主線移植）——套全部 machine/*.json
+    # （machine_model／fdm 基底無 start gcode 自然跳過；Classic 前代 8 機守衛排除）
+    n_heat = n_classic = 0
+    for f in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
+        if os.path.basename(f).startswith(_CLASSIC_PREFIX):
+            n_classic += 1; continue
+        d = json.load(io.open(f, encoding="utf-8"))
+        if apply_deferred_heating(d):
+            jdump(f, d); n_heat += 1
+    print("預擠點升溫 post-pass：%d 機檔已套；Classic 守衛跳過 %d 檔" % (n_heat, n_classic))
+
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
 
