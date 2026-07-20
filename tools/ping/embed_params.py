@@ -389,11 +389,21 @@ def proc_overrides(kind, base, is_single_mode):
 # ③空駛加速度 5000（20000 會造成馬達錯位／失步；空駛速度 250 不變）
 # 全 PING 製程套（含棧板雙生＝從已正規化的 proc 派生自然繼承）；DL1016 不在 repo 自然跳過；
 # 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。
-def normalize_unified_values(proc):
+def normalize_unified_values(proc, ff=False):
     proc["set_other_flow_ratios"] = "1"
     proc["first_layer_flow_ratio"] = "1.1"
     proc["seam_position"] = "aligned"
     proc["travel_acceleration"] = "5000"
+    # ④ jerk 對齊機器上限 7（Eric 2026-07-20 裁「jerk 改 7」）：機器檔動力學改 Klipper 實值後
+    # FD/FP 上限 7、製程 40 → 每切必跳「抖動設定已超過…自動限制」警告；改 7 輸出不變
+    #（本就被夾到 7，Klipper 又忽略 M205）＝純清警告。FF 上限 56＞40 不跳警告、維持 40
+    #（改 7 反而真降 FF 轉角速）→ ff=True 跳過。Classic 前代不走本函式（Marlin 隔離，
+    # jerk "0"=停用不得動）；照片磚不走本函式、FD300 照片磚由範本自帶 7。
+    if not ff:
+        for k in ("default_jerk", "infill_jerk", "initial_layer_jerk", "inner_wall_jerk",
+                  "outer_wall_jerk", "top_surface_jerk", "travel_jerk"):
+            if k in proc:
+                proc[k] = "7"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
@@ -535,7 +545,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/100）
         normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
-        normalize_unified_values(d)  # 主線統一值（2026-07-15 最新裁定）
+        normalize_unified_values(d, ff=True)  # 主線統一值；FF 範本 jerk 維持 40（上限 56 不警告）
         m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
         if m_nz:
             normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×8（2026-07-17，FF 範本同套）
@@ -671,7 +681,7 @@ def main(src_base):
                         proc.update(combo_overrides(cb, lh, nz))
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
-                    normalize_unified_values(proc)  # 主線統一值（2026-07-15 最新裁定）
+                    normalize_unified_values(proc, ff=(kind == "ff"))  # 主線統一值；FF 四色 jerk 維持 40
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
                     normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×8（2026-07-17）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",

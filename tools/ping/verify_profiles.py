@@ -93,6 +93,8 @@ for name, (kind, d) in presets.items():
                 "travel_acceleration": "5000",
                 "seam_position": "aligned",
             })
+            # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
+            expected["default_jerk"] = "40" if "@FF" in name else "7"
             for key, value in expected.items():
                 if d.get(key) != value:
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
