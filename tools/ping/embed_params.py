@@ -316,7 +316,10 @@ def apply_fd300_prime_arc(model, mac):
         block = _fd300_arc_block([(144, None), (142, None)], z, e)
     mac["machine_start_gcode"] = head + "\n" + block
 
-# ★ 預擠點升溫（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料）：
+# ★ 預擠點升溫——【2026-07-20 Eric 裁回退・停用】實測失敗：冷噴頭先移到預擠第一點才升溫，
+# 升溫過程殘料滲出、在第一點原地積一坨（前面沒有清噴頭步驟）；需配套「清噴頭」等其他機制
+# 驗證通過才重新納入。函式留存備查（main 4e 呼叫已停用），首發完整版＝commit 04725e02。
+# —— 以下為原設計說明（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料）：
 # header 只留熱床（M140/M190，前加 M117 Bed heating 提示），G28 歸位＋移動全程冷噴頭；
 # 移到預擠第一點（第一個 G0 F8000 接近 travel）後才 M109 升溫等到溫（M117 Nozzle heating），
 # 到溫後恆溫等 60 秒才預擠——每秒一則 M117 倒數（Eric UX 準則 2026-07-19：機器靜止時面板
@@ -971,14 +974,9 @@ def main(src_base):
             os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
 
-    # 4e. ★ 預擠點升溫 post-pass（2026-07-19 Eric 裁定，見 apply_deferred_heating）——
-    # 收在所有 emit 路徑之後、套全部 machine/*.json（machine_model／fdm 基底無 start gcode 自然跳過）
-    n_heat = 0
-    for f in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
-        d = json.load(io.open(f, encoding="utf-8"))
-        if apply_deferred_heating(d):
-            jdump(f, d); n_heat += 1
-    print("預擠點升溫 post-pass：%d 機檔已套（header 去 M104/M109；預擠點 M109＋60s 每秒倒數）" % n_heat)
+    # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
+    # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
+    # 重新啟用前需「清噴頭」等機制配套驗證通過（見 apply_deferred_heating 註記）。
 
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
