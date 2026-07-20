@@ -86,7 +86,8 @@ for name, (kind, d) in presets.items():
             expected = ({
                 "sparse_infill_acceleration": "10000",
                 "travel_acceleration": "3000",
-                "seam_position": "back",
+                # 2026-07-20 Eric 裁（照片磚線 d09ab243）：接縫預設 背面→對齊（V 溝配套）
+                "seam_position": "aligned",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
