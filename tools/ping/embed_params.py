@@ -358,7 +358,10 @@ def apply_fd300_prime_arc(model, mac):
         block = _fd300_arc_block([(144, None), (142, None)], z, e)
     mac["machine_start_gcode"] = head + "\n" + block
 
-# ★ 預擠點升溫（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料；主線移植）：
+# ★ 預擠點升溫——【2026-07-20 Eric 裁回退・停用】實測失敗：冷噴頭先移到預擠第一點才升溫，
+# 升溫過程殘料滲出、在第一點原地積一坨（前面沒有清噴頭步驟）；需配套「清噴頭」等其他機制
+# 驗證通過才重新納入。函式與 Classic 守衛留存備查（main 4e 呼叫已停用），首發＝主線 04725e02。
+# —— 以下為原設計說明（2026-07-19 Eric 裁定：開印前不預熱噴頭——預熱會滴料還要清料；主線移植）：
 # header 只留熱床（M140/M190，前加 M117 熱床加熱中提示），G28 歸位＋移動全程冷噴頭；
 # 移到預擠第一點（第一個接近 travel G0 F8000）後才 M109 升溫等到溫（M117 噴頭加熱中），
 # 到溫後恆溫等 60 秒才預擠——每秒一則 M117 倒數（Eric UX 準則 FBK-21：顯示即時、不留資訊空白）。
@@ -923,14 +926,6 @@ def main(src_base):
         gm, gp, ff_fil, ff_models = emit_ff_extra(mm_list, mac_list, proc_list, gm, gp)
     else:
         ff_fil, ff_models = [], []
-    # 4a-3. 照片磚範本併入（需 FF800/FD300 家族＝通用版；客戶版 PING_ONLY 跳過）。
-    #       同樣須在 4b 之前跑，讓高流量 PLA 的 compatible 掛得到照片磚機。
-    #       範本資料夾不存在（如無照片磚的 release 分支）＝自動跳過，同一支產生器兩線通用。
-    if not PING_ONLY and os.path.isdir(PHOTOTILE):
-        gm, gp, pt_models = emit_phototile(mm_list, mac_list, proc_list, gm, gp)
-    else:
-        pt_models = []
-
     # 4a-3b. V3.6 Classic 前代機：和 Fast 同 bundle，但用獨立 machine/process/filament，
     # 避免 Klipper 指令與高加速度滲入 Marlin 舊板。
     if not PING_ONLY:
@@ -938,13 +933,25 @@ def main(src_base):
     else:
         classic_fil = []
 
-    # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 111＋照片磚 5 支 id 零位移）
+    # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 id 零位移）
     for tw in pallet_twins:
         tw["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % tw["name"]), tw)
         proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
     if pallet_twins:
         print("  棧板雙生製程：%d 支（PINGP%03d 起）" % (len(pallet_twins), gp - len(pallet_twins)))
+
+    # 4a-5. 照片磚範本併入（需 FF800/FD300 家族＝通用版；客戶版 PING_ONLY 跳過）。
+    #       須在 4b 之前跑，讓高流量 PLA 的 compatible 掛得到照片磚機。
+    #       範本資料夾不存在（如無照片磚的 release 分支）＝自動跳過，同一支產生器兩線通用。
+    #       ⚠ 位置＝id 佈局承重牆（2026-07-20 修正）：8c487d82 setting_id 治理把照片磚
+    #       重掛「全庫最尾」（機 PINGM074-078＝接 Classic 073 之後、製程 PINGP152-156＝
+    #       接棧板雙生 151 之後），故照片磚必須在 Classic 與棧板雙生「之後」emit，
+    #       regen 才零位移；先前排在 Classic 前＝每次 regen 都撞號（r6 事故同源）。
+    if not PING_ONLY and os.path.isdir(PHOTOTILE):
+        gm, gp, pt_models = emit_phototile(mm_list, mac_list, proc_list, gm, gp)
+    else:
+        pt_models = []
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
@@ -1208,16 +1215,9 @@ def main(src_base):
         for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
             os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
-    # 4e. ★ 預擠點升溫 post-pass（2026-07-19 Eric 裁定；主線移植）——套全部 machine/*.json
-    # （machine_model／fdm 基底無 start gcode 自然跳過；Classic 前代 8 機守衛排除）
-    n_heat = n_classic = 0
-    for f in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*.json"))):
-        if os.path.basename(f).startswith(_CLASSIC_PREFIX):
-            n_classic += 1; continue
-        d = json.load(io.open(f, encoding="utf-8"))
-        if apply_deferred_heating(d):
-            jdump(f, d); n_heat += 1
-    print("預擠點升溫 post-pass：%d 機檔已套；Classic 守衛跳過 %d 檔" % (n_heat, n_classic))
+    # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
+    # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
+    # 重新啟用前需「清噴頭」等機制配套驗證通過（見 apply_deferred_heating 註記）。
 
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
