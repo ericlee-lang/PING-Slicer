@@ -66,11 +66,10 @@ machines = {n for n, (k, _) in presets.items() if k == "machine"}
 
 
 def expected_support_type(printer_name):
-    if printer_name.startswith("FD300"):
-        return "tree(auto)"
-    if printer_name.startswith("FF600 同進"):
-        return "tree(auto)"
-    if printer_name.startswith("FF600"):
+    # 0722 七裁後全池預設普通(自動)；照片磚特調維持 tree(auto) 不查。保留函式供 wizard 一致性檢查
+    if "照片磚" in printer_name:
+        return None
+    if printer_name.startswith(("FD300", "FF600")):
         return "normal(auto)"
     return None
 
@@ -155,10 +154,23 @@ for name, (kind, d) in presets.items():
             m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
             if m_nz and "照片磚" not in name:
                 nz_v = float(m_nz.group(1))
+                # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8）
                 for key, value in (("tree_support_branch_diameter", "%g" % (nz_v * 10)),
-                                   ("support_base_pattern_spacing", "%g" % (nz_v * 8))):
+                                   ("support_base_pattern_spacing", "%g" % (nz_v * 9))):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）
+                expected_recipe = [("support_type", "normal(auto)"),
+                                   ("independent_support_layer_height", "0"),
+                                   ("support_style", "snug"),
+                                   ("support_base_pattern", "rectilinear")]
+                # Classic 前代（@DUAL/@PING/@EDU）＝Fast 母檔複製：雙料複製自 PLA+SUP＝易拆幾何 0.45 正確，XY 不以一般律查
+                is_classic = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
+                if "+SUP" not in name and "3in1" not in name and not is_classic:
+                    expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
+                for key, value in expected_recipe:
+                    if d.get(key) != value:
+                        err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
             if "照片磚" not in name and d.get("prime_tower_width") != "25":
                 err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
             support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
@@ -201,6 +213,27 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            # 線材回抽統一（Eric 2026-07-23 三裁＋兩補裁）；Classic 前代豁免（Marlin 隔離）
+            if name.startswith("PING") and "Classic" not in name:
+                def _v(k):
+                    x = d.get(k)
+                    return x[0] if isinstance(x, list) and x else x
+                for k, want in (("filament_retraction_minimum_travel", "3"), ("filament_wipe", "1"),
+                                ("filament_wipe_distance", "5"), ("filament_retract_before_wipe", "100%")):
+                    if _v(k) != want:
+                        err(f"[線材回抽四項 0723] {name}: {k}={_v(k)!r}, expected {want!r}")
+                is_hf = ("高流量" in name) or ("(3in1)" in name)
+                if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
+                    err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
+                if "TPE" in name:
+                    if _v("filament_retraction_length") != "3":
+                        err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
+                elif is_hf:
+                    if _v("filament_retraction_length") != "2":
+                        err(f"[高流量家族長度 2（0723 補裁含 3in1）] {name}: {_v('filament_retraction_length')!r}")
+                else:
+                    if _v("filament_retraction_length") != "nil":
+                        err(f"[基礎支長度應收斂繼承 0723] {name}: {_v('filament_retraction_length')!r}")
 
 # Wizard order is driven by machine_model_list. Verify each family independently so a regen
 # cannot silently put the hardware-swap single-head card back between dual-head modes.

@@ -63,5 +63,20 @@
     ],
     "filament_start_gcode": [
         "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
+    ],
+    "filament_retraction_minimum_travel": [
+        "3"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "5"
+    ],
+    "filament_retract_before_wipe": [
+        "100%"
+    ],
+    "filament_retract_restart_extra": [
+        "0.2"
     ]
 }
