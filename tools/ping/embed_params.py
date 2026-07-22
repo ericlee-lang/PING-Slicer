@@ -890,8 +890,12 @@ def main(src_base):
         fd["filament_retract_before_wipe"] = ["100%"]
         is_hf = ("高流量" in bn) or ("(3in1)" in bn)
         fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
-        if ("TPE" not in bn) and ("高流量" not in bn):
-            fd["filament_retraction_length"] = ["nil"]
+        if "TPE" in bn:
+            pass                                          # TPE/SupTPE 維持 3（0718 定稿）
+        elif "高流量" in bn:
+            fd["filament_retraction_length"] = ["2"]      # 高流量家族一律勾 2（0723 補裁：含四料高流量噴頭）
+        else:
+            fd["filament_retraction_length"] = ["nil"]    # 其餘收斂繼承機器 1.3（3in1 按字面維持繼承，同勾 2 待裁）
         if json.dumps(fd, sort_keys=True) != before:
             jdump(fp_path, fd); rt_touched += 1
     if rt_touched:
