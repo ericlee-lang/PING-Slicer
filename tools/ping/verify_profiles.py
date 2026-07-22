@@ -101,10 +101,20 @@ for name, (kind, d) in presets.items():
             m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
             if m_nz and "照片磚" not in name:
                 nz = float(m_nz.group(1))
+                # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8=12.5%）
                 for key, value in (("tree_support_branch_diameter", "%g" % (nz * 10)),
-                                   ("support_base_pattern_spacing", "%g" % (nz * 8))):
+                                   ("support_base_pattern_spacing", "%g" % (nz * 9))):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                # 普通支撐配方（Eric 2026-07-22 七裁）：一般支撐限定；易拆（+SUP/3in1）維持各自定稿
+                if "+SUP" not in name and "3in1" not in name:
+                    for key, value in (("support_type", "normal(auto)"),
+                                       ("independent_support_layer_height", "0"),
+                                       ("support_style", "snug"),
+                                       ("support_base_pattern", "rectilinear"),
+                                       ("support_object_xy_distance", "%g" % round(nz * 1.0, 2))):
+                        if d.get(key) != value:
+                            err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
             if d.get("prime_tower_width") != "25":
                 err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
     if kind == "filament":
