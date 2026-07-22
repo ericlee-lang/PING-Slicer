@@ -456,13 +456,27 @@ def normalize_support_interface(proc):
         proc["support_interface_spacing"] = "0.1"
     return proc
 
-# ★ 支撐幾何口徑連動（Eric 2026-07-17 裁）：樹狀支撐分支直徑＝口徑×10、
-# 主體圖案線距＝支撐線寬/支撐密度 12.5%＝口徑×8。分子用口徑名目值
-#（FF 微調線寬 0.41/0.62/1.02 不入分子，全庫統一 3.2/4.8/8）；全口徑含 0.2/0.25
-# 照公式（0.2→2/1.6、0.25→2.5/2）；照片磚維持獨立特調不套；Classic 由 Fast 複製自然繼承。
+# ★ 支撐幾何口徑連動（Eric 2026-07-17 裁；線距 2026-07-22 裁 ×9 新規蓋舊規）：
+# 樹狀支撐分支直徑＝口徑×10；主體圖案線距＝口徑×9（支撐密度 10%＝Cura 線全庫密度等效。
+# Orca 線距=線間淨間隙、密度=線寬/(線距+線寬) → ×9；7/17 舊規 ×8=12.5% 作廢）。
+# 分子用口徑名目值（FF 微調線寬不入分子，0.4→3.6/0.6→5.4/1.0→9）；全口徑含 0.2/0.25 照公式；
+# 照片磚維持獨立特調不套；Classic 由 Fast 複製自然繼承。
 def normalize_support_geometry(proc, nozzle):
     proc["tree_support_branch_diameter"] = "%g" % (float(nozzle) * 10)
-    proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 8)
+    proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 9)
+    return proc
+
+# ★ 普通支撐配方（Eric 2026-07-22 七裁＋同日二裁擴及易拆・主線 c7d22ac8/e0eace04 移植）：
+# 行為四項（類型/獨立層高/樣式/圖案）全支撐同套；幾何 XY 分流：一般=口徑×1、
+# 易拆維持 7/14 裁（PLA+SUP/3in1=口徑×0.75、ABS+SUP 黃金 0.5）。
+# 照片磚/DL1016 特調豁免（不經此函式）；Classic 製程由 Fast 複製自然繼承（支撐屬切片行為、韌體無關）。
+def normalize_support_recipe(proc, nozzle, easy_release=False):
+    proc["support_type"] = "normal(auto)"
+    proc["independent_support_layer_height"] = "0"
+    proc["support_style"] = "snug"
+    proc["support_base_pattern"] = "rectilinear"
+    if not easy_release:
+        proc["support_object_xy_distance"] = "%g" % round(float(nozzle) * 1.0, 2)
     return proc
 
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）
@@ -605,7 +619,8 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
             normalize_support_mode(d, compatible[0])
         m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
         if m_nz:
-            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×8（2026-07-17，FF 範本同套）
+            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×9（2026-07-17/0722，FF 範本同套）
+            normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過 XY
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -904,7 +919,8 @@ def main(src_base):
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 正式製程統一值；FF 四色 jerk 維持 40
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
-                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×8（2026-07-17）
+                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×9（2026-07-17/0722）
+                    normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
@@ -1080,6 +1096,37 @@ def main(src_base):
         sr_added += 1
     if sr_added:
         print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
+
+    # 4b-2b. ★ 線材回抽統一（Eric 2026-07-23 三裁＋兩補裁・主線 25650196/8515bafb/95bf5a7c 移植）：
+    # ①長度收斂繼承（未勾＝機器 1.3＝與韌體 config 同值等效）；特例：高流量家族（高流量噴頭/四料/3in1）=2、TPE=3
+    # ②額外回填長度＝噴頭流量形式律：高流量=0.6、一般流量=0.2（含 TPE）——換料/回抽後補缺料
+    # ③四項統一（PLA - 220 基準）：空駛臨界 3／回抽時擦拭 1／擦拭距離 5／擦拭前回抽 100%
+    # ⚠ Classic 前代線材豁免（Marlin 隔離原則：回抽行為值未經 Eric 裁、不動）；DL1016 不在名單自然豁免。
+    rt_touched = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        bn = os.path.basename(fp_path)[:-5]
+        if "Classic" in bn:
+            continue
+        before = json.dumps(fd, sort_keys=True)
+        fd["filament_retraction_minimum_travel"] = ["3"]
+        fd["filament_wipe"] = ["1"]
+        fd["filament_wipe_distance"] = ["5"]
+        fd["filament_retract_before_wipe"] = ["100%"]
+        is_hf = ("高流量" in bn) or ("(3in1)" in bn)
+        fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
+        if "TPE" in bn:
+            pass                                          # TPE/SupTPE 維持 3（0718 定稿）
+        elif is_hf:
+            fd["filament_retraction_length"] = ["2"]      # 高流量家族一律勾 2（0723 補裁；3in1 同勾）
+        else:
+            fd["filament_retraction_length"] = ["nil"]    # 其餘收斂繼承機器 1.3
+        if json.dumps(fd, sort_keys=True) != before:
+            jdump(fp_path, fd); rt_touched += 1
+    if rt_touched:
+        print("  線材回抽統一（長度收斂＋額外回填流量律＋四項；Classic 豁免）：%d 支" % rt_touched)
 
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭/Classic）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
