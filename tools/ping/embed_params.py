@@ -869,6 +869,34 @@ def main(src_base):
     if sr_added:
         print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
 
+    # 4b-2b. ★ 線材回抽統一（Eric 2026-07-23 三裁）：
+    # ①基礎支「長度」收斂繼承（未勾＝機器 1.3；SET_RETRACTION 佔位符仍會下機、與韌體 config 1.3 同值等效。
+    #   長度特例只留：高流量噴頭=2、TPE=3；四料高流量噴頭維持繼承不動——FF 機器值另議）
+    # ②「額外回填長度」＝噴頭流量形式律：高流量（名含 高流量 或 (3in1)@FF）=0.6、一般流量=0.2
+    #  （換料/長回抽後補缺料；「四料與雙料噴頭長度相同」＝Eric 判定待實測；3in1 屬 FF 高流量由律推定）
+    # ③四項統一（以 PLA - 220 為基準，TPE 一併套＝Eric「軟料尚未實測、與回抽3組合首驗一起看」）：
+    #   空駛距離臨界值 3／回抽時擦拭 1／擦拭距離 5／擦拭前的回抽量 100%
+    # 冪等 sweep；DL1016/Classic 不在主線 PING*.json 名單自然豁免。
+    rt_touched = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        bn = os.path.basename(fp_path)[:-5]
+        before = json.dumps(fd, sort_keys=True)
+        fd["filament_retraction_minimum_travel"] = ["3"]
+        fd["filament_wipe"] = ["1"]
+        fd["filament_wipe_distance"] = ["5"]
+        fd["filament_retract_before_wipe"] = ["100%"]
+        is_hf = ("高流量" in bn) or ("(3in1)" in bn)
+        fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
+        if ("TPE" not in bn) and ("高流量" not in bn):
+            fd["filament_retraction_length"] = ["nil"]
+        if json.dumps(fd, sort_keys=True) != before:
+            jdump(fp_path, fd); rt_touched += 1
+    if rt_touched:
+        print("  線材回抽統一（長度收斂＋額外回填流量律＋四項）：%d 支" % rt_touched)
+
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
     # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。

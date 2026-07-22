@@ -132,6 +132,24 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            # 線材回抽統一（Eric 2026-07-23 三裁）：四項＋額外回填流量律＋長度收斂
+            if name.startswith("PING"):
+                def _v(k):
+                    x = d.get(k)
+                    return x[0] if isinstance(x, list) and x else x
+                for k, want in (("filament_retraction_minimum_travel", "3"), ("filament_wipe", "1"),
+                                ("filament_wipe_distance", "5"), ("filament_retract_before_wipe", "100%")):
+                    if _v(k) != want:
+                        err(f"[線材回抽四項 0723] {name}: {k}={_v(k)!r}, expected {want!r}")
+                is_hf = ("高流量" in name) or ("(3in1)" in name)
+                if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
+                    err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
+                if "TPE" in name:
+                    if _v("filament_retraction_length") != "3":
+                        err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
+                elif "高流量" not in name:
+                    if _v("filament_retraction_length") != "nil":
+                        err(f"[基礎支長度應收斂繼承 0723] {name}: {_v('filament_retraction_length')!r}")
         # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
         # 缺 T 時切片器會自動補「槽位序號」T（第2槽→T1）→機上無此巨集→Klipper 只警告不停
         # →三路同步進料靜默失效（0717 同事 T1 事故機制）。T4/T012/T3 皆可（^T 開頭即過）。
