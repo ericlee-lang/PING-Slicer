@@ -200,7 +200,7 @@
     "staggered_inner_seams": "0",
     "standby_temperature_delta": "-20",
     "support_angle": "0",
-    "support_base_pattern_spacing": "2",
+    "support_base_pattern_spacing": "2.25",
     "support_bottom_interface_spacing": "0.5",
     "support_bottom_z_distance": "0",
     "support_critical_regions_only": "0",
