@@ -63,15 +63,6 @@
     "slow_down_layer_time": [
         "10"
     ],
-    "filament_retraction_speed": [
-        "30"
-    ],
-    "filament_deretraction_speed": [
-        "30"
-    ],
-    "filament_retract_restart_extra": [
-        "0.6"
-    ],
     "filament_retraction_minimum_travel": [
         "3"
     ],
@@ -83,6 +74,15 @@
     ],
     "filament_retract_before_wipe": [
         "100%"
+    ],
+    "filament_retract_restart_extra": [
+        "0.6"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
     ],
     "alias": "PING PETG - 高流量噴頭"
 }
