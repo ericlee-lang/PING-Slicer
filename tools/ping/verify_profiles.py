@@ -147,9 +147,9 @@ for name, (kind, d) in presets.items():
                 if "TPE" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
-                elif "高流量" in name:
+                elif ("高流量" in name) or ("(3in1)" in name):
                     if _v("filament_retraction_length") != "2":
-                        err(f"[高流量家族長度 2（0723 補裁）] {name}: {_v('filament_retraction_length')!r}")
+                        err(f"[高流量家族長度 2（0723 補裁含 3in1）] {name}: {_v('filament_retraction_length')!r}")
                 else:
                     if _v("filament_retraction_length") != "nil":
                         err(f"[基礎支長度應收斂繼承 0723] {name}: {_v('filament_retraction_length')!r}")
