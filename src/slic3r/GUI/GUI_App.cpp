@@ -373,9 +373,9 @@ public:
         wxBitmap logo_bmp = *bmp_cache.load_png(is_dark ? "splash_logo_dark" : "splash_logo", width, height);  // PING: branded PNG splash
         memDc.DrawBitmap(logo_bmp, 0, 0, true);
 
-        // PING: 版本號「V3.5」白字，置於圖片「Pro Slicer」右側（像素分析定位 x=22.4%、垂直中心52.7%）
+        // PING: 版本號（實際三碼）白字，置於圖片「Pro Slicer」右側（像素分析定位 x=22.4%、垂直中心52.7%）
         wxFont ver_font = m_constant_text.version_font;
-        ver_font.SetPixelSize(wxSize(0, int(height * 0.031)));  // 字級對齊圖中 "Pro Slicer"
+        ver_font.SetPixelSize(wxSize(0, int(height * 0.026)));  // 字級 3.1%→2.6%（Eric 2026-07-22 裁縮小；三碼變長字縮小恰平衡）
         memDc.SetFont(ver_font);
         memDc.SetTextForeground(wxColour(255, 255, 255));       // 白字
         wxSize ver_ext = memDc.GetTextExtent(m_constant_text.version);
@@ -503,8 +503,10 @@ public:
                 }
         };
 
-        // 版本字「V3.5」白字（位置同 Decorate：x=22.4%、垂直中心 52.7%）
-        blit_text(m_constant_text.version, m_constant_text.version_font, *wxWHITE,
+        // 版本字（實際三碼）白字（位置同 Decorate：x=22.4%、垂直中心 52.7%）；字級與 Decorate 同步 2.6%
+        wxFont layered_ver_font = m_constant_text.version_font;
+        layered_ver_font.SetPixelSize(wxSize(0, int(height * 0.026)));
+        blit_text(m_constant_text.version, layered_ver_font, *wxWHITE,
                   int(width * 0.224), int(height * 0.527), true);
         // 載入狀態字（灰，水平置中，y=頂端 m_action_line_y_position）
         blit_text(m_action_text, m_action_font, wxColour(144, 144, 144),
@@ -542,8 +544,9 @@ private:
             // title
             //title = wxGetApp().is_editor() ? SLIC3R_APP_FULL_NAME : GCODEVIEWER_APP_NAME;
 
-            // PING: 啟動畫面用品牌短版號「V3.5」（關於頁仍用 format_display_version() 顯示完整 3.5.x）
-            version = "V3.5";
+            // PING: 啟動畫面版號跟實際三碼（Eric 2026-07-22 裁，取代舊品牌短版號 V3.5）；
+            // 與關於頁同源 SoftFever_VERSION，日後升版免改此處
+            version = "V" + wxString::FromUTF8(GUI_App::format_display_version());
 
             // credits infornation
             credits = "";
