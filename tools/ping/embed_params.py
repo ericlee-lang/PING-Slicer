@@ -434,16 +434,16 @@ def normalize_support_geometry(proc, nozzle):
 #   介面圖案交錯直線維持（V3.0 源值不動）、支撐/模型 XY＝口徑×1
 #  （Cura 雙值制 XY=×1.5/近懸空最小XY=×1；Orca 單鍵取最小值＝小唇緣下支撐塞得進去，
 #   Benchy 煙囪唇緣 0.9 被修剪、0.6 可長回實證）。
-# 易拆（+SUP/3in1）全跳過：幾何維持 7/14 裁（PLA+SUP=口徑×0.75、ABS+SUP 黃金 0.5），
-# 行為五項是否同套待 Eric 另裁；照片磚/DL1016 特調豁免（不經此函式）。
+# 行為四項（類型/獨立層高/樣式/圖案）**全支撐同套**（Eric 2026-07-22 二裁「所有支撐都套這組」）；
+# 幾何 XY 仍分流：一般=口徑×1、易拆維持 7/14 裁（PLA+SUP/3in1=口徑×0.75、ABS+SUP 黃金 0.5）。
+# 照片磚/DL1016 特調豁免（不經此函式）。
 def normalize_support_recipe(proc, nozzle, easy_release=False):
-    if easy_release:
-        return proc
     proc["support_type"] = "normal(auto)"
     proc["independent_support_layer_height"] = "0"
     proc["support_style"] = "snug"
     proc["support_base_pattern"] = "rectilinear"
-    proc["support_object_xy_distance"] = "%g" % round(float(nozzle) * 1.0, 2)
+    if not easy_release:
+        proc["support_object_xy_distance"] = "%g" % round(float(nozzle) * 1.0, 2)
     return proc
 
 # ★ 牆速/填充正規化（2026-07-05，吃參數端規格 _切片規則同步_來自pingslicer_牆速填充_20260703.md）

@@ -106,15 +106,17 @@ for name, (kind, d) in presets.items():
                                    ("support_base_pattern_spacing", "%g" % (nz * 9))):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
-                # 普通支撐配方（Eric 2026-07-22 七裁）：一般支撐限定；易拆（+SUP/3in1）維持各自定稿
+                # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）：
+                # 類型/獨立層高/樣式/圖案＝全支撐；XY＝一般口徑×1（易拆維持 7/14 各自定稿不查）
+                expected_recipe = [("support_type", "normal(auto)"),
+                                   ("independent_support_layer_height", "0"),
+                                   ("support_style", "snug"),
+                                   ("support_base_pattern", "rectilinear")]
                 if "+SUP" not in name and "3in1" not in name:
-                    for key, value in (("support_type", "normal(auto)"),
-                                       ("independent_support_layer_height", "0"),
-                                       ("support_style", "snug"),
-                                       ("support_base_pattern", "rectilinear"),
-                                       ("support_object_xy_distance", "%g" % round(nz * 1.0, 2))):
-                        if d.get(key) != value:
-                            err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                    expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 1.0, 2)))
+                for key, value in expected_recipe:
+                    if d.get(key) != value:
+                        err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
             if d.get("prime_tower_width") != "25":
                 err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
     if kind == "filament":
