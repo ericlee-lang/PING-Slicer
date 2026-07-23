@@ -3564,6 +3564,21 @@ DynamicConfig PrintStatistics::config() const
         if (w >= 1000.) snprintf(buf, sizeof buf, "%.1fkg", w / 1000.);
         else            snprintf(buf, sizeof buf, "%dg", (int) std::lround(w));
         config.set_key_value("total_weight_str", new ConfigOptionString(buf));
+        // PING(2026-07-23 Eric)：報價/排程用檔名佔位符——
+        //   print_time_half_h 時間以 0.5H 為基準無條件進位：3h22m→3.5H、3h40m→4H、50m→1H（下限 0.5H）
+        //   total_weight_g    重量一律整數克無條件進位：144.29→145g（≥1kg 不轉 kg）
+        {
+            double hours = td * 24.0 + th + tm / 60.0;
+            double half  = std::ceil(hours * 2.0) / 2.0;
+            if (half < 0.5) half = 0.5;
+            if (std::fabs(half - std::round(half)) < 1e-9)
+                snprintf(buf, sizeof buf, "%dH", (int) std::lround(half));
+            else
+                snprintf(buf, sizeof buf, "%.1fH", half);
+            config.set_key_value("print_time_half_h", new ConfigOptionString(buf));
+            snprintf(buf, sizeof buf, "%dg", (int) std::ceil(w));
+            config.set_key_value("total_weight_g", new ConfigOptionString(buf));
+        }
     }
     return config;
 }
@@ -3575,6 +3590,7 @@ DynamicConfig PrintStatistics::placeholders()
         "print_time", "normal_print_time", "silent_print_time",
         "used_filament", "extruded_volume", "total_cost", "total_weight",
         "print_time_hm", "total_weight_str",   // PING 檔名格式化佔位符
+        "print_time_half_h", "total_weight_g", // PING 0.5H 進位時間/整數克（2026-07-23 Eric）
         "initial_tool", "total_toolchanges", "total_wipe_tower_cost", "total_wipe_tower_filament"})
         config.set_key_value(key, new ConfigOptionString(std::string("{") + key + "}"));
     // PING(2026-07-11 Eric 實測炸錯)：initial_tool 在檔名模板裡是「向量索引」用途
