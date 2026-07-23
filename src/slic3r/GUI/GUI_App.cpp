@@ -7287,6 +7287,8 @@ void GUI_App::load_current_presets(bool active_preset_combox/*= false*/, bool ch
 
     auto& edited_printer_preset = preset_bundle->printers.get_edited_preset();
     PrinterTechnology printer_technology = edited_printer_preset.printer_technology();
+    // PING(2026-07-23)：記下同步前槽數——下方兩個分支只改 bundle，UI 槽位要另外重建（見後）。
+    const size_t old_filament_count = preset_bundle->filament_presets.size();
     // ORCA: Sync filament count with the printer's nozzle count before loading presets for multi-tool printers.
     // This ensures filament_presets vector is properly sized when combo boxes are created/updated.
     if (printer_technology == ptFFF && !edited_printer_preset.config.opt_bool("single_extruder_multi_material")) {
@@ -7305,6 +7307,12 @@ void GUI_App::load_current_presets(bool active_preset_combox/*= false*/, bool ch
             preset_bundle->set_num_filaments((unsigned int) def_fil->values.size());
         }
     }
+    // PING(2026-07-23)：槽數有變就重建側欄槽位 UI。選機頁（精靈）路徑收尾走的是本函式，
+    // 先前只同步 bundle 沒重建 UI → 切到 FP300 畫面仍留上一台的 2 槽（殘影槽操作全被
+    // 越界守衛擋掉、看似全無反應）；左上機器下拉路徑（Tab::select_preset）本就有重建，
+    // 兩路徑自此對稱。啟動路徑同數量時不觸發（守衛擋掉）、數量有變時提早重建亦冪等。
+    if (Plater *pl = this->plater(); pl && preset_bundle->filament_presets.size() != old_filament_count)
+        pl->on_filament_count_change(preset_bundle->filament_presets.size());
 	this->plater()->set_printer_technology(printer_technology);
     for (Tab *tab : tabs_list)
 		if (tab->supports_printer_technology(printer_technology)) {
