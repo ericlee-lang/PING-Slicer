@@ -359,18 +359,20 @@ def tier_of(base):
     return "300" if base.startswith(("FD300","FP300","P200+")) else "450"
 
 def filename_tpl(mode_key):
-    """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
+    """輸出檔名模板（2026-07-23 Eric 改版，取代 0610 版）：模式_列印設備(口徑)_檔名_時間_重量。
     雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
-    重量/時間用 PING 佔位符（Print.cpp PrintStatistics：total_weight_str=395g/2.3kg、
-    print_time_hm=15m/7h15m/1d8h）——需 B6(run 27262735687) 之後的 binary。
+    時間={print_time_half_h} 0.5H 無條件進位（3h22m→3.5H、50m→1H）、重量={total_weight_g} 整數克進位
+    ——兩佔位符 2026-07-23 進 Print.cpp（⚠ 需該版之後 binary；舊 binary 吃此模板會炸未知佔位符，
+    profile 與 binary 必須同車出貨、appdata 同步要等新 binary 裝機）。
     ⚠ 前綴一律包進 code block 字串字面值 {"X_"}：PlaceholderParser 模板的 rule 邊界
     （開頭、} 之後）遇非 ASCII 即 throw（pre-skip skipper）、裸中文前綴會炸
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
-    base = "{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode"
+    base = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
     if mode_key in ("PLA+SUP", "ABS+SUP"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
     if mode_key == "同進":  return '{"Mix_"}' + base
     if mode_key == "四色":  return '{"四色_"}' + base
+    if mode_key == "3in1":  return '{"3in1_"}' + base   # FF 範本製程（emit_ff_extra 套用）
     return '{"單料_"}' + base   # 單料頭 / FP300
 
 def proc_overrides(kind, base, is_single_mode):
@@ -570,6 +572,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         if m_nz:
             normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×9（2026-07-17/0722，FF 範本同套）
             normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過
+        d["filename_format"] = filename_tpl("3in1" if "3in1" in d["name"] else "同進")  # 檔名新格式（2026-07-23）FF 範本同套
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
