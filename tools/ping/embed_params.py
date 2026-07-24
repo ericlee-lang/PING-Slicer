@@ -406,6 +406,17 @@ def normalize_unified_values(proc, ff=False):
                   "outer_wall_jerk", "top_surface_jerk", "travel_jerk"):
             if k in proc:
                 proc[k] = "7"
+    # ⑤ 爬坡品質（Eric 2026-07-24 裁「一併加入所有的參數」；工程端 FD300 同進 0.4
+    # 「爬坡測試」A/B 對照實證懸空品質高提升）：懸空處降速開＋四段 50/50/25/10
+    # （10%/25%/50%/75%；25% 段沿用原值 50＝對照兩側同值）＋橋接流量 0.95。
+    # 線材側配套「懸空冷卻觸發閾值 25%」＝4b-2c sweep。
+    # 照片磚/Classic/DL1016 不走本函式＝天然豁免（同 jerk 註）。
+    proc["enable_overhang_speed"] = "1"
+    proc["overhang_1_4_speed"] = "50"
+    proc["overhang_2_4_speed"] = "50"
+    proc["overhang_3_4_speed"] = "25"
+    proc["overhang_4_4_speed"] = "10"
+    proc["bridge_flow"] = "0.95"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
@@ -840,6 +851,35 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
+    # 4b-1d. ★ PVA 水溶支撐線材（Eric 2026-07-24 裁「參考 2.1 追加、一般流量即可」）：
+    # V2.1 實戰履歷五案（追蹤單：FD300(0.4) PLA+PVA 2025-07／D600 Pro PVA+Cast 復盛 2025-09／
+    # D300 Pro PVA+Cast 傳裕 2025-11／D800 Pro PVA+PLA 中華航空 2025-11／D300·600 Pro 0.4·0.6
+    # PVA+PLA 旗津海軍 2026-04），但案檔 .3mf 皆未尋獲（參數池夾空、V2.1 成品庫 1715 支掃無 PVA）
+    # → 值承房規＋SupPLA 先例＋上游 fdm_filament_pva 基準：
+    #   噴溫 220/220（SUP=同主體 220 雙料鐵律＝上游 PVA 基準同值；溫度統一鐵律全鍵一致）、
+    #   床 60（PLA 組合慣例，SupPLA 同值）、風扇 100/100（SupPLA 同值）、
+    #   水溶＋支撐旗標、支撐色 #D3D3D3、purge 60（Sup 家族級，4b-3 同步豁免壓 30）、
+    #   最大體積流量 12（上游 PVA 基準＝一般流量量級）、密度 1.23。
+    # 回抽＝一般流量：長度收斂繼承機器 1.3＋額外回填 0.2＋四項統一（4b-2/2b sweep 自動補）。
+    # ⚠ 噴溫/風扇標「待 V2.1 案檔對帳」——工程端尋獲 .3mf 即校正。
+    # 「一般流量即可」＝不出高流量變體；不限機型（噴頭屬性原則，同 TPE 先例）。
+    fd_ = {"type": "filament", "name": "PING PVA", "alias": "PING PVA", "from": "system",
+           "instantiation": "true", "inherits": "fdm_filament_pla",
+           "setting_id": "PINGFILPVA", "filament_id": "PINGFILPVA",
+           "filament_vendor": ["PING"], "filament_type": ["PVA"],
+           "filament_soluble": ["1"], "filament_is_support": ["1"],
+           "filament_density": ["1.23"],
+           "nozzle_temperature_initial_layer": ["220"], "nozzle_temperature": ["220"],
+           "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
+           "cool_plate_temp_initial_layer": ["60"], "cool_plate_temp": ["60"],
+           "fan_min_speed": ["100"], "fan_max_speed": ["100"],
+           "filament_max_volumetric_speed": ["12"],
+           "filament_colors": ["#D3D3D3"], "default_filament_colors": ["#D3D3D3"],
+           "filament_minimal_purge_on_wipe_tower": ["60"],
+           "slow_down_for_layer_cooling": ["1"], "slow_down_layer_time": ["10"]}
+    jdump(os.path.join(PINGDIR, "filament", "PING PVA.json"), fd_)
+    fil_new.append({"name": "PING PVA", "sub_path": "filament/PING PVA.json"})
+
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
     # ——免機端 wrapper、全機隊（含舊 C8/單料/四料）原生支援、老檔無指令＝機器 config 預設、
@@ -904,6 +944,22 @@ def main(src_base):
     if rt_touched:
         print("  線材回抽統一（長度收斂＋額外回填流量律＋四項）：%d 支" % rt_touched)
 
+    # 4b-2c. ★ 懸空冷卻觸發閾值 25%（Eric 2026-07-24 爬坡品質批・線材側配套）：
+    # 全 PING 線材統一 25%（PLA - 220／ABS - 250 既值 25% 冪等不動；PLA 210 系／SupPLA／
+    # PETG／TPE 等原繼承 50%／95% → 收 25%）。overhang_fan_speed 不動（爬坡測試對照未改此鍵，
+    # 各支既值/繼承值保留）。冪等 sweep；DL1016/Classic 不在主線 PING*.json 名單自然豁免。
+    of_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        if fd.get("overhang_fan_threshold") != ["25%"]:
+            fd["overhang_fan_threshold"] = ["25%"]
+            jdump(fp_path, fd)
+            of_set += 1
+    if of_set:
+        print("  線材懸空冷卻觸發閾值 25%%：改 %d 支" % of_set)
+
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
     # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。
@@ -913,7 +969,8 @@ def main(src_base):
         if "四料高流量噴頭" in bn or "(3in1)" in bn:
             continue
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        want = "60" if "SupPLA" in bn else "30"
+        # PVA＝水溶支撐＝Sup 家族清理量 60（2026-07-24 隨 4b-1d 併入；要回 30 一句話）
+        want = "60" if ("SupPLA" in bn or "PVA" in bn) else "30"
         cur = fd.get("filament_minimal_purge_on_wipe_tower")
         if (cur[0] if isinstance(cur, list) else cur) == want:
             continue
