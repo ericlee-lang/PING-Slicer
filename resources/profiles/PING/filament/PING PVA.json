@@ -1,61 +1,71 @@
 {
     "type": "filament",
-    "name": "PING PA-CF",
+    "name": "PING PVA",
+    "alias": "PING PVA",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "GPINGPACF",
-    "filament_id": "GPINGPACF",
-    "inherits": "fdm_filament_pa",
+    "inherits": "fdm_filament_pla",
+    "setting_id": "PINGFILPVA",
+    "filament_id": "PINGFILPVA",
     "filament_vendor": [
         "PING"
     ],
     "filament_type": [
-        "PA"
+        "PVA"
     ],
-    "nozzle_temperature": [
-        "255"
+    "filament_soluble": [
+        "1"
+    ],
+    "filament_is_support": [
+        "1"
+    ],
+    "filament_density": [
+        "1.23"
     ],
     "nozzle_temperature_initial_layer": [
-        "255"
+        "220"
     ],
-    "hot_plate_temp": [
-        "70"
+    "nozzle_temperature": [
+        "220"
     ],
     "hot_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
-    "cool_plate_temp": [
-        "70"
+    "hot_plate_temp": [
+        "60"
     ],
     "cool_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
-    "fan_max_speed": [
-        "30"
+    "cool_plate_temp": [
+        "60"
     ],
     "fan_min_speed": [
-        "30"
+        "100"
     ],
-    "filament_retraction_length": [
-        "nil"
+    "fan_max_speed": [
+        "100"
+    ],
+    "filament_max_volumetric_speed": [
+        "12"
     ],
     "filament_colors": [
-        "#EA4E16"
+        "#D3D3D3"
     ],
     "default_filament_colors": [
-        "#EA4E16"
+        "#D3D3D3"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "30"
-    ],
-    "filament_start_gcode": [
-        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
+        "60"
     ],
     "slow_down_for_layer_cooling": [
         "1"
     ],
     "slow_down_layer_time": [
         "10"
+    ],
+    "filament_start_gcode": [
+        "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
     ],
     "filament_retraction_minimum_travel": [
         "3"
@@ -71,6 +81,9 @@
     ],
     "filament_retract_restart_extra": [
         "0.2"
+    ],
+    "filament_retraction_length": [
+        "nil"
     ],
     "overhang_fan_threshold": [
         "25%"

@@ -16,6 +16,10 @@
    FF 四料高流量噴頭/(3in1) 維持特調 120（同日裁「不蓋」）
 10. 機器動力學＝Klipper 實值（Eric 2026-07-17 裁「全機隊」）：FD/FP＝400/5000/jerk7、
     FF＝200/1500/jerk56；DL1016 與 Classic 前代機跳過。時間預估校正用，不改列印行為
+13. 爬坡品質（Eric 2026-07-24 裁「加入所有的參數」）：全製程 懸空處降速 1＋四段 50/50/25/10
+    ＋橋接流量 0.95（照片磚特調豁免）；全線材 懸空冷卻觸發閾值 25%
+14. PVA 水溶支撐線材（Eric 2026-07-24 裁）：PING PVA 存在＋關鍵值
+    （PVA 型別／水溶／支撐／220／床 60／風扇 100／閾值 25%／purge 60）
 """
 import io
 import json
@@ -92,6 +96,13 @@ for name, (kind, d) in presets.items():
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
                 "seam_position": "aligned",
+                # 爬坡品質（Eric 2026-07-24）：懸空降速四段＋橋接流量；照片磚特調豁免
+                "enable_overhang_speed": "1",
+                "overhang_1_4_speed": "50",
+                "overhang_2_4_speed": "50",
+                "overhang_3_4_speed": "25",
+                "overhang_4_4_speed": "10",
+                "bridge_flow": "0.95",
             })
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
@@ -124,7 +135,7 @@ for name, (kind, d) in presets.items():
             pv = d.get("filament_minimal_purge_on_wipe_tower")
             pv = pv[0] if isinstance(pv, list) and pv else pv
             expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
-                           else "60" if "SupPLA" in name else "30")
+                           else "60" if ("SupPLA" in name or "PVA" in name) else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
             # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒
@@ -144,6 +155,9 @@ for name, (kind, d) in presets.items():
                 is_hf = ("高流量" in name) or ("(3in1)" in name)
                 if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
                     err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
+                # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
+                if _v("overhang_fan_threshold") != "25%":
+                    err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
                 if "TPE" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
@@ -168,6 +182,19 @@ for name, (kind, d) in presets.items():
             for i, ch in enumerate(fmt[1:], 1):
                 if ord(ch) > 127 and fmt[i - 1] == "}":
                     err(f"[filename_format '}}' 後接非 ASCII — 會炸] {name}: ...{fmt[max(0,i-5):i+5]}...")
+
+# 檢查 14（Eric 2026-07-24 裁）：PVA 水溶支撐線材存在＋關鍵值
+if "PING PVA" not in presets:
+    err("[PVA 缺席] PING PVA 不在 PING.json filament_list")
+else:
+    _k, pd = presets["PING PVA"]
+    for k, want in (("filament_type", ["PVA"]), ("filament_soluble", ["1"]),
+                    ("filament_is_support", ["1"]), ("nozzle_temperature", ["220"]),
+                    ("nozzle_temperature_initial_layer", ["220"]), ("hot_plate_temp", ["60"]),
+                    ("fan_max_speed", ["100"]), ("overhang_fan_threshold", ["25%"]),
+                    ("filament_minimal_purge_on_wipe_tower", ["60"])):
+        if pd.get(k) != want:
+            err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:
