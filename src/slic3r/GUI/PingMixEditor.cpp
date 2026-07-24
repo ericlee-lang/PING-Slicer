@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <vector>
 
 namespace Slic3r {
 namespace GUI {
@@ -42,23 +43,54 @@ class PingDarkTooltip : public wxPopupWindow
 {
 public:
     PingDarkTooltip(wxWindow* parent, const wxString& text)
-        : wxPopupWindow(parent, wxBORDER_NONE), m_text(text)
+        : wxPopupWindow(parent, wxBORDER_NONE)
     {
         m_pad = parent->FromDIP(5);
-        wxClientDC mdc(parent);
-        mdc.SetFont(wxGetApp().normal_font());
-        const wxSize ts = mdc.GetTextExtent(m_text);
-        SetSize(wxSize(ts.x + 2 * m_pad, ts.y + 2 * m_pad));
+        // PING(2026-07-24 異常單 #24/#25)：量測改「彈窗自身 DC＋自身字型」＋上限寬自動折行。
+        // 舊作法拿 parent DC 量「單行」定窗寬：跨 DPI 螢幕時量測與實繪比例不同、實繪偏寬
+        // → 右端被窗框吃掉（#24「輸出 G-code 將依」後截斷）；單行長句貼螢幕右緣也易遮擋（#25）。
+        // 折行＝逐字累積超過 max_w 換行；ASCII 連續段（如 G-code）不從中折斷。
+        SetFont(wxGetApp().normal_font());
+        wxClientDC dc(this);
+        dc.SetFont(GetFont());
+        const int max_w = FromDIP(300);
+        const auto is_word = [](wxUniChar ch) {
+            const wxUint32 v = ch.GetValue();
+            return (v >= 'A' && v <= 'Z') || (v >= 'a' && v <= 'z') ||
+                   (v >= '0' && v <= '9') || v == '-';
+        };
+        wxString line;
+        for (size_t i = 0; i < text.length(); ++i) {
+            line += text[i];
+            if (dc.GetTextExtent(line).x <= max_w || line.length() <= 1)
+                continue;
+            size_t cut = line.length() - 1;   // 預設把最後一字移到下一行
+            if (is_word(line[cut])) {          // ASCII 詞不折半：回退到詞首
+                size_t ws = cut;
+                while (ws > 0 && is_word(line[ws - 1])) --ws;
+                if (ws > 0) cut = ws;
+            }
+            m_lines.push_back(line.Left(cut));
+            line = line.Mid(cut);
+        }
+        if (!line.IsEmpty())
+            m_lines.push_back(line);
+        m_line_h = dc.GetCharHeight();
+        int w = 0;
+        for (const wxString& l : m_lines)
+            w = std::max(w, dc.GetTextExtent(l).x);
+        SetSize(wxSize(w + 2 * m_pad, m_line_h * (int) m_lines.size() + 2 * m_pad));
         SetBackgroundStyle(wxBG_STYLE_PAINT);
         SetTransparent(204);   // 0.8 × 255——整窗半透（白字會同帶 0.8，視覺與畫布提示一致）
         Bind(wxEVT_PAINT, [this](wxPaintEvent&) {
-            wxPaintDC dc(this);
-            dc.SetPen(*wxTRANSPARENT_PEN);
-            dc.SetBrush(wxBrush(wxColour(26, 26, 26)));
-            dc.DrawRectangle(GetClientRect());
-            dc.SetFont(wxGetApp().normal_font());
-            dc.SetTextForeground(*wxWHITE);
-            dc.DrawText(m_text, m_pad, m_pad);
+            wxPaintDC pdc(this);
+            pdc.SetPen(*wxTRANSPARENT_PEN);
+            pdc.SetBrush(wxBrush(wxColour(26, 26, 26)));
+            pdc.DrawRectangle(GetClientRect());
+            pdc.SetFont(GetFont());
+            pdc.SetTextForeground(*wxWHITE);
+            for (size_t i = 0; i < m_lines.size(); ++i)
+                pdc.DrawText(m_lines[i], m_pad, m_pad + (int) i * m_line_h);
         });
     }
     void show_below_cursor()
@@ -68,8 +100,9 @@ public:
         Show();
     }
 private:
-    wxString m_text;
-    int      m_pad;
+    std::vector<wxString> m_lines;
+    int                   m_line_h = 0;
+    int                   m_pad = 0;
 };
 } // namespace
 
@@ -687,7 +720,9 @@ void PingMixEditor::build_controls()
     m_title->SetFont(tf);
     title_row->Add(m_title, 0, wxALIGN_CENTER_VERTICAL);
     title_row->AddStretchSpacer(1);
-    m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合 ▶"));
+    // PING(2026-07-24 異常單 #25)：標籤去「 ▶」尾符——混排符號在 wxMSW 的量測與實繪寬度
+    // 不一致（▶ 走字型 fallback），置中框據量測值算出來就偏斜；純中文單一字型段量測＝實繪。
+    m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
     bind_ping_dark_tooltip(m_collapse_btn,
         wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
