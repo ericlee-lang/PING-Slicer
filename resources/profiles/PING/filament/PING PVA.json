@@ -23,10 +23,10 @@
         "1.23"
     ],
     "nozzle_temperature_initial_layer": [
-        "220"
+        "210"
     ],
     "nozzle_temperature": [
-        "220"
+        "210"
     ],
     "hot_plate_temp_initial_layer": [
         "60"
@@ -46,6 +46,12 @@
     "fan_max_speed": [
         "100"
     ],
+    "filament_retraction_length": [
+        "3"
+    ],
+    "filament_z_hop": [
+        "0.6"
+    ],
     "filament_max_volumetric_speed": [
         "12"
     ],
@@ -56,7 +62,7 @@
         "#D3D3D3"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "60"
+        "85"
     ],
     "slow_down_for_layer_cooling": [
         "1"
@@ -81,9 +87,6 @@
     ],
     "filament_retract_restart_extra": [
         "0.2"
-    ],
-    "filament_retraction_length": [
-        "nil"
     ],
     "overhang_fan_threshold": [
         "25%"

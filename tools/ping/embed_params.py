@@ -854,31 +854,32 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
-    # 4b-1d. ★ PVA 水溶支撐線材（Eric 2026-07-24 裁「參考 2.1 追加、一般流量即可」）：
-    # V2.1 實戰履歷五案（追蹤單：FD300(0.4) PLA+PVA 2025-07／D600 Pro PVA+Cast 復盛 2025-09／
-    # D300 Pro PVA+Cast 傳裕 2025-11／D800 Pro PVA+PLA 中華航空 2025-11／D300·600 Pro 0.4·0.6
-    # PVA+PLA 旗津海軍 2026-04），但案檔 .3mf 皆未尋獲（參數池夾空、V2.1 成品庫 1715 支掃無 PVA）
-    # → 值承房規＋SupPLA 先例＋上游 fdm_filament_pva 基準：
-    #   噴溫 220/220（SUP=同主體 220 雙料鐵律＝上游 PVA 基準同值；溫度統一鐵律全鍵一致）、
-    #   床 60（PLA 組合慣例，SupPLA 同值）、風扇 100/100（SupPLA 同值）、
-    #   水溶＋支撐旗標、支撐色 #D3D3D3、purge 60（Sup 家族級，4b-3 同步豁免壓 30）、
-    #   最大體積流量 12（上游 PVA 基準＝一般流量量級）、密度 1.23。
-    # 回抽＝一般流量：長度收斂繼承機器 1.3＋額外回填 0.2＋四項統一（4b-2/2b sweep 自動補）。
-    # ⚠ 噴溫/風扇標「待 V2.1 案檔對帳」——工程端尋獲 .3mf 即校正。
+    # 4b-1d. ★ PVA 水溶支撐線材（Eric 2026-07-24 裁「參考 2.1 追加、一般流量即可」；
+    # 值 2026-07-24 已對帳 V2.1 定稿案＝劉勝賢提供 D800 Pro(0.6)_PVA+PLA.3mf
+    # 〔中華航空案、DPro_0.6_T210_PVA+PLA (0609)、Eric：「比較保守、練出來也不錯」〕）：
+    #   噴溫 210/210（V2.1 案全鍵一致 210——PLA 側同降 210 的保守組；蓋掉首版推定 220）、
+    #   床 60、風扇 100/100（V2.1 案未定此鍵＝沿 Orca 支撐慣例）、
+    #   回抽長度 3＋z-hop 0.6（V2.1 案 PVA 側定稿；速度 30=機器層家規）、
+    #   purge 85（V2.1 檔內 75＋劉勝賢現行「+10」＝85；4b-3 同步豁免）、
+    #   水溶＋支撐旗標、支撐色 #D3D3D3、最大體積流量 12（V2.1 速度 60×0.35×0.6≈12.6 貼合）、
+    #   密度 1.23。額外回填 0.2＋四項統一（4b-2/2b sweep；長度 3=PVA 特例、sweep 豁免同 TPE）。
     # 「一般流量即可」＝不出高流量變體；不限機型（噴頭屬性原則，同 TPE 先例）。
+    # 製程層觀察（V2.1 案、待裁是否出 PLA+PVA 專屬製程）：支撐角 40／支撐密度 5%／
+    # 塔 45／brim 20／PLA 側 210——記 materials.md，勿在此臆做。
     fd_ = {"type": "filament", "name": "PING PVA", "alias": "PING PVA", "from": "system",
            "instantiation": "true", "inherits": "fdm_filament_pla",
            "setting_id": "PINGFILPVA", "filament_id": "PINGFILPVA",
            "filament_vendor": ["PING"], "filament_type": ["PVA"],
            "filament_soluble": ["1"], "filament_is_support": ["1"],
            "filament_density": ["1.23"],
-           "nozzle_temperature_initial_layer": ["220"], "nozzle_temperature": ["220"],
+           "nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"],
            "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
            "cool_plate_temp_initial_layer": ["60"], "cool_plate_temp": ["60"],
            "fan_min_speed": ["100"], "fan_max_speed": ["100"],
+           "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
            "filament_max_volumetric_speed": ["12"],
            "filament_colors": ["#D3D3D3"], "default_filament_colors": ["#D3D3D3"],
-           "filament_minimal_purge_on_wipe_tower": ["60"],
+           "filament_minimal_purge_on_wipe_tower": ["85"],
            "slow_down_for_layer_cooling": ["1"], "slow_down_layer_time": ["10"]}
     jdump(os.path.join(PINGDIR, "filament", "PING PVA.json"), fd_)
     fil_new.append({"name": "PING PVA", "sub_path": "filament/PING PVA.json"})
@@ -936,8 +937,8 @@ def main(src_base):
         fd["filament_retract_before_wipe"] = ["100%"]
         is_hf = ("高流量" in bn) or ("(3in1)" in bn)
         fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
-        if "TPE" in bn:
-            pass                                          # TPE/SupTPE 維持 3（0718 定稿）
+        if "TPE" in bn or "PVA" in bn:
+            pass                                          # TPE/SupTPE 維持 3（0718 定稿）；PVA 維持 3（0724 V2.1 案定稿）
         elif is_hf:
             fd["filament_retraction_length"] = ["2"]      # 高流量家族一律勾 2（0723 補裁；3in1 同勾＝Eric「3in1 也勾」）
         else:
@@ -972,8 +973,8 @@ def main(src_base):
         if "四料高流量噴頭" in bn or "(3in1)" in bn:
             continue
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        # PVA＝水溶支撐＝Sup 家族清理量 60（2026-07-24 隨 4b-1d 併入；要回 30 一句話）
-        want = "60" if ("SupPLA" in bn or "PVA" in bn) else "30"
+        # PVA＝85（V2.1 案 75＋劉勝賢現行 +10，0724 對帳定稿）；SupPLA 系 60；其餘 30
+        want = "85" if "PVA" in bn else ("60" if "SupPLA" in bn else "30")
         cur = fd.get("filament_minimal_purge_on_wipe_tower")
         if (cur[0] if isinstance(cur, list) else cur) == want:
             continue
