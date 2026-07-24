@@ -417,6 +417,9 @@ def normalize_unified_values(proc, ff=False):
     proc["overhang_3_4_speed"] = "25"
     proc["overhang_4_4_speed"] = "10"
     proc["bridge_flow"] = "0.95"
+    # ⑥ 支撐臨界角 60（Eric 2026-07-24 裁「支撐角度應該是 60，而不是 30」；
+    # 與爬坡品質同批——V3.0 底稿值 30 全庫翻正）。照片磚/Classic/DL1016 豁免同上。
+    proc["support_threshold_angle"] = "60"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。

@@ -75,6 +75,9 @@
     "filament_retract_restart_extra": [
         "0.6"
     ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
     "filament_retraction_speed": [
         "30"
     ],
@@ -87,8 +90,5 @@
     "pressure_advance": [
         "0.2"
     ],
-    "alias": "PING SupPLA - 高流量噴頭",
-    "overhang_fan_threshold": [
-        "25%"
-    ]
+    "alias": "PING SupPLA - 高流量噴頭"
 }

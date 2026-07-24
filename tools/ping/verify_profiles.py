@@ -103,6 +103,8 @@ for name, (kind, d) in presets.items():
                 "overhang_3_4_speed": "25",
                 "overhang_4_4_speed": "10",
                 "bridge_flow": "0.95",
+                # 支撐臨界角 60（Eric 2026-07-24；V3.0 底稿 30 全庫翻正；照片磚豁免）
+                "support_threshold_angle": "60",
             })
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
