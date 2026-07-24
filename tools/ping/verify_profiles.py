@@ -137,7 +137,7 @@ for name, (kind, d) in presets.items():
             pv = d.get("filament_minimal_purge_on_wipe_tower")
             pv = pv[0] if isinstance(pv, list) and pv else pv
             expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
-                           else "60" if ("SupPLA" in name or "PVA" in name) else "30")
+                           else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
             # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒
@@ -160,9 +160,9 @@ for name, (kind, d) in presets.items():
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
-                if "TPE" in name:
+                if "TPE" in name or "PVA" in name:
                     if _v("filament_retraction_length") != "3":
-                        err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
+                        err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
                 elif ("高流量" in name) or ("(3in1)" in name):
                     if _v("filament_retraction_length") != "2":
                         err(f"[高流量家族長度 2（0723 補裁含 3in1）] {name}: {_v('filament_retraction_length')!r}")
@@ -190,11 +190,13 @@ if "PING PVA" not in presets:
     err("[PVA 缺席] PING PVA 不在 PING.json filament_list")
 else:
     _k, pd = presets["PING PVA"]
+    # 值＝V2.1 定稿案 DPro_0.6_T210_PVA+PLA (0609) 對帳（2026-07-24）：210 全鍵/回抽3/hop0.6/purge85
     for k, want in (("filament_type", ["PVA"]), ("filament_soluble", ["1"]),
-                    ("filament_is_support", ["1"]), ("nozzle_temperature", ["220"]),
-                    ("nozzle_temperature_initial_layer", ["220"]), ("hot_plate_temp", ["60"]),
+                    ("filament_is_support", ["1"]), ("nozzle_temperature", ["210"]),
+                    ("nozzle_temperature_initial_layer", ["210"]), ("hot_plate_temp", ["60"]),
                     ("fan_max_speed", ["100"]), ("overhang_fan_threshold", ["25%"]),
-                    ("filament_minimal_purge_on_wipe_tower", ["60"])):
+                    ("filament_retraction_length", ["3"]), ("filament_z_hop", ["0.6"]),
+                    ("filament_minimal_purge_on_wipe_tower", ["85"])):
         if pd.get(k) != want:
             err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
