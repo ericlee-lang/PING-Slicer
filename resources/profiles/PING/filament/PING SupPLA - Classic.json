@@ -42,12 +42,6 @@
     "filament_minimal_purge_on_wipe_tower": [
         "60"
     ],
-    "filament_colors": [
-        "#D3D3D3"
-    ],
-    "default_filament_colors": [
-        "#D3D3D3"
-    ],
     "filament_start_gcode": [
         "; Classic Marlin filament - machine retraction only\n"
     ],
@@ -63,5 +57,11 @@
     ],
     "pressure_advance": [
         "0"
+    ],
+    "filament_colour": [
+        "#D3D3D3"
+    ],
+    "default_filament_colour": [
+        "#D3D3D3"
     ]
 }
