@@ -274,9 +274,6 @@
     "setting_id": "PINGFILHFSUP",
     "filament_id": "PINGFILHFSUP",
     "inherits": "fdm_filament_pla",
-    "filament_colour": [
-        "#D3D3D3"
-    ],
     "default_filament_colour": [
         "#D3D3D3"
     ]
