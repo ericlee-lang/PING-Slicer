@@ -697,6 +697,10 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         normalize_tree_support(d)
         normalize_support_interface(d)      # 介面 4 層/0.1「只收緊不放鬆」（照片磚現值 0.04 更密＝不動）
         d["support_threshold_angle"] = "35"  # 與全庫同值（原 30 豁免取消）
+        # ★ 支撐開關關掉（Eric 2026-07-25 追裁）：0725 首輪回報「enable_support 其實是 1」＝
+        #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
+        #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
+        d["enable_support"] = "0"
         # ⚠ 支撐以外的主線統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000，
         # 稀疏填充加速度也保留特調範本值；主線 2026-07-15 保守值不得蓋進照片磚。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1

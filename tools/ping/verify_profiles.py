@@ -95,6 +95,9 @@ for name, (kind, d) in presets.items():
                 # 支撐參數統一（Eric 2026-07-25 裁）：照片磚支撐豁免取消，角度與全庫同 35
                 #（爬坡品質＝速度類，仍維持照片磚特調豁免）
                 "support_threshold_angle": "35",
+                # 支撐開關關閉（Eric 2026-07-25 追裁）：照片磚不需要支撐，開關直接關，
+                # 不再停留在「開著但平貼床永遠不生成」的誤導狀態。
+                "enable_support": "0",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
@@ -191,6 +194,18 @@ for name, (kind, d) in presets.items():
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
+                # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只用在一般流量上」）
+                #   現況表（本裁確認、以下為權威）：
+                #     一般流量  PLA-220／PETG／ABS ＝ 0.12
+                #     高流量噴頭 PLA／SupPLA／PETG ＝ 0.2
+                #     四料高流量 PLA／SupPLA        ＝ 0.4
+                #     3in1      PLA 0.4／SupPLA 0.2
+                #     TPE／SupTPE                   ＝ 關（0）
+                #   本斷言＝單向護欄：**0.12 不得出現在高流量／3in1 家族**（ABS 整併把 0.12 帶進
+                #   一般流量支，未經 PA 塔實測；不讓它外溢到流量特性完全不同的噴頭）。
+                #   反向不強制（一般流量支未設 PA＝繼承 common，屬既有狀態，不在本裁範圍）。
+                if is_hf and _v("pressure_advance") == "0.12":
+                    err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
                 if "TPE" in name or "PVA" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
