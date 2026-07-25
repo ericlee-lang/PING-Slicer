@@ -282,6 +282,13 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
+            # ⚠ 0725 補上（Eric 裁「verify 也補」）：本條主線早有、出貨線一直缺＝值兩線一致
+            #    但少一道護欄。**刻意放在 Classic 排除區塊之外**——Eric 2026-07-25 裁
+            #   「Classic 套新工藝」後，Classic 4 支線材也吃 25%（見 _classic_filament），
+            #    全 25 支實測皆為 25% ⇒ 不需任何豁免。
+            if d.get("overhang_fan_threshold") != ["25%"]:
+                err(f"[懸空冷卻閾值 25% 0724] {name}: {d.get('overhang_fan_threshold')!r}")
             # 線材回抽統一（Eric 2026-07-23 三裁＋兩補裁）；Classic 前代豁免（Marlin 隔離）
             if name.startswith("PING") and "Classic" not in name:
                 def _v(k):
