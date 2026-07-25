@@ -17,7 +17,7 @@
 ---
 ### 🏁🏁🏁🏁🏁🏁 收工快照（2026-07-25 深夜 續棒 — 使用者回報批三張單全落地：#26 加固／#33／#30）
 
-**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**24 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`d2a9fa3c` bundle **59**）｜出貨線 `release/v3.6` tip **`ff074ceb`**（**13 顆未推**，遠端 `53d4f273`＝T003；bundle **68**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
+**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**27 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`b156a19e`；bundle **59**）｜出貨線 `release/v3.6` tip **`1150af89`**（**14 顆未推**，遠端 `53d4f273`＝T003；bundle **68**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
 
 | 單 | 開發線 | 出貨線 | 內容 |
 |---|---|---|---|
@@ -70,11 +70,13 @@
 - `PING.json`（bundle 版號＋Classic 條目）、`embed_params.py`／`verify_profiles.py`（出貨線多 Classic）＝**設計如此**
 - 55 個 profile ＝ **只有 `setting_id` 編號差**（出貨線多 Classic 8 機 ⇒ 全庫 id 位移），值全同
 - `PING_HANDOFF.md` ＝ 兩線各有各的
-- `GUI_App.cpp` ＝ 只差 1 行註解措辭
-- 🟡 `PingMixEditor.cpp` ＝ **反向差異：出貨線多一段**（原生調色盤定位修正 ~23 行，`wxDisplay` 重新錨定），**開發線沒有** ⇒ 要不要回灌主線待裁
-- 開發線 23 顆中 6 顆是 handoff 文件（出貨線有自己的）、1 顆 `2461c9e1`（支撐角 60）已被 `53f7c089` 的 35 推翻＝**不該移植**（出貨線從未被 60 汙染）
+- `GUI_App.cpp` ＝ 只差 1 行註解措辭（已知良性，未動）
+- ✅ `PingMixEditor.cpp` ＝ 曾是**反向差異**（出貨線多一段原生調色盤定位修正），**Eric 裁「回灌」→ 開發線 `b156a19e` 整檔對齊，兩線現逐位元相同**
+- 開發線這批中 6 顆是 handoff 文件（出貨線有自己的）、1 顆 `2461c9e1`（支撐角 60）已被 `53f7c089` 的 35 推翻＝**不該移植**（出貨線從未被 60 汙染）
 
-🟡 **殘留 guard 缺口（值無差、只是護欄不足，記著）**：出貨線 verify 沒有「懸空冷卻閾值 25%」那條（開發線有）。
+✅ **guard 缺口已補（Eric 裁「verify 也補」）**：出貨線 verify 補上「懸空冷卻閾值 25%」（`1150af89`）。刻意放在 Classic 排除區塊**之外**——Classic 套新工藝後 4 支 Classic 線材也吃 25%，實測 25 支全庫皆 25% ⇒ 不需豁免。**做過反向測試**：故意改壞 Classic 210 → verify FAIL 1；regen 還原 → 全綠（證明這條不是永遠不會失敗的裝飾）。
+
+**★ 稽核終態（兩件修完後複驗）**：197 檔中兩線逐位元相同 **139**；仍不同的只剩 5 個且全是設計如此——`PING_HANDOFF.md`（各線自有）、`PING.json`（版號＋Classic 條目）、`embed_params.py`／`verify_profiles.py`（出貨線多 Classic）、`GUI_App.cpp`（1 行註解）。**共用參數檔 186 個實質值差異 ＝ 0。**
 
 **★ 跨線轉交（已完成，不用再處理）**：劉鈞豪回報的機端「Unable to open file」已上 .158 查證定讞＝**PING webui 檔案頁「重新命名」**用「下載→重新上傳→刪舊檔」實作（10MB 跑 15～27 秒、零進度回饋＝他說的「沒有動作」；開印時拿到未刷新的舊檔名 → `virtual_sdcard.py:568` KeyError）。**切片端無關**（`OctoPrint::upload` 是單一請求帶 `print=true`＋單一檔名）。建議改用 Moonraker 原生 `/server/files/move`。已 send_message 給 0725 Klipper session，結論寫進 Klipper `00治理文件/認領簿.md` 的 `c-0725-OR-01`。
 ✅ **已結案（機台線同日回覆）**：根因與切片端排除經覆核成立；webui `pages.js` 1.41→**1.42**（`19b4bd8`）三項修法全做，.158 實測 7.6MB move **0.03 秒**（原 15–27 秒），**Eric 網頁實走驗收「改名 OK」**。
