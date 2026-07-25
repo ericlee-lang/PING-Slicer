@@ -15,6 +15,50 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁×7 收工快照（2026-07-26 0725-0726 續棒 — T004 事故／T005／T006 VOID／T007 建置中）
+
+**線況**：開發線 `ping/v3.5` tip **`4aa2578a`**（bundle **62**，已 push）｜出貨線 `release/v3.6` tip **`667825dd`**（bundle **72**＝T007，已 push）｜兩線工作區乾淨｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
+
+**🔴 下一棒最優先（兩顆 build 在跑，我沒等到綠就收工）**
+
+| build | run | 內容 | 綠後要做 |
+|---|---|---|---|
+| **T007 出貨線** | **30172821731** | bundle 72 @ `667825dd` | 抓 Windows portable 驗內容 → 打包 → **上架 G 槽根層、T005 輪替 old\** → 版本資訊 → 登錄簿結案 |
+| 開發線 workshop | **30173085575** | bundle 62 @ `4aa2578a` | Eric 要裝再抓；否則記錄即可 |
+
+驗收流程照 T005 前例（`_staging/v3.6-T005-30155879901/` 有完整範例：zip → sha256 → 複製到 G 槽 → hash 複驗 → 舊 T 輪替 → 版本資訊）。
+
+**成品驗收清單（本輪新增前三項，前兩顆就是靠它們才沒再出事）**
+1. `PING ABS.json` 的 `renamed_from` **必須是字串**（T004 死因）
+2. 線材檔**不得有** `filament_colour`／`filament_colors`／`default_filament_colors`
+3. **檔名七模式**分佈正確 ＋ **零舊佔位符**（掃 `{print_time_hm}`／`{total_weight_str}`／`經典_`／`Mix_` 應全 0）
+4. bundle 72 ／ 5. 檔名新格式 ／ 6. Classic 新工藝 ／ 7. 照片磚 `enable_support`=0 ／ 8. PVA 回抽 3
+
+**★ 本棒發生什麼（依時序）**
+1. **Eric 0725 三裁落地**：Classic 前代 8 機**套** F 系新工藝（取消豁免；verify 反向斷言由「豁免破功」翻成「跟進破功」）／照片磚 `enable_support` 關／PA 0.12 只限一般流量（實查現況已符合＝零參數變更，改為 verify 單向護欄）。
+2. **兩線一致性稽核**（Eric 問「23 顆是否有些要落在出貨線」）：197 檔逐一比內容 ⇒ **只有 1 個真缺件**＝`PING PVA` 回抽長度 3 沒移植（出貨線 sweep 少寫 `or "PVA"`），已補 `ff074ceb`。
+3. **🔴 T004 發車 → 上架 → 判定 DEFECTIVE 撤下**：`renamed_from` 寫成陣列 ⇒ 整包 vendor 載不進去 ⇒ 開起來沒有任何 PING 機型、跳設定精靈、機器掉 Default Printer。Eric 換裝後回報，機上 log 定罪。修＝`a50413a5`／`410d7c44`。T004 已改名標 DEFECTIVE 移入 old\。
+4. **T005 發車＋上架**（bundle 69）＝T004 內容＋兩顆修正；Eric D 槽亦換裝 T005。
+5. **Eric 0726 回報兩件**：選 PLA+PVA 不跳 PVA／選 ABS+ABS 兩槽不動 ⇒ 同一根＝`Tab.cpp` 連動表沒跟上 profile（**ABS 整併造成的迴歸**＋PLA+PVA 漏補），修 `b0488110`／`59f92e26` ＋ **verify 跨層護欄兩項**。
+6. **顏色機制定調**（Eric）：材料色只負責「切材料時帶進槽位色」，槽位色可手動改且不被蓋回 ⇒ **不再顯示材料色塊**（側欄＋下拉）＝`b3c36da5`／`13646736`。
+7. **檔名模式定稿 7 種**：`Mix_`→`同進_`、照片磚獨立成 `照片磚_`、**取消「經典_」**（Classic 改用實際模式：雙料→易拆、單料→單料）＝`6a00acc0`+`4aa2578a`／`3512acf2`+`667825dd`。
+8. **T006 標 VOID**（build 中 Eric 追加兩裁，成品未產出即過時、未上架未發布；號碼不回收）→ 改發 **T007**。
+
+**★ 已驗收（Eric 實機）**：#30 物件移動座標系 ✅／輸出檔名新格式 ✅（`雙色_FD300(0.4)_3DBenchy_3H_38g.gcode`）——兩件都已傳話「0725 回報與驗證中心」session 結案。
+
+**★ 待驗（T007 上架後）**：縮放座標系／線材顏色連動／溫度確認視窗 #33／混色狀態行 #26／組合製程連動（ABS+ABS・PLA+PVA・棧板）／材料色塊已消失／檔名七模式／支撐實印／**Classic 前代機實印**（這版起吃新工藝，行為若異務必回報）。
+
+**★ 沉澱到 SOP（不要只讀 handoff）**：`00治理文件/SOP_參數入版紀律.md` 新增「型別與跨層陷阱」七條——`renamed_from` 必須字串／`filament_colour` 非合法鍵／`find_preset()` 不走 renamed_from（C++ 硬寫名整併後靜默失效）／**產生器掃不到的來源要各自處理＋改完回頭數數量**／`profile_validator` 擋不住型別錯（勿誤用）／兩線稽核比內容不對標題／整檔覆蓋前必先 diff。**全部實測驗證過。**
+↳ UX 筆記 6 條已 append `D:\dev\2026claude\UX筆記收件匣.md`。
+
+**🟡 未決／待裁**
+- 「成品能不能起得來」仍**無自動關卡**——提案：build 後跑一次 headless 載入抓 `load config file ... Failed`（未做、未驗證可行）。
+- Eric D 槽 portable 備份現 2 份（v355ws0722／v360T004fix0725），現行安裝＝T005（bundle 69）；T007 綠後可再換。
+- 上一棒遺留的 skill 回填三項（materials.md PLA+PVA 歸易拆／樹狀支撐配方節／ABS 整併記錄）**仍未做**。
+
+↳ 認領牌 c-0725-T4-03～08 全銷；Klipper 簿 c-0725-OR-01（.158 唯讀診斷）已銷。
+
+---
 ### 🏁🏁🏁🏁🏁🏁 收工快照（2026-07-25 深夜 續棒 — 使用者回報批三張單全落地：#26 加固／#33／#30）
 
 **線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**27 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`b156a19e`；bundle **59**）｜出貨線 `release/v3.6` tip **`1150af89`**（**14 顆未推**，遠端 `53d4f273`＝T003；bundle **68**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
