@@ -750,6 +750,10 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         normalize_tree_support(d)
         normalize_support_interface(d)      # 介面 4 層/0.1「只收緊不放鬆」（照片磚現值 0.04 更密＝不動）
         d["support_threshold_angle"] = "35"  # 與全庫同值（原 30 豁免取消）
+        # ★ 支撐開關關掉（Eric 2026-07-25 追裁）：0725 首輪回報「enable_support 其實是 1」＝
+        #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
+        #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
+        d["enable_support"] = "0"
         # ⚠ 支撐以外的正式製程統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
@@ -779,15 +783,12 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
         if key.startswith("filament_retract") or key in ("filament_wipe", "filament_wipe_distance",
                                                           "filament_z_hop", "filament_z_hop_types"):
             d.pop(key, None)
-    # ★ Classic 前代豁免 F 系新工藝（同製程層豁免）：懸空冷卻觸發閾值 25%（0724 爬坡品質批・線材側配套）
-    # 不套 Classic，維持繼承 common 預設。
-    # ⚠ 本 pop 是必要的：_classic_filament 讀的是**磁碟上的母檔**（PINGDIR/filament/PING PLA.json），
-    #   而該檔在上一輪 regen 已被 4b-2c sweep 寫入 25% ⇒ 光在 sweep 端排除 Classic 擋不住，
-    #   複製時會把 25% 一起帶進來（非冪等來源）。
-    # ⚠ 例外＝母檔 "PING PLA - 220"：它 0724 之前就自帶 25%（既有值、非本批新加），
-    #   其 Classic 副本應照原狀保留 ⇒ 不 pop（無條件 pop 會誤刪，已由值層面比對抓到）。
-    if base_name != "PING PLA - 220":
-        d.pop("overhang_fan_threshold", None)
+    # ★ Classic 前代**改為跟進** F 系新工藝（Eric 2026-07-25 裁「Classic 套新工藝」，
+    #   推翻 0719「Classic 不套預擠點升溫」延伸來的保守豁免）：
+    #   懸空冷卻觸發閾值 25%（0724 爬坡品質批・線材側配套）自母檔複製時直接帶進來，不再 pop。
+    #   ⚠ 舊 pop 之所以必要，是因為 _classic_filament 讀的是**磁碟上的母檔**（非冪等來源）；
+    #     現在既然要套，就讓它自然繼承母檔值即可——但也因此 Classic 的該鍵**跟著母檔走**，
+    #     日後若想再豁免，必須在這裡 pop 而不是在 sweep 端排除（此坑保留記錄）。
     d["filament_start_gcode"] = ["; Classic Marlin filament - machine retraction only\n"]
     d["enable_pressure_advance"] = ["0"]
     d["pressure_advance"] = ["0"]
@@ -915,27 +916,18 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                     "top_surface_line_width", "support_line_width"):
             proc[key] = nz
         proc["enable_prime_tower"] = "1" if spec["dual"] else "0"
-        # ★ Classic 前代豁免 F 系新工藝（保守原則，同 0719「Classic 前代 8 機不套預擠點升溫」）：
-        # Classic 由 Fast 母檔複製而來 ⇒ 會夾帶母檔已套的新規則。此處還原為 V3.6 Classic 既有值。
-        # 夾帶來源：normalize_unified_values ⑤爬坡品質/⑥支撐臨界角、normalize_support_geometry
-        #（樹狀幾何）、normalize_tree_support（樹狀保守配方）。
-        # ⚠ Classic 自有懸空設定＝**關閉**（enable 0、80/50/50/50、bridge 1），被 F 系值蓋掉即行為改變；
-        #   支撐臨界角 Classic 維持 V3.0 底稿 30。要套新工藝需 Eric 明裁（同預擠點升溫先例）。
-        proc.update({
-            "enable_overhang_speed": "0",
-            "overhang_1_4_speed": "80", "overhang_2_4_speed": "50",
-            "overhang_3_4_speed": "50", "overhang_4_4_speed": "50",
-            "bridge_flow": "1",
-            "support_threshold_angle": "30",
-            "tree_support_branch_angle": "40",
-            "tree_support_auto_brim": "1",
-            "tree_support_brim_width": "3",
-            "tree_support_branch_diameter": "%g" % (float(nz) * 10),
-            "tree_support_branch_distance": "5",
-            "tree_support_branch_diameter_organic": "2",
-            "tree_support_branch_angle_organic": "60",
-        })
-        proc.pop("tree_support_wall_count", None)   # Classic 原無此鍵＝繼承 common
+        # ★ Classic 前代**套 F 系新工藝**（Eric 2026-07-25 裁「Classic 套新工藝」）。
+        # Classic 由 Fast 母檔複製而來 ⇒ 母檔已套的新規則直接沿用，不再還原成 V3.6 Classic 舊值。
+        # 沿用來源：normalize_unified_values ⑤爬坡品質/⑥支撐臨界角 35、normalize_support_geometry
+        #（支撐幾何）、normalize_support_recipe（普通支撐配方）、normalize_tree_support（樹狀配方）。
+        # 行為變更（本裁的實質內容，驗收看這幾項）：
+        #   懸空降速 關→**開**（爬坡品質 50/50/25/10）、橋接流量 1→**0.95**、
+        #   支撐臨界角 30→**35**、樹狀改保守配方（分支直徑 口徑×12 上限 10／距離 口徑×6／
+        #   角度 30／auto_brim 關／brim 10／牆圈 1）、organic 防呆 2→2.6・60→40。
+        # ⚠ 口徑安全：CLASSIC_SPECS 每台的 nozzle 皆等於 src_nozzle（0.4→0.4、0.6→0.6），
+        #   所以母檔算出來的口徑連動值（線距／XY／分支直徑）對 Classic 直接成立，無錯配。
+        # ⚠ Marlin 隔離原則仍在：本裁只放行「切片行為」類參數；加速度/jerk 全 "0"、
+        #   不送 machine limits、不用韌體回抽／PA 等韌體相關設定在上方維持不變。
         jdump(os.path.join(PINGDIR, "process", "%s.json" % proc_name), proc)
         proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
         gp += 1

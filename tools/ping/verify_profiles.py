@@ -131,10 +131,20 @@ for name, (kind, d) in presets.items():
             compatible = d.get("compatible_printers", []) or []
             is_classic = any(classic_model_for_machine(p) for p in compatible)
             expected = ({
+                # Marlin 隔離維持：加速度全 0、不送 machine limits（與本次「套新工藝」無關）
                 "default_acceleration": "0",
                 "sparse_infill_acceleration": "0",
                 "travel_acceleration": "0",
                 "seam_position": "aligned",
+                # ★ Classic 套 F 系新工藝（Eric 2026-07-25 裁）：爬坡品質＋支撐臨界角改與全庫同值
+                #   （原本這裡是豁免的，由 emit_classic 還原成 關/1/30；本裁取消該還原）
+                "enable_overhang_speed": "1",
+                "overhang_1_4_speed": "50",
+                "overhang_2_4_speed": "50",
+                "overhang_3_4_speed": "25",
+                "overhang_4_4_speed": "10",
+                "bridge_flow": "0.95",
+                "support_threshold_angle": "35",
             } if is_classic else {
                 "sparse_infill_acceleration": "10000",
                 "travel_acceleration": "3000",
@@ -143,6 +153,9 @@ for name, (kind, d) in presets.items():
                 # 支撐參數統一（Eric 2026-07-25 裁）：照片磚支撐豁免取消，角度與全庫同 35
                 #（爬坡品質＝速度類，仍維持照片磚特調豁免）
                 "support_threshold_angle": "35",
+                # 支撐開關關閉（Eric 2026-07-25 追裁）：照片磚不需要支撐，開關直接關，
+                # 不再停留在「開著但平貼床永遠不生成」的誤導狀態。
+                "enable_support": "0",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
@@ -177,12 +190,12 @@ for name, (kind, d) in presets.items():
                 #   PLA+PVA 專屬製程 ×19（案值密度 5%）
                 # 樹狀 2026-07-25 裁保守配方：分支直徑 ×10→×12（引擎上限 10）、新增分支距離 ×6
                 _spacing = ("%g" % round(nz_v * 19, 2)) if "PLA+PVA" in name else ("%g" % (nz_v * 9))
-                # Classic 前代豁免 F 系新工藝（同 0719 預擠點升溫先例）：樹狀新配方不套，維持原值
+                # ★ Classic 前代改為**跟進**新工藝（Eric 2026-07-25 裁）：樹狀配方一併查。
+                #   口徑安全＝CLASSIC_SPECS 每台 nozzle == src_nozzle，母檔算的口徑連動值直接成立。
                 _cls_proc = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
-                _geo = ([] if _cls_proc else
-                        [("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0)),
-                         ("tree_support_branch_distance", "%g" % (nz_v * 6))]) \
-                       + [("support_base_pattern_spacing", _spacing)]
+                _geo = [("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0)),
+                        ("tree_support_branch_distance", "%g" % (nz_v * 6)),
+                        ("support_base_pattern_spacing", _spacing)]
                 for key, value in _geo:
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -207,23 +220,23 @@ for name, (kind, d) in presets.items():
                 #（TreeSupport.cpp:2068）。_organic 兩鍵＝防呆（snug+樹狀會被引擎退回 default＝有機樹）：
                 # 🔴 diameter_organic 2.6 是 bug 修——Print.cpp:1532 硬限 ≥2×支撐線寬，
                 #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
-                for key, value in ([] if _cls_proc else      # Classic 前代豁免（同上）
-                                   [("tree_support_branch_angle", "30"),
-                                    ("tree_support_auto_brim", "0"),
-                                    ("tree_support_brim_width", "10"),
-                                    ("tree_support_wall_count", "1"),
-                                    ("tree_support_branch_diameter_organic", "2.6"),
-                                    ("tree_support_branch_angle_organic", "40")]):
+                for key, value in [("tree_support_branch_angle", "30"),
+                                   ("tree_support_auto_brim", "0"),
+                                   ("tree_support_brim_width", "10"),
+                                   ("tree_support_wall_count", "1"),
+                                   ("tree_support_branch_diameter_organic", "2.6"),
+                                   ("tree_support_branch_angle_organic", "40")]:
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
-                # Classic 前代：確認新工藝確實未套（反向斷言，防下次 regen 又被母檔夾帶）
+                # ★ Classic 前代：確認新工藝**確實有套**（Eric 2026-07-25 裁「Classic 套新工藝」，
+                #   本斷言由「豁免破功」反轉為「跟進破功」——防哪天有人又把還原塞回 emit_classic）
                 if _cls_proc:
-                    for key, value in (("enable_overhang_speed", "0"), ("bridge_flow", "1"),
-                                       ("support_threshold_angle", "30"),
-                                       ("tree_support_branch_angle", "40"),
-                                       ("tree_support_branch_diameter", "%g" % (nz_v * 10))):
+                    for key, value in (("enable_overhang_speed", "1"), ("bridge_flow", "0.95"),
+                                       ("support_threshold_angle", "35"),
+                                       ("tree_support_branch_angle", "30"),
+                                       ("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0))):
                         if d.get(key) != value:
-                            err(f"[Classic 前代豁免破功] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                            err(f"[Classic 前代新工藝跟進破功] {name}: {key}={d.get(key)!r}, expected {value!r}")
             # 洗料塔寬：全庫 25（0717 裁）；PLA+PVA 專屬製程 45（案值＝劉勝賢現行）
             _tower = "45" if "PLA+PVA" in name else "25"
             if "照片磚" not in name and d.get("prime_tower_width") != _tower:
@@ -281,6 +294,19 @@ for name, (kind, d) in presets.items():
                 is_hf = ("高流量" in name) or ("(3in1)" in name)
                 if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
                     err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
+                # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只用在一般流量上」）
+                #   現況表（本裁確認、以下為權威）：
+                #     一般流量  PLA-220／PETG／ABS ＝ 0.12
+                #     高流量噴頭 PLA／SupPLA／PETG ＝ 0.2
+                #     四料高流量 PLA／SupPLA        ＝ 0.4
+                #     3in1      PLA 0.4／SupPLA 0.2
+                #     TPE／SupTPE                   ＝ 關（0）
+                #   本斷言＝單向護欄：**0.12 不得出現在高流量／3in1 家族**（ABS 整併把 0.12 帶進
+                #   一般流量支，未經 PA 塔實測；不讓它外溢到流量特性完全不同的噴頭）。
+                #   反向不強制（一般流量支未設 PA＝繼承 common，屬既有狀態，不在本裁範圍）。
+                #   ⚠ Classic 前代線材另有 PA 全關斷言（Marlin 無 PA），不受本條影響。
+                if is_hf and _v("pressure_advance") == "0.12":
+                    err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
                 if "TPE" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
