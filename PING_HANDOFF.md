@@ -17,7 +17,7 @@
 ---
 ### 🏁🏁🏁🏁🏁🏁 收工快照（2026-07-25 深夜 續棒 — 使用者回報批三張單全落地：#26 加固／#33／#30）
 
-**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**20 顆未推**，遠端 `95bf5a7c`；碼的最後一顆＝`b0a04496`）｜出貨線 `release/v3.6` tip **`3b7d0eef`**（**10 顆未推**，遠端 `53d4f273`＝T003）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
+**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**23 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`d2a9fa3c` bundle **59**）｜出貨線 `release/v3.6` tip **`58e42376`**（**12 顆未推**，遠端 `53d4f273`＝T003；bundle **67**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
 
 | 單 | 開發線 | 出貨線 | 內容 |
 |---|---|---|---|
@@ -39,7 +39,23 @@
 - 改在 `GLGizmoMove3D::change_cs_by_selection()`——那裡本來就是「每次改選取依型別重設座標系」，所以不是改 default 常數、是改規則：單一整個物件（`is_single_full_instance`）也給 Instance。多選與換料塔維持 World（下拉本來就沒有「物件座標」可選，`GizmoObjectManipulation.cpp:882-889` 的 `modes.pop_back()`）。
 - ✅ **連帶已裁並跟進（Eric 追裁「縮放也預設物件座標」）**：`m_coordinates_type` 是移動／旋轉／縮放**共用**的一個狀態，而 `GLGizmoScale3D::change_cs_by_selection()` 對單一整個物件原本**不設值＝沿用現值** ⇒ 顯示什麼取決於使用者先開哪個工具（行為會飄）。已明寫 Instance＝兩面板一致：開發線 `b0a04496`／出貨線 `3b7d0eef`（兩線 diff 逐位元一致 9ebfd04d）。合法性已查：縮放下拉為 `{世界／物件／零件}` 三項，單一整個物件不觸發 `pop_back` ⇒ Instance(index 1) 恆合法（`GizmoObjectManipulation.cpp:1232-1242`）。**旋轉面板沒有座標系下拉、不受影響。**
 
-**🔴 下一棒最優先**：❶ 等 Eric 發車令 → T004 ❷ 待裁三小項：Classic 要不要套新工藝／照片磚 `enable_support` 要不要關／PA 0.12 要不要排 PA 塔實測 ❸ 上一棒的 skill 回填三項（見下方 0725 T004 全帶線快照）仍未做。
+**★ 追加批（0725 深夜續，同一棒）**——三件，兩線各再入版：
+
+| 件 | 開發線 | 出貨線 | 內容 |
+|---|---|---|---|
+| #26 修正 | `083d5f38` | `10fdbaa6` | **混色狀態行插錯對話框**→移到 `PrintHostSendDialog` |
+| 三裁 | `d2a9fa3c`（bundle **59**） | `58e42376`（bundle **67**） | Classic 套新工藝／照片磚 `enable_support` 關／PA 分流量護欄 |
+
+🔴 **`SendToPrinterDialog` 在 PING Slicer 走不到（下一棒別再插錯）**：`MainFrame.cpp:2097-2118` 對非 BBL 廠商把 `support_send=false`、「傳送」鈕根本不建立；`use_bbl_network()=is_bbl_vendor() && !bbl_use_printhost`（`PresetBundle.cpp:545`）對 PING 恆 false。**PING 按「列印」走的是 `on_action_print_plate` → 非 BBL 分支 → `send_gcode_legacy()` → `PrintHostSendDialog`**（`Plater.cpp:16125`）＝使用者真正看到的上傳對話框。
+
+**★ Eric 0725 深夜三裁**（`d2a9fa3c`／`58e42376`）
+1. **Classic 前代 8 機套 F 系新工藝**（出貨線專屬——Classic 只在 release 線 emit）：取消 `emit_classic` 還原塊＋`_classic_filament` 的 `overhang_fan_threshold` pop。行為變更＝懸空降速 關→**開**(50/50/25/10)、橋接 1→**0.95**、支撐角 30→**35**、樹狀改保守配方＋牆圈 1、organic 2→2.6・60→40；線材補 25%（3 支）。**口徑安全已查＝CLASSIC_SPECS 每台 `nozzle == src_nozzle`**（0.4→0.4／0.6→0.6）⇒ 母檔口徑連動值直接成立。**Marlin 隔離未動**（加速度/jerk 全 0、不送 machine limits、無韌體回抽/PA）。verify 反向斷言由「豁免破功」**反轉成「新工藝跟進破功」**。
+2. **照片磚 `enable_support` 1→0**（兩線各 5 支）。
+3. **PA 0.12 只限一般流量＝零參數變更**（實查現況已符合）→ verify 加**單向護欄**：高流量／3in1 不得為 0.12。現況表寫進 verify 註解當權威。
+
+**🔴 下一棒最優先**：❶ **等 Eric 發車令 → T004**（開發線 22 顆未推／出貨線 12 顆未推）❷ 上一棒的 skill 回填三項（見下方 0725 T004 全帶線快照）仍未做 ❸ 本輪新增 skill 回填候補：Classic 由「豁免」翻為「跟進」新工藝（含 `_classic_filament` 讀磁碟母檔＝非冪等來源的坑）、PA 分流量表。
+
+**★ 跨線轉交（已完成，不用再處理）**：劉鈞豪回報的機端「Unable to open file」已上 .158 查證定讞＝**PING webui 檔案頁「重新命名」**用「下載→重新上傳→刪舊檔」實作（10MB 跑 15～27 秒、零進度回饋＝他說的「沒有動作」；開印時拿到未刷新的舊檔名 → `virtual_sdcard.py:568` KeyError）。**切片端無關**（`OctoPrint::upload` 是單一請求帶 `print=true`＋單一檔名）。建議改用 Moonraker 原生 `/server/files/move`。已 send_message 給 0725 Klipper session，結論寫進 Klipper `00治理文件/認領簿.md` 的 `c-0725-OR-01`。
 
 ↳ 認領牌 c-0725-T4-03（混色狀態行）／c-0725-T4-04（#33＋#30）皆已銷。
 
