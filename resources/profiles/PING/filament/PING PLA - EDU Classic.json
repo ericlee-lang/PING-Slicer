@@ -48,6 +48,15 @@
     "slow_down_layer_time": [
         "10"
     ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "filament_colour": [
+        "#EA4E16"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
+    ],
     "alias": "PING PLA - EDU Classic",
     "enable_pressure_advance": [
         "0"
@@ -66,11 +75,5 @@
     ],
     "eng_plate_temp_initial_layer": [
         "0"
-    ],
-    "filament_colour": [
-        "#EA4E16"
-    ],
-    "default_filament_colour": [
-        "#EA4E16"
     ]
 }

@@ -72,6 +72,12 @@
     "overhang_fan_threshold": [
         "25%"
     ],
+    "filament_colour": [
+        "#D3D3D3"
+    ],
+    "default_filament_colour": [
+        "#D3D3D3"
+    ],
     "filament_retraction_speed": [
         "30"
     ],
@@ -84,11 +90,5 @@
     "pressure_advance": [
         "0.2"
     ],
-    "alias": "PING SupPLA - 高流量噴頭",
-    "filament_colour": [
-        "#D3D3D3"
-    ],
-    "default_filament_colour": [
-        "#D3D3D3"
-    ]
+    "alias": "PING SupPLA - 高流量噴頭"
 }

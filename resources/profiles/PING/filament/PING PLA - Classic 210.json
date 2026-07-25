@@ -48,17 +48,20 @@
     "slow_down_layer_time": [
         "10"
     ],
-    "alias": "PING PLA - Classic 210",
-    "enable_pressure_advance": [
-        "0"
-    ],
-    "pressure_advance": [
-        "0"
+    "overhang_fan_threshold": [
+        "25%"
     ],
     "filament_colour": [
         "#EA4E16"
     ],
     "default_filament_colour": [
         "#EA4E16"
+    ],
+    "alias": "PING PLA - Classic 210",
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
     ]
 }

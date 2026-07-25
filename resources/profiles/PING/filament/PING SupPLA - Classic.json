@@ -51,17 +51,20 @@
     "slow_down_layer_time": [
         "10"
     ],
-    "alias": "PING SupPLA - Classic",
-    "enable_pressure_advance": [
-        "0"
-    ],
-    "pressure_advance": [
-        "0"
+    "overhang_fan_threshold": [
+        "25%"
     ],
     "filament_colour": [
         "#D3D3D3"
     ],
     "default_filament_colour": [
         "#D3D3D3"
+    ],
+    "alias": "PING SupPLA - Classic",
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
     ]
 }
