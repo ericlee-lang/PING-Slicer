@@ -4621,6 +4621,8 @@ struct Plater::priv
     void on_action_open_project(SimpleEvent&);
     void on_action_slice_plate(SimpleEvent&);
     void on_action_slice_all(SimpleEvent&);
+    // PING(異常單 #33)：一噴頭多料機兩支料目標溫度不一致 → 切片前確認。回傳 false＝使用者取消
+    bool ping_confirm_filament_temperature(bool all_plates);
     void on_action_publish(wxCommandEvent &evt);
     void on_action_print_plate(SimpleEvent&);
     void on_action_print_all(SimpleEvent&);
@@ -9935,11 +9937,107 @@ void Plater::priv::on_action_open_project(SimpleEvent&)
     }
 }
 
+// PING(異常單 #33，Eric 2026-07-25 裁「照做」)：一噴頭多料機的線材槽共用同一組加熱與溫度回饋，
+// 兩支料設不同目標溫度時，換料處引擎會插入變溫並等待（GCode.cpp:852-853 比對前後線材溫度），
+// 實際列印＝每次換料停在那邊等溫升／溫降，時間拉長、停等處也容易出瑕疵。
+// 切片前問一次讓使用者有機會回去改；**不擋切片**（Eric 裁「確認視窗」而非硬擋）。
+//
+// ⚠ 判準刻意用 single_extruder_multi_material，不是機型名含「同進」——
+//   同進機在 Orca 眼裡只有 1 槽（混色走 M6051/M6052 後插碼，引擎只看到一支料），
+//   根本設不出兩種溫度；真正會踩的是 SEMM=1 的多槽機：
+//   FD300/450/600/800 Pro＝2 槽、FF600/FF800＝4 槽、3in1＝2 槽、照片磚系。
+//   （槽數來源＝GUI_App.cpp:7300-7308 依 default_filament_profile 數量初始化。）
+//
+// 只比「這次真的會用到的槽」：get_extruders(true) 已含支撐/牆/填充的指派與換色 gcode，
+// 掛著沒用到的槽不會誤跳。回傳 false＝使用者選擇取消，不要切。
+bool Plater::priv::ping_confirm_filament_temperature(bool all_plates)
+{
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return true;
+
+    const Preset& printer_preset = bundle->printers.get_edited_preset();
+    if (printer_preset.printer_technology() != ptFFF)
+        return true;
+    const ConfigOption* semm_opt = printer_preset.config.option("single_extruder_multi_material");
+    if (semm_opt == nullptr || !semm_opt->getBool())
+        return true;
+
+    // 這次真的會用到的槽（1-based、已排序去重）
+    std::set<int> used_slots;
+    if (all_plates) {
+        for (int i = 0; i < partplate_list.get_plate_count(); ++i) {
+            if (PartPlate* plate = partplate_list.get_plate(i)) {
+                for (int e : plate->get_extruders(true))
+                    used_slots.insert(e);
+            }
+        }
+    } else if (PartPlate* plate = partplate_list.get_curr_plate()) {
+        for (int e : plate->get_extruders(true))
+            used_slots.insert(e);
+    }
+    if (used_slots.size() < 2)
+        return true;
+
+    const DynamicPrintConfig& config     = bundle->full_config();
+    const ConfigOptionInts*   temp       = config.option<ConfigOptionInts>("nozzle_temperature");
+    const ConfigOptionInts*   temp_first = config.option<ConfigOptionInts>("nozzle_temperature_initial_layer");
+    if (temp == nullptr || temp_first == nullptr)
+        return true;
+
+    struct SlotTemp { int slot; int t; int t_first; std::string name; };
+    std::vector<SlotTemp> slots;
+    for (int e : used_slots) {
+        const size_t idx = static_cast<size_t>(e - 1);
+        // 槽位越界＝配置還沒同步，交給既有守衛處理，這裡不多話
+        if (e < 1 || idx >= temp->values.size() || idx >= temp_first->values.size())
+            continue;
+        SlotTemp s;
+        s.slot    = e;
+        s.t       = temp->values[idx];
+        s.t_first = temp_first->values[idx];
+        s.name    = (idx < bundle->filament_presets.size()) ? bundle->filament_presets[idx] : std::string();
+        slots.push_back(s);
+    }
+    if (slots.size() < 2)
+        return true;
+
+    bool all_same = true;
+    for (size_t i = 1; i < slots.size(); ++i) {
+        if (slots[i].t != slots[0].t || slots[i].t_first != slots[0].t_first) {
+            all_same = false;
+            break;
+        }
+    }
+    if (all_same)
+        return true;
+
+    wxString detail;
+    for (const SlotTemp& s : slots) {
+        detail += wxString::Format(wxString::FromUTF8("　槽 %d　%s　噴頭 %d°C（首層 %d°C）\n"),
+                                   s.slot, from_u8(s.name), s.t, s.t_first);
+    }
+
+    MessageDialog dlg(q,
+        wxString::FromUTF8("這台機器所有線材槽共用同一組加熱與溫度回饋，但這次要用到的線材目標溫度不一致：\n\n")
+            + detail
+            + wxString::FromUTF8("\n換料時噴頭必須先等溫度到位才能繼續，會造成停等——列印時間拉長，停等處也容易出現瑕疵。\n")
+            + wxString::FromUTF8("建議先把這些線材的噴頭溫度改成一致再切片。"),
+        wxString::FromUTF8("線材目標溫度不一致"),
+        wxICON_WARNING | wxYES_NO | wxCENTRE);
+    dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("仍要切片"));
+    dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("取消"), true); // 焦點放安全選項
+    return dlg.ShowModal() == wxID_YES;
+}
+
 //BBS: GUI refactor: slice plate
 void Plater::priv::on_action_slice_plate(SimpleEvent&)
 {
     if (q != nullptr) {
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received slice plate event\n" ;
+        // PING(異常單 #33)：溫度不一致先問——擺在最前面，使用者取消就什麼都不動
+        if (!ping_confirm_filament_temperature(false))
+            return;
         //BBS update extruder params and speed table before slicing
         const Slic3r::DynamicPrintConfig& config = wxGetApp().preset_bundle->full_config();
         auto& print = q->get_partplate_list().get_current_fff_print();
@@ -9959,6 +10057,9 @@ void Plater::priv::on_action_slice_all(SimpleEvent&)
 {
     if (q != nullptr) {
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received slice project event\n" ;
+        // PING(異常單 #33)：溫度不一致先問——切全部時掃所有列印板的用槽
+        if (!ping_confirm_filament_temperature(true))
+            return;
         //BBS update extruder params and speed table before slicing
         const Slic3r::DynamicPrintConfig& config = wxGetApp().preset_bundle->full_config();
         auto& print = q->get_partplate_list().get_current_fff_print();
