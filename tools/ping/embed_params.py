@@ -368,7 +368,7 @@ def filename_tpl(mode_key):
     （開頭、} 之後）遇非 ASCII 即 throw（pre-skip skipper）、裸中文前綴會炸
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
     base = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
-    if mode_key in ("PLA+SUP", "ABS+SUP"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
+    if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
     if mode_key == "同進":  return '{"Mix_"}' + base
     if mode_key == "四色":  return '{"四色_"}' + base
@@ -591,6 +591,27 @@ def combo_overrides(combo, layer_height, nozzle):
                   "support_object_xy_distance": "0.5"})
     return o
 
+
+# ★ PLA+PVA 專屬製程（Eric 2026-07-25 裁「出」；值＝V2.1 定稿案 DPro_0.6_T210_PVA+PLA 對帳，
+#   劉勝賢 2026-07-24 提供 3mf、Eric「比較保守、練出來也不錯，參考這個」）
+# 產法＝從同口徑 PLA+SUP 製程雙生派生（同棧板雙生模式）：易拆幾何（Z0／XY 口徑×0.75）、
+#   支撐料槽 2、速度/層高家規全部自然繼承，只覆蓋「案值與家規不同」的四項。
+# ⚠ 兩項為跨基準換算值（同支撐角教訓，見 orca-sync.md），標待工程端實機驗證：
+#   ①支撐角：案值 Cura 40 ＝ Orca 50（Orca ＝ 90 − Cura）＝比全庫 35 多支撐，屬水溶支撐合理特例
+#   ②brim：案值「20 條」係 Cura 條數制，Orca 為 mm ⇒ 20 條 × 線寬 ≒ 口徑×20
+# 未套（家規優先，刻意）：層高（案 0.35@0.6 vs 家規口徑×0.5＝0.3——層高是全庫口徑連動家規）、
+#   內牆/填充速度（案「全 60」vs 家規外60/內≤80/填100 的吞吐設計；外牆與首層本就同值）。
+def pva_overrides(nozzle):
+    nz = float(nozzle)
+    return {
+        "support_threshold_angle": "50",                              # 案值 Cura 40 換算
+        "support_base_pattern_spacing": "%g" % round(nz * 19, 2),     # 支撐密度 5%（案值；家規 10%＝×9）
+        #   Orca 以線距表述密度：密度＝線寬/(線距+線寬) ⇒ 5% 需線距＝線寬×19（分子用口徑名目值，同 0722 家規）
+        "prime_tower_width": "45",                                    # 案值（劉勝賢現行；家規 25）
+        "brim_width": "%g" % round(nz * 20, 2),                       # 案值 20 條換算
+    }
+
+
 def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     """範本複製法：把已驗證的 FF 同進/3in1 machine/process/filament/cover 併入產出。
     - machine（type=machine 的口徑變體）：重指 setting_id（續 gm 計數避免撞號）→ mac_list
@@ -701,6 +722,7 @@ def main(src_base):
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
+    pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -783,6 +805,13 @@ def main(src_base):
                         tw = dict(proc); tw.update(PALLET_OVERRIDES)
                         tw["name"] = "%smm_棧板 @%s (%s)" % (lh, model, nz)
                         pallet_twins.append(tw)
+                    # PLA+PVA 專屬製程雙生（Eric 2026-07-25 裁「出」）：從同口徑 PLA+SUP 派生
+                    #（易拆幾何 Z0／XY 口徑×0.75、支撐料槽 2、速度/層高家規全部自然繼承）
+                    if is_dual_machine and cb == "PLA+SUP":
+                        pv = dict(proc); pv.update(pva_overrides(nz))
+                        pv["name"] = "%smm PLA+PVA @%s (%s)" % (lh, model, nz)
+                        pv["filename_format"] = filename_tpl("PLA+PVA")
+                        pva_twins.append(pv)
 
             # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
             mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
@@ -818,6 +847,14 @@ def main(src_base):
         proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
     if pallet_twins:
         print("  棧板雙生製程：%d 支（PINGP%03d 起）" % (len(pallet_twins), gp - len(pallet_twins)))
+
+    # 4a-5. PLA+PVA 專屬製程統一 emit（接在棧板之後＝既有＋照片磚＋棧板 id 全零位移）
+    for pv in pva_twins:
+        pv["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % pv["name"]), pv)
+        proc_list.append({"name": pv["name"], "sub_path": "process/%s.json" % pv["name"]})
+    if pva_twins:
+        print("  PLA+PVA 專屬製程：%d 支（PINGP%03d 起）" % (len(pva_twins), gp - len(pva_twins)))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
