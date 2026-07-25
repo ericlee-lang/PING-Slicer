@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.63",
+    "version": "01.00.00.64",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -751,6 +751,66 @@
             "sub_path": "process/0.5mm_棧板 @FD800 Pro 同進 (1.0).json"
         },
         {
+            "name": "0.125mm PLA+PVA @FD300 (0.25)",
+            "sub_path": "process/0.125mm PLA+PVA @FD300 (0.25).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD300 (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD300 (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD300 (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD300 (0.6).json"
+        },
+        {
+            "name": "0.125mm PLA+PVA @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm PLA+PVA @FD300 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD300 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD450 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm PLA+PVA @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm PLA+PVA @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD600 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm PLA+PVA @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm PLA+PVA @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD800 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm PLA+PVA @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm PLA+PVA @FD800 Pro (1.0).json"
+        },
+        {
             "name": "0.35mm @FF800 同進照片磚 (0.6)",
             "sub_path": "process/0.35mm @FF800 同進照片磚 (0.6).json"
         },
@@ -899,6 +959,10 @@
         {
             "name": "PING SupTPE",
             "sub_path": "filament/PING SupTPE.json"
+        },
+        {
+            "name": "PING PVA",
+            "sub_path": "filament/PING PVA.json"
         }
     ],
     "machine_list": [
