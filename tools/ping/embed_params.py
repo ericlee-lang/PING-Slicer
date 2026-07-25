@@ -1448,7 +1448,15 @@ def main(src_base):
                            {"name":"fdm_process_ping_common","sub_path":"process/fdm_process_ping_common.json"}]
                           + proc_list)
     # 高流量 @FF 舊名條目過濾（2026-07-12 改名，檔已刪、條目不留＝防斷鏈）
-    pj["filament_list"] = [x for x in pj["filament_list"] if x["name"] not in FF_FIL_RENAME]
+    # ★ ABS 整併（Eric 2026-07-25 裁「ABS 不需要 3 個，1 個就夠」・異常單 #37）：
+    # 三支實測＝**溫度/床/風扇/purge 完全相同**（250/100/30·30/30）；`PING PolyABS` 與
+    # `PING ABS` **葉檔逐鍵完全一致＝純副本**；`PING ABS - 250` 只因繼承鏈不同
+    #（直接繼承 common、跳過 fdm_filament_abs）而多出流量比 0.98／最大流量 30／PA 0.12。
+    # ⇒ 保留 `PING ABS` 並收編 ABS-250 的較佳值；另兩支移除，舊名走 renamed_from 相容
+    #（Preset.cpp:2084 會拿舊名比對 system profile 的 renamed_from ⇒ 客戶既有 3mf 自動對應）。
+    ABS_MERGED_AWAY = {"PING ABS - 250", "PING PolyABS"}
+    pj["filament_list"] = [x for x in pj["filament_list"]
+                           if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY]
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
