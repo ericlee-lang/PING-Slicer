@@ -47,7 +47,7 @@
         "100"
     ],
     "filament_retraction_length": [
-        "nil"
+        "3"
     ],
     "filament_z_hop": [
         "0.6"
