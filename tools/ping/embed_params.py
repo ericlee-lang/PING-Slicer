@@ -417,9 +417,13 @@ def normalize_unified_values(proc, ff=False):
     proc["overhang_3_4_speed"] = "25"
     proc["overhang_4_4_speed"] = "10"
     proc["bridge_flow"] = "0.95"
-    # ⑥ 支撐臨界角 60（Eric 2026-07-24 裁「支撐角度應該是 60，而不是 30」；
-    # 與爬坡品質同批——V3.0 底稿值 30 全庫翻正）。照片磚/Classic/DL1016 豁免同上。
-    proc["support_threshold_angle"] = "60"
+    # ⑥ 支撐臨界角 35（Eric 2026-07-25 裁，推翻 07-24 的 60）。照片磚/Classic/DL1016 豁免同上。
+    # 🔴 這是 Orca 基準值（自水平量、越大支撐越多），= Cura/V2.1 的 55。
+    #    兩線基準相反：Orca = 90 − Cura。改這個值前必讀 ping-slicer/orca-sync.md「Cura → Orca key 對照」。
+    # ⚠ 07-24 的 60 係把 V2.1 語意的「支撐角 60」直接寫進 Orca key（實等於 Cura 30）＝支撐暴增
+    #    （層高 0.3：判懸空的逐層外擴門檻 0.52mm→0.17mm，敏感度約 3 倍），現場回報「60 支撐太多」。
+    #    V3.0 底稿值 30 本來就是對的；今取 35（= Cura 55）＝比原值再保守一級。
+    proc["support_threshold_angle"] = "35"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
