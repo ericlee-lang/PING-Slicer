@@ -92,6 +92,9 @@ for name, (kind, d) in presets.items():
                 "travel_acceleration": "3000",
                 # 2026-07-20 Eric 裁（照片磚線 d09ab243）：接縫預設 背面→對齊（V 溝配套）
                 "seam_position": "aligned",
+                # 支撐參數統一（Eric 2026-07-25 裁）：照片磚支撐豁免取消，角度與全庫同 35
+                #（爬坡品質＝速度類，仍維持照片磚特調豁免）
+                "support_threshold_angle": "35",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
@@ -113,10 +116,12 @@ for name, (kind, d) in presets.items():
                 if d.get(key) != value:
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
             m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
-            if m_nz and "照片磚" not in name:
+            if m_nz:   # 2026-07-25 Eric 裁「支撐參數全部統一」：照片磚不再豁免（原 and "照片磚" not in name）
                 nz = float(m_nz.group(1))
                 # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8=12.5%）
-                for key, value in (("tree_support_branch_diameter", "%g" % (nz * 10)),
+                # 樹狀 2026-07-25 裁保守配方：分支直徑 ×10→×12（引擎上限 10）、新增分支距離 ×6
+                for key, value in (("tree_support_branch_diameter", "%g" % min(nz * 12, 10.0)),
+                                   ("tree_support_branch_distance", "%g" % (nz * 6)),
                                    ("support_base_pattern_spacing", "%g" % (nz * 9))):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -131,6 +136,19 @@ for name, (kind, d) in presets.items():
                 for key, value in expected_recipe:
                     if d.get(key) != value:
                         err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                # 樹狀支撐保守配方（Eric 2026-07-25 裁）：只在使用者手動切「混合樹」後生效，
+                # 預設 normal(auto)+snug 不受影響。auto_brim 必須為 0，否則 brim_width 被引擎忽略
+                #（TreeSupport.cpp:2068）。_organic 兩鍵＝防呆（snug+樹狀會被引擎退回 default＝有機樹）：
+                # 🔴 diameter_organic 2.6 是 bug 修——Print.cpp:1532 硬限 ≥2×支撐線寬，
+                #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
+                for key, value in (("tree_support_branch_angle", "30"),
+                                   ("tree_support_auto_brim", "0"),
+                                   ("tree_support_brim_width", "10"),
+                                   ("tree_support_wall_count", "1"),
+                                   ("tree_support_branch_diameter_organic", "2.6"),
+                                   ("tree_support_branch_angle_organic", "40")):
+                    if d.get(key) != value:
+                        err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
             if d.get("prime_tower_width") != "25":
                 err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
     if kind == "filament":

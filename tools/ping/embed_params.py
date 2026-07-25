@@ -443,8 +443,38 @@ def normalize_support_interface(proc):
 # 分子用口徑名目值（FF 微調線寬 0.41/0.62/1.02 不入分子，全庫統一 0.4→3.6/0.6→5.4/1.0→9）；
 # 全口徑含 0.2/0.25 照公式（0.2→1.8、0.25→2.25）；照片磚維持獨立特調不套（emit_phototile 不呼叫）。
 def normalize_support_geometry(proc, nozzle):
-    proc["tree_support_branch_diameter"] = "%g" % (float(nozzle) * 10)
+    # 分支直徑 2026-07-25 Eric 裁 ×10→×12（保守配方；引擎上限 10 ⇒ 1.0 口徑取 10）。
+    proc["tree_support_branch_diameter"] = "%g" % min(float(nozzle) * 12, 10.0)
+    # 分支距離 2026-07-25 新增＝口徑×6（原固定 5）：與直徑同為口徑連動 ⇒ 直徑/距離恆為 2.0，
+    # 各口徑得到相同支撐幾何（固定 5 會讓 0.25 口徑比例失衡到 0.5＝分支不融合）。引擎範圍 1~10。
+    proc["tree_support_branch_distance"] = "%g" % (float(nozzle) * 6)
     proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 9)
+    return proc
+
+
+# ★ 樹狀支撐保守配方（Eric 2026-07-25 裁・.141 失敗件支撐稽核衍生）
+# 前提：預設支撐維持 normal(auto)+snug 不變；本組只在**使用者手動把樣式切成「混合樹」**後生效。
+# 選型依據＝Orca 官方 tooltip：slim/organic 會積極合併分支大量省料，而 **hybrid 在大面積平懸空下
+#   產生「類似普通支撐的結構」** ⇒ 最貼近 PING 已實機驗證的 normal+snug 行為；且易拆系（+SUP/3in1）
+#   Z 間距 0＋專用支撐料（介面料槽 2）＝靠材料不相熔剝離，密實介面鋪得完整，正對症。
+#   單料頭/同進系 Z 間距 0.2＋無專用料（同料）＝靠空氣間隙剝離，樹狀為點接觸 ⇒ 能用但非首選。
+# ⚠ 欄位分組是引擎硬分的（ConfigManipulation.cpp:750-758）：branch_angle/distance/diameter 與
+#   auto_brim/brim_width 屬「normal tree」（hybrid 吃）；帶 _organic 後綴者與 tip_diameter/
+#   top_rate/angle_slow/branch_diameter_angle 屬 organic 專屬（切 hybrid 後不生效）。
+def normalize_tree_support(proc):
+    # 甲組：混合樹會吃的（保守＝穩定優先，代價為費料、難拆）
+    proc["tree_support_branch_angle"] = "30"      # 原 40（原廠值）；角度小＝分支更垂直＝更不易垮。範圍 0~60
+    proc["tree_support_auto_brim"] = "0"          # 必須關，brim_width 才生效
+    #   （TreeSupport.cpp:2068 `!auto_brim ? tree_brim_width : 自動計算` ＝開著時手設值被完全忽略，
+    #    且 ConfigManipulation.cpp:760 會把該欄位灰掉不可編輯）
+    proc["tree_support_brim_width"] = "10"        # 原 3；樹狀為高瘦結構，底盤加寬＝不倒
+    proc["tree_support_wall_count"] = "1"         # 原 0(auto)：Eric 裁「維持一圈」（不到上限 2）；6/16 家規記載本即為 1
+    # tree_support_with_infill 不寫＝維持繼承 false（Eric 裁「填充維持空心」）
+    # 乙組：organic 防呆（使用者忘記切樣式時會吃到——snug+樹狀會被引擎退回 default＝有機樹）
+    # 🔴 diameter_organic 2→2.6 是 bug 修：Print.cpp:1532 硬性要求 ≥2×支撐線寬，
+    #    FF600/FF800 的 1.0 口徑線寬 1.02 ⇒ 需 ≥2.04，原值 2 會讓那 4 支勾樹狀即切片報錯。
+    proc["tree_support_branch_diameter_organic"] = "2.6"
+    proc["tree_support_branch_angle_organic"] = "40"   # 原 60＝引擎上限（最水平＝最易垮），回原廠 40
     return proc
 
 # ★ 普通支撐配方（Eric 2026-07-22 七裁・FD600 同進 Benchy 實測定案，支撐 1h48m→~35m）：
@@ -588,8 +618,9 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         normalize_unified_values(d, ff=True)  # 主線統一值；FF 範本 jerk 維持 40（上限 56 不警告）
         m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
         if m_nz:
-            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×9（2026-07-17/0722，FF 範本同套）
+            normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×12(上限10)＋分支距離×6＋主體線距×9（0717/0722/0725，FF 範本同套）
             normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過
+            normalize_tree_support(d)  # 樹狀保守配方＋organic 防呆（2026-07-25）
         d["filename_format"] = filename_tpl("3in1" if "3in1" in d["name"] else "同進")  # 檔名新格式（2026-07-23）FF 範本同套
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
@@ -632,7 +663,20 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
         d["sparse_infill_acceleration"] = "10000"
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
-        # ⚠ 主線統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000，
+        # ★ 支撐參數全部統一（Eric 2026-07-25 裁「照片磚其實不會用到支撐，把支撐參數全部統一，
+        #   就不會有差異了」）——取消照片磚既有的支撐豁免（0714 介面／0717 幾何／0722 七裁／0725 角度）。
+        #   實測 enable_support=1（開啟）但磚體平貼床無懸空面 ⇒ 引擎不生成支撐、統一為純消除差異。
+        #   影響：type tree(auto)→normal(auto)、style default→snug（原組合＝有機樹）、角度 30→35、
+        #   線距 2.5→口徑×9、XY 0.3→口徑×1、獨立支撐層高 1→0。
+        #   照片磚不含 "+SUP" ⇒ 依家規判定為「一般支撐」（easy_release=False）。
+        m_nz_pt = re.search(r"\(([\d.]+)\)\s*$", d["name"])
+        if m_nz_pt:
+            normalize_support_geometry(d, m_nz_pt.group(1))
+            normalize_support_recipe(d, m_nz_pt.group(1))
+        normalize_tree_support(d)
+        normalize_support_interface(d)      # 介面 4 層/0.1「只收緊不放鬆」（照片磚現值 0.04 更密＝不動）
+        d["support_threshold_angle"] = "35"  # 與全庫同值（原 30 豁免取消）
+        # ⚠ 支撐以外的主線統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000，
         # 稀疏填充加速度也保留特調範本值；主線 2026-07-15 保守值不得蓋進照片磚。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
@@ -725,8 +769,9 @@ def main(src_base):
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 主線統一值；FF 四色 jerk 維持 40
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
-                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×9（2026-07-17/0722）
+                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×12(上限10)＋分支距離口徑×6＋主體線距口徑×9（0717/0722/0725）
                     normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
+                    normalize_tree_support(proc)  # 樹狀保守配方＋organic 防呆（2026-07-25）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
