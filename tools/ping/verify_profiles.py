@@ -382,6 +382,17 @@ else:
         if pd.get(k) != want:
             err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
+# 🔴 型別護欄（0725 T004 事故）：`renamed_from` 必須是**字串**，寫成 JSON 陣列會讓
+# PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array → nlohmann 丟
+# type_error.302「type must be string, but is array」→ 該 filament 檔載入失敗
+# → **整包 PING vendor 解析中止** → 使用者開起來沒有任何 PING 機型、跳設定精靈、
+#   機器掉成 Default Printer。多個舊名用 **分號** 串接（Config.cpp:146 以 ';' 分隔）。
+# 教訓：verify 過去只查「參照與值」，查不到「引擎能不能載入」——這類型別錯是啞的。
+for _n, (_k, _d) in presets.items():
+    _rf = _d.get("renamed_from")
+    if _rf is not None and not isinstance(_rf, str):
+        err(f"[renamed_from 型別錯 — 會讓整包 vendor 載入失敗] {_n}: {_rf!r}（須為分號字串）")
+
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
