@@ -24,6 +24,7 @@
 #include "MsgDialog.hpp"
 #include "I18N.hpp"
 #include "MainFrame.hpp"
+#include "Plater.hpp"   // PING(#26 加固)：混色狀態行要問 plater 的同進／混色啟用狀態
 #include "libslic3r/AppConfig.hpp"
 #include "NotificationManager.hpp"
 #include "ExtraRenderers.hpp"
@@ -124,6 +125,31 @@ void PrintHostSendDialog::init()
     checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
     content_sizer->Add(checkbox_sizer);
     content_sizer->AddSpacer(VERT_SPACING);
+
+    // PING(異常單 #26 加固)：同進機才顯示「本次上傳含不含混色」。
+    // 混色是「面板展開＝啟用、收合＝停用」的隱性狀態，而這個對話框看不出這次送出的
+    // G-code 到底含不含 M6051/M6052。#26 實錄（0724 .29 FF600 Pro Max 驗屍）：
+    // 匯出當下面板是收合的 ⇒ 全檔只有 start 那一行、零逐層曲線，印到 91% 才發現整件沒混色。
+    // 判定沿用既有 API、與 GCodeViewer.cpp:1130 同一套。
+    // ⚠ 這一行必須放這個對話框——PING 是第三方 print host（octoprint），
+    //   MainFrame.cpp:2099-2118 對非 BBL 機把 support_send 設成 false、
+    //   「傳送」鈕根本不會建立 ⇒ SendToPrinterDialog 在 PING Slicer 走不到。
+    if (Plater* plater = wxGetApp().plater()) {
+        bool is_quad = false;
+        if (plater->is_ping_tongjin_selected(&is_quad)) {
+            const bool mix_on   = plater->is_ping_mix_enabled();
+            auto*      mix_text = new wxStaticText(this, wxID_ANY,
+                mix_on ? (is_quad ? wxString::FromUTF8("混色：啟用（四料）")
+                                  : wxString::FromUTF8("混色：啟用（雙料）"))
+                       : wxString::FromUTF8("混色：停用——本次上傳不含混色指令"));
+            mix_text->SetFont(::Label::Body_13);
+            // 停用＝該注意的狀態才上橘色（CIS accent 用法）；啟用＝一般字色、深色模式安全
+            mix_text->SetForegroundColour(mix_on ? StateColor::darkModeColorFor(wxColour("#323A3D"))
+                                                 : wxColour(234, 78, 22));
+            content_sizer->Add(mix_text);
+            content_sizer->AddSpacer(VERT_SPACING);
+        }
+    }
 
     if (size_t extension_start = recent_path.find_last_of('.'); extension_start != std::string::npos)
         m_valid_suffix = recent_path.substr(extension_start);
