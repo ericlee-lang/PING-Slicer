@@ -15,6 +15,34 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁🏁🏁🏁🏁🏁 收工快照（2026-07-25 深夜 續棒 — 使用者回報批三張單全落地：#26 加固／#33／#30）
+
+**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**18 顆未推**，遠端 `95bf5a7c`；碼的最後一顆＝`7ac65f9c`）｜出貨線 `release/v3.6` tip **`b5270ff5`**（**9 顆未推**，遠端 `53d4f273`＝T003）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
+
+| 單 | 開發線 | 出貨線 | 內容 |
+|---|---|---|---|
+| #26 加固 | `50df716d` | `d38ac33f` | 上傳對話框「混色：啟用／停用」狀態行（同進機才顯示） |
+| #33 | `88b47560` | `ea2586c2` | 一噴頭多料機兩支料目標溫度不一致 → 切片前確認視窗 |
+| #30 | `7ac65f9c` | `b5270ff5` | 物件移動預設座標系改「物件座標」（照 V2.1） |
+
+三顆移植前兩線 blob 皆**逐位元相同** ⇒ patch 乾淨套用、**兩線 diff 逐位元一致**（28cc3337／ee16ea13／2643b747）。⚠ **三張單的 C++ 都未本地編譯＝隨 T004 CI 首驗**，眼驗項寫在各自 commit message。
+
+**🔴 #33 的關鍵事實（與直覺相反，下一棒別再走冤枉路）**——「噴頭同一組加熱」在 Orca 的判準是 `single_extruder_multi_material`，**不是機型名含「同進」**：
+- **SEMM=1（一噴頭多料、會踩溫度停等）**：FD300／FD300 Pro／FD450 Pro／FD600 Pro／FD800 Pro＝**2 槽**；FF600／FF800＝**4 槽**；3in1＝2 槽；照片磚系
+- **SEMM=0（Orca 眼裡只有 1 槽、設不出兩種溫度）**：**同進系**、單料頭系、FP300
+- ⇒ **同進機反而不是受害者**（混色走 M6051/M6052 後插碼，引擎只看到一支料）。槽數來源＝`GUI_App.cpp:7300-7308` 依 `default_filament_profile` 數量初始化（SEMM=0 才吃 `nozzle_diameter` 數量）。
+- 停等機制已在碼上證實：`GCode.cpp:852-853` 換料時比對前後線材的 `nozzle_temperature`／`nozzle_temperature_initial_layer` 後插變溫並等待。
+- 實作：`Plater::priv::ping_confirm_filament_temperature(bool all_plates)`，插 `on_action_slice_plate`／`on_action_slice_all` 最前面（只有主動切片才問、背景切片不受干擾）；只比 `PartPlate::get_extruders(true)` 實際用到的槽；昂貴的 `full_config()` 擺在兩道早退之後。
+
+**🔴 #30 的真因與連帶效應**——世界座標的位置以**模型中心點**為準：物件已貼地，Z 欄仍顯示 45.00，使用者誤判成浮空（Eric 實圖佐證）。切「物件座標」後欄位變**「平移（相對）」、X/Y/Z 全 0.00**＝正是 V2.1 移動面板的顯示方式 ⇒ **相對位移是要的行為，不是要迴避的副作用**（上一棒差點把它當成阻礙）。
+- 改在 `GLGizmoMove3D::change_cs_by_selection()`——那裡本來就是「每次改選取依型別重設座標系」，所以不是改 default 常數、是改規則：單一整個物件（`is_single_full_instance`）也給 Instance。多選與換料塔維持 World（下拉本來就沒有「物件座標」可選，`GizmoObjectManipulation.cpp:882-889` 的 `modes.pop_back()`）。
+- ⚠ **連帶**：`m_coordinates_type` 是移動／旋轉／縮放**共用**的一個狀態，而 `GLGizmoScale3D::change_cs_by_selection()` 對單一整個物件不設值（沿用現值）⇒ 開過移動再切縮放，縮放面板也會顯示「物件座標」。屬既有可達狀態、非新狀態；**縮放要不要一起改＝待 Eric 一句話**（本棒刻意不擴大範圍）。
+
+**🔴 下一棒最優先**：❶ 等 Eric 發車令 → T004 ❷ 待裁四小項：縮放面板要不要跟著預設物件座標／Classic 要不要套新工藝／照片磚 `enable_support` 要不要關／PA 0.12 要不要排 PA 塔實測 ❸ 上一棒的 skill 回填三項（見下方 0725 T004 全帶線快照）仍未做。
+
+↳ 認領牌 c-0725-T4-03（混色狀態行）／c-0725-T4-04（#33＋#30）皆已銷。
+
+---
 ### 🏁🏁🏁🏁🏁 收工快照（2026-07-25 T004 全帶線 — 樹狀配方／照片磚統一／PVA 製程／出貨線全批移植）
 
 **線況**：開發線 `ping/v3.5` tip **`0a5d1df3`**（**10 顆未推**，遠端 `95bf5a7c`）｜出貨線 `release/v3.6` tip **`6ed1ad6d`**（**3 顆未推**，遠端 `53d4f273`＝T003）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
