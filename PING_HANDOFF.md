@@ -15,6 +15,41 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁🏁🏁🏁🏁 收工快照（2026-07-25 T004 全帶線 — 樹狀配方／照片磚統一／PVA 製程／出貨線全批移植）
+
+**線況**：開發線 `ping/v3.5` tip **`0a5d1df3`**（**10 顆未推**，遠端 `95bf5a7c`）｜出貨線 `release/v3.6` tip **`6ed1ad6d`**（**3 顆未推**，遠端 `53d4f273`＝T003）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
+
+**Eric 0725 四裁全落地**：①T004 走 **A 案全帶**（0724 批＋0725 全部一車帶齊）②PLA+PVA 專屬製程「出」③樹狀配方照表做（**混合樹**／牆圈維持一圈／填充空心）④照片磚支撐參數**全部統一**（取消豁免）。
+
+| 線 | commit | 內容 | bundle |
+|---|---|---|---|
+| 開發 | `fa3ecb90` | 樹狀保守配方（149 支）＋照片磚支撐統一（5 支） | 54→55 |
+| 開發 | `0a5d1df3` | PLA+PVA 專屬製程 15 支 | 55→56 |
+| 出貨 | `01148acf` | 0724-0725 全批源移植（爬坡／支撐角 35／PVA 線材／懸空冷卻／樹狀／照片磚／PVA 製程） | 63→**64**＝T004 |
+| 出貨 | `6ed1ad6d` | #24/#25 混色提示框修（cherry-pick `766136f5`，單檔 PingMixEditor.cpp） | — |
+
+**verify**：開發線 **292 presets 全綠**／出貨線 **320 presets・81 machines 全綠**（皆 exit 0，真實 exit code 已用檔案重導向確認——`| tail` 會讓 `$?` 抓到 tail 的碼）。
+
+**★ 樹狀支撐配方（Eric 0725 定案）**——前提：**預設仍是普通支撐＋緊貼 snug，本組只在使用者手動切「混合樹」後生效**。
+- 選型鐵證：官方 tooltip「hybrid 在大面積平懸空下產生類似普通支撐的結構」；且易拆系（Z 間距 **0**＋專用支撐料槽 2＝靠材料不相熔剝離）密實介面鋪得完整＝正對症；單料頭/同進系（Z **0.2**＋無專用料＝靠空氣間隙剝離）樹狀為點接觸 ⇒ 能用但非首選。
+- 甲組（hybrid 吃）：分支直徑 **口徑×12**（引擎上限 10 ⇒ 1.0 取 10）／分支距離 **口徑×6**（新增口徑連動，直徑/距離恆為 2.0）／角度 **30**／`auto_brim` **0**（★必須關，`TreeSupport.cpp:2068` 開著時手設 brim 被完全忽略）／brim **10**／牆圈 **1**／填充維持空心。
+- 乙組（organic 防呆）：`_diameter_organic` 2→**2.6**（🔴 bug 修：`Print.cpp:1532` 硬限 ≥2×支撐線寬，FF600/FF800 的 1.0 口徑線寬 1.02 需 ≥2.04，舊值會讓那 4 支**勾樹狀即切片報錯**）／`_angle_organic` 60→**40**。
+- ⚠ **引擎硬知識（改樹狀前必讀）**：`SupportParameters.hpp:173-180` 雙向 fallback——**snug＋樹狀會被退回 default＝有機樹**（所以未切樣式時吃的是乙組）；**樹狀樣式＋普通類型也會退回 default＝Grid**（所以 profile 預設**不能**設成 hybrid，會打壞 0722 的 snug 定案）。欄位分組硬分於 `ConfigManipulation.cpp:750-758`（`_organic`／tip_diameter／top_rate／angle_slow／branch_diameter_angle 屬 organic 專屬，切 hybrid 後不生效）。
+
+**★ PLA+PVA 專屬製程 15 支**：從同口徑 PLA+SUP 雙生派生（emit 接棧板之後＝既有 id 零位移）。覆蓋四項＝支撐角 **50**（案值 Cura 40 換算）／線距 **口徑×19**（密度 5%）／塔 **45**／brim **口徑×20**（案值 20 條換算）；易拆幾何（Z0／XY 口徑×0.75）、層高與速度走家規（刻意未套案值層高 0.35／速度全 60）。⚠ 支撐角與 brim 為**跨基準換算值**，待工程端實機驗證。
+
+**🔴 三個新發現（下一棒必讀）**
+1. **Classic 前代 8 機會被 F 系新工藝夾帶**——Classic 製程由 Fast 母檔複製 ⇒ 爬坡品質/支撐角/樹狀全被蓋，而它**自有的懸空降速本來是關的**（enable 0、80/50/50/50、bridge 1、支撐角 30）。已依 0719「Classic 不套預擠點升溫」先例在 `emit_classic` 還原，並加 verify **反向斷言**「Classic 前代豁免破功」防下次 regen 再犯。**要不要套新工藝＝待 Eric 裁。**
+2. **`_classic_filament` 讀的是磁碟母檔（非冪等來源）**——母檔在上一輪 regen 已被 sweep 寫入值 ⇒ **光在 sweep 端排除 Classic 擋不住**，必須在複製處 pop。例外＝母檔 `PING PLA - 220` 0724 前就自帶 25%（既有值），無條件 pop 會誤刪——**這是文字 diff 看不出、只有值層面逐鍵比對才抓得到的一類**。
+3. **照片磚 `enable_support`＝1（開啟）**，只是磚體平貼床無懸空面所以不生成支撐。Eric 裁的「統一」已做（tree(auto)+default→normal(auto)+snug 等 6 鍵）；要連開關關掉＝產品決策，待裁。
+
+**★ 驗證工法（本輪沉澱，建議沿用）**：`git diff` 的文字 diff 會被**尾逗號位移**與 **CRLF/LF** 干擾而失真 ⇒ 改用**值層面逐鍵比對**（`git show HEAD:<file>` vs 現檔，逐 key 比 changed/added/removed）。⚠ 取檔案清單務必用 `git diff --name-only **-z**`——中文檔名會被 git 轉義成引號包裹，用 `.json` 結尾過濾會**整批漏掉中文檔名**（本輪首跑就漏了照片磚，74 檔沒比到）。
+
+**🔴 下一棒最優先**：❶ **等 Eric 發車令**（出貨線 push 自動觸發 CI／開發線需手動 dispatch `gh workflow run build_all.yml --ref ping/v3.5`）→ 綠後照 T003 流程上架 T004 ❷ 待裁三小項：Classic 要不要套新工藝／照片磚 `enable_support` 要不要關／**混色「啟用/停用」狀態行**（Eric 已裁「做」，本輪 context 不足未做——**接點已探明**：`plater->is_ping_tongjin_selected()` ＋ `plater->is_ping_mix_enabled()`，同 `GCodeViewer.cpp:1130` 用法，插 `SendToPrinter.cpp`）❸ skill 回填：`materials.md` 的「易拆 vs 一般」判定法要加 **PLA+PVA 歸易拆**（verify 首跑即抓到此誤判）。
+
+↳ 認領牌 c-0725-T4-01（全帶線）／c-0725-SA-02（appdata 支撐角手術，監看中）；c-0725-SA-01 由 FD600 Pro 列印異常 session 銷牌並回覆停手。
+
+---
 ### 🏁🏁🏁🏁 收工快照（2026-07-24 PVA＋爬坡品質線 — 新材料入系統／全庫品質批／異常單三張）
 
 **線況**：開發線 `ping/v3.5` tip **`48023ae8`**（**未推 6 顆**＝0723 兩顆〔檔名新格式 `9074f3cb`／選機頁槽位修 `3e64a762`〕＋本輪四顆）｜出貨線 `release/v3.6` tip `4b1a199e`（未推 2 顆，**不含本輪**）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
