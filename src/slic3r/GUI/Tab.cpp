@@ -173,6 +173,15 @@ void Tab::set_type()
 // 製程名形如「0.125mm PLA+SUP @FD300 (0.25)」——取 @ 前最後一個 token 當組合，
 // 對應預設用料（值=參數端組合定稿）。僅在使用者「手動點選製程」那一刻觸發
 // （載專案／切機台不走 Tab combo 的 selection_changed，不會蓋掉專案線材）。
+// 線材名集中一處，避免整併／改名時像 0725 那樣漏改而讓連動靜默失效。
+static constexpr const char *PING_ABS     = "PING ABS";          // 2026-07-25 三支併一（原 ABS - 250／PolyABS）
+static constexpr const char *PING_PVA     = "PING PVA";          // 2026-07-24 新入系統的水溶支撐料
+static constexpr const char *PING_PLA_220 = "PING PLA - 220";
+static constexpr const char *PING_SUP_PLA = "PING SupPLA";
+static constexpr const char *PING_SUP_ABS = "PING SupABS";
+static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";      // 高流量噴頭
+static constexpr const char *PING_SUP_HF  = "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";
+
 static void ping_apply_combo_filaments(const std::string &process_name)
 {
     size_t at = process_name.find('@');
@@ -180,14 +189,17 @@ static void ping_apply_combo_filaments(const std::string &process_name)
     std::string head = process_name.substr(0, at);
     while (!head.empty() && head.back() == ' ') head.pop_back();
     // PING(2026-07-08)：棧板雙生製程（頭段含「_棧板」，接在層高 token 後、無空白分隔
-    // → 不走下方 combo token 解析）→ 全槽切 PING ABS - 250（單料頭/同進/FP 全槽同料）。
+    // → 不走下方 combo token 解析）→ 全槽切 PING ABS（單料頭/同進/FP 全槽同料）。
     // 單向連動（Eric 裁決）：切回無 _棧板 的一般版不自動換回 PLA（一般製程不動線材＝現行為）。
     if (head.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos) {   // "_棧板" UTF-8
         PresetBundle *bundle = wxGetApp().preset_bundle;
         if (bundle->filament_presets.empty()) return;   // 棧板路徑放寬到 ≥1 槽（單料機也套）
-        if (!bundle->filaments.find_preset("PING ABS - 250", false)) return;   // 目標線材在才動手
+        // ⚠ 名稱必須跟得上線材整併：ABS 三支於 2026-07-25 併為單一「PING ABS」（異常單 #37）。
+        //   find_preset() **不走 renamed_from 回溯**（那是 find_preset2），舊名在這裡是硬失敗 →
+        //   守衛 return → 整個連動靜默失效。0725 T004 實爆（棧板與 ABS 組合雙雙啞掉）。
+        if (!bundle->filaments.find_preset(PING_ABS, false)) return;   // 目標線材在才動手
         for (size_t i = 0; i < bundle->filament_presets.size(); ++i)
-            bundle->set_filament_preset(i, "PING ABS - 250");
+            bundle->set_filament_preset(i, PING_ABS);
         bundle->export_selections(*wxGetApp().app_config);
         if (Plater *plater = wxGetApp().plater()) {
             plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
@@ -201,21 +213,24 @@ static void ping_apply_combo_filaments(const std::string &process_name)
     if (sp == std::string::npos) return;
     const std::string combo = head.substr(sp + 1);
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS = {
-        {"PLA+SUP", {"PING PLA - 220", "PING SupPLA"}},
-        {"PLA+PLA", {"PING PLA - 220", "PING PLA - 220"}},
-        {"ABS+SUP", {"PING ABS - 250", "PING SupABS"}},
-        {"ABS+ABS", {"PING ABS - 250", "PING ABS - 250"}},
+        {"PLA+SUP", {PING_PLA_220, PING_SUP_PLA}},
+        {"PLA+PLA", {PING_PLA_220, PING_PLA_220}},
+        // PLA+PVA（Eric 2026-07-26 回報「選 PLA+PVA 沒跳 PVA」）：0725 新出的專屬製程
+        // 當時只加了 process，忘了補這張連動表 ⇒ 第 2 槽不會換成 PVA。
+        {"PLA+PVA", {PING_PLA_220, PING_PVA}},
+        {"ABS+SUP", {PING_ABS, PING_SUP_ABS}},
+        {"ABS+ABS", {PING_ABS, PING_ABS}},
     };
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
     // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS_HF = {
-        {"PLA+SUP", {"PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD",      // 高流量噴頭
-                     "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD"}},
-        {"PLA+PLA", {"PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD",
-                     "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD"}},
-        {"ABS+SUP", {"PING ABS - 250", "PING SupABS"}},
-        {"ABS+ABS", {"PING ABS - 250", "PING ABS - 250"}},
+        {"PLA+SUP", {PING_PLA_HF, PING_SUP_HF}},
+        {"PLA+PLA", {PING_PLA_HF, PING_PLA_HF}},
+        // PVA 無高流量版 ⇒ 第 1 槽走高流量 PLA、第 2 槽用一般 PVA（同 ABS 無高流量版的處理）
+        {"PLA+PVA", {PING_PLA_HF, PING_PVA}},
+        {"ABS+SUP", {PING_ABS, PING_SUP_ABS}},
+        {"ABS+ABS", {PING_ABS, PING_ABS}},
     };
     PresetBundle *bundle = wxGetApp().preset_bundle;
     const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
