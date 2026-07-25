@@ -409,7 +409,10 @@ def filename_tpl(mode_key):
     # 2026-07-23 Eric 改版：模式_列印設備(口徑)_檔名_時間0.5H_重量g（佔位符需同日後 binary，profile 與 binary 同車）
     if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
-    if mode_key == "同進":  return '{"Mix_"}' + base
+    # Mix_ → 同進_（Eric 2026-07-26 裁）：7 個前綴裡只有這個是英文，與 易拆/雙色/單料/四色/經典
+    # 不一致，同事看檔名會覺得不整齊。已查無消費者——切片端無人讀此前綴，機台端判混色是看
+    # gcode 內容的 M6051/M6052 而非檔名 ⇒ 純顯示層改名，零功能影響。
+    if mode_key == "同進":  return '{"同進_"}' + base
     if mode_key == "四色":  return '{"四色_"}' + base
     if mode_key == "3in1":  return '{"3in1_"}' + base   # FF 範本製程（emit_ff_extra 套用）
     return '{"單料_"}' + base   # 單料頭 / FP300
@@ -754,6 +757,13 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
         #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
         d["enable_support"] = "0"
+        # Mix_ → 同進_（Eric 2026-07-26 裁）：照片磚製程從範本檔複製、**不走 filename_tpl()**，
+        # 所以 filename_tpl 改了它們不會跟著改（0726 實測：37 支改了、這 5 支仍是 Mix_）。
+        # 在此明寫覆蓋＝regen-durable，且不必去動範本檔。照片磚機型本身就是「同進照片磚」。
+        # ⚠ 同一類坑今天踩過兩次（DL1016 注入源、本處範本源）：**產生器 sweep 掃不到的來源
+        #   要各自處理**，改全庫規則後務必回頭數數量對不對。
+        if isinstance(d.get("filename_format"), str):
+            d["filename_format"] = d["filename_format"].replace('{"Mix_"}', '{"同進_"}')
         # ⚠ 支撐以外的正式製程統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
