@@ -333,7 +333,16 @@ void GLGizmoMove3D::change_cs_by_selection() {
     } else {
         m_object_manipulation->set_use_object_cs(false);
     }
+    // PING(異常單 #30，Eric 2026-07-25 裁「照 2.1」)：單一整個物件也預設「物件座標」。
+    // 原因＝世界座標的位置是以**模型中心點**為準：物件明明已經貼地，Z 仍顯示 45.00，
+    // 使用者會誤判成浮空（Eric 實圖佐證）。切成物件座標後欄位變「平移（相對）」、
+    // X/Y/Z 全是 0.00 ——這正是 V2.1 移動面板的顯示方式，也是要對齊的使用習慣。
+    // 多選物件與換料塔維持世界座標（那兩種情況下拉本來就沒有「物件座標」可選，
+    // 見 GizmoObjectManipulation.cpp:882-889 的 modes.pop_back()）。
+    const Selection& selection = m_parent.get_selection();
     if (m_object_manipulation->get_use_object_cs()) {
+        m_object_manipulation->set_coordinates_type(ECoordinatesType::Instance);
+    } else if (selection.is_single_full_instance() && !selection.is_wipe_tower()) {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::Instance);
     } else {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::World);
