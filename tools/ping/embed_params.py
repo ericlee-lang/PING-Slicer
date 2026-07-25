@@ -1272,8 +1272,10 @@ def main(src_base):
         fd["filament_retract_before_wipe"] = ["100%"]
         is_hf = ("高流量" in bn) or ("(3in1)" in bn)
         fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
-        if "TPE" in bn:
-            pass                                          # TPE/SupTPE 維持 3（0718 定稿）
+        if "TPE" in bn or "PVA" in bn:
+            pass                                          # TPE/SupTPE 維持 3（0718 定稿）；PVA 維持 3（0724 V2.1 案定稿）
+                                                          # ⚠ 0725 稽核抓漏：01148acf 全批移植時這裡漏了 PVA，
+                                                          #   PVA 掉進 else 拿 nil＝繼承機器 1.3，與主線 48023ae8 不符
         elif is_hf:
             fd["filament_retraction_length"] = ["2"]      # 高流量家族一律勾 2（0723 補裁；3in1 同勾）
         else:

@@ -307,9 +307,11 @@ for name, (kind, d) in presets.items():
                 #   ⚠ Classic 前代線材另有 PA 全關斷言（Marlin 無 PA），不受本條影響。
                 if is_hf and _v("pressure_advance") == "0.12":
                     err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
-                if "TPE" in name:
+                # PVA 與 TPE 同列（Eric 2026-07-24 PVA 對帳 V2.1 定稿＝回抽長度 3）
+                # ⚠ 0725 稽核抓漏：本行原只認 TPE，PVA 落到 else 被要求 nil ⇒ 與主線不同步
+                if "TPE" in name or "PVA" in name:
                     if _v("filament_retraction_length") != "3":
-                        err(f"[TPE 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
+                        err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
                 elif is_hf:
                     if _v("filament_retraction_length") != "2":
                         err(f"[高流量家族長度 2（0723 補裁含 3in1）] {name}: {_v('filament_retraction_length')!r}")
@@ -356,6 +358,22 @@ edu = presets.get("PING PLA - EDU Classic")
 if edu and any(edu[1].get(key) != ["0"] for key in
                ("hot_plate_temp", "hot_plate_temp_initial_layer", "cool_plate_temp", "cool_plate_temp_initial_layer")):
     err("[EDU filament heated bed] PING PLA - EDU Classic must use 0C bed")
+
+# PING PVA 線材本體（與主線 verify 同款；0725 稽核發現出貨線原本完全沒有這組斷言，
+# 所以 01148acf 漏掉的回抽長度沒被抓到）。值＝V2.1 定稿案 DPro_0.6_T210_PVA+PLA (0609)
+# 對帳（2026-07-24）：210 全鍵／回抽 3／z-hop 0.6／purge 85。
+if "PING PVA" not in presets:
+    err("[PVA 缺席] PING PVA 不在 PING.json filament_list")
+else:
+    _k, pd = presets["PING PVA"]
+    for k, want in (("filament_type", ["PVA"]), ("filament_soluble", ["1"]),
+                    ("filament_is_support", ["1"]), ("nozzle_temperature", ["210"]),
+                    ("nozzle_temperature_initial_layer", ["210"]), ("hot_plate_temp", ["60"]),
+                    ("fan_max_speed", ["100"]),
+                    ("filament_retraction_length", ["3"]), ("filament_z_hop", ["0.6"]),
+                    ("filament_minimal_purge_on_wipe_tower", ["85"])):
+        if pd.get(k) != want:
+            err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:
