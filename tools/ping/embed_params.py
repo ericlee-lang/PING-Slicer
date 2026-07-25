@@ -358,6 +358,11 @@ def tier_of(base):
     # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
     return "300" if base.startswith(("FD300","FP300","P200+")) else "450"
 
+# 檔名主體（模式前綴之後的部分）——**唯一真實來源**。
+# ⚠ 抽成常數的理由：2026-07-26 已連續兩次踩到「規則改了但某個角落沒跟上」
+#（照片磚範本、Classic emit）。凡要改檔名格式，只改這一行。
+FILENAME_BASE = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
+
 def filename_tpl(mode_key):
     """輸出檔名模板（2026-07-23 Eric 改版，取代 0610 版）：模式_列印設備(口徑)_檔名_時間_重量。
     雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
@@ -367,7 +372,7 @@ def filename_tpl(mode_key):
     ⚠ 前綴一律包進 code block 字串字面值 {"X_"}：PlaceholderParser 模板的 rule 邊界
     （開頭、} 之後）遇非 ASCII 即 throw（pre-skip skipper）、裸中文前綴會炸
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
-    base = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
+    base = FILENAME_BASE
     if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
     # Mix_ → 同進_（Eric 2026-07-26 裁）：7 個前綴裡只有這個是英文，與 易拆/雙色/單料/四色/經典
