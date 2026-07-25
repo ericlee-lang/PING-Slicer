@@ -1319,13 +1319,22 @@ def main(src_base):
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
         touched = False
-        for old, new in (("filament_colors", "filament_colour"),
-                         ("default_filament_colors", "default_filament_colour")):
-            if old in fd:
-                if new not in fd:
-                    fd[new] = fd[old]
-                fd.pop(old, None)
-                touched = True
+        # 只保留 `default_filament_colour`＝**線材 preset 唯一合法的顏色鍵**。
+        # 🔴 0725 查證：`Preset.cpp:960` 的 s_Preset_filament_options 裡，
+        #    `"filament_colour"` 是**被上游註解掉的**（/*"filament_colour", */）
+        #    ⇒ 線材檔帶它，引擎載入時會判為 incorrect key 直接剝掉，
+        #      並在 log 刷 "contains incorrect keys: filament_colour, which were removed"。
+        #    功能上無害（顏色是靠 default_filament_colour 生效），但屬無效殘留 ⇒ 一併清掉。
+        if "default_filament_colors" in fd and "default_filament_colour" not in fd:
+            fd["default_filament_colour"] = fd["default_filament_colors"]
+            touched = True
+        elif "filament_colors" in fd and "default_filament_colour" not in fd:
+            # 舊檔只有複數版 filament_colors 時，值同樣拿來當預設色來源
+            fd["default_filament_colour"] = fd["filament_colors"]
+            touched = True
+        for dead in ("filament_colors", "default_filament_colors", "filament_colour"):
+            if dead in fd:
+                fd.pop(dead, None); touched = True
         if touched:
             jdump(fp_path, fd); ck_fixed += 1
     if ck_fixed:

@@ -72,9 +72,6 @@
     "overhang_fan_threshold": [
         "25%"
     ],
-    "filament_colour": [
-        "#D3D3D3"
-    ],
     "default_filament_colour": [
         "#D3D3D3"
     ],

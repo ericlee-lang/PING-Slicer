@@ -231,9 +231,6 @@
     "setting_id": "PINGFILCLASSIC220",
     "filament_id": "PINGFILCLASSIC220",
     "inherits": "fdm_filament_common",
-    "filament_colour": [
-        "#EA4E16"
-    ],
     "default_filament_colour": [
         "#EA4E16"
     ],

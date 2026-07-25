@@ -51,9 +51,6 @@
     "overhang_fan_threshold": [
         "25%"
     ],
-    "filament_colour": [
-        "#EA4E16"
-    ],
     "default_filament_colour": [
         "#EA4E16"
     ],
