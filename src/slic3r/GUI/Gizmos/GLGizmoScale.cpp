@@ -279,10 +279,18 @@ void GLGizmoScale3D::change_cs_by_selection() {
     if (m_last_selected_obejct_idx == obejct_idx && m_last_selected_volume_idx == volume_idx) { return; }
     m_last_selected_obejct_idx = obejct_idx;
     m_last_selected_volume_idx = volume_idx;
-    if (m_parent.get_selection().is_multiple_full_object()) {
+    const Selection& selection = m_parent.get_selection();
+    if (selection.is_multiple_full_object()) {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::World);
     } else if (model_volume) {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::Local);
+    } else if (selection.is_single_full_instance() && !selection.is_wipe_tower()) {
+        // PING(異常單 #30，Eric 2026-07-25 追裁「縮放也預設物件座標」)：
+        // 與移動同步——座標系狀態是移動／旋轉／縮放共用的一個值，移動改了物件座標之後
+        // 縮放這裡若不明寫就只是「沿用現值」，行為會依使用者先開哪個工具而飄。明寫＝兩邊一致。
+        // 縮放的下拉是 {世界／物件／零件} 三項（GizmoObjectManipulation.cpp:1232），
+        // 單一整個物件不觸發任何 pop_back ⇒ 物件座標(index 1) 恆為合法選項。
+        m_object_manipulation->set_coordinates_type(ECoordinatesType::Instance);
     }
 }
 
