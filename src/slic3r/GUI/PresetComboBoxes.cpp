@@ -676,30 +676,24 @@ wxBitmap* PresetComboBox::get_bmp(  std::string bitmap_key, bool wide_icons, con
 #endif
 }
 
+// PING(2026-07-26 Eric 裁「材料顏色不要顯示」)：線材 preset 不再畫顏色小方塊。
+//
+// 原實作會依 `default_filament_colour` 生一個 16×16 色塊，**側欄那一列與下拉選單項目
+// 都吃這個函式**（5 個呼叫點），所以在這裡關掉即兩處同時生效。
+//
+// 【為什麼】顏色只該有一個來源＝**槽位顏色**，因為那才是切片預覽與實際輸出看得到的。
+// 材料的預設色仍然有用，但它的角色是「切換材料時把顏色帶進槽位」
+// （`update_ams_color()`，見本檔 230；2026-07-25 修好 key 名後才真正生效），
+// 帶進去之後槽位色由使用者自由修改、不會再被材料色蓋回去。
+// ⇒ 槽位色有兩個改變管道：①切換材料連動 ②手動改。既然如此就不需要再顯示材料色，
+//   同時顯示兩個顏色只會讓人困惑「它們為什麼可以不一樣」（Eric 2026-07-26 原話）。
+//
+// ⚠ 槽位顏色走的是另一條路（`clr_picker` / `get_extruder_color_icons`），不受本改動影響。
+// ⚠ 要恢復材料色塊：把本函式還原成 b0488110 之前的版本即可（git 有完整實作）。
 wxBitmap *PresetComboBox::get_bmp(Preset const &preset)
 {
-    static wxBitmap sbmp;
-    if (m_type == Preset::TYPE_FILAMENT) {
-        Preset const & preset2 = &m_collection->get_selected_preset() == &preset ? m_collection->get_edited_preset() : preset;
-        wxString color = preset2.config.opt_string("default_filament_colour", 0);
-        wxColour clr(color);
-        if (clr.IsOk()) {
-            std::string bitmap_key = "default_filament_colour_" + color.ToStdString();
-            wxBitmap *bmp        = bitmap_cache().find(bitmap_key);
-            if (bmp == nullptr) {
-                wxImage img(16, 16);
-                if (clr.Red() > 224 && clr.Blue() > 224 && clr.Green() > 224) {
-                    img.SetRGB(wxRect({0, 0}, img.GetSize()), 128, 128, 128);
-                    img.SetRGB(wxRect({1, 1}, img.GetSize() - wxSize{2, 2}), clr.Red(), clr.Green(), clr.Blue());
-                } else {
-                    img.SetRGB(wxRect({0, 0}, img.GetSize()), clr.Red(), clr.Green(), clr.Blue());
-                }
-                bmp = new wxBitmap(img);
-                bmp = bitmap_cache().insert(bitmap_key, *bmp);
-            }
-            return bmp;
-        }
-    }
+    (void) preset;              // 保留簽名（5 個呼叫點與覆寫關係不動）
+    static wxBitmap sbmp;       // 空點陣圖＝不畫任何色塊（非線材型別原本就走這條，已證實安全）
     return &sbmp;
 }
 
