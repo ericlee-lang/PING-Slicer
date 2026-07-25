@@ -364,8 +364,11 @@ def tier_of(base):
 FILENAME_BASE = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
 
 def filename_tpl(mode_key):
-    """輸出檔名模板（2026-07-23 Eric 改版，取代 0610 版）：模式_列印設備(口徑)_檔名_時間_重量。
-    雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
+    """輸出檔名模板：**模式_列印設備(口徑)_檔名_時間_重量**（2026-07-23 Eric 改版，取代 0610 版）。
+    模式共 **7 種**（Eric 2026-07-26 定稿）：易拆／雙色／單料／四色／3in1／同進／照片磚。
+    雙料依「槽2是否支撐材」自動判：易拆(裝SUP)／雙色(裝一般料)；單料頭/FP=單料。
+    ⚠ **沒有「經典」模式**——Classic 前代機（僅出貨線 emit）用它實際的模式（雙料→易拆、單料→單料）；
+      機型名本身已帶 DUAL/EDU/PING 2xx 字樣，再標「經典」對客戶無意義（Eric 2026-07-26 裁）。
     時間={print_time_half_h} 0.5H 無條件進位（3h22m→3.5H、50m→1H）、重量={total_weight_g} 整數克進位
     ——兩佔位符 2026-07-23 進 Print.cpp（⚠ 需該版之後 binary；舊 binary 吃此模板會炸未知佔位符，
     profile 與 binary 必須同車出貨、appdata 同步要等新 binary 裝機）。
@@ -381,6 +384,9 @@ def filename_tpl(mode_key):
     if mode_key == "同進":  return '{"同進_"}' + base
     if mode_key == "四色":  return '{"四色_"}' + base
     if mode_key == "3in1":  return '{"3in1_"}' + base   # FF 範本製程（emit_ff_extra 套用）
+    # 照片磚自成一個模式（Eric 2026-07-26 裁）：它雖然跑在同進機上，但對使用者是獨立產品，
+    # 檔名直接標「照片磚」比標「同進」有意義。
+    if mode_key == "照片磚": return '{"照片磚_"}' + base
     return '{"單料_"}' + base   # 單料頭 / FP300
 
 def proc_overrides(kind, base, is_single_mode):
@@ -709,13 +715,12 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
         #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
         d["enable_support"] = "0"
-        # Mix_ → 同進_（Eric 2026-07-26 裁）：照片磚製程從範本檔複製、**不走 filename_tpl()**，
-        # 所以 filename_tpl 改了它們不會跟著改（0726 實測：37 支改了、這 5 支仍是 Mix_）。
-        # 在此明寫覆蓋＝regen-durable，且不必去動範本檔。照片磚機型本身就是「同進照片磚」。
-        # ⚠ 同一類坑今天踩過兩次（DL1016 注入源、本處範本源）：**產生器 sweep 掃不到的來源
-        #   要各自處理**，改全庫規則後務必回頭數數量對不對。
-        if isinstance(d.get("filename_format"), str):
-            d["filename_format"] = d["filename_format"].replace('{"Mix_"}', '{"同進_"}')
+        # 檔名：照片磚自成一模式（Eric 2026-07-26 裁）⇒ `照片磚_機型(口徑)_檔名_時間_重量`。
+        # ⚠ 照片磚製程從範本檔複製、**不走 filename_tpl()**，範本裡連主體都還是 0610 舊佔位符
+        #   （{filament_type}_{total_weight_str}_{print_time_hm}）⇒ 這裡整條覆蓋才會真的跟上。
+        # ⚠ 同一類坑 0726 一天踩三次（DL1016 注入源／本處範本源／Classic emit）：
+        #   **產生器規則函式掃不到的來源要各自處理**，改全庫規則後務必回頭數數量對不對。
+        d["filename_format"] = filename_tpl("照片磚")
         # ⚠ 支撐以外的主線統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000，
         # 稀疏填充加速度也保留特調範本值；主線 2026-07-15 保守值不得蓋進照片磚。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
