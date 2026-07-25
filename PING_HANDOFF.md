@@ -17,7 +17,7 @@
 ---
 ### 🏁🏁🏁🏁🏁🏁 收工快照（2026-07-25 深夜 續棒 — 使用者回報批三張單全落地：#26 加固／#33／#30）
 
-**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**23 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`d2a9fa3c` bundle **59**）｜出貨線 `release/v3.6` tip **`58e42376`**（**12 顆未推**，遠端 `53d4f273`＝T003；bundle **67**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
+**線況**：開發線 `ping/v3.5` tip＝**本 handoff commit**（**24 顆未推**，遠端 `95bf5a7c`；碼/參數的最後一顆＝`d2a9fa3c` bundle **59**）｜出貨線 `release/v3.6` tip **`ff074ceb`**（**13 顆未推**，遠端 `53d4f273`＝T003；bundle **68**＝T004 候選）｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。**全部續押 T004、等 Eric 發車令。**
 
 | 單 | 開發線 | 出貨線 | 內容 |
 |---|---|---|---|
@@ -54,6 +54,27 @@
 3. **PA 0.12 只限一般流量＝零參數變更**（實查現況已符合）→ verify 加**單向護欄**：高流量／3in1 不得為 0.12。現況表寫進 verify 註解當權威。
 
 **🔴 下一棒最優先**：❶ **等 Eric 發車令 → T004**（開發線 22 顆未推／出貨線 12 顆未推）❷ 上一棒的 skill 回填三項（見下方 0725 T004 全帶線快照）仍未做 ❸ 本輪新增 skill 回填候補：Classic 由「豁免」翻為「跟進」新工藝（含 `_classic_filament` 讀磁碟母檔＝非冪等來源的坑）、PA 分流量表。
+
+**★ 兩線一致性稽核（Eric 0725 深夜問「23 顆是否有些要落在出貨線」→ 內容層實比，不是對標題）**
+把開發線這批動到的 **197 個檔**逐一與出貨線 HEAD 比對 ⇒ 136 個完全相同、60 個不同，
+其中 186 個 PING profile 忽略 `setting_id` 等編號類後逐鍵比 ⇒ **184 個值完全一致**。
+**只抓到 1 個實質缺件（已補，出貨線 `ff074ceb` bundle 68）**：
+
+> 🔴 `PING PVA` 的 `filament_retraction_length`：開發線 `3`／出貨線 `nil`。
+> 根因＝`01148acf` 全批移植時，回抽 sweep 的分支條件漏了 PVA
+>（出貨線 `if "TPE" in bn:`／開發線 `if "TPE" in bn or "PVA" in bn:`）⇒ PVA 掉進 else 拿 nil＝繼承 1.3。
+> **verify 沒抓到，是因為出貨線根本沒有 `PING PVA` 線材本體的斷言**（已一併補上 10 鍵）。
+> 補完複驗＝**186 個共用參數檔實質差異 0**。
+
+**其餘 60 個「不同」的判定（都不是漏移植）**：
+- `PING.json`（bundle 版號＋Classic 條目）、`embed_params.py`／`verify_profiles.py`（出貨線多 Classic）＝**設計如此**
+- 55 個 profile ＝ **只有 `setting_id` 編號差**（出貨線多 Classic 8 機 ⇒ 全庫 id 位移），值全同
+- `PING_HANDOFF.md` ＝ 兩線各有各的
+- `GUI_App.cpp` ＝ 只差 1 行註解措辭
+- 🟡 `PingMixEditor.cpp` ＝ **反向差異：出貨線多一段**（原生調色盤定位修正 ~23 行，`wxDisplay` 重新錨定），**開發線沒有** ⇒ 要不要回灌主線待裁
+- 開發線 23 顆中 6 顆是 handoff 文件（出貨線有自己的）、1 顆 `2461c9e1`（支撐角 60）已被 `53f7c089` 的 35 推翻＝**不該移植**（出貨線從未被 60 汙染）
+
+🟡 **殘留 guard 缺口（值無差、只是護欄不足，記著）**：出貨線 verify 沒有「懸空冷卻閾值 25%」那條（開發線有）。
 
 **★ 跨線轉交（已完成，不用再處理）**：劉鈞豪回報的機端「Unable to open file」已上 .158 查證定讞＝**PING webui 檔案頁「重新命名」**用「下載→重新上傳→刪舊檔」實作（10MB 跑 15～27 秒、零進度回饋＝他說的「沒有動作」；開印時拿到未刷新的舊檔名 → `virtual_sdcard.py:568` KeyError）。**切片端無關**（`OctoPrint::upload` 是單一請求帶 `print=true`＋單一檔名）。建議改用 Moonraker 原生 `/server/files/move`。已 send_message 給 0725 Klipper session，結論寫進 Klipper `00治理文件/認領簿.md` 的 `c-0725-OR-01`。
 
