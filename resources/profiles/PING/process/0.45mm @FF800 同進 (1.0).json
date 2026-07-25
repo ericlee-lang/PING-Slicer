@@ -36,7 +36,7 @@
     "ensure_vertical_shell_thickness": "ensure_moderate",
     "exclude_object": "0",
     "extra_perimeters_on_overhangs": "0",
-    "filename_format": "{\"Mix_\"}{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode",
+    "filename_format": "{\"同進_\"}{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode",
     "filter_out_gap_fill": "0",
     "flush_into_infill": "0",
     "flush_into_objects": "0",
