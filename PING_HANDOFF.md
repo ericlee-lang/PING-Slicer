@@ -47,6 +47,17 @@
 
 **🔴 下一棒最優先**：❶ **等 Eric 發車令**（出貨線 push 自動觸發 CI／開發線需手動 dispatch `gh workflow run build_all.yml --ref ping/v3.5`）→ 綠後照 T003 流程上架 T004 ❷ 待裁三小項：Classic 要不要套新工藝／照片磚 `enable_support` 要不要關／**混色「啟用/停用」狀態行**（Eric 已裁「做」，本輪 context 不足未做——**接點已探明**：`plater->is_ping_tongjin_selected()` ＋ `plater->is_ping_mix_enabled()`，同 `GCodeViewer.cpp:1130` 用法，插 `SendToPrinter.cpp`）❸ skill 回填：`materials.md` 的「易拆 vs 一般」判定法要加 **PLA+PVA 歸易拆**（verify 首跑即抓到此誤判）。
 
+**★ 追加批：使用者回報批（0725 晚）**——Eric 令「**接下來都塞 T004**，我還有很多要修正」＝繼續累積、發車另候。
+- ✅ **#37 ABS 整併 3→1**（開發線 `2d30f9bc` bundle **57**／出貨線 `e5b0810b` bundle **65**；verify 290／318 全綠）。三支實測＝溫度/床/風扇/purge **完全相同**；`PolyABS` 與 `ABS` **逐鍵完全一致＝純副本**；`ABS-250` 只因繼承鏈不同（跳過 `fdm_filament_abs`）而多出流量比 0.98／最大流量 30／**PA 0.12 開**。保留 `PING ABS` 收編較佳值＋**`renamed_from`** 舊名相容（`Preset.cpp:2084` 拿舊名比對 system profile 的 renamed_from ⇒ 客戶舊 3mf 自動對應、不會變未知 preset）。產生器加 `ABS_MERGED_AWAY` 過濾＝regen-durable。⚠ PA 0.12 沿用舊值**未經 PA 塔實測**。⚠ **%APPDATA% conf 可見清單未同步**（等 app 關，舊兩支要從清單移除）。
+- 🔴 **易拆顏色回報＝前提不成立，動手前先問清楚**：劉鈞豪要「易拆預設色與 PLA 不同（像白色）」，但查證發現**全部支撐料早就是 `#D3D3D3` 淺灰**、PLA 是 `#EA4E16` 橘，**連 T003（他手上那版）的 SupPLA 也已是淺灰**。⇒ 根因另在，候選：①他 user 層自建同名線材（0714/0718 老坑）②預覽切到「依擠出機(Tool)」著色＝吃 `extruder_colour`（雙槽黑+白、59 台單槽全黑）而非線材色 ③他講的是準備頁非預覽頁。**先要他補「哪個畫面＋截圖」再決定改什麼。**
+- ⏳ **#30 物件移動預設座標系改「物件座標」**（符合 2.1 使用習慣）：未評估。UI 下拉已存在 ⇒ 應是改預設值／記住上次選擇。
+- ⏳ **#33 兩支材料目標溫度不一致 → 切片時跳確認視窗**：未評估。**關鍵理由（Eric 補充，要寫進規格）＝噴頭是同一組加熱與溫度回饋，設兩種溫度會導致停等**。
+
+**🔧 待回填 skill（本輪確立、尚未進 SSOT，下一棒或 PM 接手）**——動 `ai-skills-source` 需掛跨專案認領牌：
+1. `ping-slicer/materials.md`「易拆 vs 一般」判定法 → **加 PLA+PVA 歸易拆**（PVA 為水溶支撐料、與 PLA 不相熔；verify 首跑即抓到此誤判）。
+2. 新增「**樹狀支撐配方**」節（甲組/乙組值＋選型依據＋三條引擎硬知識：`SupportParameters.hpp:173-180` 雙向 fallback／`TreeSupport.cpp:2068` auto_brim 覆蓋 brim_width／`Print.cpp:1532` organic 分支直徑 ≥2×線寬硬限）。
+3. ABS 整併記錄（三支差異調查結論＋`renamed_from` 舊名相容工法）。
+
 ↳ 認領牌 c-0725-T4-01（全帶線）／c-0725-SA-02（appdata 支撐角手術，監看中）；c-0725-SA-01 由 FD600 Pro 列印異常 session 銷牌並回覆停手。
 
 ---
