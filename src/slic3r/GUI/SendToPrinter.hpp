@@ -107,6 +107,8 @@ private:
     wxStaticText*                       m_rename_text{ nullptr };
     wxStaticText*                       m_stext_time{ nullptr };
     wxStaticText*                       m_stext_weight{ nullptr };
+    // PING: 同進機專用——本次上傳的 G-code 有沒有混色指令（展開＝啟用／收合＝停用，異常單 #26 加固）
+    wxStaticText*                       m_stext_ping_mix{ nullptr };
     Label*                              m_st_txt_error_code{ nullptr };
     Label*                              m_st_txt_error_desc{ nullptr };
     Label*                              m_st_txt_extra_info{ nullptr };
