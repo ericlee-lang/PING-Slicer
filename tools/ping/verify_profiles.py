@@ -252,6 +252,15 @@ else:
 # → **整包 PING vendor 解析中止** → 使用者開起來沒有任何 PING 機型、跳設定精靈、
 #   機器掉成 Default Printer。多個舊名用 **分號** 串接（Config.cpp:146 以 ';' 分隔）。
 # 教訓：verify 過去只查「參照與值」，查不到「引擎能不能載入」——這類型別錯是啞的。
+# 顏色鍵護欄（0725）：線材 preset 只准 `default_filament_colour`。
+# `filament_colour` 在 Preset.cpp:960 的 filament_options 是註解掉的＝引擎會剝掉並刷 log；
+# 複數版（filament_colors／default_filament_colors）更是引擎根本不認的舊誤植。
+for _n, (_k, _d) in presets.items():
+    if _k == "filament":
+        for _dead in ("filament_colour", "filament_colors", "default_filament_colors"):
+            if _dead in _d:
+                err(f"[線材顏色鍵殘留 — 引擎會剝掉] {_n}: 不應有 {_dead}（只留 default_filament_colour）")
+
 for _n, (_k, _d) in presets.items():
     _rf = _d.get("renamed_from")
     if _rf is not None and not isinstance(_rf, str):
