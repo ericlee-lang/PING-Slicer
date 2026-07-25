@@ -266,6 +266,62 @@ for _n, (_k, _d) in presets.items():
     if _rf is not None and not isinstance(_rf, str):
         err(f"[renamed_from 型別錯 — 會讓整包 vendor 載入失敗] {_n}: {_rf!r}（須為分號字串）")
 
+
+# ★ 跨層護欄（Eric 2026-07-26 兩爆之後補）：C++ 的「組合製程→線材連動」表必須跟得上 profile。
+#   `Tab.cpp` 的 ping_apply_combo_filaments() 用**硬寫的線材名**呼叫 find_preset()，
+#   而 find_preset() **不走 renamed_from 回溯**（那是 find_preset2）⇒ 名字對不上就是靜默失效：
+#     ①0725 ABS 三支併一後，表裡仍寫「PING ABS - 250」⇒ ABS+ABS／ABS+SUP／棧板連動全啞
+#     ②0725 新出 PLA+PVA 製程，沒補進表 ⇒ 選了模式第 2 槽不會變 PVA
+#   兩個都是「verify 全綠、成品驗收全過」卻壞掉的類型——因為過去沒有任何一條檢查跨到 C++ 這層。
+_repo = os.path.dirname(os.path.dirname(os.path.dirname(PINGDIR)))
+_tab = os.path.join(_repo, "src", "slic3r", "GUI", "Tab.cpp")
+if not os.path.isfile(_tab):
+    err(f"[跨層護欄] 找不到 {_tab}（路徑推導失效，護欄形同虛設）")
+else:
+    _src = io.open(_tab, encoding="utf-8", errors="ignore").read()
+
+    def _cstr(lit):
+        # 把 C 字串字面值（含 \xNN 逸出）還原成 Python str
+        out = bytearray(); i = 0
+        while i < len(lit):
+            if lit[i] == "\\" and i + 1 < len(lit) and lit[i + 1] == "x":
+                out.append(int(lit[i + 2:i + 4], 16)); i += 4
+            else:
+                out.append(ord(lit[i])); i += 1
+        return out.decode("utf-8", "replace")
+
+    # 1) 常數表列的線材名都必須存在於 bundle
+    _names = {}
+    for m in re.finditer(r'constexpr\s+const\s+char\s*\*\s*(PING_\w+)\s*=\s*"((?:[^"\\]|\\.)*)"', _src):
+        _names[m.group(1)] = _cstr(m.group(2))
+    if not _names:
+        err("[跨層護欄] Tab.cpp 抓不到任何 PING_* 線材常數（格式變了？護欄失效）")
+    for _k, _v in sorted(_names.items()):
+        if _v not in presets:
+            err(f"[跨層護欄・C++ 線材名對不上 profile] Tab.cpp {_k} = {_v!r} 不在 bundle ⇒ 組合連動會靜默失效")
+
+    # 2) 每個「雙料組合製程」的組合 token 都必須在 COMBO_FILAMENTS 表裡有對應
+    _map_keys = set(re.findall(r'\{"([A-Z]{2,4}\+[A-Z]{2,4})",\s*\{', _src))
+    if not _map_keys:
+        err("[跨層護欄] Tab.cpp 抓不到 COMBO_FILAMENTS 的組合鍵（格式變了？護欄失效）")
+    _proc_tokens = set()
+    for _n, (_k, _d) in presets.items():
+        if _k != "process" or _d.get("instantiation") != "true":
+            continue
+        _at = _n.find("@")
+        if _at <= 0:
+            continue
+        _head = _n[:_at].rstrip()
+        _sp = _head.rfind(" ")
+        if _sp == -1:
+            continue
+        _tok = _head[_sp + 1:]
+        if "+" in _tok:
+            _proc_tokens.add(_tok)
+    for _tok in sorted(_proc_tokens - _map_keys):
+        err(f"[跨層護欄・組合製程沒有連動對應] 製程存在 {_tok} 但 Tab.cpp COMBO_FILAMENTS 無此鍵 "
+            f"⇒ 使用者選了該模式，線材槽不會跟著換")
+
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
