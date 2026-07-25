@@ -19,7 +19,13 @@
 
 **線況**：開發線 `ping/v3.5` tip **`4aa2578a`**（bundle **62**，已 push）｜出貨線 `release/v3.6` tip **`667825dd`**（bundle **72**＝T007，已 push）｜兩線工作區乾淨｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
 
-**🔴 下一棒最優先（兩顆 build 在跑，我沒等到綠就收工）**
+**✅ T007 已上架 G 槽（收工後 build 綠、順手做完，下一棒不必再處理）**：run 30172821731 @ `667825dd`、bundle 72；
+Windows 主建置綠、慣性三紅照舊；**成品驗收八項全過**（含新增三項：`renamed_from` 型別／無效顏色鍵 0／檔名七模式＋舊佔位符 0）；
+installer 100.4MB `1881A281…9F59`／portable zip 132.2MB `239FB380…6981`，G 槽實檔 hash 一致；T005 輪替回 `old\`。
+版本資訊開頭明寫 T004/T006 作廢與改裝指引，驗收重點六項。成品夾 `_staging/v3.6-T007-30172821731/`。
+⏳ **開發線 workshop build 30173085575**（bundle 62 @ `4aa2578a`）＝Eric 要裝再抓，否則記錄即可。
+
+**🔴 下一棒最優先（原本的 build 交棒項已完成，改為以下）**
 
 | build | run | 內容 | 綠後要做 |
 |---|---|---|---|
