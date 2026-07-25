@@ -140,11 +140,30 @@ for name, (kind, d) in presets.items():
                 "travel_acceleration": "3000",
                 # 2026-07-20 Eric 裁（照片磚線 a06fed2c）：接縫預設 背面→對齊（V 溝配套）
                 "seam_position": "aligned",
+                # 支撐參數統一（Eric 2026-07-25 裁）：照片磚支撐豁免取消，角度與全庫同 35
+                #（爬坡品質＝速度類，仍維持照片磚特調豁免）
+                "support_threshold_angle": "35",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
                 "seam_position": "aligned",
+                # 爬坡品質（Eric 2026-07-24）：懸空降速四段＋橋接流量；照片磚/Classic 豁免
+                # ⚠ 單位＝mm/s（裸數字；ratio_over=outer_wall_speed，要用 % 須帶符號）
+                "enable_overhang_speed": "1",
+                "overhang_1_4_speed": "50",
+                "overhang_2_4_speed": "50",
+                "overhang_3_4_speed": "25",
+                "overhang_4_4_speed": "10",
+                "bridge_flow": "0.95",
+                # 支撐臨界角 35（Eric 2026-07-25 裁）
+                # 🔴 Orca 基準（= Cura/V2.1 的 55）；兩線相反 Orca = 90 − Cura，見 ping-slicer/orca-sync.md
+                # ⚠ 出貨線從未被 07-24 的 60 汙染（本規則首次新增，原全庫 30＝V3.0 底稿值）
+                "support_threshold_angle": "35",
             })
+            # PLA+PVA 專屬製程（Eric 2026-07-25 裁「出」；值＝V2.1 定稿案對帳）：案值特例覆蓋家規。
+            # 支撐角 50 ＝ 案值 Cura 40 換算（Orca ＝ 90 − Cura）＝比全庫 35 多支撐＝水溶支撐合理特例。
+            if "PLA+PVA" in name:
+                expected["support_threshold_angle"] = "50"
             # jerk：F 系對齊機器上限（Eric 2026-07-20 裁）＝FD/FP 7、FF 40；Classic 維持 0（Marlin 停用）
             expected["default_jerk"] = "0" if is_classic else ("40" if "@FF" in name else "7")
             for key, value in expected.items():
@@ -152,11 +171,19 @@ for name, (kind, d) in presets.items():
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
             # 檢查 7/8（Eric 2026-07-17 裁）：支撐幾何口徑連動＋洗料塔寬 25（照片磚不在 release 線）
             m_nz = re.search(r"\(([\d.]+)\)\s*$", name)
-            if m_nz and "照片磚" not in name:
+            if m_nz:   # 2026-07-25 Eric 裁「支撐參數全部統一」：照片磚不再豁免（原 and "照片磚" not in name）
                 nz_v = float(m_nz.group(1))
                 # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8）
-                for key, value in (("tree_support_branch_diameter", "%g" % (nz_v * 10)),
-                                   ("support_base_pattern_spacing", "%g" % (nz_v * 9))):
+                #   PLA+PVA 專屬製程 ×19（案值密度 5%）
+                # 樹狀 2026-07-25 裁保守配方：分支直徑 ×10→×12（引擎上限 10）、新增分支距離 ×6
+                _spacing = ("%g" % round(nz_v * 19, 2)) if "PLA+PVA" in name else ("%g" % (nz_v * 9))
+                # Classic 前代豁免 F 系新工藝（同 0719 預擠點升溫先例）：樹狀新配方不套，維持原值
+                _cls_proc = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
+                _geo = ([] if _cls_proc else
+                        [("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0)),
+                         ("tree_support_branch_distance", "%g" % (nz_v * 6))]) \
+                       + [("support_base_pattern_spacing", _spacing)]
+                for key, value in _geo:
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）
@@ -166,13 +193,41 @@ for name, (kind, d) in presets.items():
                                    ("support_base_pattern", "rectilinear")]
                 # Classic 前代（@DUAL/@PING/@EDU）＝Fast 母檔複製：雙料複製自 PLA+SUP＝易拆幾何 0.45 正確，XY 不以一般律查
                 is_classic = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
-                if "+SUP" not in name and "3in1" not in name and not is_classic:
+                # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
+                # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1
+                if "PLA+PVA" in name:
+                    expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 0.75, 2)))
+                elif "+SUP" not in name and "3in1" not in name and not is_classic:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
                 for key, value in expected_recipe:
                     if d.get(key) != value:
                         err(f"[普通支撐配方 0722] {name}: {key}={d.get(key)!r}, expected {value!r}")
-            if "照片磚" not in name and d.get("prime_tower_width") != "25":
-                err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
+                # 樹狀支撐保守配方（Eric 2026-07-25 裁）：只在使用者手動切「混合樹」後生效，
+                # 預設 normal(auto)+snug 不受影響。auto_brim 必須為 0，否則 brim_width 被引擎忽略
+                #（TreeSupport.cpp:2068）。_organic 兩鍵＝防呆（snug+樹狀會被引擎退回 default＝有機樹）：
+                # 🔴 diameter_organic 2.6 是 bug 修——Print.cpp:1532 硬限 ≥2×支撐線寬，
+                #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
+                for key, value in ([] if _cls_proc else      # Classic 前代豁免（同上）
+                                   [("tree_support_branch_angle", "30"),
+                                    ("tree_support_auto_brim", "0"),
+                                    ("tree_support_brim_width", "10"),
+                                    ("tree_support_wall_count", "1"),
+                                    ("tree_support_branch_diameter_organic", "2.6"),
+                                    ("tree_support_branch_angle_organic", "40")]):
+                    if d.get(key) != value:
+                        err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                # Classic 前代：確認新工藝確實未套（反向斷言，防下次 regen 又被母檔夾帶）
+                if _cls_proc:
+                    for key, value in (("enable_overhang_speed", "0"), ("bridge_flow", "1"),
+                                       ("support_threshold_angle", "30"),
+                                       ("tree_support_branch_angle", "40"),
+                                       ("tree_support_branch_diameter", "%g" % (nz_v * 10))):
+                        if d.get(key) != value:
+                            err(f"[Classic 前代豁免破功] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            # 洗料塔寬：全庫 25（0717 裁）；PLA+PVA 專屬製程 45（案值＝劉勝賢現行）
+            _tower = "45" if "PLA+PVA" in name else "25"
+            if "照片磚" not in name and d.get("prime_tower_width") != _tower:
+                err(f"[洗料塔寬度 {_tower}] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
             support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
@@ -204,8 +259,9 @@ for name, (kind, d) in presets.items():
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
             pv = pv[0] if isinstance(pv, list) and pv else pv
+            # PVA＝85（V2.1 案 75＋劉勝賢現行 +10，0724 對帳定稿）；SupPLA 系 60；其餘 30
             expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
-                           else "60" if "SupPLA" in name else "30")
+                           else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
             # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒

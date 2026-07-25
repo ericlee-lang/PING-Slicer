@@ -407,7 +407,7 @@ def filename_tpl(mode_key):
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
     base = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
     # 2026-07-23 Eric 改版：模式_列印設備(口徑)_檔名_時間0.5H_重量g（佔位符需同日後 binary，profile 與 binary 同車）
-    if mode_key in ("PLA+SUP", "ABS+SUP"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
+    if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
     if mode_key == "同進":  return '{"Mix_"}' + base
     if mode_key == "四色":  return '{"四色_"}' + base
@@ -445,6 +445,27 @@ def normalize_unified_values(proc, ff=False):
                   "outer_wall_jerk", "top_surface_jerk", "travel_jerk"):
             if k in proc:
                 proc[k] = "7"
+    # ⑤ 爬坡品質（Eric 2026-07-24 裁「一併加入所有的參數」；工程端 FD300 同進 0.4
+    # 「爬坡測試」A/B 對照實證懸空品質高提升）：懸空處降速開＋四段 50/50/25/10
+    # （10%/25%/50%/75%；25% 段沿用原值 50＝對照兩側同值）＋橋接流量 0.95。
+    # 線材側配套「懸空冷卻觸發閾值 25%」＝4b-2c sweep。
+    # ⚠ 單位＝mm/s（coFloatOrPercent 裸數字；ratio_over=outer_wall_speed，要用 % 須帶符號）。
+    # 值源自 Orca 端 A/B 對照實印檔，非 V2.1 換算——Cura 無四段結構（僅單一
+    # wall_overhang_speed_factor 百分比），故不涉跨基準換算。
+    # 照片磚/Classic/DL1016 不走本函式＝天然豁免（同 jerk 註）。
+    proc["enable_overhang_speed"] = "1"
+    proc["overhang_1_4_speed"] = "50"
+    proc["overhang_2_4_speed"] = "50"
+    proc["overhang_3_4_speed"] = "25"
+    proc["overhang_4_4_speed"] = "10"
+    proc["bridge_flow"] = "0.95"
+    # ⑥ 支撐臨界角 35（Eric 2026-07-25 裁，推翻 07-24 的 60）。照片磚/Classic/DL1016 豁免同上。
+    # 🔴 這是 Orca 基準值（自水平量、越大支撐越多），= Cura/V2.1 的 55。
+    #    兩線基準相反：Orca = 90 − Cura。改這個值前必讀 ping-slicer/orca-sync.md「Cura → Orca key 對照」。
+    # ⚠ 07-24 的 60 係把 V2.1 語意的「支撐角 60」直接寫進 Orca key（實等於 Cura 30）＝支撐暴增
+    #    （層高 0.3：判懸空的逐層外擴門檻 0.52mm→0.17mm，敏感度約 3 倍），現場回報「60 支撐太多」。
+    #    ⚠ 出貨線從未被 60 汙染（本規則係首次新增，原全庫 30＝V3.0 底稿值）。
+    proc["support_threshold_angle"] = "35"
     return proc
 
 # ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
@@ -464,8 +485,38 @@ def normalize_support_interface(proc):
 # 分子用口徑名目值（FF 微調線寬不入分子，0.4→3.6/0.6→5.4/1.0→9）；全口徑含 0.2/0.25 照公式；
 # 照片磚維持獨立特調不套；Classic 由 Fast 複製自然繼承。
 def normalize_support_geometry(proc, nozzle):
-    proc["tree_support_branch_diameter"] = "%g" % (float(nozzle) * 10)
+    # 分支直徑 2026-07-25 Eric 裁 ×10→×12（保守配方；引擎上限 10 ⇒ 1.0 口徑取 10）。
+    proc["tree_support_branch_diameter"] = "%g" % min(float(nozzle) * 12, 10.0)
+    # 分支距離 2026-07-25 新增＝口徑×6（原固定 5）：與直徑同為口徑連動 ⇒ 直徑/距離恆為 2.0，
+    # 各口徑得到相同支撐幾何（固定 5 會讓 0.25 口徑比例失衡到 0.5＝分支不融合）。引擎範圍 1~10。
+    proc["tree_support_branch_distance"] = "%g" % (float(nozzle) * 6)
     proc["support_base_pattern_spacing"] = "%g" % (float(nozzle) * 9)
+    return proc
+
+
+# ★ 樹狀支撐保守配方（Eric 2026-07-25 裁・主線 fa3ecb90 移植）
+# 前提：預設支撐維持 normal(auto)+snug 不變；本組只在**使用者手動把樣式切成「混合樹」**後生效。
+# 選型依據＝Orca 官方 tooltip：slim/organic 會積極合併分支大量省料，而 **hybrid 在大面積平懸空下
+#   產生「類似普通支撐的結構」** ⇒ 最貼近 PING 已實機驗證的 normal+snug 行為；且易拆系（+SUP/3in1）
+#   Z 間距 0＋專用支撐料（介面料槽 2）＝靠材料不相熔剝離，密實介面鋪得完整，正對症。
+#   單料頭/同進系 Z 間距 0.2＋無專用料（同料）＝靠空氣間隙剝離，樹狀為點接觸 ⇒ 能用但非首選。
+# ⚠ 欄位分組是引擎硬分的（ConfigManipulation.cpp:750-758）：branch_angle/distance/diameter 與
+#   auto_brim/brim_width 屬「normal tree」（hybrid 吃）；帶 _organic 後綴者與 tip_diameter/
+#   top_rate/angle_slow/branch_diameter_angle 屬 organic 專屬（切 hybrid 後不生效）。
+def normalize_tree_support(proc):
+    # 甲組：混合樹會吃的（保守＝穩定優先，代價為費料、難拆）
+    proc["tree_support_branch_angle"] = "30"      # 原 40（原廠值）；角度小＝分支更垂直＝更不易垮。範圍 0~60
+    proc["tree_support_auto_brim"] = "0"          # 必須關，brim_width 才生效
+    #   （TreeSupport.cpp:2068 `!auto_brim ? tree_brim_width : 自動計算` ＝開著時手設值被完全忽略，
+    #    且 ConfigManipulation.cpp:760 會把該欄位灰掉不可編輯）
+    proc["tree_support_brim_width"] = "10"        # 原 3；樹狀為高瘦結構，底盤加寬＝不倒
+    proc["tree_support_wall_count"] = "1"         # 原 0(auto)：Eric 裁「維持一圈」（不到上限 2）；6/16 家規記載本即為 1
+    # tree_support_with_infill 不寫＝維持繼承 false（Eric 裁「填充維持空心」）
+    # 乙組：organic 防呆（使用者忘記切樣式時會吃到——snug+樹狀會被引擎退回 default＝有機樹）
+    # 🔴 diameter_organic 2→2.6 是 bug 修：Print.cpp:1532 硬性要求 ≥2×支撐線寬，
+    #    FF600/FF800 的 1.0 口徑線寬 1.02 ⇒ 需 ≥2.04，原值 2 會讓那 4 支勾樹狀即切片報錯。
+    proc["tree_support_branch_diameter_organic"] = "2.6"
+    proc["tree_support_branch_angle_organic"] = "40"   # 原 60＝引擎上限（最水平＝最易垮），回原廠 40
     return proc
 
 # ★ 普通支撐配方（Eric 2026-07-22 七裁＋同日二裁擴及易拆・主線 c7d22ac8/e0eace04 移植）：
@@ -577,6 +628,26 @@ def combo_overrides(combo, layer_height, nozzle):
                   "support_object_xy_distance": "0.5"})
     return o
 
+
+# ★ PLA+PVA 專屬製程（Eric 2026-07-25 裁「出」・主線 0a5d1df3 移植；
+#   值＝V2.1 定稿案 DPro_0.6_T210_PVA+PLA 對帳，劉勝賢 2026-07-24 提供 3mf）
+# 產法＝從同口徑 PLA+SUP 製程雙生派生（同棧板雙生模式）：易拆幾何（Z0／XY 口徑×0.75）、
+#   支撐料槽 2、速度/層高家規全部自然繼承，只覆蓋「案值與家規不同」的四項。
+# ⚠ 兩項為跨基準換算值（同支撐角教訓，見 orca-sync.md），標待工程端實機驗證：
+#   ①支撐角：案值 Cura 40 ＝ Orca 50（Orca ＝ 90 − Cura）＝比全庫 35 多支撐，屬水溶支撐合理特例
+#   ②brim：案值「20 條」係 Cura 條數制，Orca 為 mm ⇒ 20 條 × 線寬 ≒ 口徑×20
+# 未套（家規優先，刻意）：層高（案 0.35@0.6 vs 家規口徑×0.5＝0.3）、內牆/填充速度
+#   （案「全 60」vs 家規外60/內≤80/填100 的吞吐設計；外牆與首層本就同值）。
+def pva_overrides(nozzle):
+    nz = float(nozzle)
+    return {
+        "support_threshold_angle": "50",                              # 案值 Cura 40 換算
+        "support_base_pattern_spacing": "%g" % round(nz * 19, 2),     # 支撐密度 5%（案值；家規 10%＝×9）
+        #   Orca 以線距表述密度：密度＝線寬/(線距+線寬) ⇒ 5% 需線距＝線寬×19（分子用口徑名目值，同 0722 家規）
+        "prime_tower_width": "45",                                    # 案值（劉勝賢現行；家規 25）
+        "brim_width": "%g" % round(nz * 20, 2),                       # 案值 20 條換算
+    }
+
 def normalize_support_mode(proc, model_name):
     """機型預設支撐模式（Eric 2026-07-15）：
     - FD300 全家族／所有模式＝樹狀
@@ -623,6 +694,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         if m_nz:
             normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×10＋主體線距×9（2026-07-17/0722，FF 範本同套）
             normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過 XY
+            normalize_tree_support(d)  # 樹狀保守配方＋organic 防呆（2026-07-25）
         d["filename_format"] = filename_tpl("3in1" if "3in1" in d["name"] else "同進")  # 檔名新格式（2026-07-23）FF 範本同套
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
@@ -665,7 +737,20 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
         d["sparse_infill_acceleration"] = "10000"
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
-        # ⚠ 正式製程統一值「不套」照片磚：照片磚維持 back＋seam_gap0、travel 3000。
+        # ★ 支撐參數全部統一（Eric 2026-07-25 裁「照片磚其實不會用到支撐，把支撐參數全部統一，
+        #   就不會有差異了」）——取消照片磚既有的支撐豁免（0714 介面／0717 幾何／0722 七裁／0725 角度）。
+        #   實測 enable_support=1（開啟）但磚體平貼床無懸空面 ⇒ 引擎不生成支撐、統一為純消除差異。
+        #   影響：type tree(auto)→normal(auto)、style default→snug（原組合＝有機樹）、角度 30→35、
+        #   線距 2.5→口徑×9、XY 0.3→口徑×1、獨立支撐層高 1→0。
+        #   照片磚不含 "+SUP" ⇒ 依家規判定為「一般支撐」（easy_release=False）。
+        m_nz_pt = re.search(r"\(([\d.]+)\)\s*$", name)
+        if m_nz_pt:
+            normalize_support_geometry(d, m_nz_pt.group(1))
+            normalize_support_recipe(d, m_nz_pt.group(1))
+        normalize_tree_support(d)
+        normalize_support_interface(d)      # 介面 4 層/0.1「只收緊不放鬆」（照片磚現值 0.04 更密＝不動）
+        d["support_threshold_angle"] = "35"  # 與全庫同值（原 30 豁免取消）
+        # ⚠ 支撐以外的正式製程統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000。
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
@@ -694,6 +779,15 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
         if key.startswith("filament_retract") or key in ("filament_wipe", "filament_wipe_distance",
                                                           "filament_z_hop", "filament_z_hop_types"):
             d.pop(key, None)
+    # ★ Classic 前代豁免 F 系新工藝（同製程層豁免）：懸空冷卻觸發閾值 25%（0724 爬坡品質批・線材側配套）
+    # 不套 Classic，維持繼承 common 預設。
+    # ⚠ 本 pop 是必要的：_classic_filament 讀的是**磁碟上的母檔**（PINGDIR/filament/PING PLA.json），
+    #   而該檔在上一輪 regen 已被 4b-2c sweep 寫入 25% ⇒ 光在 sweep 端排除 Classic 擋不住，
+    #   複製時會把 25% 一起帶進來（非冪等來源）。
+    # ⚠ 例外＝母檔 "PING PLA - 220"：它 0724 之前就自帶 25%（既有值、非本批新加），
+    #   其 Classic 副本應照原狀保留 ⇒ 不 pop（無條件 pop 會誤刪，已由值層面比對抓到）。
+    if base_name != "PING PLA - 220":
+        d.pop("overhang_fan_threshold", None)
     d["filament_start_gcode"] = ["; Classic Marlin filament - machine retraction only\n"]
     d["enable_pressure_advance"] = ["0"]
     d["pressure_advance"] = ["0"]
@@ -821,6 +915,27 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                     "top_surface_line_width", "support_line_width"):
             proc[key] = nz
         proc["enable_prime_tower"] = "1" if spec["dual"] else "0"
+        # ★ Classic 前代豁免 F 系新工藝（保守原則，同 0719「Classic 前代 8 機不套預擠點升溫」）：
+        # Classic 由 Fast 母檔複製而來 ⇒ 會夾帶母檔已套的新規則。此處還原為 V3.6 Classic 既有值。
+        # 夾帶來源：normalize_unified_values ⑤爬坡品質/⑥支撐臨界角、normalize_support_geometry
+        #（樹狀幾何）、normalize_tree_support（樹狀保守配方）。
+        # ⚠ Classic 自有懸空設定＝**關閉**（enable 0、80/50/50/50、bridge 1），被 F 系值蓋掉即行為改變；
+        #   支撐臨界角 Classic 維持 V3.0 底稿 30。要套新工藝需 Eric 明裁（同預擠點升溫先例）。
+        proc.update({
+            "enable_overhang_speed": "0",
+            "overhang_1_4_speed": "80", "overhang_2_4_speed": "50",
+            "overhang_3_4_speed": "50", "overhang_4_4_speed": "50",
+            "bridge_flow": "1",
+            "support_threshold_angle": "30",
+            "tree_support_branch_angle": "40",
+            "tree_support_auto_brim": "1",
+            "tree_support_brim_width": "3",
+            "tree_support_branch_diameter": "%g" % (float(nz) * 10),
+            "tree_support_branch_distance": "5",
+            "tree_support_branch_diameter_organic": "2",
+            "tree_support_branch_angle_organic": "60",
+        })
+        proc.pop("tree_support_wall_count", None)   # Classic 原無此鍵＝繼承 common
         jdump(os.path.join(PINGDIR, "process", "%s.json" % proc_name), proc)
         proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
         gp += 1
@@ -853,6 +968,7 @@ def main(src_base):
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
+    pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -922,8 +1038,9 @@ def main(src_base):
                     normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 正式製程統一值；FF 四色 jerk 維持 40
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
-                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×10＋主體線距口徑×9（2026-07-17/0722）
+                    normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×12(上限10)＋分支距離口徑×6＋主體線距口徑×9（0717/0722/0725）
                     normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
+                    normalize_tree_support(proc)  # 樹狀保守配方＋organic 防呆（2026-07-25）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
@@ -935,6 +1052,13 @@ def main(src_base):
                         tw = dict(proc); tw.update(PALLET_OVERRIDES)
                         tw["name"] = "%smm_棧板 @%s (%s)" % (lh, model, nz)
                         pallet_twins.append(tw)
+                    # PLA+PVA 專屬製程雙生（Eric 2026-07-25 裁「出」）：從同口徑 PLA+SUP 派生
+                    #（易拆幾何 Z0／XY 口徑×0.75、支撐料槽 2、速度/層高家規全部自然繼承）
+                    if is_dual_machine and cb == "PLA+SUP":
+                        pv = dict(proc); pv.update(pva_overrides(nz))
+                        pv["name"] = "%smm PLA+PVA @%s (%s)" % (lh, model, nz)
+                        pv["filename_format"] = filename_tpl("PLA+PVA")
+                        pva_twins.append(pv)
 
             # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
             mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
@@ -969,6 +1093,14 @@ def main(src_base):
         proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
     if pallet_twins:
         print("  棧板雙生製程：%d 支（PINGP%03d 起）" % (len(pallet_twins), gp - len(pallet_twins)))
+
+    # 4a-5. PLA+PVA 專屬製程統一 emit（接在棧板之後＝既有＋照片磚＋棧板 id 全零位移）
+    for pv in pva_twins:
+        pv["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % pv["name"]), pv)
+        proc_list.append({"name": pv["name"], "sub_path": "process/%s.json" % pv["name"]})
+    if pva_twins:
+        print("  PLA+PVA 專屬製程：%d 支（PINGP%03d 起）" % (len(pva_twins), gp - len(pva_twins)))
 
     # 4a-5. 照片磚範本併入（需 FF800/FD300 家族＝通用版；客戶版 PING_ONLY 跳過）。
     #       須在 4b 之前跑，讓高流量 PLA 的 compatible 掛得到照片磚機。
@@ -1066,6 +1198,34 @@ def main(src_base):
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
+    # 4b-1d. ★ PVA 水溶支撐線材（Eric 2026-07-24 裁「參考 2.1 追加、一般流量即可」・主線 37cad9cb/48023ae8 移植；
+    # 值已對帳 V2.1 定稿案＝劉勝賢提供 D800 Pro(0.6)_PVA+PLA.3mf
+    # 〔中華航空案、DPro_0.6_T210_PVA+PLA (0609)、Eric：「比較保守、練出來也不錯」〕）：
+    #   噴溫 210/210（V2.1 案全鍵一致 210——PLA 側同降 210 的保守組；蓋掉首版推定 220）、
+    #   床 60、風扇 100/100（V2.1 案未定此鍵＝沿 Orca 支撐慣例）、
+    #   回抽長度 3＋z-hop 0.6（V2.1 案 PVA 側定稿；速度 30=機器層家規）、
+    #   purge 85（V2.1 檔內 75＋劉勝賢現行「+10」＝85；4b-3 同步豁免）、
+    #   水溶＋支撐旗標、支撐色 #D3D3D3、最大體積流量 12（V2.1 速度 60×0.35×0.6≈12.6 貼合）、
+    #   密度 1.23。額外回填 0.2＋四項統一（4b-2/2b sweep；長度 3=PVA 特例、sweep 豁免同 TPE）。
+    # 「一般流量即可」＝不出高流量變體；不限機型（噴頭屬性原則，同 TPE 先例）。
+    fd_ = {"type": "filament", "name": "PING PVA", "alias": "PING PVA", "from": "system",
+           "instantiation": "true", "inherits": "fdm_filament_pla",
+           "setting_id": "PINGFILPVA", "filament_id": "PINGFILPVA",
+           "filament_vendor": ["PING"], "filament_type": ["PVA"],
+           "filament_soluble": ["1"], "filament_is_support": ["1"],
+           "filament_density": ["1.23"],
+           "nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"],
+           "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
+           "cool_plate_temp_initial_layer": ["60"], "cool_plate_temp": ["60"],
+           "fan_min_speed": ["100"], "fan_max_speed": ["100"],
+           "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
+           "filament_max_volumetric_speed": ["12"],
+           "filament_colors": ["#D3D3D3"], "default_filament_colors": ["#D3D3D3"],
+           "filament_minimal_purge_on_wipe_tower": ["85"],
+           "slow_down_for_layer_cooling": ["1"], "slow_down_layer_time": ["10"]}
+    jdump(os.path.join(PINGDIR, "filament", "PING PVA.json"), fd_)
+    fil_new.append({"name": "PING PVA", "sub_path": "filament/PING PVA.json"})
+
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
     # ——免機端 wrapper、全機隊（含舊 C8/單料/四料）原生支援、老檔無指令＝機器 config 預設、
@@ -1131,6 +1291,27 @@ def main(src_base):
     if rt_touched:
         print("  線材回抽統一（長度收斂＋額外回填流量律＋四項；Classic 豁免）：%d 支" % rt_touched)
 
+    # 4b-2c. ★ 懸空冷卻觸發閾值 25%（Eric 2026-07-24 爬坡品質批・線材側配套・主線 37cad9cb 移植）：
+    # 全 PING 線材統一 25%（PLA - 220／ABS - 250 既值 25% 冪等不動；PLA 210 系／SupPLA／
+    # PETG／TPE 等原繼承 50%／95% → 收 25%）。overhang_fan_speed 不動（爬坡測試對照未改此鍵，
+    # 各支既值/繼承值保留）。冪等 sweep。
+    # ⚠ 出貨線特調：**Classic 前代線材豁免**（Marlin 隔離原則，同 0723 回抽統一先例）——
+    #   主線註解稱「Classic 不在 PING*.json 名單自然豁免」僅對主線成立；出貨線的 Classic 線材
+    #   就是叫 `PING PLA - Classic 210.json` 等，會被本 sweep 掃到，必須明文排除。
+    of_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        if "Classic" in os.path.basename(fp_path):
+            continue   # Classic 前代豁免（出貨線特調）
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        if fd.get("overhang_fan_threshold") != ["25%"]:
+            fd["overhang_fan_threshold"] = ["25%"]
+            jdump(fp_path, fd)
+            of_set += 1
+    if of_set:
+        print("  線材懸空冷卻觸發閾值 25%%：改 %d 支" % of_set)
+
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭/Classic）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
     # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。
@@ -1140,7 +1321,8 @@ def main(src_base):
         if "四料高流量噴頭" in bn or "(3in1)" in bn:
             continue
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        want = "60" if "SupPLA" in bn else "30"
+        # PVA＝85（V2.1 案 75＋劉勝賢現行 +10，0724 對帳定稿）；SupPLA 系 60；其餘 30
+        want = "85" if "PVA" in bn else ("60" if "SupPLA" in bn else "30")
         cur = fd.get("filament_minimal_purge_on_wipe_tower")
         if (cur[0] if isinstance(cur, list) else cur) == want:
             continue
