@@ -278,9 +278,6 @@
         "FF600 3in1 0.6 nozzle",
         "FF800 3in1 0.6 nozzle"
     ],
-    "filament_colour": [
-        "#EA4E16"
-    ],
     "default_filament_colour": [
         "#EA4E16"
     ]

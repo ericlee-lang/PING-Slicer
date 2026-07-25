@@ -273,9 +273,6 @@
     "setting_id": "PINGFILHFNPLA",
     "filament_id": "PINGFILHFNPLA",
     "inherits": "fdm_filament_common",
-    "filament_colour": [
-        "#EA4E16"
-    ],
     "default_filament_colour": [
         "#EA4E16"
     ],
