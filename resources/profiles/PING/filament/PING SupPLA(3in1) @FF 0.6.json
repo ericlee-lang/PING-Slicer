@@ -278,10 +278,10 @@
         "FF600 3in1 0.6 nozzle",
         "FF800 3in1 0.6 nozzle"
     ],
-    "filament_colors": [
+    "filament_colour": [
         "#D3D3D3"
     ],
-    "default_filament_colors": [
+    "default_filament_colour": [
         "#D3D3D3"
     ]
 }

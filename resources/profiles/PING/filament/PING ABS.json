@@ -39,12 +39,6 @@
     "filament_retraction_length": [
         "nil"
     ],
-    "filament_colors": [
-        "#EA4E16"
-    ],
-    "default_filament_colors": [
-        "#EA4E16"
-    ],
     "filament_minimal_purge_on_wipe_tower": [
         "30"
     ],
@@ -96,5 +90,11 @@
     "renamed_from": [
         "PING ABS - 250",
         "PING PolyABS"
+    ],
+    "filament_colour": [
+        "#EA4E16"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
     ]
 }

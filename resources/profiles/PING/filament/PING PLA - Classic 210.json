@@ -36,12 +36,6 @@
     "fan_min_speed": [
         "100"
     ],
-    "filament_colors": [
-        "#EA4E16"
-    ],
-    "default_filament_colors": [
-        "#EA4E16"
-    ],
     "filament_minimal_purge_on_wipe_tower": [
         "30"
     ],
@@ -60,5 +54,11 @@
     ],
     "pressure_advance": [
         "0"
+    ],
+    "filament_colour": [
+        "#EA4E16"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
     ]
 }
