@@ -110,6 +110,10 @@ for name, (kind, d) in presets.items():
                 # 🔴 Orca 基準（= Cura/V2.1 的 55）；兩線相反 Orca = 90 − Cura，見 ping-slicer/orca-sync.md
                 "support_threshold_angle": "35",
             })
+            # PLA+PVA 專屬製程（Eric 2026-07-25 裁「出」；值＝V2.1 定稿案對帳）：案值特例覆蓋家規。
+            # 支撐角 50 ＝ 案值 Cura 40 換算（Orca ＝ 90 − Cura）＝比全庫 35 多支撐＝水溶支撐合理特例。
+            if "PLA+PVA" in name:
+                expected["support_threshold_angle"] = "50"
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
             for key, value in expected.items():
@@ -120,9 +124,11 @@ for name, (kind, d) in presets.items():
                 nz = float(m_nz.group(1))
                 # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8=12.5%）
                 # 樹狀 2026-07-25 裁保守配方：分支直徑 ×10→×12（引擎上限 10）、新增分支距離 ×6
+                # 主體線距：家規 ×9（密度 10%）；PLA+PVA 專屬製程 ×19（案值密度 5%）
+                _spacing = ("%g" % round(nz * 19, 2)) if "PLA+PVA" in name else ("%g" % (nz * 9))
                 for key, value in (("tree_support_branch_diameter", "%g" % min(nz * 12, 10.0)),
                                    ("tree_support_branch_distance", "%g" % (nz * 6)),
-                                   ("support_base_pattern_spacing", "%g" % (nz * 9))):
+                                   ("support_base_pattern_spacing", _spacing)):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）：
@@ -131,7 +137,11 @@ for name, (kind, d) in presets.items():
                                    ("independent_support_layer_height", "0"),
                                    ("support_style", "snug"),
                                    ("support_base_pattern", "rectilinear")]
-                if "+SUP" not in name and "3in1" not in name:
+                # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
+                # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1
+                if "PLA+PVA" in name:
+                    expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 0.75, 2)))
+                elif "+SUP" not in name and "3in1" not in name:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 1.0, 2)))
                 for key, value in expected_recipe:
                     if d.get(key) != value:
@@ -149,8 +159,10 @@ for name, (kind, d) in presets.items():
                                    ("tree_support_branch_angle_organic", "40")):
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
-            if d.get("prime_tower_width") != "25":
-                err(f"[洗料塔寬度 25] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
+            # 洗料塔寬：全庫 25（0717 裁）；PLA+PVA 專屬製程 45（案值＝劉勝賢現行）
+            _tower = "45" if "PLA+PVA" in name else "25"
+            if d.get("prime_tower_width") != _tower:
+                err(f"[洗料塔寬度 {_tower}] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
     if kind == "filament":
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
