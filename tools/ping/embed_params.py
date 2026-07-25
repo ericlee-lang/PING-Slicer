@@ -397,6 +397,11 @@ def tier_of(base):
     # P200+（過渡版）物理上是 250 小機單噴頭，與 FP300 同級（一般流量、勿套高流量）
     return "300" if base.startswith(("FD300","FP300","P200+")) else "450"
 
+# 檔名主體（模式前綴之後的部分）——**唯一真實來源**。
+# ⚠ 抽成常數的理由：2026-07-26 已連續兩次踩到「規則改了但某個角落沒跟上」
+#（照片磚範本、Classic emit）。凡要改檔名格式，只改這一行。
+FILENAME_BASE = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
+
 def filename_tpl(mode_key):
     """輸出檔名模板（2026-06-10 使用者定）：模式_檔名_線材_重量_時間。
     雙料依「槽2是否支撐材」自動判：易拆(裝SUP)/雙色(裝一般料)；同進=Mix；四色=四色；單料頭/FP=單料。
@@ -405,7 +410,7 @@ def filename_tpl(mode_key):
     ⚠ 前綴一律包進 code block 字串字面值 {"X_"}：PlaceholderParser 模板的 rule 邊界
     （開頭、} 之後）遇非 ASCII 即 throw（pre-skip skipper）、裸中文前綴會炸
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
-    base = "{printer_model}({nozzle_diameter[0]})_{input_filename_base}_{print_time_half_h}_{total_weight_g}.gcode"
+    base = FILENAME_BASE
     # 2026-07-23 Eric 改版：模式_列印設備(口徑)_檔名_時間0.5H_重量g（佔位符需同日後 binary，profile 與 binary 同車）
     if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
@@ -901,7 +906,13 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                      "compatible_printers":[mac_name], "layer_height":spec["layer"],
                      "initial_layer_print_height":spec["initial"], "seam_position":"aligned",
                      "support_type":"normal(auto)", "accel_to_decel_enable":"0",
-                     "filename_format":'{"經典_"}{input_filename_base}_{filament_type[initial_tool]}_{total_weight_str}_{print_time_hm}.gcode'})
+                     # Classic 跟進新檔名格式（Eric 2026-07-26 裁）：原為 V2.1 時代舊格式
+                     # `經典_檔名_材料_重量_時間`（無機型/口徑、時間用 {print_time_hm}），
+                     # 0723 起全庫已改 `模式_機型(口徑)_檔名_時間_重量`，Classic 當時保守未動。
+                     # 共用 FILENAME_BASE ⇒ 日後改格式只改一處，不會再有 Classic 落單。
+                     # ⚠ {print_time_half_h}/{total_weight_g} 是 2026-07-23 才進 Print.cpp 的佔位符，
+                     #   舊 binary 吃到會炸 ⇒ profile 與 binary 必須同車出貨（既有耦合鐵則，本批隨 T006 同車）。
+                     "filename_format": '{"經典_"}' + FILENAME_BASE})
         for key in accel_keys + jerk_keys:
             proc[key] = "0"
         sc = spec["speed_class"]
