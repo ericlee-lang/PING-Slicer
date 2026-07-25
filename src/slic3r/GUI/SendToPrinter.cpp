@@ -266,13 +266,6 @@ SendToPrinterDialog::SendToPrinterDialog(Plater *plater)
     m_sizer_basic_time->Add(m_stext_weight, 0, wxALL, FromDIP(5));
     m_sizer_basic->Add(m_sizer_basic_time, 0, wxALIGN_CENTER, 0);
 
-    // PING(異常單 #26 加固)：同進機的上傳對話框加一行「混色：啟用／停用」——
-    // 混色是「展開＝啟用、收合＝停用」的隱性狀態，收合著上傳會送出不含 M6051/M6052 的 G-code，
-    // 而使用者在這個畫面看不出來（#26 實錄：印了 91% 才發現整件沒混色）。非同進機不建立顯示。
-    m_stext_ping_mix = new wxStaticText(m_scrollable_region, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxALIGN_CENTER_HORIZONTAL);
-    m_stext_ping_mix->SetFont(::Label::Body_13);
-    m_stext_ping_mix->Hide();
-
     m_line_materia = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(-1, 1), wxTAB_TRAVERSAL);
     m_line_materia->SetForegroundColour(wxColour(238, 238, 238));
     m_line_materia->SetBackgroundColour(wxColour(238, 238, 238));
@@ -477,8 +470,6 @@ SendToPrinterDialog::SendToPrinterDialog(Plater *plater)
     m_sizer_scrollable_region->Add(m_panel_image, 0, wxALIGN_CENTER_HORIZONTAL, 0);
     m_sizer_scrollable_region->Add(0, 0, 0, wxTOP, FromDIP(10));
     m_sizer_scrollable_region->Add(m_sizer_basic, 0, wxALIGN_CENTER_HORIZONTAL, 0);
-    // PING: 混色狀態行接在時間/重量之後（同進機才 Show，見 set_default()）
-    m_sizer_scrollable_region->Add(m_stext_ping_mix, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP, FromDIP(6));
 	m_scrollable_region->SetSizer(m_sizer_scrollable_region);
 	m_scrollable_region->Layout();
 
@@ -1612,25 +1603,6 @@ void SendToPrinterDialog::set_default()
                 }
             }
         }
-    }
-
-    // PING(異常單 #26 加固)：同進機才顯示「本次上傳含不含混色」。
-    // 判定與 GCodeViewer.cpp:1130 同一套：機型含「同進」＋混色編輯器展開＝啟用。
-    if (m_stext_ping_mix != nullptr) {
-        bool is_quad = false;
-        const bool tongjin = m_plater != nullptr && m_plater->is_ping_tongjin_selected(&is_quad);
-        if (tongjin) {
-            const bool mix_on = m_plater->is_ping_mix_enabled();
-            if (mix_on) {
-                m_stext_ping_mix->SetLabel(is_quad ? wxString::FromUTF8("混色：啟用（四料）")
-                                                   : wxString::FromUTF8("混色：啟用（雙料）"));
-                m_stext_ping_mix->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#000000")));
-            } else {
-                m_stext_ping_mix->SetLabel(wxString::FromUTF8("混色：停用——本次上傳不含混色指令"));
-                m_stext_ping_mix->SetForegroundColour(wxColour(234, 78, 22));
-            }
-        }
-        m_stext_ping_mix->Show(tongjin);
     }
 
     m_scrollable_region->Layout();
