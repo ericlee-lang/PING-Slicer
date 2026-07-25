@@ -1050,6 +1050,31 @@ def main(src_base):
     if of_set:
         print("  線材懸空冷卻觸發閾值 25%%：改 %d 支" % of_set)
 
+    # 4b-2e. ★ 線材顏色 key 正規化（Eric 2026-07-25 實測「切換線材不會給預設的顏色」→ 追碼定讞）
+    # 🔴 真因：PING 線材長期寫的是 `filament_colors`／`default_filament_colors`（**美式・複數**），
+    #    但 Orca **preset 層**認的是 `filament_colour`／`default_filament_colour`
+    #   （**英式・單數**，PrintConfig.cpp:2279/2287）⇒ 引擎完全讀不到、我們設的顏色從未生效。
+    # ⚠ 複數版 key 在引擎裡只存在於 AppConfig.cpp（app 設定檔 `presets.filament_colors` ＝ conf 層，
+    #    不是 profile 層）——名字像、層級完全不同，是這個坑好發的原因。
+    # 連動鏈：側欄槽位色塊＝`clr_picker`（Plater.cpp:2305）→ 切換 preset 時讀 preset 的
+    #   `default_filament_colour`（PresetComboBoxes.cpp:241）⇒ key 對了才會隨線材更新。
+    # 冪等 sweep：改名後移除舊複數鍵；已是單數者跳過。
+    ck_fixed = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        touched = False
+        for old, new in (("filament_colors", "filament_colour"),
+                         ("default_filament_colors", "default_filament_colour")):
+            if old in fd:
+                if new not in fd:
+                    fd[new] = fd[old]
+                fd.pop(old, None)
+                touched = True
+        if touched:
+            jdump(fp_path, fd); ck_fixed += 1
+    if ck_fixed:
+        print("  線材顏色 key 正規化（複數→單數）：%d 支" % ck_fixed)
+
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。
     # 放 4b-2 之後同樣吃冪等 sweep：重生檔每次 regen 自動補。

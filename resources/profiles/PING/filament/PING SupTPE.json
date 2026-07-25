@@ -55,12 +55,6 @@
     "filament_is_support": [
         "1"
     ],
-    "filament_colors": [
-        "#D3D3D3"
-    ],
-    "default_filament_colors": [
-        "#D3D3D3"
-    ],
     "filament_start_gcode": [
         "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
     ],
@@ -81,5 +75,11 @@
     ],
     "overhang_fan_threshold": [
         "25%"
+    ],
+    "filament_colour": [
+        "#D3D3D3"
+    ],
+    "default_filament_colour": [
+        "#D3D3D3"
     ]
 }
