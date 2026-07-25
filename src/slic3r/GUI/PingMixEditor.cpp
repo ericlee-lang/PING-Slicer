@@ -11,6 +11,7 @@
 #include <wx/dcgraph.h>
 #include <wx/dcclient.h>
 #include <wx/colordlg.h>
+#include <wx/display.h>
 #include <wx/popupwin.h>
 #include <wx/timer.h>
 
@@ -36,7 +37,7 @@ static const wxColour COL_PLOT_BG(0xFF, 0xFF, 0xFF);    // 繪圖區白底（顏
 // —— 深色提示框：仿畫布 ImGui canvas_tooltip 的長相（Eric 2026-07-17 指定樣式）——
 // 規格照抄 GLCanvas3D::Tooltip::render＋ImGuiWrapper::COL_WINDOW_BACKGROUND：
 // 底色 RGB(26,26,26)、整窗 alpha 0.8（=204，半透黑）、圓角 0、無尖角箭頭、
-// 白字、顯示在滑鼠下方 16px、500ms 延遲。勿用 wxRichToolTip（白框＋尖角氣泡）。
+// 白字、顯示在滑鼠下方 16px、500ms 延遲。上一版用 wxRichToolTip 會自帶白框＋尖角氣泡（已撤）。
 namespace {
 class PingDarkTooltip : public wxPopupWindow
 {
@@ -948,6 +949,29 @@ void PingMixEditor::on_swatch_clicked(int idx)
     wxColourData data;
     data.SetColour(ping_hex_to_wx(m_state.colors[idx]));
     wxColourDialog dlg(this, &data);
+
+    // Native colour dialogs otherwise choose a system-default position that may be on the
+    // opposite side of a wide window. Re-anchor it beside the swatch and keep it on-screen.
+    const wxRect anchor = m_swatches[idx]->GetScreenRect();
+    const auto display_idx = wxDisplay::GetFromWindow(m_swatches[idx]);
+    const wxRect work_area = wxDisplay(display_idx != wxNOT_FOUND ? display_idx : 0u).GetClientArea();
+    dlg.Bind(wxEVT_SHOW, [this, &dlg, anchor, work_area](wxShowEvent& event) {
+        event.Skip();
+        if (!event.IsShown())
+            return;
+        dlg.CallAfter([this, &dlg, anchor, work_area]() {
+            const wxSize dialog_size = dlg.GetSize();
+            const int gap = FromDIP(8);
+            int x = anchor.GetRight() + gap;
+            if (x + dialog_size.x > work_area.GetRight())
+                x = anchor.GetLeft() - dialog_size.x - gap;
+            const int max_x = std::max(work_area.GetLeft(), work_area.GetRight() - dialog_size.x + 1);
+            const int max_y = std::max(work_area.GetTop(), work_area.GetBottom() - dialog_size.y + 1);
+            x = std::clamp(x, work_area.GetLeft(), max_x);
+            const int y = std::clamp(anchor.GetTop(), work_area.GetTop(), max_y);
+            dlg.Move(wxPoint(x, y));
+        });
+    });
     if (dlg.ShowModal() == wxID_OK) {
         const wxColour c = dlg.GetColourData().GetColour();
         char buf[8];
