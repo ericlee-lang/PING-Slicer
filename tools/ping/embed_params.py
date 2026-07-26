@@ -919,7 +919,14 @@ def main(src_base):
                 "pressure_advance":["0.4"],
                 "filament_max_volumetric_speed":["30"],
                 "hot_plate_temp":["60"],"hot_plate_temp_initial_layer":["60"]})
-            fp.pop("compatible_printers", None)   # 不限機型
+            # PING(2026-07-26 Eric 裁 A・下拉去重)：四料高流量噴頭支＝FF 四進一出硬體專屬
+            #（四色/同進/FF 照片磚 64 槽預設引用實證），與 3in1 支（帶 T012/T3 同步進料
+            # gcode、流量 20/12、PA 0.2）互為**不同機構**、不是重複——各綁各的機，下拉
+            # 不再互相出現；值與行為分毫不動。清單動態取自本輪 mac_list（含 ff_extra/照片磚
+            # ——4b 在其後跑，本檔 4a-3 註解即為此設計）＝regen-durable。
+            fp["compatible_printers"] = sorted(
+                x["name"] for x in mac_list
+                if x["name"].startswith(("FF600", "FF800")) and "3in1" not in x["name"])
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；Eric 2026-07-17 裁「不蓋」＝30/60 規則不套 FF）
             # 噴溫一律 210/210（Eric 2026-07-17 裁：0.6 實機 190 塞頭）

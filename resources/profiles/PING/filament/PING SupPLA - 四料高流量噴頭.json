@@ -274,6 +274,23 @@
     "setting_id": "PINGFILHFSUP",
     "filament_id": "PINGFILHFSUP",
     "inherits": "fdm_filament_pla",
+    "compatible_printers": [
+        "FF600 0.4 nozzle",
+        "FF600 0.6 nozzle",
+        "FF600 1.0 nozzle",
+        "FF600 同進 0.4 nozzle",
+        "FF600 同進 0.6 nozzle",
+        "FF600 同進 1.0 nozzle",
+        "FF800 0.4 nozzle",
+        "FF800 0.6 nozzle",
+        "FF800 1.0 nozzle",
+        "FF800 同進 0.4 nozzle",
+        "FF800 同進 0.6 nozzle",
+        "FF800 同進 1.0 nozzle",
+        "FF800 同進照片磚 0.4 nozzle",
+        "FF800 同進照片磚 0.6 nozzle",
+        "FF800 同進照片磚 1.0 nozzle"
+    ],
     "default_filament_colour": [
         "#D3D3D3"
     ]
