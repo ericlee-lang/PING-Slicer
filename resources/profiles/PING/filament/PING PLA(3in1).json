@@ -57,10 +57,10 @@
         "10"
     ],
     "fan_max_speed": [
-        "30"
+        "100"
     ],
     "fan_min_speed": [
-        "30"
+        "100"
     ],
     "filament_cooling_final_speed": [
         "3.4"
@@ -90,7 +90,7 @@
         "1"
     ],
     "filament_is_support": [
-        "1"
+        "0"
     ],
     "filament_loading_speed": [
         "28"
@@ -168,13 +168,13 @@
         "0"
     ],
     "filament_start_gcode": [
-        "T3\n; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
+        "T012\n; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
     ],
     "filament_toolchange_delay": [
         "0"
     ],
     "filament_type": [
-        "PETG"
+        "PLA"
     ],
     "filament_unloading_speed": [
         "90"
@@ -201,10 +201,10 @@
         "10"
     ],
     "hot_plate_temp": [
-        "50"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "50"
+        "60"
     ],
     "idle_temperature": [
         "0"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.2"
+        "0.4"
     ],
     "reduce_fan_stop_start_freq": [
         "1"
@@ -267,18 +267,15 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA(3in1) @FF 1.0",
-    "alias": "PING SupPLA(3in1)",
+    "name": "PING PLA(3in1)",
+    "alias": "PING PLA(3in1)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFIL3SUP10",
-    "filament_id": "PINGFIL3SUP10",
+    "setting_id": "PINGFIL3PLA06",
+    "filament_id": "PINGFIL3PLA06",
     "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 3in1 1.0 nozzle",
-        "FF800 3in1 1.0 nozzle"
-    ],
+    "renamed_from": "PING PLA(3in1) @FF 0.4;PING PLA(3in1) @FF 0.6;PING PLA(3in1) @FF 1.0",
     "default_filament_colour": [
-        "#D3D3D3"
+        "#EA4E16"
     ]
 }

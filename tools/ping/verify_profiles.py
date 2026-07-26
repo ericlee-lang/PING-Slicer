@@ -223,6 +223,10 @@ for name, (kind, d) in presets.items():
             sg = sg[0] if isinstance(sg, list) and sg else (sg or "")
             if not re.search(r"^\s*T\S+", sg, re.M):
                 err(f"[3in1 起始gcode 缺 T 指令 — 同步進料會靜默失效] {name}")
+        # 檢查 12b（Eric 2026-07-26 裁 C・3in1 口徑合一＝統一值照 0.4/0.6）：舊口徑尾碼支不得復活
+        #（六支已併 PLA(3in1)/SupPLA(3in1) 各一、不綁機；舊名走 renamed_from 字串相容）。
+        if "(3in1) @FF" in name:
+            err(f"[3in1 口徑合一 0726] {name}: 舊口徑別名支不得存在")
         fmt = d.get("filename_format", "")
         if fmt:
             if ord(fmt[0]) > 127:
