@@ -539,9 +539,9 @@ wxMenu* MenuFactory::append_submenu_add_handy_model(wxMenu* menu, ModelVolumeTyp
     static const std::pair<const char*, const char*> ping_handy_models[] = {
         {"Z平面校正確認", "PING_Z_plane_check.3mf"},
         {"易拆鑰匙圈",    "PING_keychain.stl"},
-        {"法鬥",          "PING_bulldog.stl"},
         {"花瓶 Ribbon",   "PING_ribbon_vase.stl"},
-        {"摩埃 Moai",     "PING_moai.stl"},
+        // 法鬥（31MB）/摩埃（11MB）原始 STL——Eric 2026-07-26 裁「抽掉」＝安裝檔瘦身；
+        // 要回加＝補 handy_models 檔＋本表各一列（來源在專案「測試列印件」夾）。
     };
     for (auto& pm : ping_handy_models) {
         const std::string ping_file = pm.second;
