@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.62",
+    "version": "01.00.00.63",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -13,12 +13,16 @@
             "sub_path": "machine/FD300.json"
         },
         {
-            "name": "FD300 單料頭",
-            "sub_path": "machine/FD300 單料頭.json"
-        },
-        {
             "name": "FD300 同進",
             "sub_path": "machine/FD300 同進.json"
+        },
+        {
+            "name": "FD300 關門",
+            "sub_path": "machine/FD300 關門.json"
+        },
+        {
+            "name": "FD300 單料頭",
+            "sub_path": "machine/FD300 單料頭.json"
         },
         {
             "name": "FD300 同進照片磚",
@@ -29,48 +33,48 @@
             "sub_path": "machine/FD300 Pro.json"
         },
         {
-            "name": "FD300 Pro 單料頭",
-            "sub_path": "machine/FD300 Pro 單料頭.json"
-        },
-        {
             "name": "FD300 Pro 同進",
             "sub_path": "machine/FD300 Pro 同進.json"
+        },
+        {
+            "name": "FD300 Pro 單料頭",
+            "sub_path": "machine/FD300 Pro 單料頭.json"
         },
         {
             "name": "FD450 Pro",
             "sub_path": "machine/FD450 Pro.json"
         },
         {
-            "name": "FD450 Pro 單料頭",
-            "sub_path": "machine/FD450 Pro 單料頭.json"
-        },
-        {
             "name": "FD450 Pro 同進",
             "sub_path": "machine/FD450 Pro 同進.json"
+        },
+        {
+            "name": "FD450 Pro 單料頭",
+            "sub_path": "machine/FD450 Pro 單料頭.json"
         },
         {
             "name": "FD600 Pro",
             "sub_path": "machine/FD600 Pro.json"
         },
         {
-            "name": "FD600 Pro 單料頭",
-            "sub_path": "machine/FD600 Pro 單料頭.json"
-        },
-        {
             "name": "FD600 Pro 同進",
             "sub_path": "machine/FD600 Pro 同進.json"
+        },
+        {
+            "name": "FD600 Pro 單料頭",
+            "sub_path": "machine/FD600 Pro 單料頭.json"
         },
         {
             "name": "FD800 Pro",
             "sub_path": "machine/FD800 Pro.json"
         },
         {
-            "name": "FD800 Pro 單料頭",
-            "sub_path": "machine/FD800 Pro 單料頭.json"
-        },
-        {
             "name": "FD800 Pro 同進",
             "sub_path": "machine/FD800 Pro 同進.json"
+        },
+        {
+            "name": "FD800 Pro 單料頭",
+            "sub_path": "machine/FD800 Pro 單料頭.json"
         },
         {
             "name": "FF600",
@@ -193,6 +197,54 @@
         {
             "name": "0.3mm @FD300 同進 (0.6)",
             "sub_path": "process/0.3mm @FD300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm PLA+SUP @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm PLA+SUP @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.125mm PLA+PLA @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm PLA+PLA @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.125mm ABS+SUP @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm ABS+SUP @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.125mm ABS+ABS @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm ABS+ABS @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.2mm PLA+SUP @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm PLA+SUP @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.2mm PLA+PLA @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm PLA+PLA @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.2mm ABS+SUP @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm ABS+SUP @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.2mm ABS+ABS @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm ABS+ABS @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+SUP @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm PLA+SUP @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.3mm PLA+PLA @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm PLA+PLA @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.3mm ABS+SUP @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm ABS+SUP @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.3mm ABS+ABS @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm ABS+ABS @FD300 關門 (0.6).json"
         },
         {
             "name": "0.125mm PLA+SUP @FD300 Pro (0.25)",
@@ -719,6 +771,18 @@
             "sub_path": "process/0.3mm PLA+PVA @FD300 (0.6).json"
         },
         {
+            "name": "0.125mm PLA+PVA @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm PLA+PVA @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.2mm PLA+PVA @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm PLA+PVA @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm PLA+PVA @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm PLA+PVA @FD300 關門 (0.6).json"
+        },
+        {
             "name": "0.125mm PLA+PVA @FD300 Pro (0.25)",
             "sub_path": "process/0.125mm PLA+PVA @FD300 Pro (0.25).json"
         },
@@ -933,6 +997,18 @@
         {
             "name": "FD300 同進 0.6 nozzle",
             "sub_path": "machine/FD300 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "FD300 關門 0.25 nozzle",
+            "sub_path": "machine/FD300 關門 0.25 nozzle.json"
+        },
+        {
+            "name": "FD300 關門 0.4 nozzle",
+            "sub_path": "machine/FD300 關門 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 關門 0.6 nozzle",
+            "sub_path": "machine/FD300 關門 0.6 nozzle.json"
         },
         {
             "name": "FD300 Pro 0.25 nozzle",

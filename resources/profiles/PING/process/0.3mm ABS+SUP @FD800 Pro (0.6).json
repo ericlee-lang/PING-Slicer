@@ -296,7 +296,7 @@
     "name": "0.3mm ABS+SUP @FD800 Pro (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP081",
+    "setting_id": "PINGP093",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 0.6 nozzle"
