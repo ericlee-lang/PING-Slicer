@@ -206,6 +206,12 @@ static void ping_apply_combo_filaments(const std::string &process_name)
             plater->update_project_dirty_from_presets();
             for (size_t i = 0; i < bundle->filament_presets.size(); ++i)
                 plater->on_filament_change(i);
+            // PING(2026-07-26 Eric 驗收定罪)：槽位色橋 update_ams_color() 只掛在下拉「選擇變更」
+            // 事件（PresetComboBoxes.cpp），本函式程式直改 preset 不經過 ⇒ 連動換的線材槽位色
+            // 不跟。combo 文字已被上面 update_presets 刷成新 preset 名，補走與手動選擇同一條橋。
+            auto &combos = plater->sidebar().combos_filament();
+            for (size_t i = 0; i < bundle->filament_presets.size() && i < combos.size(); ++i)
+                combos[i]->update_ams_color();
         }
         return;
     }
@@ -252,6 +258,10 @@ static void ping_apply_combo_filaments(const std::string &process_name)
         plater->update_project_dirty_from_presets();
         plater->on_filament_change(0);
         plater->on_filament_change(1);
+        // PING(2026-07-26)：槽位色橋接——理由同上方棧板分支
+        auto &combos = plater->sidebar().combos_filament();
+        for (size_t i = 0; i < 2 && i < combos.size(); ++i)
+            combos[i]->update_ams_color();
     }
 }
 
