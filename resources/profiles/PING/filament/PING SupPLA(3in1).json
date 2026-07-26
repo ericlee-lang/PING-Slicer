@@ -267,17 +267,14 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA(3in1) @FF 0.4",
+    "name": "PING SupPLA(3in1)",
     "alias": "PING SupPLA(3in1)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFIL3SUP04",
-    "filament_id": "PINGFIL3SUP04",
+    "setting_id": "PINGFIL3SUP06",
+    "filament_id": "PINGFIL3SUP06",
     "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 3in1 0.4 nozzle",
-        "FF800 3in1 0.4 nozzle"
-    ],
+    "renamed_from": "PING SupPLA(3in1) @FF 0.4;PING SupPLA(3in1) @FF 0.6;PING SupPLA(3in1) @FF 1.0",
     "default_filament_colour": [
         "#D3D3D3"
     ]

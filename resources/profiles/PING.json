@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.63",
+    "version": "01.00.00.64",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -889,30 +889,6 @@
             "sub_path": "filament/PING PLA - 220.json"
         },
         {
-            "name": "PING PLA(3in1) @FF 0.4",
-            "sub_path": "filament/PING PLA(3in1) @FF 0.4.json"
-        },
-        {
-            "name": "PING PLA(3in1) @FF 0.6",
-            "sub_path": "filament/PING PLA(3in1) @FF 0.6.json"
-        },
-        {
-            "name": "PING PLA(3in1) @FF 1.0",
-            "sub_path": "filament/PING PLA(3in1) @FF 1.0.json"
-        },
-        {
-            "name": "PING SupPLA(3in1) @FF 0.4",
-            "sub_path": "filament/PING SupPLA(3in1) @FF 0.4.json"
-        },
-        {
-            "name": "PING SupPLA(3in1) @FF 0.6",
-            "sub_path": "filament/PING SupPLA(3in1) @FF 0.6.json"
-        },
-        {
-            "name": "PING SupPLA(3in1) @FF 1.0",
-            "sub_path": "filament/PING SupPLA(3in1) @FF 1.0.json"
-        },
-        {
             "name": "PING PLA - 四料高流量噴頭",
             "sub_path": "filament/PING PLA - 四料高流量噴頭.json"
         },
@@ -939,6 +915,14 @@
         {
             "name": "PING PVA",
             "sub_path": "filament/PING PVA.json"
+        },
+        {
+            "name": "PING PLA(3in1)",
+            "sub_path": "filament/PING PLA(3in1).json"
+        },
+        {
+            "name": "PING SupPLA(3in1)",
+            "sub_path": "filament/PING SupPLA(3in1).json"
         }
     ],
     "machine_list": [
