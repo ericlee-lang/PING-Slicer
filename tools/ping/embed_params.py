@@ -1523,8 +1523,18 @@ def main(src_base):
     # ⇒ 保留 `PING ABS` 並收編 ABS-250 的較佳值；另兩支移除，舊名走 renamed_from 相容
     #（Preset.cpp:2084 會拿舊名比對 system profile 的 renamed_from ⇒ 客戶既有 3mf 自動對應）。
     ABS_MERGED_AWAY = {"PING ABS - 250", "PING PolyABS"}
+    # ★ 3in1 支口徑合一（Eric 2026-07-26 裁 C・統一值照 0.4/0.6）：六支 @FF 口徑別名併成
+    # PLA(3in1)/SupPLA(3in1) 各一支、不綁機（0718 四料先例）。範本已收斂；此處清單過濾＋
+    # 殘檔清除＝regen-durable，舊名走 renamed_from（⚠ 字串型別）相容。
+    THREE_IN1_MERGED_AWAY = {"PING %s(3in1) @FF %s" % (_s, _nz)
+                             for _s in ("PLA", "SupPLA") for _nz in ("0.4", "0.6", "1.0")}
+    for _old in sorted(THREE_IN1_MERGED_AWAY):
+        _p = os.path.join(PINGDIR, "filament", _old + ".json")
+        if os.path.isfile(_p):
+            os.remove(_p); print("  3in1 合一：移除殘檔", _old)
     pj["filament_list"] = [x for x in pj["filament_list"]
-                           if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY]
+                           if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY
+                           and x["name"] not in THREE_IN1_MERGED_AWAY]
     have = {x["name"] for x in pj["filament_list"]}
     pj["filament_list"] += [x for x in (fil_new + ff_fil + classic_fil) if x["name"] not in have]
     # PING_ONLY 精簡：移除 FF 專用高流量線材（對單機客戶版無意義）——清 list ＋ 刪檔
