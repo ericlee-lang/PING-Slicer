@@ -533,6 +533,29 @@ wxMenu* MenuFactory::append_submenu_add_generic(wxMenu* menu, ModelVolumeType ty
 wxMenu* MenuFactory::append_submenu_add_handy_model(wxMenu* menu, ModelVolumeType type) {
     auto sub_menu = new wxMenu;
 
+    // PING(2026-07-26 Eric)：自家測試件置頂（最常用）。resources 檔名一律 ASCII——
+    // 這裡的路徑是 narrow string（boost::filesystem::path(std::string)），CJK 檔名在
+    // Windows codepage 下會壞；顯示名走 FromUTF8 不受限。3mf 與 Orca Cube 同載入路徑（LoadModel）。
+    static const std::pair<const char*, const char*> ping_handy_models[] = {
+        {"Z平面校正確認", "PING_Z_plane_check.3mf"},
+        {"易拆鑰匙圈",    "PING_keychain.stl"},
+        {"法鬥",          "PING_bulldog.stl"},
+        {"花瓶 Ribbon",   "PING_ribbon_vase.stl"},
+        {"摩埃 Moai",     "PING_moai.stl"},
+    };
+    for (auto& pm : ping_handy_models) {
+        const std::string ping_file = pm.second;
+        append_menu_item(
+            sub_menu, wxID_ANY, wxString::FromUTF8(pm.first), "",
+            [type, ping_file](wxCommandEvent&) {
+                std::vector<boost::filesystem::path> input_files;
+                input_files.push_back(boost::filesystem::path(Slic3r::resources_dir()) / "handy_models" / ping_file);
+                plater()->load_files(input_files, LoadStrategy::LoadModel);
+            },
+            "", menu);
+    }
+    sub_menu->AppendSeparator();
+
     for (auto &item : {L("Orca Cube"), L("Orca Tolerance Test"), L("3DBenchy"), L("Cali Cat"), L("Autodesk FDM Test"),
                        L("Voron Cube"), L("Stanford Bunny"), L("Orca String Hell") }) {
         append_menu_item(
