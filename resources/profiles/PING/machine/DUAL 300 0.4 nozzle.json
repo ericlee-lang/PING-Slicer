@@ -313,6 +313,6 @@
     "name": "DUAL 300 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM070",
+    "setting_id": "PINGM073",
     "alias": "DUAL 300"
 }

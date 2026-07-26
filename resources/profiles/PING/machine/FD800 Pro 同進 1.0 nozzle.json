@@ -310,6 +310,6 @@
     "name": "FD800 Pro 同進 1.0 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM047",
+    "setting_id": "PINGM050",
     "alias": "FD800 Pro 同進"
 }

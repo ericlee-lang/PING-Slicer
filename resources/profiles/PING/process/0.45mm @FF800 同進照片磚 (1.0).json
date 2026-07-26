@@ -291,7 +291,7 @@
     "name": "0.45mm @FF800 同進照片磚 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP169",
+    "setting_id": "PINGP184",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 同進照片磚 1.0 nozzle"
