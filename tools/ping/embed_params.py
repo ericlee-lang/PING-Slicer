@@ -118,6 +118,10 @@ def jdump(path, obj):
 FAMS = [
     ("FP300",       "FP300",       "single"),
     ("FD300",       "FD300",       "dual"),
+    # 關門模式（Eric 2026-07-26）：門關著印（ABS 保艙溫）＝列印範圍剩直徑 200、高度不變；
+    # 同一台實體機、吃 FD300 交付 config，只縮床＋預擠內移（BED_OVERRIDE）。
+    # kind=dual1＝只出雙料本體（Eric 裁「關門版只需要 FD300」，不出 關門 同進/單料頭）。
+    ("FD300",       "FD300 關門",  "dual1"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
     ("FD450 Pro",   "FD450 Pro",   "dual"),
     ("FD600 Pro",   "FD600 Pro",   "dual"),
@@ -221,6 +225,10 @@ BED_OVERRIDE = {
     "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50,
               "bed_texture": "P200+_buildplate_texture.png",
               "nozzles": ["0.4", "0.6"]},   # 去掉 0.2、只留 0.4/0.6（使用者 2026-06-15）
+    # FD300 關門（Eric 2026-07-26）：直徑 300→200、高度不變（不帶 height 鍵＝沿用 FD300）；
+    # 預擠直線 Y-140/-138 → +50 內移＝P200+ 門關 200 實機驗過的同款幾何。
+    # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出 200 床）。
+    "FD300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
 }
 
 # ---------- Classic 前代機（V3.6） ----------
@@ -278,7 +286,8 @@ def apply_bed_override(model, mac):
         return
     if isinstance(mac.get("printable_area"), list):
         mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
-    mac["printable_height"] = ov["height"]
+    if "height" in ov:                       # FD300 關門：高度不變＝不帶 height 鍵
+        mac["printable_height"] = ov["height"]
     sg = mac.get("machine_start_gcode")
     if isinstance(sg, str):   # 預擠線 Y 往床心平移（門關直徑計），避免門關時超出床
         mac["machine_start_gcode"] = re.sub(
@@ -994,6 +1003,8 @@ def main(src_base):
             modes = [("PLA+SUP", base, def_fil_dual_for(base), False),   # 雙料機母檔=PLA+SUP；製程另出 4 組合
                      ("單料頭", base + " 單料頭", def_fil_single_for(base), True),
                      ("同進",   base + " 同進",   def_fil_single_for(base), True)]
+        elif kind == "dual1":   # 衍生雙料機只出本體（FD300 關門——Eric 裁不出 關門 同進/單料頭）
+            modes = [("PLA+SUP", base, def_fil_dual_for(base), False)]
         elif kind == "single":
             modes = [("單料頭", base, def_fil_single_for(base), True)]
         else:
@@ -1013,7 +1024,7 @@ def main(src_base):
                 lh = c.get("layer_height", "0.2")
                 mac_name = "%s %s nozzle" % (model, nz)
                 # 雙料機：製程依 4 組合各出一支（V3.0 行為復原，2026-06-10）；其餘一機一製程
-                is_dual_machine = (kind == "dual" and mode_key == "PLA+SUP")
+                is_dual_machine = (kind in ("dual", "dual1") and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
                 def pname(cb):
                     return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
@@ -1453,7 +1464,7 @@ def main(src_base):
             os.remove(os.path.join(PINGDIR, f)); print("  cover 移除(孤兒):", f)
     for model in nozzles_of:
         dst = os.path.join(PINGDIR, "%s_cover.png" % model)
-        if model.endswith(("單料頭", "同進")):
+        if model.endswith(("單料頭", "同進", "關門")):
             blank_png(dst)                   # 模式卡固定空白（每次重生覆寫，確保不殘留照片）
         elif not os.path.exists(dst):
             key = max((k for k in cover_src if model.startswith(k)), key=len)
@@ -1477,9 +1488,12 @@ def main(src_base):
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
     # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。
     # 單料頭需要實際換噴頭，放最右以免和 FD300／同進的雙料硬體混在一起（Eric 2026-07-15）。
-    fam_bases = [f[1] for f in FAMS]
+    # 關門＝FD300 的家族「變體」（排序面）：從 base 候選拿掉，否則精確自我匹配會把它
+    # 當成獨立家族排在整個 FD300 家族之後，_variant_rank 的「關門」永遠輪不到。
+    fam_bases = [f[1] for f in FAMS if not f[1].endswith("關門")]
     classic_bases = [s["name"] for s in CLASSIC_SPECS]
-    _variant_rank = {"": 0, "同進": 1, "3in1": 2, "單料頭": 3}
+    # 關門插第三＝Eric 2026-07-26 指定家族順序 FD300／同進／關門／單料頭。
+    _variant_rank = {"": 0, "同進": 1, "關門": 2, "3in1": 3, "單料頭": 4}
     def _lay11_key(entry):
         name = entry["name"]
         base = max((b for b in fam_bases if name == b or name.startswith(b + " ")), key=len, default=None)

@@ -133,7 +133,7 @@ ProductLineTabs(strVendor)+
 
 		//Collect Html Node Nozzel Html
 		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
-		let strSeries=ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1)$/,'');
+		let strSeries=ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1|關門)$/,'');
 		if( !ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor]={};
 		if( !ModelHtml[strVendor].hasOwnProperty(strSeries))
@@ -306,7 +306,7 @@ function FilterModelList(keyword) {
 
 		//Collect Html Node Nozzel Html
 		//PING: 同 HandleModelList，依家族分組(去模式字尾)
-		let strSeries = ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1)$/,'');
+		let strSeries = ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1|關門)$/,'');
 		if (!ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor] = {};
 		if (!ModelHtml[strVendor].hasOwnProperty(strSeries))

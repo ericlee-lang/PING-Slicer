@@ -313,6 +313,6 @@
     "name": "FD800 Pro 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM039",
+    "setting_id": "PINGM042",
     "alias": "FD800 Pro"
 }

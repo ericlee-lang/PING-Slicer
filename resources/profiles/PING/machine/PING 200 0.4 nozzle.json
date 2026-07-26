@@ -310,6 +310,6 @@
     "name": "PING 200 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM067",
+    "setting_id": "PINGM070",
     "alias": "PING 200"
 }
