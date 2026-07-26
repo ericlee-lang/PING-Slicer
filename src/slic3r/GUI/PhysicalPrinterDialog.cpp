@@ -374,7 +374,8 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             sizer->Add(txt);
             return sizer;
         };
-        m_optgroup->append_line(cafile_hint);
+        // PING(2026-07-26 Eric)：CA 相關欄位已在 update() 收尾統一隱藏，說明文字一併不掛
+        (void) cafile_hint;
     }
     else {
         
@@ -393,7 +394,8 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             sizer->Add(txt, 1, wxEXPAND|wxALIGN_LEFT);
             return sizer;
         };
-        m_optgroup->append_line(line);
+        // PING(2026-07-26 Eric)：同上——系統憑證庫說明資訊不顯示
+        (void) line;
     }
 
     for (const std::string& opt_key : std::vector<std::string>{ "printhost_user", "printhost_password" }) {        
@@ -714,6 +716,16 @@ void PhysicalPrinterDialog::update(bool printer_change)
     update_preset_input();
 
     update_printhost_buttons();
+
+    // PING(2026-07-26 Eric)：目前用不到的欄位一律隱藏——主機類型/列印設備代理/設備使用者界面/
+    // API 金鑰/CA 憑證/吊銷檢查。只藏不改值（host_type=htOctoPrint、agent=Moonraker 照舊寫入）；
+    // 放在所有 show/hide 決策之後＝蓋過上方各 host type 分支的 show_field。
+    for (const char* ping_hide : { "host_type", "printer_agent", "print_host_webui",
+                                   "bbl_use_print_host_webui", "printhost_authorization_type",
+                                   "printhost_apikey", "printhost_cafile", "printhost_ssl_ignore_revoke" })
+        m_optgroup->hide_field(ping_hide);
+    if (m_printhost_cafile_browse_btn)
+        m_printhost_cafile_browse_btn->Hide();
 
     this->SetSize(this->GetBestSize());
     this->Layout();
