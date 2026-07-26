@@ -714,7 +714,8 @@ void PingMixEditor::build_controls()
 
     // 標題列：標題＋（右側）收合鈕——平常不用混色時收成右緣窄條，要用再展開（Eric 2026-07-02）
     wxBoxSizer* title_row = new wxBoxSizer(wxHORIZONTAL);
-    m_title = new wxStaticText(this, wxID_ANY, wxString::FromUTF8("混色曲線"));
+    // PING(2026-07-26 Eric)：開合處直寫狀態——展開＝「混色啟用」、收合浮鈕＝「混色停用」
+    m_title = new wxStaticText(this, wxID_ANY, wxString::FromUTF8("混色啟用"));
     wxFont tf = m_title->GetFont();
     tf.SetWeight(wxFONTWEIGHT_BOLD);
     m_title->SetFont(tf);
@@ -725,7 +726,7 @@ void PingMixEditor::build_controls()
     m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
     bind_ping_dark_tooltip(m_collapse_btn,
-        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」重新啟用"));
+        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色停用」重新啟用"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)
@@ -803,8 +804,8 @@ bool PingMixEditor::update_from_plater()
 void PingMixEditor::sync_controls()
 {
     // 標題
-    m_title->SetLabel(m_is_quad ? wxString::FromUTF8("混色曲線（四料）")
-                                : wxString::FromUTF8("混色曲線（雙料）"));
+    m_title->SetLabel(m_is_quad ? wxString::FromUTF8("混色啟用（四料）")
+                                : wxString::FromUTF8("混色啟用（雙料）"));
 
     // PING(2026-07-09 Eric)：同進（均分）＝不需要曲線模式 → 整列隱藏；選漸層/動過曲線才出現。
     const bool flat_tongjin = is_flat_tongjin();

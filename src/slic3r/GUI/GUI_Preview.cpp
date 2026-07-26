@@ -305,10 +305,12 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         // 軟體標準 Button（Regular＝hover 變灰、focus 橘框；直排文字同校正頁 btn_sync 前例）
-        ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色"));
+        // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）；
+        // 四字直排，高度 64→116 維持原字距
+        ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色停用"));
         open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
         open_btn->SetVertical(true);
-        open_btn->SetMinSize(wxSize(FromDIP(28), FromDIP(64)));
+        open_btn->SetMinSize(wxSize(FromDIP(28), FromDIP(116)));
         bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
