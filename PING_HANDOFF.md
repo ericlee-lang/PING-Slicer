@@ -15,6 +15,17 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-26 晚 收尾棒 — D 槽換裝 T007＋skill 回填三項＋牌桌收攏）
+
+**本棒三件事（皆完成、皆驗證過）**：
+1. **Eric D 槽 portable 換裝 T007**（Eric 令「D 槽也放最新的」）：守衛（app 未執行，fail-closed）→ `_staging` zip sha256 實算＝登錄簿登記值 `239FB380…6981` → T005 整夾改名備份 `D:\PING-Slicer-portable-old-v360T005-0726` → 解壓（44 項、內容直出佈局）→ **DL1016 備援重注**（`DL1016_本機注入備援/` 10 檔＋cover＋PING.json 10 條註冊 1/3/3/3、**版號維持 72＝0725 兩次先例不抬**）。驗證全過：bundle 72／機 84・製程 177・線材 34（＝T007 基線 81/174/31＋DL1016 3/3/3）／`renamed_from`＝str／無效顏色鍵 0／PVA 回抽 3／照片磚 `enable_support`=0／Classic DUAL 600 支撐角 35。appdata（69）未動＝Eric 開 app 自然收編 72、DL1016 隨 portable 帶走（T005 收編已證此鏈：appdata 69 現有 DL1016 1/3/3/3）。⚠ **備份現 3 份**（v355ws0722／v360T004fix0725／v360T005-0726）超出「留兩個」慣例＝照先例不自動刪、留 Eric 裁（v360T004fix0725 內容物＝DEFECTIVE T004 修補版、回滾價值低）。
+2. **skill 回填三項補齊**（0725/0726 兩棒懸帳）：ping-slicer `materials.md`＝①PLA+PVA 專屬製程已出、歸易拆（⏳ 待裁句轉 ✅；檔名前綴 `易拆_`＝`embed_params.py:379` 實碼）②**樹狀支撐保守配方**節（**hybrid 前提**＝預設池 normal(auto)+snug 不變、手動切「混合樹」才生效；欄位分組引擎硬分 `ConfigManipulation.cpp:750-758`；甲組 7 鍵＋`_organic` 防呆 2.6/40）③**ABS 整併記錄**（`renamed_from` 字串鐵則＝T004 死因／`find_preset()` 不走 renamed_from ⇒ C++ 硬寫名靜默失效坑／PA 分流量現況表＋單向護欄）；**＋過期活規則修正**＝臨界角 35 豁免句「Classic 前代不套」→「已跟進」（0725 三裁）。commit `6710f76`、定向單檔同步三方 hash `2862ec5b`、validate 全綠（`core-rules.md`／`maintenance.md` 他線未提交改動仍未碰）。
+3. **牌桌收攏**：c-0726-T7-01（前棒漏銷、工作早已閉環）補銷；本棒 c-0726-T7-02（env:portable 覆蓋類）掛→銷完整；PM 簿 x-0726-ORCA-01（skill 單檔）掛→銷。
+
+**🔴 下一棒＝收驗收回報，工程側無懸帳**：①Eric 待驗清單 9 項（縮放座標系／線材顏色連動／溫度確認視窗 #33／混色狀態行 #26／組合製程連動 ABS+ABS・PLA+PVA・棧板／材料色塊消失／檔名七模式／支撐實印／Classic 前代實印——D 槽開 T007 即可逐項走）②同事 T007 回報（版本資訊六項）③開發線 workshop 30173085575（bundle 62）成品未抓＝Eric 要裝再抓。
+**🟡 未決沿前**：「成品能不能起得來」自動關卡提案（build 後 headless 載入抓 `load config file ... Failed`）仍待裁；D 槽備份 3 份留 Eric 裁。
+
+---
 ### 🏁×7 收工快照（2026-07-26 0725-0726 續棒 — T004 事故／T005／T006 VOID／T007 建置中）
 
 **線況**：開發線 `ping/v3.5` tip **`4aa2578a`**（bundle **62**，已 push）｜出貨線 `release/v3.6` tip **`667825dd`**（bundle **72**＝T007，已 push）｜兩線工作區乾淨｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
@@ -59,8 +70,8 @@ installer 100.4MB `1881A281…9F59`／portable zip 132.2MB `239FB380…6981`，G
 
 **🟡 未決／待裁**
 - 「成品能不能起得來」仍**無自動關卡**——提案：build 後跑一次 headless 載入抓 `load config file ... Failed`（未做、未驗證可行）。
-- Eric D 槽 portable 備份現 2 份（v355ws0722／v360T004fix0725），現行安裝＝T005（bundle 69）；T007 綠後可再換。
-- 上一棒遺留的 skill 回填三項（materials.md PLA+PVA 歸易拆／樹狀支撐配方節／ABS 整併記錄）**仍未做**。
+- ~~Eric D 槽 portable 現行安裝＝T005；T007 綠後可再換~~ → ✅ **0726 晚已換 T007＋DL1016 重注**（見頂部收尾棒快照；備份現 3 份留 Eric 裁）。
+- ~~上一棒遺留的 skill 回填三項仍未做~~ → ✅ **0726 晚補齊**（materials.md，commit `6710f76`；見頂部收尾棒快照）。
 
 ↳ 認領牌 c-0725-T4-03～08 全銷；Klipper 簿 c-0725-OR-01（.158 唯讀診斷）已銷。
 
