@@ -275,6 +275,14 @@
     "filament_id": "PINGFIL3SUP06",
     "inherits": "fdm_filament_pla",
     "renamed_from": "PING SupPLA(3in1) @FF 0.4;PING SupPLA(3in1) @FF 0.6;PING SupPLA(3in1) @FF 1.0",
+    "compatible_printers": [
+        "FF600 3in1 0.4 nozzle",
+        "FF600 3in1 0.6 nozzle",
+        "FF600 3in1 1.0 nozzle",
+        "FF800 3in1 0.4 nozzle",
+        "FF800 3in1 0.6 nozzle",
+        "FF800 3in1 1.0 nozzle"
+    ],
     "default_filament_colour": [
         "#D3D3D3"
     ]

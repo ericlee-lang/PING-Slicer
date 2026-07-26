@@ -275,6 +275,14 @@
     "filament_id": "PINGFIL3PLA06",
     "inherits": "fdm_filament_pla",
     "renamed_from": "PING PLA(3in1) @FF 0.4;PING PLA(3in1) @FF 0.6;PING PLA(3in1) @FF 1.0",
+    "compatible_printers": [
+        "FF600 3in1 0.4 nozzle",
+        "FF600 3in1 0.6 nozzle",
+        "FF600 3in1 1.0 nozzle",
+        "FF800 3in1 0.4 nozzle",
+        "FF800 3in1 0.6 nozzle",
+        "FF800 3in1 1.0 nozzle"
+    ],
     "default_filament_colour": [
         "#EA4E16"
     ]
