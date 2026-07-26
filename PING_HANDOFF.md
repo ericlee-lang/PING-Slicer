@@ -29,7 +29,16 @@
 
 **🔶 Classic 變體＝規格已收齊、下一棒實作（工程量大）**：DUAL 300/450/600/800 補 同進＋單料頭、口徑照 FD 對應機、參數繼承照 FD（Marlin 隔離不動）；**同進混色＝`M6050 S<比例>` 舊格式**（Eric 明示「用舊的方法安插」）。接點已盤：`PingColorMix.cpp:212` 現行 `M6051 S%.4f` **同構單參數**＋`BackgroundSlicingProcess.cpp:210` 同進判定（printer_model 含「同進」→FF=M6052/FD=M6051）⇒ 差「Classic 判定＋指令字」分支；PingColorMix 剝除規則本就含 M6050（`:112`）＝不會雙插。⚠ 開放問題：單料 Classic（EDU 200 等 4 台）要不要也補＝已列待確認問 Eric。
 
-**🔴 下一棒**：①收 Eric「其他要改」清單 → 一起入 T008 ②Classic 變體實作（上段規格）③8/9 實印回報＋2/4/關門 build 後眼驗（commit message 有眼驗項）。
+**★ 同晚追加批（同 session 續，Eric 邊驗邊裁）**：
+| 批 | 開發線 | 出貨線 | 內容 |
+|---|---|---|---|
+| 測試模型 | `64fef482` | `715e1014` | 「新增測試用模型」PING 件置頂（resources 檔名 ASCII＝避 narrow path 編碼雷、顯示名中文；3mf 走 Orca Cube 同載入路徑） |
+| 抽件＋視窗 | `9bf155cf` | `f9314023` | Eric 裁 C＝抽法鬥(31MB)/摩埃(11MB)、留三件 ~4MB；實體列印設備視窗藏未用欄位（主機類型/代理/設備UI/API金鑰/CA+說明/吊銷——`update()` 尾端統一 hide 蓋過各分支 show、只藏不改值） |
+| 3in1 合一 | `cb061ffe`（bundle **64**） | `608504e6`（bundle **74**＝T008 候選） | Eric 裁 C＋統一值照 0.4/0.6：六支併 `PLA(3in1)`/`SupPLA(3in1)` 各一、**不綁機**、renamed_from 舊三名（字串）；範本 6→2＋8 個機器/機型範本引用改名＋`THREE_IN1_MERGED_AWAY` regen-durable＋verify 12b「舊口徑別名不得復活」。**真因**＝3in1 支每口徑一支且綁機 × 精靈可見清單只收勾過的口徑 ⇒ 沒勾過口徑的預設支「存在但不可見」→ 預設套用 fallback（Generic ABS 事件；Eric conf 僅 0.6 兩支實證） |
+
+**🔴 conf 時序雷（下一棒必讀）**：`tools/ping/patch_conf_3in1_visible.py` 兩模式——**T008 裝機前只可 `--pre-t008`**（只加可見 17→23、不刪不換名；看門狗 0726 晚已掛、Eric 關 app 自動跑）；**T008 裝機後**才跑預設模式（換名清理、含 orca_presets）。**裝機前換名＝斷現行 T007 選擇。**
+
+**🔴 下一棒**：①收 Eric「其他要改」清單 → 一起入 T008（**兩線各 5 顆 code commit 未推**：C++ 批/關門/測試模型/抽件+視窗/3in1 合一；bundle 64/74）②Classic 變體實作（DUAL 四台限定＋同進混色 M6050 S 舊插法，接點見上）③8/9 實印回報＋build 後眼驗（各 commit message 有眼驗項）④T008 裝機後：conf 換名清理＋D 槽換裝（DL1016 備援重注照 SOP）。
 
 ---
 ### 🏁 收工快照（2026-07-26 晚 收尾棒 — D 槽換裝 T007＋skill 回填三項＋牌桌收攏）
