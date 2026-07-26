@@ -296,7 +296,7 @@
     "name": "0.5mm_棧板 @FD600 Pro 同進 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP142",
+    "setting_id": "PINGP154",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD600 Pro 同進 1.0 nozzle"

@@ -297,7 +297,7 @@
     "name": "0.3mm PLA+PVA @FD800 Pro (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP162",
+    "setting_id": "PINGP177",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 0.6 nozzle"

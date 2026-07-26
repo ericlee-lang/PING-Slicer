@@ -296,7 +296,7 @@
     "name": "0.5mm @FD800 Pro 單料頭 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP089",
+    "setting_id": "PINGP101",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 單料頭 1.0 nozzle"
