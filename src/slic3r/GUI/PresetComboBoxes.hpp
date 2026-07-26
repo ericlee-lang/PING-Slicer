@@ -103,6 +103,9 @@ public:
     virtual void msw_rescale();
     virtual void sys_color_changed();
     virtual void OnSelect(wxCommandEvent& evt);
+    // PING(2026-07-26)：由 protected 升 public——組合製程連動（Tab.cpp ping_apply_combo_filaments）
+    // 程式路徑換 preset 後需補走同一條槽位色橋；原本只有本檔衍生類的下拉選擇事件會呼叫。
+    int  update_ams_color();
 
 protected:
     typedef std::size_t Marker;
@@ -150,9 +153,6 @@ protected:
     void invalidate_selection();
     void validate_selection(bool predicate = false);
     void update_selection();
-
-    // BBS: ams
-    int  update_ams_color();
 
 #ifdef __linux__
     static const char* separator_head() { return "-- "; }
