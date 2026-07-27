@@ -296,5 +296,5 @@
     ],
     "wipe_tower_wall_type": "rib",
     "support_base_pattern": "rectilinear",
-    "tree_support_wall_count": "1"
+    "tree_support_wall_count": "0"
 }

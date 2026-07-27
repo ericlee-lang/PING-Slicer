@@ -239,10 +239,12 @@ for name, (kind, d) in presets.items():
                 #（TreeSupport.cpp:2068）。_organic 兩鍵＝防呆（snug+樹狀會被引擎退回 default＝有機樹）：
                 # 🔴 diameter_organic 2.6 是 bug 修——Print.cpp:1532 硬限 ≥2×支撐線寬，
                 #    FF 系 1.0 口徑線寬 1.02 需 ≥2.04，舊值 2 會讓那 4 支勾樹狀即切片報錯。
+                # wall_count 0＝Eric 2026-07-27 裁「支撐牆數改零」（UI 支撐牆數＝此鍵、普通/樹狀共用：
+                # 普通支撐 0=無牆 with_sheath=false；樹狀 0=auto——0725「維持一圈」同鍵被上蓋）
                 for key, value in [("tree_support_branch_angle", "30"),
                                    ("tree_support_auto_brim", "0"),
                                    ("tree_support_brim_width", "10"),
-                                   ("tree_support_wall_count", "1"),
+                                   ("tree_support_wall_count", "0"),
                                    ("tree_support_branch_diameter_organic", "2.6"),
                                    ("tree_support_branch_angle_organic", "40")]:
                     if d.get(key) != value:
