@@ -18,6 +18,7 @@
 #include "MainFrame.hpp"
 #include "format.hpp"
 #include "PingMixEditor.hpp"
+#include "Widgets/Label.hpp"
 
 #include <wx/listbook.h>
 #include <wx/notebook.h>
@@ -304,13 +305,16 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     m_ping_mix_strip->SetBackgroundColour(wxGetApp().dark_mode() ? wxColour(84, 84, 90) : wxColour(231, 231, 231));
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
-        // 軟體標準 Button（Regular＝hover 變灰、focus 橘框；直排文字同校正頁 btn_sync 前例）
-        // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）；
-        // 四字直排，高度 64→116 維持原字距
+        // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）。
+        // PING(2026-07-27 Eric 三裁)：①拆兩行＋字加大（Body_10→Head_14）②橘底白字＝
+        // ButtonStyle::Confirm（軟體標準確認鈕配色 #EA4E16/#FEFEFE，深色模式自帶）
+        // ③高 116→60 收窄、不再遮到層滑桿頂端數字。兩行毋須改行字元——vertical 模式下
+        // 寬 56 放不下四字，Button::render 的 split_lines 自動折成「混色」「停用」各一行。
         ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色停用"));
-        open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
+        open_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Compact);
+        open_btn->SetFont(Label::Head_14);
         open_btn->SetVertical(true);
-        open_btn->SetMinSize(wxSize(FromDIP(28), FromDIP(116)));
+        open_btn->SetMinSize(wxSize(FromDIP(56), FromDIP(60)));
         bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
