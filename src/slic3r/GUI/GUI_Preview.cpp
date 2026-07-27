@@ -306,15 +306,21 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）。
-        // PING(2026-07-27 Eric 三裁)：①拆兩行＋字加大（Body_10→Head_14）②橘底白字＝
-        // ButtonStyle::Confirm（軟體標準確認鈕配色 #EA4E16/#FEFEFE，深色模式自帶）
-        // ③高 116→60 收窄、不再遮到層滑桿頂端數字。兩行毋須改行字元——vertical 模式下
-        // 寬 56 放不下四字，Button::render 的 split_lines 自動折成「混色」「停用」各一行。
+        // PING(2026-07-27 Eric 三裁)：拆兩行＋Head_14 大字；橘底白字＝ButtonStyle::Confirm
+        //（軟體標準確認鈕配色 #EA4E16/#FEFEFE，深色模式自帶）；收窄不遮層滑桿數字。
+        // PING(2026-07-27 二輪修正・Eric 實機回報「四字仍一行、疊到走線卡片」)：
+        // 真因＝messureSize() 會把「單行文字量測寬」寫回控件最小寬（SetMinSize 只是下限，
+        // Head_14 四字 ≈92px 直接撐開實寬）⇒ render 的 split_lines 永不觸發。
+        // 正解＝SetMaxSize 鎖寬——messureSize:406 只有 MaxWidth 會夾住量測值 ⇒ 實寬 60
+        // 放不下四字 ⇒ 自動折成「混色」「停用」兩行（折行閾值 60−padding16＝44 > 兩字 38）。
         ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色停用"));
         open_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Compact);
         open_btn->SetFont(Label::Head_14);
         open_btn->SetVertical(true);
-        open_btn->SetMinSize(wxSize(FromDIP(56), FromDIP(60)));
+        open_btn->SetMinSize(wxSize(FromDIP(60), FromDIP(60)));
+        open_btn->SetMaxSize(wxSize(FromDIP(60), -1));   // 鎖寬＝折行的開關（見上）
+        open_btn->UnsetToolTip();   // messureSize 夾寬時會偷設 native tooltip（＝標籤字），
+                                    // 與下方 dark tooltip 重複跳兩種，拆掉只留深色版
         bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
