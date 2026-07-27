@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.75",
+    "version": "01.00.00.76",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -125,16 +125,48 @@
             "sub_path": "machine/DUAL 300.json"
         },
         {
+            "name": "DUAL 300 同進",
+            "sub_path": "machine/DUAL 300 同進.json"
+        },
+        {
+            "name": "DUAL 300 單料頭",
+            "sub_path": "machine/DUAL 300 單料頭.json"
+        },
+        {
             "name": "DUAL 450",
             "sub_path": "machine/DUAL 450.json"
+        },
+        {
+            "name": "DUAL 450 同進",
+            "sub_path": "machine/DUAL 450 同進.json"
+        },
+        {
+            "name": "DUAL 450 單料頭",
+            "sub_path": "machine/DUAL 450 單料頭.json"
         },
         {
             "name": "DUAL 600",
             "sub_path": "machine/DUAL 600.json"
         },
         {
+            "name": "DUAL 600 同進",
+            "sub_path": "machine/DUAL 600 同進.json"
+        },
+        {
+            "name": "DUAL 600 單料頭",
+            "sub_path": "machine/DUAL 600 單料頭.json"
+        },
+        {
             "name": "DUAL 800",
             "sub_path": "machine/DUAL 800.json"
+        },
+        {
+            "name": "DUAL 800 同進",
+            "sub_path": "machine/DUAL 800 同進.json"
+        },
+        {
+            "name": "DUAL 800 單料頭",
+            "sub_path": "machine/DUAL 800 單料頭.json"
         }
     ],
     "process_list": [
@@ -669,6 +701,102 @@
         {
             "name": "0.25mm @DUAL 800 (0.6)",
             "sub_path": "process/0.25mm @DUAL 800 (0.6).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 同進 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 450 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 450 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 450 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 450 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 600 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 600 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 600 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 600 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 800 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 800 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 同進 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 800 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 800 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 單料頭 (1.0).json"
         },
         {
             "name": "0.1mm_棧板 @FP300 (0.2)",
@@ -1321,6 +1449,102 @@
         {
             "name": "DUAL 800 0.6 nozzle",
             "sub_path": "machine/DUAL 800 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 1.0 nozzle.json"
         },
         {
             "name": "FF800 同進照片磚 0.6 nozzle",

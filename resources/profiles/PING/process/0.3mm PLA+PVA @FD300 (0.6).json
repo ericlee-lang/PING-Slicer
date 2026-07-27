@@ -297,7 +297,7 @@
     "name": "0.3mm PLA+PVA @FD300 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP166",
+    "setting_id": "PINGP190",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 0.6 nozzle"

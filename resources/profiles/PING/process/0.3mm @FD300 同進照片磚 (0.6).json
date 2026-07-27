@@ -289,7 +289,7 @@
     "name": "0.3mm @FD300 同進照片磚 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP186",
+    "setting_id": "PINGP210",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 同進照片磚 0.6 nozzle"

@@ -297,7 +297,7 @@
     "name": "0.125mm PLA+PVA @FD300 關門 (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP167",
+    "setting_id": "PINGP191",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 關門 0.25 nozzle"

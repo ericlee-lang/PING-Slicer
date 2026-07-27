@@ -979,6 +979,102 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
 
     print("  Classic V3.6 併入：machine=%d + machine_model=%d，process=%d，filament=%d" %
           (len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(classic_fil_list)))
+
+    # ★ Classic DUAL 變體：同進＋單料頭（Eric 2026-07-26 裁「只針對 DUAL 四台」、07-27「照做」）。
+    #   放在既有 8 台迴圈之後＝既有 Classic 的 PINGM/PINGP id 零位移（後續棧板/PVA twins id 位移＝預期）。
+    #   口徑照 FD 對應機（DUAL 300→FD300 三口徑；450/600/800→FD Pro 三口徑，1.0 照裁定字面照出）；
+    #   參數繼承照 FD＝machine/process 從 FD 對應「變體」複製（速度/層高/支撐全 FD 值——與既有
+    #   DUAL 雙料本體的 Classic 速度不同體系，Eric 0727 確認照字面）；Marlin 隔離照舊（加速度/jerk
+    #   歸 0、不送 limits、無韌體回抽/PA、回抽 Classic 值）。
+    #   同進混色＝M6050 S 舊格式（前代 Marlin 韌體只認 M6050）：start gcode 於 G28 後插 M6050 S0.5
+    #  （對應 FD 同進 start 的同款行＝預擠兩邊同進）；逐層插碼由 BackgroundSlicingProcess 判
+    #   printer_model「DUAL」開頭改傳 M6050（兩線 C++ 對稱；PingColorMix 剝除規則本就含 M6050＝不雙插）。
+    #   預擠沿用 Classic 原地擠法（G1 F200 E<n>），不搬 FD 的床邊預擠線（那是 Klipper 床幾何）。
+    vm = vp = vmm = 0
+    for spec in CLASSIC_SPECS:
+        if not spec["dual"]:
+            continue
+        for variant in ("同進", "單料頭"):
+            model = "%s %s" % (spec["name"], variant)
+            src_model = "%s %s" % (spec["src_model"], variant)
+            vnzs = nozzles_of.get(src_model)
+            if not vnzs:
+                print("  !! Classic 變體 %s 缺 FD 源機型 %s" % (model, src_model)); continue
+            for nz in vnzs:
+                src_mac_path = os.path.join(PINGDIR, "machine", "%s %s nozzle.json" % (src_model, nz))
+                mac = json.load(io.open(src_mac_path, encoding="utf-8"))
+                mac_name = "%s %s nozzle" % (model, nz)
+                src_dpp = mac.get("default_print_profile", "")
+                proc_name = src_dpp.replace("@%s (" % src_model, "@%s (" % model)
+                assert proc_name != src_dpp, "FD 變體 default_print_profile 格式變了: %r" % src_dpp
+                mac.update({"type":"machine", "name":mac_name, "alias":model, "from":"system",
+                            "instantiation":"true", "setting_id":"PINGM%03d" % gm,
+                            "printer_model":model, "printer_variant":nz,
+                            "default_print_profile":proc_name,
+                            "default_filament_profile":[CLASSIC_PLA_220],
+                            "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
+                            "use_firmware_retraction":"0", "use_relative_e_distances":"0",
+                            "machine_pause_gcode":"M0", "disable_m73":"1",
+                            "printable_height":spec["height"],
+                            "single_extruder_multi_material":"0"})
+                if isinstance(mac.get("printable_area"), list):
+                    mac["printable_area"] = scale_circle_area_from(
+                        mac["printable_area"], spec["src_diameter"], spec["diameter"])
+                for key, value in (("retraction_length", spec["retract"]),
+                                   ("retraction_speed", spec["retract_speed"]),
+                                   ("deretraction_speed", spec["retract_speed"]),
+                                   ("retract_length_toolchange", spec["retract"]),
+                                   ("retract_restart_extra", "0"),
+                                   ("retraction_minimum_travel", "1"),
+                                   ("z_hop", "0.5"), ("wipe", "0"),
+                                   ("retract_before_wipe", "0%")):
+                    _fill_array(mac, key, value)
+                mac["default_filament_colors"] = ["#EA4E16"]   # 變體＝1 槽（SEMM 0，同 FD 變體）
+                mac["filament_colors"] = list(mac["default_filament_colors"])
+                _fill_array(mac, "max_layer_height", "%g" % (0.75 * float(nz)))
+                _fill_array(mac, "min_layer_height", "0.1")
+                heat = ["M104 S[nozzle_temperature_initial_layer] T0"]
+                if spec["heated_bed"]:
+                    heat = ["M140 S[bed_temperature_initial_layer_single]"] + heat + [
+                        "M190 S[bed_temperature_initial_layer_single]"]
+                heat += ["M109 S[nozzle_temperature_initial_layer] T0"]
+                # 同進＝兩馬達同動各半（先 M6050 S0.5 再擠 5）；單料頭＝實體單頭擠 3（同 Classic 單料機）
+                sync = ["M6050 S0.5"] if variant == "同進" else []
+                prime_e = "5" if variant == "同進" else "3"
+                mac["machine_start_gcode"] = "\n".join(
+                    ["G21", "G90", "M82"] + heat + ["G28 ;Home"] + sync
+                    + ["G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
+                end = ["G91", "G1 Z10 E-1 F9000", "M104 S0"]
+                if spec["heated_bed"]:
+                    end.append("M140 S0")
+                mac["machine_end_gcode"] = "\n".join(end + ["G90", "G28 X0 Y0", "M84"])
+                jdump(os.path.join(PINGDIR, "machine", "%s.json" % mac_name), mac)
+                mac_list.append({"name":mac_name, "sub_path":"machine/%s.json" % mac_name})
+                gm += 1; vm += 1
+
+                proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_dpp),
+                                         encoding="utf-8"))
+                proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
+                             "setting_id":"PINGP%03d" % gp, "inherits":"fdm_process_ping_common",
+                             "compatible_printers":[mac_name], "accel_to_decel_enable":"0",
+                             "filename_format": filename_tpl("同進" if variant == "同進" else "單料")})
+                for key in accel_keys + jerk_keys:
+                    proc[key] = "0"
+                jdump(os.path.join(PINGDIR, "process", "%s.json" % proc_name), proc)
+                proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
+                gp += 1; vp += 1
+
+            mm = {"type":"machine_model", "name":model,
+                  "model_id":"PING_" + model.replace(" ", "_"),
+                  "nozzle_diameter":";".join(vnzs), "machine_tech":"FFF", "family":"Classic",
+                  "bed_model":bed_for(spec["src_model"]), "bed_texture":BED_TEXTURE, "hotend_model":"",
+                  "default_materials":CLASSIC_PLA_220}
+            jdump(os.path.join(PINGDIR, "machine", "%s.json" % model), mm)
+            mm_list.append({"name":model, "sub_path":"machine/%s.json" % model})
+            nozzles_of[model] = list(vnzs)   # cover 空白卡（endswith 同進/單料頭）＋側欄縮圖迴圈自動吃
+            vmm += 1
+
+    print("  Classic DUAL 變體併入：machine=%d，process=%d，machine_model=%d" % (vm, vp, vmm))
     return gm, gp, classic_fil_list
 
 # ---------- 4. 主流程 ----------
@@ -1505,8 +1601,13 @@ def main(src_base):
         name = entry["name"]
         base = max((b for b in fam_bases if name == b or name.startswith(b + " ")), key=len, default=None)
         if base is None:
-            if name in classic_bases:
-                return (len(fam_bases) + classic_bases.index(name), 0, name)
+            # Classic 家族同樣做 base＋變體分解（0727 DUAL 補同進/單料頭）：
+            # 本體 rank 0、變體照 _variant_rank ⇒ 家族內 本體→同進→單料頭，與 F 系同律（LAY-11）。
+            cbase = max((b for b in classic_bases if name == b or name.startswith(b + " ")),
+                        key=len, default=None)
+            if cbase is not None:
+                variant = name[len(cbase):].strip()
+                return (len(fam_bases) + classic_bases.index(cbase), _variant_rank.get(variant, 9))
             return (len(fam_bases) + len(classic_bases), 9, name)   # 不明機型殿後
         variant = name[len(base):].strip()
         return (fam_bases.index(base), _variant_rank.get(variant, 9))
