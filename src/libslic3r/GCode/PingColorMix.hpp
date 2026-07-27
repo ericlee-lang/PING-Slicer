@@ -71,7 +71,11 @@ void   normalize_quad_mix(const double in[4], double min_flow, double out[4]);
 // —— 主插碼 ——
 // 對 gcode 逐層插入混色指令；z→t 用 gcode 內 ;Z: 的 min/max 正規化（同 web 預覽）。
 // 回傳插入的指令數；結果寫入 out。gcode 無 ;Z: 或曲線空 → 原樣回傳、count=0。
-int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::string& out);
+// dual_cmd＝雙料指令字：Klipper 現行機 M6051（預設）；Classic 前代 DUAL（Marlin 韌體）
+// 只認 M6050 舊格式（Eric 2026-07-26 裁「用舊的方法安插」），由呼叫端依機型傳入。
+// 兩者同為 S 單參數同構；剝除規則（has_mix_cmd）涵蓋 M6050/1/2＝重匯出不會雙插。
+int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::string& out,
+                      const char* dual_cmd = "M6051");
 
 // —— 預設配方（＝web 範本「同進」：行為等同韌體原生 50/50、四色 25×4）——
 Recipe default_recipe(MixKind kind);

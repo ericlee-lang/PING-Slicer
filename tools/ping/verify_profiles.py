@@ -36,10 +36,25 @@ CLASSIC = {
     "DUAL 800": {"nozzle":"0.6", "retract":"3", "speed":"30", "height":"580", "bed":True},
 }
 
+# Classic DUAL 變體（Eric 2026-07-26 裁「只針對 DUAL 四台」補同進/單料頭、口徑照 FD 對應機；
+# 2026-07-27 實作）：機名 "{model} {變體} {nz} nozzle"。參數繼承照 FD、Marlin 隔離照舊
+# ⇒ 變體機必須吃到與本體同一組 Classic 斷言（marlin／回抽 Classic 值／無 Klipper 指令）。
+CLASSIC_VARIANT_NOZZLES = {
+    "DUAL 300": ("0.25", "0.4", "0.6"),
+    "DUAL 450": ("0.4", "0.6", "1.0"),
+    "DUAL 600": ("0.4", "0.6", "1.0"),
+    "DUAL 800": ("0.4", "0.6", "1.0"),
+}
+CLASSIC_VARIANTS = ("同進", "單料頭")
+
 def classic_model_for_machine(name):
     for model, spec in CLASSIC.items():
         if name == f"{model} {spec['nozzle']} nozzle":
             return model
+        for variant in CLASSIC_VARIANTS:
+            for nz in CLASSIC_VARIANT_NOZZLES.get(model, ()):
+                if name == f"{model} {variant} {nz} nozzle":
+                    return model
     return None
 
 
@@ -124,6 +139,10 @@ for name, (kind, d) in presets.items():
             start = d.get("machine_start_gcode", "")
             if "SET_RETRACTION" in start or "M204" in start:
                 err(f"[Classic Klipper/acceleration command] {name}: machine_start_gcode")
+            # M6051/M6052＝Klipper 巨集，前代 Marlin 韌體不認——任何 Classic 機（本體/變體）都不得帶。
+            # M6050 舊格式只准出現在「同進」變體（該規則在下方變體完整性區檢查）。
+            if "M6051" in start or "M6052" in start:
+                err(f"[Classic Klipper mix command] {name}: machine_start_gcode 帶 M6051/M6052")
             if not spec["bed"] and any(cmd in start for cmd in ("M140", "M190")):
                 err(f"[EDU heated bed command] {name}: machine_start_gcode")
     if kind == "process":
@@ -353,6 +372,34 @@ for model, spec in CLASSIC.items():
     machine = f"{model} {spec['nozzle']} nozzle"
     if machine not in machines:
         err(f"[Classic machine missing] {machine}")
+    elif "M605" in presets[machine][1].get("machine_start_gcode", ""):
+        # 本體（雙料/單料）start 不得有任何混色指令——M6050 只屬同進變體的預擠同進
+        err(f"[Classic 本體 start 不應有 M605x] {machine}")
+
+# Classic DUAL 變體完整性＋M6050 舊格式規則（Eric 2026-07-26 裁、07-27 實作）：
+# 同進 start 必含「M6050 S0.5」（預擠兩邊同進，對應 FD 同進機的同款行）；
+# 單料頭 start 必無任何 M605x；全變體 SEMM=0（同 FD 變體＝Orca 眼裡 1 槽）。
+for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
+    for variant in CLASSIC_VARIANTS:
+        vmodel = f"{model} {variant}"
+        if vmodel not in model_names:
+            err(f"[Classic 變體 model missing] {vmodel}")
+        for nz in nzs:
+            mname = f"{vmodel} {nz} nozzle"
+            entry = presets.get(mname)
+            if not entry or entry[0] != "machine":
+                err(f"[Classic 變體 machine missing] {mname}")
+                continue
+            d = entry[1]
+            if d.get("single_extruder_multi_material") != "0":
+                err(f"[Classic 變體 SEMM] {mname}: "
+                    f"{d.get('single_extruder_multi_material')!r}, expected '0'")
+            start = d.get("machine_start_gcode", "")
+            if variant == "同進":
+                if "M6050 S0.5" not in start:
+                    err(f"[Classic 同進 start 缺 M6050 S0.5] {mname}")
+            elif "M605" in start:
+                err(f"[Classic 單料頭 start 不應有 M605x] {mname}")
 classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
                      "PING SupPLA - Classic", "PING PLA - EDU Classic")
 for name in classic_filaments:
@@ -461,6 +508,18 @@ else:
     for _tok in sorted(_proc_tokens - _map_keys):
         err(f"[跨層護欄・組合製程沒有連動對應] 製程存在 {_tok} 但 Tab.cpp COMBO_FILAMENTS 無此鍵 "
             f"⇒ 使用者選了該模式，線材槽不會跟著換")
+
+# ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
+#   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
+#   韌體不認）＝混色靜默失效——與 Tab.cpp 連動表同型的「verify 全綠但功能壞」坑。
+_bsp = os.path.join(_repo, "src", "slic3r", "GUI", "BackgroundSlicingProcess.cpp")
+if not os.path.isfile(_bsp):
+    err(f"[跨層護欄] 找不到 {_bsp}（路徑推導失效，M6050 護欄形同虛設）")
+else:
+    _bsrc = io.open(_bsp, encoding="utf-8", errors="ignore").read()
+    if '"M6050"' not in _bsrc or 'rfind("DUAL", 0)' not in _bsrc:
+        err("[跨層護欄] Classic DUAL 的 M6050 舊格式分支不在 BackgroundSlicingProcess.cpp "
+            "⇒ Classic 同進逐層混色會插 M6051（前代韌體不認）")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:

@@ -297,7 +297,7 @@
     "name": "0.2mm PLA+PVA @FD300 Pro (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP171",
+    "setting_id": "PINGP195",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 0.4 nozzle"
