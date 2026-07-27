@@ -146,7 +146,8 @@ static bool parse_z_marker(const std::string& trimmed, double& z)
 }
 
 // —— 主插碼 —— //
-int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::string& out)
+int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::string& out,
+                      const char* dual_cmd)
 {
     // 切行（含 \r?\n）：以 '\n' 分割、去每行尾端 '\r'
     std::vector<std::string> lines;
@@ -209,7 +210,7 @@ int build_mixed_gcode(const std::string& gcode, const Recipe& recipe, std::strin
             cmd = buf;
         } else {
             double s = sample_ratio(recipe.stops, tt, recipe.mode); // 已 clamp [MIN_S,MAX_S]
-            std::snprintf(buf, sizeof(buf), "M6051 S%.4f", s);
+            std::snprintf(buf, sizeof(buf), "%s S%.4f", dual_cmd, s);
             cmd = buf;
         }
         if (cmd != last) { out.push_back('\n'); out += cmd; last = cmd; ++count; }

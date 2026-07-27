@@ -212,6 +212,10 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     const std::string printer_model = pm != nullptr ? pm->value : std::string();
     const bool tongjin = printer_model.find("同進") != std::string::npos;
     const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
+    // Classic 前代 DUAL（printer_model 以「DUAL」開頭＝Marlin 韌體，Eric 2026-07-26 裁）：
+    // 逐層混色用 M6050 S 舊格式——前代韌體無 M6051；兩者同為 S 單參數同構，
+    // 剝除規則（PingColorMix has_mix_cmd）本就含 M6050＝重匯出不會雙插。
+    const bool classic_dual = printer_model.rfind("DUAL", 0) == 0;
     const std::string pristine_path = gcode_path + ".pingorig";
 
     try {
@@ -255,9 +259,12 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
         }
 
         std::string out;
-        const int count = PingMix::build_mixed_gcode(gcode, recipe, out);
+        const int count = PingMix::build_mixed_gcode(gcode, recipe, out,
+                                                     classic_dual ? "M6050" : "M6051");
         BOOST_LOG_TRIVIAL(info) << "PING mix: printer_model='" << printer_model << "' kind="
-                                << (is_quad ? "Quad(M6052)" : "Dual(M6051)") << " inserted=" << count;
+                                << (is_quad ? "Quad(M6052)"
+                                            : (classic_dual ? "Dual(M6050 classic)" : "Dual(M6051)"))
+                                << " inserted=" << count;
         if (count <= 0)
             return; // 無 ;Z:（不應發生）→ 不動 temp
 
@@ -313,6 +320,13 @@ static void ping_apply_photo_tile(const std::string& gcode_path, const DynamicPr
     if (printer_model.find("同進") == std::string::npos) {
         BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: palette present but printer '" << printer_model
                                    << "' is not a mixing (tongjin) machine; gcode untouched";
+        return;
+    }
+    // Classic 前代 DUAL 同進（Marlin 韌體）不支援照片磚後處理——palette 只產 M6051/M6052、
+    // 前代韌體不認。寧可留 Tn 顯性報錯，不默默下錯指令（同下方機型×配比互驗原則）。
+    if (printer_model.rfind("DUAL", 0) == 0) {
+        BOOST_LOG_TRIVIAL(error) << "PING photo-tile: printer '" << printer_model
+                                 << "' is a Classic (Marlin) machine; photo-tile unsupported; gcode untouched";
         return;
     }
     // 機型×配比互驗：FF（四進一出）↔M6052、FD↔M6051。開錯機型寧可不動——
