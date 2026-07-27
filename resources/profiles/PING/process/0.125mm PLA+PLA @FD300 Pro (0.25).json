@@ -291,7 +291,7 @@
     "set_other_flow_ratios": "1",
     "first_layer_flow_ratio": "1.1",
     "support_base_pattern": "rectilinear",
-    "tree_support_wall_count": "1",
+    "tree_support_wall_count": "0",
     "type": "process",
     "name": "0.125mm PLA+PLA @FD300 Pro (0.25)",
     "from": "system",
