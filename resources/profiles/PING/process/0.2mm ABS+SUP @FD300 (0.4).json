@@ -291,7 +291,7 @@
     "wipe_tower_wall_type": "rib",
     "set_other_flow_ratios": "1",
     "first_layer_flow_ratio": "1.1",
-    "tree_support_wall_count": "1",
+    "tree_support_wall_count": "0",
     "type": "process",
     "name": "0.2mm ABS+SUP @FD300 (0.4)",
     "from": "system",

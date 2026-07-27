@@ -533,7 +533,11 @@ def normalize_tree_support(proc):
     #   （TreeSupport.cpp:2068 `!auto_brim ? tree_brim_width : 自動計算` ＝開著時手設值被完全忽略，
     #    且 ConfigManipulation.cpp:760 會把該欄位灰掉不可編輯）
     proc["tree_support_brim_width"] = "10"        # 原 3；樹狀為高瘦結構，底盤加寬＝不倒
-    proc["tree_support_wall_count"] = "1"         # 原 0(auto)：Eric 裁「維持一圈」（不到上限 2）；6/16 家規記載本即為 1
+    # ★ Eric 2026-07-27 裁「支撐牆數改零」（UI 支撐牆數＝本鍵，普通/樹狀共用・Tab.cpp:2663）：
+    #   普通支撐 0＝無牆（SupportParameters.hpp:113 with_sheath=false＝本裁目的）；
+    #   樹狀 0＝auto（TreeSupport.cpp:1552 需要處才加；organic 與 2424 路徑 max(1,·) 保底 1）
+    #   ⇒ 0725「樹狀牆圈維持一圈」同鍵被本裁上蓋為 auto（無法分治，Eric 回報時已明示）。
+    proc["tree_support_wall_count"] = "0"
     # tree_support_with_infill 不寫＝維持繼承 false（Eric 裁「填充維持空心」）
     # 乙組：organic 防呆（使用者忘記切樣式時會吃到——snug+樹狀會被引擎退回 default＝有機樹）
     # 🔴 diameter_organic 2→2.6 是 bug 修：Print.cpp:1532 硬性要求 ≥2×支撐線寬，
