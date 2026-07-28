@@ -196,18 +196,22 @@ for name, (kind, d) in presets.items():
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
-                # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只用在一般流量上」）
-                #   現況表（本裁確認、以下為權威）：
-                #     一般流量  PLA-220／PETG／ABS ＝ 0.12
+                # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只限一般流量」→ 2026-07-28 三輪裁
+                #   「材料如果不是高流量跟火山口或四料，它的壓力提前是 0.08」＝一般流量 0.12→0.08）
+                #   現況表（0728 起、以下為權威）：
+                #     一般流量  PLA-220/PLA-210/SupPLA/ABS/SupABS/PETG/PVA ＝ **0.08**（enable 1）
                 #     高流量噴頭 PLA／SupPLA／PETG ＝ 0.2
                 #     四料高流量 PLA／SupPLA        ＝ 0.4
                 #     3in1      PLA 0.4／SupPLA 0.2
-                #     TPE／SupTPE                   ＝ 關（0）
-                #   本斷言＝單向護欄：**0.12 不得出現在高流量／3in1 家族**（ABS 整併把 0.12 帶進
-                #   一般流量支，未經 PA 塔實測；不讓它外溢到流量特性完全不同的噴頭）。
-                #   反向不強制（一般流量支未設 PA＝繼承 common，屬既有狀態，不在本裁範圍）。
+                #     火山口     PA-CF ＝ 材料特例維持既值（不在 0.08 範圍）
+                #     TPE／SupTPE                   ＝ 關（0）＝0725 裁軟料待實測、0728 不翻案
+                #   單向護欄照舊：0.12 不得出現在高流量／3in1 家族。
                 if is_hf and _v("pressure_advance") == "0.12":
                     err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
+                if not is_hf and "TPE" not in name and "PA-CF" not in name:
+                    if _v("enable_pressure_advance") != "1" or _v("pressure_advance") != "0.08":
+                        err(f"[一般流量 PA 0.08 0728] {name}: enable={_v('enable_pressure_advance')!r} "
+                            f"pa={_v('pressure_advance')!r}, expected 1/0.08")
                 if "TPE" in name or "PVA" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
