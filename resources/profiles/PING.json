@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.67",
+    "version": "01.00.00.68",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -905,8 +905,8 @@
             "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
         },
         {
-            "name": "PING TPE",
-            "sub_path": "filament/PING TPE.json"
+            "name": "PING TPE - 210",
+            "sub_path": "filament/PING TPE - 210.json"
         },
         {
             "name": "PING SupTPE",
