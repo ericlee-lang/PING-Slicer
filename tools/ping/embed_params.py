@@ -141,6 +141,13 @@ elif PING_ONLY:
 # （畫面太滿；參數端交付 config 保留，要上架時加回 FAMS 即可）
 DEF_FIL_DUAL   = ["PING PLA - 220", "PING SupPLA"]
 DEF_FIL_SINGLE = ["PING PLA - 220"]
+# ★ 基礎支改名（Eric 2026-07-28 裁「把 PLA 改 PLA_210。它是給 FP300 使用的噴頭」・規格檔
+#   _切片規則同步_來自pingslicer_TPE回抽速度與PLA210_20260728.md）：
+#   「PING PLA」→「PING PLA - 210」（噴溫本就 210、值不動；名稱帶溫度尾碼與「- 220」一致）。
+#   renamed_from ⚠ 字串（T004 鐵則）；filament_id/setting_id GPINGPLA 不動（同一支材料身份）；
+#   alias 給獨立值防併組（3in1 教訓）。FP300 三口徑機器預設改指本支（單一出料＝210 溫度鐵律）；
+#   FD300 系 24 檔與 P200+ 維持 220（Eric 只點名 FP300、其餘待裁勿擅擴）。
+BASE_PLA_OLD, BASE_PLA_NEW = "PING PLA", "PING PLA - 210"
 # ★ 高流量噴頭專用線材（2026-07-12 Eric 裁定：高流量＝噴頭屬性非機型屬性，回抽值落材料層；
 # 規格 _切片規則同步_來自pingslicer_高流量噴頭線材_20260712.md）。不分口徑、不限機型
 #（無 compatible_printers）。覆蓋值＝Eric %APPDATA% 權威樣本 4 鍵（規格表另列的擦拭/空駛
@@ -165,6 +172,8 @@ HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temp
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
 def def_fil_single_for(base):
+    if base == "FP300":
+        return [BASE_PLA_NEW]   # 2026-07-28 Eric：FP300 單一出料預設 210（P200+/FD300 系不動＝待裁）
     return [HFN_PLA] if tier_of(base) == "450" else DEF_FIL_SINGLE
 # FF 四料線材改名（同裁定：綁機型＝錯）：「高流量 @FF」→「四料高流量噴頭」系、解除機型綁定。
 # setting_id/filament_id 不變（同一支材料身份）；3in1 專用支不動。
@@ -198,7 +207,7 @@ EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
     # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
     return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
-DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA;"
+DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA - 210;"
                         "PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
@@ -809,6 +818,9 @@ def _fill_array(d, key, value):
 
 def _classic_filament(base_name, name, setting_id, temperature, bed_temperature, is_support=False):
     d = json.load(io.open(os.path.join(PINGDIR, "filament", "%s.json" % base_name), encoding="utf-8"))
+    # 母檔的舊名相容標記不得帶進衍生支（0728 基礎支改名首驗抓到：Classic 210/EDU 跟著母檔
+    # 帶 renamed_from "PING PLA" ＝兩支搶同一舊名、引擎解析任挑一支＝地雷；verify 有唯一性護欄）
+    d.pop("renamed_from", None)
     d.update({"type":"filament", "name":name, "alias":name, "from":"system", "instantiation":"true",
               "setting_id":setting_id, "filament_id":setting_id})
     # 回抽只由 Classic machine preset 控制。不可讓材料層覆蓋，也不可送 Klipper 指令。
@@ -843,10 +855,11 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
 def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
     """V3.6 Classic：由已產生且可載入的 Fast preset 複製結構，再套 V2.1 舊機參數。"""
     classic_filaments = [
-        _classic_filament("PING PLA",       CLASSIC_PLA_210, "PINGFILCLASSIC210", 210, 60),
+        # 母檔名跟進基礎支改名（0728）：BASE_PLA_NEW＝磁碟實檔名（_classic_filament 讀檔）
+        _classic_filament(BASE_PLA_NEW,     CLASSIC_PLA_210, "PINGFILCLASSIC210", 210, 60),
         _classic_filament("PING PLA - 220", CLASSIC_PLA_220, "PINGFILCLASSIC220", 220, 60),
         _classic_filament("PING SupPLA",    CLASSIC_SUP_PLA, "PINGFILCLASSICSUP", 220, 60, True),
-        _classic_filament("PING PLA",       CLASSIC_EDU_PLA, "PINGFILCLASSICEDU", 210, 0),
+        _classic_filament(BASE_PLA_NEW,     CLASSIC_EDU_PLA, "PINGFILCLASSICEDU", 210, 0),
     ]
     classic_fil_list = []
     for d in classic_filaments:
@@ -1091,6 +1104,18 @@ def main(src_base):
             if f.endswith(".json") and f not in keep:
                 os.remove(os.path.join(d, f))
 
+    # 4a-0. ★ 基礎支改名 sweep（Eric 2026-07-28；常數見 BASE_PLA_OLD/NEW）——放在最前：
+    #       emit_classic 以新名讀母檔、4b-2 系列 sweep 掃到的即是新檔；殘檔清除＝regen-durable。
+    _oldp = os.path.join(PINGDIR, "filament", BASE_PLA_OLD + ".json")
+    _newp = os.path.join(PINGDIR, "filament", BASE_PLA_NEW + ".json")
+    if os.path.isfile(_oldp):
+        _fd = json.load(io.open(_oldp, encoding="utf-8"))
+        _fd.update({"name": BASE_PLA_NEW, "alias": BASE_PLA_NEW,
+                    "renamed_from": BASE_PLA_OLD})   # ⚠ 字串（T004 鐵則）
+        jdump(_newp, _fd)
+        os.remove(_oldp)
+        print("  基礎支改名：%s → %s（renamed_from 字串相容、id 不動）" % (BASE_PLA_OLD, BASE_PLA_NEW))
+
     gm = gp = 0
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
@@ -1325,6 +1350,8 @@ def main(src_base):
                "fan_max_speed": ["100" if is_sup else "50"],
                "filament_max_volumetric_speed": ["5.5" if is_sup else "3.2"],
                "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
+               # 0728 Eric「TPE軟料的回抽 3/30/30」：速度/裝填補 30（原未設＝吃機器層 20/20）
+               "filament_retraction_speed": ["30"], "filament_deretraction_speed": ["30"],
                "enable_pressure_advance": ["0"], "pressure_advance": ["0"],
                "slow_down_for_layer_cooling": ["1"], "slow_down_layer_time": ["10"],
                "filament_minimal_purge_on_wipe_tower": ["30"]}
@@ -1644,6 +1671,11 @@ def main(src_base):
         _p = os.path.join(PINGDIR, "filament", _old + ".json")
         if os.path.isfile(_p):
             os.remove(_p); print("  3in1 合一：移除殘檔", _old)
+    # 基礎支改名（0728）：清單條目就地改指新名（保序＝最小 diff；後續 regen 舊名不存在＝no-op）
+    for x in pj["filament_list"]:
+        if x["name"] == BASE_PLA_OLD:
+            x["name"] = BASE_PLA_NEW
+            x["sub_path"] = "filament/%s.json" % BASE_PLA_NEW
     pj["filament_list"] = [x for x in pj["filament_list"]
                            if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY
                            and x["name"] not in THREE_IN1_MERGED_AWAY]
