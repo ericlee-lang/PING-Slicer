@@ -22,9 +22,9 @@
 **T011（bundle 77 @ `81e9a96a`、run 30308665000、純 C++ 批）已上架 G 槽**：浮鈕折行二輪修正（T010 實機抓包四字一行＋疊卡片 → 真因＝Button::messureSize 把單行文字寬寫回最小寬 → 修法＝SetMaxSize 鎖寬 60＋UnsetToolTip）。17 項驗收全過；installer `EC857144…572A`／portable `68D308F0…024F`；T010 輪替 old\。**Eric D 槽現裝 T010**（浮鈕新樣式要看得靠換 T011——已問未裁）。
 ↳ 繞圈知識已沉澱 **`SOP_wxUI元件坑.md`**（新檔：Button 量測/折行機構 ✅ 實證＋SetMaxSize 修法 ⬜ 待眼驗）；UX 筆記 3 條已 append 收件匣。
 
-**🔴 兩台外機異常（都不在 Eric 本機；本機 3050 Ti 證據已清白）**：
-① **K620 機切片完成後當掉畫面消失**——初判＝最新 NVIDIA 驅動×2014 Maxwell Quadro 在預覽渲染崩（TDR/驅動內崩）；T009-011 改動不在渲染路徑＋同 binary 於 3050 Ti 正常＝程式無罪傾向。**等 Eric 帶回該機事件檔結果**（已給 PowerShell 一行、看 Faulting module 是否 nvoglv64.dll）；對處＝驅動退 Quadro Production Branch R550 系；備案＝補配線 `--opengl-version` CLI（此 fork 未接、PrusaSlicer 有現成實作可移植）。
-② **客戶機 OpenGL＜3.2 警告**——等客戶回「裝置管理員→顯示卡」名稱；「Microsoft 基本顯示卡」＝裝原廠驅動即解。客戶實際仍能切片（0727 Eric 裁暫不管）。
+**✅ 兩台外機異常＝Eric 2026-07-29 裁「個案不進行」結案（有意識取捨、非疏漏——下一棒勿當缺口回補）**：
+① K620 機切片後當掉——初判最新 NVIDIA 驅動×2014 Maxwell Quadro 渲染崩、程式無罪傾向（同 binary 於 3050 Ti 正常）；事件檔未取、不再追。若日後再遇同型：驅動退 Quadro R550 系；備案＝`--opengl-version` CLI 移植（PrusaSlicer 有現成實作）。
+② 客戶機 OpenGL＜3.2 警告——客戶實際仍能切片（0727 已裁暫不管）；顯卡名未取、不再追。若再發：查裝置管理員（「Microsoft 基本顯示卡」＝裝原廠驅動即解）；最後手段 Mesa 軟渲染 dll。
 
 **下一棒**：①T011 D 槽要不要換（Eric 未裁）②K620 事件檔結果＋客戶 GPU 名回來後收尾兩案 ③T011 浮鈕眼驗（兩行白字橘底/不疊卡片/單一 tooltip）→ 過了把 SOP_wxUI元件坑 §4 轉 ✅ ④T010 其餘眼驗＋8/9 實印照舊 ⑤~~skill 回填候補~~（✅ 0728 續棒已做：ping-slicer materials.md 新條目「支撐牆數全庫 0」＋樹狀表 1→0＋兩處上蓋註，三處引擎引用實查後入文；定向兩檔同步三方一致、validate 19 PASS、commit `675cc99`；跨專案牌 x-0728-ORCA-01 掛→銷）。
 
