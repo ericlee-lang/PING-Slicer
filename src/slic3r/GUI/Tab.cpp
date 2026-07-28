@@ -228,7 +228,8 @@ void ping_apply_combo_filaments(const std::string &process_name)
         {"PLA+PLA", {PING_PLA_220, PING_PLA_220}},
         // PLA+PVA（Eric 2026-07-26 回報「選 PLA+PVA 沒跳 PVA」）：0725 新出的專屬製程
         // 當時只加了 process，忘了補這張連動表 ⇒ 第 2 槽不會換成 PVA。
-        {"PLA+PVA", {PING_PLA_220, PING_PVA}},
+        // 0729 Eric 裁「PVA 也改」：PLA 側 220→210（PVA=210 同溫不跳 #33；V2.1 定稿案 PLA 側本就 210）
+        {"PLA+PVA", {PING_PLA_210, PING_PVA}},
         {"ABS+SUP", {PING_ABS, PING_SUP_ABS}},
         {"ABS+ABS", {PING_ABS, PING_ABS}},
     };
