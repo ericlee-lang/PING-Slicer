@@ -252,6 +252,45 @@ else:
         if pd.get(k) != want:
             err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
+# TPE/SupTPE 回抽速度 30/30（Eric 2026-07-28「TPE軟料的回抽 3/30/30」；長度 3 斷言在上方回抽統一段）
+for _tn in ("PING TPE", "PING SupTPE"):
+    _te = presets.get(_tn)
+    if not _te or _te[0] != "filament":
+        err(f"[TPE 缺席] {_tn} 不在 PING.json filament_list")
+        continue
+    for _tk in ("filament_retraction_speed", "filament_deretraction_speed"):
+        if _te[1].get(_tk) != ["30"]:
+            err(f"[TPE 回抽 3/30/30 0728] {_tn}: {_tk}={_te[1].get(_tk)!r}, expected ['30']")
+
+# 基礎支改名（Eric 2026-07-28）：PING PLA → PING PLA - 210；舊名走 renamed_from（字串）相容
+if "PING PLA" in presets:
+    err("[基礎支舊名復活 0728] PING PLA 應已改名 PING PLA - 210")
+if os.path.isfile(os.path.join(PINGDIR, "filament", "PING PLA.json")):
+    err("[基礎支舊檔殘留 0728] filament/PING PLA.json 應已移除")
+_be = presets.get("PING PLA - 210")
+if not _be or _be[0] != "filament":
+    err("[基礎支缺席 0728] PING PLA - 210 不在 PING.json filament_list")
+else:
+    _bd = _be[1]
+    if _bd.get("renamed_from") != "PING PLA":
+        err(f"[基礎支 renamed_from 0728] PING PLA - 210: {_bd.get('renamed_from')!r}, expected 'PING PLA'（字串）")
+    if _bd.get("nozzle_temperature") != ["210"] or _bd.get("nozzle_temperature_initial_layer") != ["210"]:
+        err(f"[基礎支噴溫 210] PING PLA - 210: {_bd.get('nozzle_temperature')!r}/{_bd.get('nozzle_temperature_initial_layer')!r}")
+    if _bd.get("filament_id") != "GPINGPLA" or _bd.get("setting_id") != "GPINGPLA":
+        err(f"[基礎支 id 不得變 0728] PING PLA - 210: {_bd.get('filament_id')!r}/{_bd.get('setting_id')!r}")
+# FP300 三口徑機器預設改指 210；其餘機器不得外溢（FD300 系 24 檔＝待 Eric 裁、應仍 220）
+for _mn, (_mk, _md) in presets.items():
+    if _mk == "machine":
+        _dfp = _md.get("default_filament_profile")
+        if _mn.startswith("FP300 ") and _mn.endswith("nozzle"):
+            if _dfp != ["PING PLA - 210"]:
+                err(f"[FP300 預設 210 0728] {_mn}: {_dfp!r}, expected ['PING PLA - 210']")
+        elif isinstance(_dfp, list) and "PING PLA - 210" in _dfp:
+            err(f"[預設 210 外溢 0728] {_mn}: 只有 FP300 三檔應指 PING PLA - 210（FD300 系待 Eric 裁）")
+    elif _mk == "machine_model":
+        if "PING PLA" in (_md.get("default_materials", "") or "").split(";"):
+            err(f"[default_materials 舊名未改 0728] {_mn}")
+
 # 🔴 型別護欄（0725 T004 事故）：`renamed_from` 必須是**字串**，寫成 JSON 陣列會讓
 # PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array → nlohmann 丟
 # type_error.302「type must be string, but is array」→ 該 filament 檔載入失敗
@@ -271,6 +310,21 @@ for _n, (_k, _d) in presets.items():
     _rf = _d.get("renamed_from")
     if _rf is not None and not isinstance(_rf, str):
         err(f"[renamed_from 型別錯 — 會讓整包 vendor 載入失敗] {_n}: {_rf!r}（須為分號字串）")
+
+# renamed_from 舊名唯一性（0728 基礎支改名首驗實抓〔出貨線〕：_classic_filament 從母檔複製把
+# renamed_from 一起帶進 Classic 210/EDU ⇒ 兩支搶同一舊名、引擎解析任挑一支＝靜默地雷；
+# 開發線無 Classic 但護欄同置＝防未來同型坑）
+_rf_claims = {}
+for _n, (_k, _d) in presets.items():
+    _rf = _d.get("renamed_from")
+    if isinstance(_rf, str):
+        for _tok in _rf.split(";"):
+            _tok = _tok.strip()
+            if _tok:
+                _rf_claims.setdefault((_k, _tok), []).append(_n)
+for (_k, _tok), _ns in sorted(_rf_claims.items()):
+    if len(_ns) > 1:
+        err(f"[renamed_from 舊名重複認領] {_tok!r} ({_k}): {_ns!r}")
 
 
 # ★ 跨層護欄（Eric 2026-07-26 兩爆之後補）：C++ 的「組合製程→線材連動」表必須跟得上 profile。
