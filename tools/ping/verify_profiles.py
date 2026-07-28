@@ -256,6 +256,17 @@ else:
         if pd.get(k) != want:
             err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
+# SupPLA 基礎支噴溫 210（Eric 0729 裁・#32「SUP 與 PLA 同溫」單）：全 SupPLA 家族統一 210
+# （高流量/四料/3in1 三支本已 210、基礎支原為唯一 220）。⚠ 連帶：PLA-220＋SupPLA 切片會觸發
+#  #33 溫度不一致確認視窗（正確提醒、可繼續）。
+_se = presets.get("PING SupPLA")
+if not _se:
+    err("[SupPLA 缺席] PING SupPLA 不在 filament_list")
+elif (_se[1].get("nozzle_temperature") != ["210"]
+      or _se[1].get("nozzle_temperature_initial_layer") != ["210"]):
+    err(f"[SupPLA 噴溫 210 0729] {_se[1].get('nozzle_temperature')!r}/"
+        f"{_se[1].get('nozzle_temperature_initial_layer')!r}, expected ['210']")
+
 # TPE 一對（Eric 0728 二輪）：本體改名「PING TPE - 210」＋噴溫 220→210（SupTPE 名不動、溫跟 210）；
 # 回抽速度 30/30（「TPE軟料的回抽 3/30/30」；長度 3 斷言在上方回抽統一段）
 if "PING TPE" in presets:
