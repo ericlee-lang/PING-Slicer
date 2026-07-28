@@ -177,6 +177,7 @@ void Tab::set_type()
 static constexpr const char *PING_ABS     = "PING ABS";          // 2026-07-25 三支併一（原 ABS - 250／PolyABS）
 static constexpr const char *PING_PVA     = "PING PVA";          // 2026-07-24 新入系統的水溶支撐料
 static constexpr const char *PING_PLA_220 = "PING PLA - 220";
+static constexpr const char *PING_PLA_210 = "PING PLA - 210";  // 2026-07-28 基礎支改名而來；0729 Eric 裁 C＝PLA+SUP 連動帶它
 static constexpr const char *PING_SUP_PLA = "PING SupPLA";
 static constexpr const char *PING_SUP_ABS = "PING SupABS";
 static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";      // 高流量噴頭
@@ -219,7 +220,10 @@ static void ping_apply_combo_filaments(const std::string &process_name)
     if (sp == std::string::npos) return;
     const std::string combo = head.substr(sp + 1);
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS = {
-        {"PLA+SUP", {PING_PLA_220, PING_SUP_PLA}},
+        // PING(2026-07-29 Eric 裁 C・#33 連帶)：SupPLA 全家族統一 210 後，PLA+SUP 連動改帶
+        // PLA - 210（兩槽同溫 210＝不觸發 #33 溫度不一致視窗；#32 SUP 與 PLA 同溫單的收口）。
+        // 機器「預設」槽 1 仍是 PLA - 220（0728 v2 裁雙料維持 220）——只有手選 PLA+SUP 組合才連動。
+        {"PLA+SUP", {PING_PLA_210, PING_SUP_PLA}},
         {"PLA+PLA", {PING_PLA_220, PING_PLA_220}},
         // PLA+PVA（Eric 2026-07-26 回報「選 PLA+PVA 沒跳 PVA」）：0725 新出的專屬製程
         // 當時只加了 process，忘了補這張連動表 ⇒ 第 2 槽不會換成 PVA。
