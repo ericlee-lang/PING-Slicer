@@ -1,6 +1,6 @@
 {
     "type": "filament",
-    "name": "PING PLA",
+    "name": "PING PLA - 210",
     "from": "system",
     "instantiation": "true",
     "setting_id": "GPINGPLA",
@@ -71,5 +71,7 @@
     ],
     "default_filament_colour": [
         "#EA4E16"
-    ]
+    ],
+    "alias": "PING PLA - 210",
+    "renamed_from": "PING PLA"
 }

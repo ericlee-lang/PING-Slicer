@@ -857,8 +857,8 @@
             "sub_path": "filament/fdm_filament_pa.json"
         },
         {
-            "name": "PING PLA",
-            "sub_path": "filament/PING PLA.json"
+            "name": "PING PLA - 210",
+            "sub_path": "filament/PING PLA - 210.json"
         },
         {
             "name": "PING SupPLA",
