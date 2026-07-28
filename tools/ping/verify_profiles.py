@@ -435,8 +435,13 @@ else:
         if pd.get(k) != want:
             err(f"[PVA 關鍵值] PING PVA: {k}={pd.get(k)!r}, expected {want!r}")
 
-# TPE/SupTPE 回抽速度 30/30（Eric 2026-07-28「TPE軟料的回抽 3/30/30」；長度 3 斷言在上方回抽統一段）
-for _tn in ("PING TPE", "PING SupTPE"):
+# TPE 一對（Eric 0728 二輪）：本體改名「PING TPE - 210」＋噴溫 220→210（SupTPE 名不動、溫跟 210）；
+# 回抽速度 30/30（「TPE軟料的回抽 3/30/30」；長度 3 斷言在上方回抽統一段）
+if "PING TPE" in presets:
+    err("[TPE 舊名復活 0728v2] PING TPE 應已改名 PING TPE - 210")
+if os.path.isfile(os.path.join(PINGDIR, "filament", "PING TPE.json")):
+    err("[TPE 舊檔殘留 0728v2] filament/PING TPE.json 應已移除")
+for _tn in ("PING TPE - 210", "PING SupTPE"):
     _te = presets.get(_tn)
     if not _te or _te[0] != "filament":
         err(f"[TPE 缺席] {_tn} 不在 PING.json filament_list")
@@ -444,6 +449,15 @@ for _tn in ("PING TPE", "PING SupTPE"):
     for _tk in ("filament_retraction_speed", "filament_deretraction_speed"):
         if _te[1].get(_tk) != ["30"]:
             err(f"[TPE 回抽 3/30/30 0728] {_tn}: {_tk}={_te[1].get(_tk)!r}, expected ['30']")
+    for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
+        if _te[1].get(_tk) != ["210"]:
+            err(f"[TPE 噴溫 210 0728v2] {_tn}: {_tk}={_te[1].get(_tk)!r}, expected ['210']")
+_te = presets.get("PING TPE - 210")
+if _te:
+    if _te[1].get("renamed_from") != "PING TPE":
+        err(f"[TPE renamed_from 0728v2] PING TPE - 210: {_te[1].get('renamed_from')!r}, expected 'PING TPE'（字串）")
+    if _te[1].get("filament_id") != "PINGFILTPE" or _te[1].get("setting_id") != "PINGFILTPE":
+        err(f"[TPE id 不得變 0728v2] PING TPE - 210: {_te[1].get('filament_id')!r}/{_te[1].get('setting_id')!r}")
 
 # 基礎支改名（Eric 2026-07-28）：PING PLA → PING PLA - 210；舊名走 renamed_from（字串）相容
 if "PING PLA" in presets:
@@ -461,18 +475,32 @@ else:
         err(f"[基礎支噴溫 210] PING PLA - 210: {_bd.get('nozzle_temperature')!r}/{_bd.get('nozzle_temperature_initial_layer')!r}")
     if _bd.get("filament_id") != "GPINGPLA" or _bd.get("setting_id") != "GPINGPLA":
         err(f"[基礎支 id 不得變 0728] PING PLA - 210: {_bd.get('filament_id')!r}/{_bd.get('setting_id')!r}")
-# FP300 三口徑機器預設改指 210；其餘機器不得外溢（FD300 系 24 檔＝待 Eric 裁、應仍 220）
+# 預設連動定案（Eric 0728 v2「連動」）：單一出料機（FP300×3＋FD300 系 單料頭/同進/同進照片磚）
+# 預設一律 PLA - 210；雙料機（FD300/FD300 Pro 標準雙料＋關門＝FD300 雙料變體）首槽維持 PLA - 220；
+# 其餘機器不得外溢（P200+ 客戶版/Classic 變體＝不在範圍待裁）。
+_single_out_210 = {"FD300 單料頭", "FD300 Pro 單料頭", "FD300 同進", "FD300 Pro 同進", "FD300 同進照片磚"}
+_dual_keep_220 = {"FD300", "FD300 Pro", "FD300 關門"}
 for _mn, (_mk, _md) in presets.items():
     if _mk == "machine":
         _dfp = _md.get("default_filament_profile")
+        _pmod = _md.get("printer_model", "")
         if _mn.startswith("FP300 ") and _mn.endswith("nozzle"):
             if _dfp != ["PING PLA - 210"]:
                 err(f"[FP300 預設 210 0728] {_mn}: {_dfp!r}, expected ['PING PLA - 210']")
+        elif _pmod in _single_out_210:
+            if not isinstance(_dfp, list) or "PING PLA - 220" in _dfp or "PING PLA - 210" not in _dfp:
+                err(f"[單一出料預設 210 0728v2] {_mn}: {_dfp!r}")
+        elif _pmod in _dual_keep_220:
+            if not (isinstance(_dfp, list) and _dfp and _dfp[0] == "PING PLA - 220"):
+                err(f"[雙料首槽維持 220 0728v2] {_mn}: {_dfp!r}")
         elif isinstance(_dfp, list) and "PING PLA - 210" in _dfp:
-            err(f"[預設 210 外溢 0728] {_mn}: 只有 FP300 三檔應指 PING PLA - 210（FD300 系待 Eric 裁）")
+            err(f"[預設 210 外溢 0728] {_mn}: 僅 FP300＋FD300 系單一出料應指 PING PLA - 210")
     elif _mk == "machine_model":
-        if "PING PLA" in (_md.get("default_materials", "") or "").split(";"):
+        _dmt = (_md.get("default_materials", "") or "").split(";")
+        if "PING PLA" in _dmt:
             err(f"[default_materials 舊名未改 0728] {_mn}")
+        if _mn == "FD300 同進照片磚" and ("PING PLA - 220" in _dmt or "PING PLA - 210" not in _dmt):
+            err(f"[照片磚 model 預設 210 0728v2] {_mn}: {_md.get('default_materials')!r}")
 
 # 🔴 型別護欄（0725 T004 事故）：`renamed_from` 必須是**字串**，寫成 JSON 陣列會讓
 # PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array → nlohmann 丟
