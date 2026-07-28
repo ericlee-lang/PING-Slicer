@@ -1492,6 +1492,26 @@ def main(src_base):
     if rt_touched:
         print("  線材回抽統一（長度收斂＋額外回填流量律＋四項；Classic 豁免）：%d 支" % rt_touched)
 
+    # 4b-2f. ★ 一般流量 PA 0.08（Eric 2026-07-28 三輪裁「材料如果不是高流量跟火山口或四料，
+    # 它的壓力提前是 0.08」）：非高流量／非火山口(PA-CF)／非四料(含 3in1) 的一般流量硬料
+    # → enable_pressure_advance 1＋pressure_advance 0.08（蓋 0725 ABS 整併帶進的 0.12＝
+    # 未經 PA 塔實測值）。豁免照既有裁定：TPE/SupTPE（軟料 PA 關＝0725 裁待實測、本條不翻案）、
+    # Classic（Marlin 無 PA、全關斷言）、DL1016（注入源不在產線）。冪等 sweep＝regen-durable。
+    pa_set = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        bn = os.path.basename(fp_path)[:-5]
+        if any(t in bn for t in ("Classic", "高流量", "(3in1)", "TPE", "PA-CF")):
+            continue
+        if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.08"]:
+            fd["enable_pressure_advance"] = ["1"]
+            fd["pressure_advance"] = ["0.08"]
+            jdump(fp_path, fd); pa_set += 1
+    if pa_set:
+        print("  一般流量 PA 0.08（高流量/火山口/四料/3in1/TPE/Classic 豁免）：%d 支" % pa_set)
+
     # 4b-2c. ★ 懸空冷卻觸發閾值 25%（Eric 2026-07-24 爬坡品質批・線材側配套・主線 37cad9cb 移植）：
     # 全 PING 線材統一 25%（PLA - 220／ABS - 250 既值 25% 冪等不動；PLA 210 系／SupPLA／
     # PETG／TPE 等原繼承 50%／95% → 收 25%）。overhang_fan_speed 不動（爬坡測試對照未改此鍵，
