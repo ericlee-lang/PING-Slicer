@@ -915,6 +915,68 @@ static void run_wizard(ConfigWizard::StartPage sp)
     wxGetApp().run_wizard(ConfigWizard::RR_USER, sp);
 }
 
+// PING(2026-07-29 Eric 裁 B・回報中心 #39「FD300 同進 ABS 不會自動換筏層」)：
+// 規則＝先選模式（製程）→ 材料單向連動（0708 裁決②），「選材料→自動換模式」的反向自動化不做；
+// 折衷＝手選 ABS 線材而製程非棧板/ABS 組合時「提醒」可切棧板（筏層）版——提醒不強制、不蓋選擇
+//（#33 溫度視窗同哲學）。一鍵切換走與手選製程完全相同的路（select_preset 落地才觸發連動）。
+// 找不到對應棧板/ABS 版（FF/照片磚/DL1016/Classic）＝不打擾。
+static void ping_suggest_pallet_for_abs(const std::string &filament_name)
+{
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return;
+    const Preset* fil = bundle->filaments.find_preset(filament_name, false);
+    if (fil == nullptr)
+        return;
+    const auto* ft = fil->config.option<ConfigOptionStrings>("filament_type");
+    if (ft == nullptr || ft->values.empty() || ft->values.front() != "ABS")
+        return;
+    const std::string cur = bundle->prints.get_selected_preset().name;
+    if (cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 已是 _棧板 版
+        cur.find("ABS+") != std::string::npos)                            // 已是 ABS 組合（雙料棧板版）
+        return;
+    // 目標名：單一出料「{lh}mm @…」→ 插 _棧板；雙料組合「{lh}mm PLA+X @…」→ 對應 ABS 組合
+    std::string target;
+    const size_t at_single = cur.find("mm @");
+    if (at_single != std::string::npos) {
+        target = cur.substr(0, at_single) + "mm_\xE6\xA3\xA7\xE6\x9D\xBF @" + cur.substr(at_single + 4);
+    } else {
+        static const std::pair<const char*, const char*> COMBO_TO_ABS[] = {
+            {" PLA+SUP @", " ABS+SUP @"},
+            {" PLA+PVA @", " ABS+SUP @"},
+            {" PLA+PLA @", " ABS+ABS @"},
+        };
+        for (const auto& m : COMBO_TO_ABS) {
+            const size_t p = cur.find(m.first);
+            if (p != std::string::npos) {
+                target = cur;
+                target.replace(p, strlen(m.first), m.second);
+                break;
+            }
+        }
+    }
+    if (target.empty() || bundle->prints.find_preset(target, false) == nullptr)
+        return;
+    wxGetApp().CallAfter([target] {
+        MessageDialog dlg(wxGetApp().plater(),
+            wxString::FromUTF8("你選了 ABS 線材——ABS 建議搭配棧板（筏層）製程，貼床防翹曲。\n\n")
+                + wxString::FromUTF8("要切換到「") + wxString::FromUTF8(target.c_str()) + wxString::FromUTF8("」嗎？\n")
+                + wxString::FromUTF8("（切換後線材槽會自動帶成對應的 ABS 組合）"),
+            wxString::FromUTF8("棧板建議"),
+            wxICON_INFORMATION | wxYES_NO | wxCENTRE);
+        dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("切換棧板版"), true);   // 建議動作＝預設焦點
+        dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("維持目前製程"));
+        if (dlg.ShowModal() != wxID_YES)
+            return;
+        Tab* tab = wxGetApp().get_tab(Preset::TYPE_PRINT);
+        if (tab == nullptr)
+            return;
+        tab->select_preset(target);
+        if (wxGetApp().preset_bundle->prints.get_selected_preset().name == target)
+            ping_apply_combo_filaments(target);   // 與 Tab combo 手選同一條連動（落地才觸發）
+    });
+}
+
 void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
 {
     auto selected_item = evt.GetSelection();
@@ -944,8 +1006,13 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
         return;
     } else if (marker == LABEL_ITEM_PHYSICAL_PRINTER ||  selected_item >= 0 || m_collection->current_is_dirty()) {
         m_last_selected = selected_item;
-        if (m_type == Preset::TYPE_FILAMENT)
+        if (m_type == Preset::TYPE_FILAMENT) {
             update_ams_color();
+            // PING(2026-07-29 Eric 裁 B・#39)：手選 ABS → 棧板建議（詳 ping_suggest_pallet_for_abs 註）
+            std::string _sel = GetString(selected_item).ToUTF8().data();
+            if (!boost::algorithm::starts_with(_sel, Preset::suffix_modified()))
+                ping_suggest_pallet_for_abs(m_collection->get_preset_name_by_alias(_sel));
+        }
     }
 
     evt.Skip();

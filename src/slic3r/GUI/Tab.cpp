@@ -183,7 +183,8 @@ static constexpr const char *PING_SUP_ABS = "PING SupABS";
 static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";      // 高流量噴頭
 static constexpr const char *PING_SUP_HF  = "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";
 
-static void ping_apply_combo_filaments(const std::string &process_name)
+// 0729 去 static＝供 PresetComboBoxes「棧板建議」一鍵切換共用（宣告在 Tab.hpp）
+void ping_apply_combo_filaments(const std::string &process_name)
 {
     size_t at = process_name.find('@');
     if (at == std::string::npos || at == 0) return;
