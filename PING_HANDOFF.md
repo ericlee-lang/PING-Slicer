@@ -26,7 +26,7 @@
 ① **K620 機切片完成後當掉畫面消失**——初判＝最新 NVIDIA 驅動×2014 Maxwell Quadro 在預覽渲染崩（TDR/驅動內崩）；T009-011 改動不在渲染路徑＋同 binary 於 3050 Ti 正常＝程式無罪傾向。**等 Eric 帶回該機事件檔結果**（已給 PowerShell 一行、看 Faulting module 是否 nvoglv64.dll）；對處＝驅動退 Quadro Production Branch R550 系；備案＝補配線 `--opengl-version` CLI（此 fork 未接、PrusaSlicer 有現成實作可移植）。
 ② **客戶機 OpenGL＜3.2 警告**——等客戶回「裝置管理員→顯示卡」名稱；「Microsoft 基本顯示卡」＝裝原廠驅動即解。客戶實際仍能切片（0727 Eric 裁暫不管）。
 
-**下一棒**：①T011 D 槽要不要換（Eric 未裁）②K620 事件檔結果＋客戶 GPU 名回來後收尾兩案 ③T011 浮鈕眼驗（兩行白字橘底/不疊卡片/單一 tooltip）→ 過了把 SOP_wxUI元件坑 §4 轉 ✅ ④T010 其餘眼驗＋8/9 實印照舊 ⑤skill 回填候補：ping-slicer 補「UI 支撐牆數＝tree_support_wall_count 普通/樹狀共用鍵」（動 ai-skills-source 需掛跨專案牌）。
+**下一棒**：①T011 D 槽要不要換（Eric 未裁）②K620 事件檔結果＋客戶 GPU 名回來後收尾兩案 ③T011 浮鈕眼驗（兩行白字橘底/不疊卡片/單一 tooltip）→ 過了把 SOP_wxUI元件坑 §4 轉 ✅ ④T010 其餘眼驗＋8/9 實印照舊 ⑤~~skill 回填候補~~（✅ 0728 續棒已做：ping-slicer materials.md 新條目「支撐牆數全庫 0」＋樹狀表 1→0＋兩處上蓋註，三處引擎引用實查後入文；定向兩檔同步三方一致、validate 19 PASS、commit `675cc99`；跨專案牌 x-0728-ORCA-01 掛→銷）。
 
 ---
 ### 🏁 收工快照（2026-07-27 傍晚 — **T010 全鏈結案＋D 槽已換**：牆數 0＋浮鈕改版到位）
