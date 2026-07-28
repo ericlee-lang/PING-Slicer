@@ -1362,9 +1362,11 @@ def main(src_base):
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
     # 4b-1c. ★ TPE 軟料一對（Eric 2026-07-18 裁，承 V2.1 Cura 線 TPE 工程定稿）：
-    # PING TPE - 210（本體，軟慢）＋ PING SupTPE（TPU 系支撐料，可快）。
-    # 「軟慢/硬快」靠 filament_max_volumetric_speed 天花板實現（TPE 3.2＝速度上限 40、
-    # SupTPE 5.5＝支撐可跑 60+），製程速度欄不必為軟料改值。
+    # PING TPE - 210（本體）＋ PING SupTPE（TPU 系支撐料）。
+    # ★ 0729 Eric 裁（回報中心單）：TPE 最大體積流量 3.2→**7**＝對齊 SpiderMaker TPE 官方建議
+    #   6~8 的起始值 7（原 3.2 係 0718「軟慢」夾速設計＝0.2×0.4 下限速 40，比官方保守）。
+    #   ⚠ 行為變更：0.4 口徑實質不再夾速（7÷0.08≈87>製程速度）；0.6 口徑 7÷0.18≈39 仍約 40。
+    #   SupTPE 維持 5.5（本裁只點名 TPE）。
     # ★ 0728 Eric 二輪裁「PING TPE - 210(温度也改低一点)」：本體改名帶溫度尾碼＋噴溫 220→210
     #  （初層/其他層一致）；SupTPE 名不動、噴溫跟隨 210（兩側一致原則不變）。
     #   renamed_from ⚠ 字串（T004 鐵則）只掛本體；id 不動（同一支材料身份）；殘檔清除 regen-durable。
@@ -1384,7 +1386,7 @@ def main(src_base):
                "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
                "fan_min_speed": ["100" if is_sup else "50"],
                "fan_max_speed": ["100" if is_sup else "50"],
-               "filament_max_volumetric_speed": ["5.5" if is_sup else "3.2"],
+               "filament_max_volumetric_speed": ["5.5" if is_sup else "7"],
                "filament_retraction_length": ["3"], "filament_z_hop": ["0.6"],
                # 0728 Eric「TPE軟料的回抽 3/30/30」：速度/裝填補 30（原未設＝吃機器層 20/20）
                "filament_retraction_speed": ["30"], "filament_deretraction_speed": ["30"],
