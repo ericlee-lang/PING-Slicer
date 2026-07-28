@@ -1033,7 +1033,9 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                             "instantiation":"true", "setting_id":"PINGM%03d" % gm,
                             "printer_model":model, "printer_variant":nz,
                             "default_print_profile":proc_name,
-                            "default_filament_profile":[CLASSIC_PLA_220],
+                            # 0728 Eric 裁「Classic 變體預設跟」：變體＝單一出料 → Classic 210
+                            #（與 FD 連動同邏輯；DUAL 本體雙料維持 Classic 220 見 emit_classic defaults）
+                            "default_filament_profile":[CLASSIC_PLA_210],
                             "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
                             "use_firmware_retraction":"0", "use_relative_e_distances":"0",
                             "machine_pause_gcode":"M0", "disable_m73":"1",
@@ -1090,7 +1092,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                   "model_id":"PING_" + model.replace(" ", "_"),
                   "nozzle_diameter":";".join(vnzs), "machine_tech":"FFF", "family":"Classic",
                   "bed_model":bed_for(spec["src_model"]), "bed_texture":BED_TEXTURE, "hotend_model":"",
-                  "default_materials":CLASSIC_PLA_220}
+                  "default_materials":CLASSIC_PLA_210}   # 0728 變體預設跟（單一出料＝210）
             jdump(os.path.join(PINGDIR, "machine", "%s.json" % model), mm)
             mm_list.append({"name":model, "sub_path":"machine/%s.json" % model})
             nozzles_of[model] = list(vnzs)   # cover 空白卡（endswith 同進/單料頭）＋側欄縮圖迴圈自動吃

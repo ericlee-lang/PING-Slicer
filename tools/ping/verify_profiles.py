@@ -381,6 +381,11 @@ for model, spec in CLASSIC.items():
     elif "M605" in presets[machine][1].get("machine_start_gcode", ""):
         # 本體（雙料/單料）start 不得有任何混色指令——M6050 只屬同進變體的預擠同進
         err(f"[Classic 本體 start 不應有 M605x] {machine}")
+    if model.startswith("DUAL") and machine in machines:
+        # 0728「變體預設跟 210」的對向鎖：DUAL 本體＝雙料 → 首槽維持 Classic 220
+        _cdfp = presets[machine][1].get("default_filament_profile")
+        if not (isinstance(_cdfp, list) and _cdfp and _cdfp[0] == "PING PLA - Classic 220"):
+            err(f"[Classic DUAL 本體首槽維持 Classic 220 0728] {machine}: {_cdfp!r}")
 
 # Classic DUAL 變體完整性＋M6050 舊格式規則（Eric 2026-07-26 裁、07-27 實作）：
 # 同進 start 必含「M6050 S0.5」（預擠兩邊同進，對應 FD 同進機的同款行）；
@@ -390,6 +395,11 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
         vmodel = f"{model} {variant}"
         if vmodel not in model_names:
             err(f"[Classic 變體 model missing] {vmodel}")
+        else:
+            # 0728 Eric 裁「Classic 變體預設跟」：變體 model default_materials＝Classic 210
+            _vdm = presets[vmodel][1].get("default_materials")
+            if _vdm != "PING PLA - Classic 210":
+                err(f"[Classic 變體 model 預設 Classic 210 0728] {vmodel}: {_vdm!r}")
         for nz in nzs:
             mname = f"{vmodel} {nz} nozzle"
             entry = presets.get(mname)
@@ -400,6 +410,9 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
             if d.get("single_extruder_multi_material") != "0":
                 err(f"[Classic 變體 SEMM] {mname}: "
                     f"{d.get('single_extruder_multi_material')!r}, expected '0'")
+            # 0728 Eric 裁「Classic 變體預設跟」：變體＝單一出料 → 預設 Classic 210
+            if d.get("default_filament_profile") != ["PING PLA - Classic 210"]:
+                err(f"[Classic 變體預設 Classic 210 0728] {mname}: {d.get('default_filament_profile')!r}")
             start = d.get("machine_start_gcode", "")
             if variant == "同進":
                 if "M6050 S0.5" not in start:

@@ -8,5 +8,5 @@
     "bed_model": "PING_FD600_buildplate_model.stl",
     "bed_texture": "ping_buildplate_texture.png",
     "hotend_model": "",
-    "default_materials": "PING PLA - Classic 220"
+    "default_materials": "PING PLA - Classic 210"
 }
