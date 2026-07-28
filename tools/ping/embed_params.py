@@ -145,8 +145,11 @@ DEF_FIL_SINGLE = ["PING PLA - 220"]
 #   _切片規則同步_來自pingslicer_TPE回抽速度與PLA210_20260728.md）：
 #   「PING PLA」→「PING PLA - 210」（噴溫本就 210、值不動；名稱帶溫度尾碼與「- 220」一致）。
 #   renamed_from ⚠ 字串（T004 鐵則）；filament_id/setting_id GPINGPLA 不動（同一支材料身份）；
-#   alias 給獨立值防併組（3in1 教訓）。FP300 三口徑機器預設改指本支（單一出料＝210 溫度鐵律）；
-#   FD300 系 24 檔與 P200+ 維持 220（Eric 只點名 FP300、其餘待裁勿擅擴）。
+#   alias 給獨立值防併組（3in1 教訓）。
+# ★ 0728 v2 連動定案（Eric 回「連動」）：**單一出料機一律預設 210**＝FP300×3＋FD300 系
+#   單料頭×6＋同進×6＋同進照片磚×2（機）＋其 model 檔；**雙料機維持 220**＝FD300/FD300 Pro
+#   標準雙料×6＋關門×3（v1 誤把關門列單一出料、v2 更正＝關門是 FD300 雙料變體）。
+#   P200+（客戶版）不在範圍＝維持 220 待裁。Classic 變體預設 Classic 220 是否改＝另案待裁。
 BASE_PLA_OLD, BASE_PLA_NEW = "PING PLA", "PING PLA - 210"
 # ★ 高流量噴頭專用線材（2026-07-12 Eric 裁定：高流量＝噴頭屬性非機型屬性，回抽值落材料層；
 # 規格 _切片規則同步_來自pingslicer_高流量噴頭線材_20260712.md）。不分口徑、不限機型
@@ -172,9 +175,11 @@ HFN_EXTRA = {HFN_PLA: {"nozzle_temperature_initial_layer": ["210"], "nozzle_temp
 def def_fil_dual_for(base):
     return [HFN_PLA, HFN_SUP] if tier_of(base) == "450" else DEF_FIL_DUAL
 def def_fil_single_for(base):
-    if base == "FP300":
-        return [BASE_PLA_NEW]   # 2026-07-28 Eric：FP300 單一出料預設 210（P200+/FD300 系不動＝待裁）
-    return [HFN_PLA] if tier_of(base) == "450" else DEF_FIL_SINGLE
+    if tier_of(base) == "450":
+        return [HFN_PLA]
+    if base == "P200+":
+        return DEF_FIL_SINGLE   # 客戶版不在 0728 連動範圍＝維持 220（待裁）
+    return [BASE_PLA_NEW]   # 0728 v2 連動：FP300＋FD300 系單一出料（單料頭/同進）＝210
 # FF 四料線材改名（同裁定：綁機型＝錯）：「高流量 @FF」→「四料高流量噴頭」系、解除機型綁定。
 # setting_id/filament_id 不變（同一支材料身份）；3in1 專用支不動。
 FF_FIL_ALIAS = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
@@ -899,6 +904,28 @@ def main(src_base):
         gm, gp, pt_models = emit_phototile(mm_list, mac_list, proc_list, gm, gp)
     else:
         pt_models = []
+    # 0728 v2 連動：FD300 同進照片磚＝單一出料 → 預設 PLA-220 → PLA-210（機 2＋model 1；
+    # 範本值不動、emit 後就地改寫＝regen-durable。FF800 同進照片磚＝FF 系四料高流量、不在範圍）
+    _pt210 = 0
+    for _pm in ("FD300 同進照片磚 0.4 nozzle", "FD300 同進照片磚 0.6 nozzle", "FD300 同進照片磚"):
+        _pp = os.path.join(PINGDIR, "machine", _pm + ".json")
+        if not os.path.isfile(_pp):
+            continue
+        _pd = json.load(io.open(_pp, encoding="utf-8"))
+        _hit = False
+        _dfp = _pd.get("default_filament_profile")
+        if isinstance(_dfp, list) and "PING PLA - 220" in _dfp:
+            _pd["default_filament_profile"] = [BASE_PLA_NEW if x == "PING PLA - 220" else x for x in _dfp]
+            _hit = True
+        _dm = _pd.get("default_materials")
+        if isinstance(_dm, str) and "PING PLA - 220" in _dm.split(";"):
+            _pd["default_materials"] = ";".join(BASE_PLA_NEW if t == "PING PLA - 220" else t
+                                                for t in _dm.split(";"))
+            _hit = True
+        if _hit:
+            jdump(_pp, _pd); _pt210 += 1
+    if _pt210:
+        print("  照片磚 FD300 同進預設 210：改 %d 檔" % _pt210)
 
     # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 111＋照片磚 5 支 id 零位移）
     for tw in pallet_twins:
@@ -981,18 +1008,25 @@ def main(src_base):
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
     # 4b-1c. ★ TPE 軟料一對（Eric 2026-07-18 裁，承 V2.1 Cura 線 TPE 工程定稿）：
-    # PING TPE（本體，軟慢）＋ PING SupTPE（TPU 系支撐料，可快）。
+    # PING TPE - 210（本體，軟慢）＋ PING SupTPE（TPU 系支撐料，可快）。
     # 「軟慢/硬快」靠 filament_max_volumetric_speed 天花板實現（TPE 3.2＝速度上限 40、
-    # SupTPE 5.5＝支撐可跑 60+），製程速度欄不必為軟料改值。噴溫 220 兩側一致（定稿）、
+    # SupTPE 5.5＝支撐可跑 60+），製程速度欄不必為軟料改值。
+    # ★ 0728 Eric 二輪裁「PING TPE - 210(温度也改低一点)」：本體改名帶溫度尾碼＋噴溫 220→210
+    #  （初層/其他層一致）；SupTPE 名不動、噴溫跟隨 210（兩側一致原則不變）。
+    #   renamed_from ⚠ 字串（T004 鐵則）只掛本體；id 不動（同一支材料身份）；殘檔清除 regen-durable。
     # 床溫承 PLA 慣例 60（Eric 實跑基底）、回抽 3/z-hop 0.6、TPE 風扇 50/SupTPE 100、
     # PA 關（軟料待實測）。不限機型；SET_RETRACTION 行由 4b-2 sweep 保證。
-    for new_name, fid, is_sup in (("PING TPE", "PINGFILTPE", False),
+    _old_tpe = os.path.join(PINGDIR, "filament", "PING TPE.json")
+    if os.path.isfile(_old_tpe):
+        os.remove(_old_tpe)
+        print("  TPE 改名：移除殘檔 PING TPE.json（新名 PING TPE - 210、renamed_from 相容）")
+    for new_name, fid, is_sup in (("PING TPE - 210", "PINGFILTPE", False),
                                   ("PING SupTPE", "PINGFILSUPTPE", True)):
         fd_ = {"type": "filament", "name": new_name, "alias": new_name, "from": "system",
                "instantiation": "true", "inherits": "fdm_filament_tpu",
                "setting_id": fid, "filament_id": fid,
                "filament_type": ["TPU"],
-               "nozzle_temperature_initial_layer": ["220"], "nozzle_temperature": ["220"],
+               "nozzle_temperature_initial_layer": ["210"], "nozzle_temperature": ["210"],
                "hot_plate_temp_initial_layer": ["60"], "hot_plate_temp": ["60"],
                "fan_min_speed": ["100" if is_sup else "50"],
                "fan_max_speed": ["100" if is_sup else "50"],
@@ -1006,6 +1040,8 @@ def main(src_base):
         if is_sup:
             fd_.update({"filament_is_support": ["1"],
                         "filament_colors": ["#D3D3D3"], "default_filament_colors": ["#D3D3D3"]})
+        else:
+            fd_["renamed_from"] = "PING TPE"   # ⚠ 字串（T004 鐵則）；舊名相容（0728 改名）
         jdump(os.path.join(PINGDIR, "filament", "%s.json" % new_name), fd_)
         fil_new.append({"name": new_name, "sub_path": "filament/%s.json" % new_name})
 
@@ -1302,11 +1338,13 @@ def main(src_base):
         _p = os.path.join(PINGDIR, "filament", _old + ".json")
         if os.path.isfile(_p):
             os.remove(_p); print("  3in1 合一：移除殘檔", _old)
-    # 基礎支改名（0728）：清單條目就地改指新名（保序＝最小 diff；後續 regen 舊名不存在＝no-op）
+    # 0728 改名批：清單條目就地改指新名（保序＝最小 diff；後續 regen 舊名不存在＝no-op）
+    # 基礎支（v1）＋TPE 本體（v2 二輪：改名帶溫度尾碼、SupTPE 名不動）
+    _renamed_0728 = {BASE_PLA_OLD: BASE_PLA_NEW, "PING TPE": "PING TPE - 210"}
     for x in pj["filament_list"]:
-        if x["name"] == BASE_PLA_OLD:
-            x["name"] = BASE_PLA_NEW
-            x["sub_path"] = "filament/%s.json" % BASE_PLA_NEW
+        if x["name"] in _renamed_0728:
+            x["name"] = _renamed_0728[x["name"]]
+            x["sub_path"] = "filament/%s.json" % x["name"]
     pj["filament_list"] = [x for x in pj["filament_list"]
                            if x["name"] not in FF_FIL_RENAME and x["name"] not in ABS_MERGED_AWAY
                            and x["name"] not in THREE_IN1_MERGED_AWAY]
