@@ -15,6 +15,20 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-28 — 本 session 總收工：**T009/T010/T011 三顆 T 全結**＋兩台外機異常調查中）
+
+**線況**：開發線 `ping/v3.5` tip＝本 handoff commit（前一顆 `0dff6dfe`、bundle **66**、已 push）｜出貨線 `release/v3.6` tip `81e9a96a`（bundle **77**＝T011、已 push）｜兩線工作區乾淨｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
+
+**T011（bundle 77 @ `81e9a96a`、run 30308665000、純 C++ 批）已上架 G 槽**：浮鈕折行二輪修正（T010 實機抓包四字一行＋疊卡片 → 真因＝Button::messureSize 把單行文字寬寫回最小寬 → 修法＝SetMaxSize 鎖寬 60＋UnsetToolTip）。17 項驗收全過；installer `EC857144…572A`／portable `68D308F0…024F`；T010 輪替 old\。**Eric D 槽現裝 T010**（浮鈕新樣式要看得靠換 T011——已問未裁）。
+↳ 繞圈知識已沉澱 **`SOP_wxUI元件坑.md`**（新檔：Button 量測/折行機構 ✅ 實證＋SetMaxSize 修法 ⬜ 待眼驗）；UX 筆記 3 條已 append 收件匣。
+
+**🔴 兩台外機異常（都不在 Eric 本機；本機 3050 Ti 證據已清白）**：
+① **K620 機切片完成後當掉畫面消失**——初判＝最新 NVIDIA 驅動×2014 Maxwell Quadro 在預覽渲染崩（TDR/驅動內崩）；T009-011 改動不在渲染路徑＋同 binary 於 3050 Ti 正常＝程式無罪傾向。**等 Eric 帶回該機事件檔結果**（已給 PowerShell 一行、看 Faulting module 是否 nvoglv64.dll）；對處＝驅動退 Quadro Production Branch R550 系；備案＝補配線 `--opengl-version` CLI（此 fork 未接、PrusaSlicer 有現成實作可移植）。
+② **客戶機 OpenGL＜3.2 警告**——等客戶回「裝置管理員→顯示卡」名稱；「Microsoft 基本顯示卡」＝裝原廠驅動即解。客戶實際仍能切片（0727 Eric 裁暫不管）。
+
+**下一棒**：①T011 D 槽要不要換（Eric 未裁）②K620 事件檔結果＋客戶 GPU 名回來後收尾兩案 ③T011 浮鈕眼驗（兩行白字橘底/不疊卡片/單一 tooltip）→ 過了把 SOP_wxUI元件坑 §4 轉 ✅ ④T010 其餘眼驗＋8/9 實印照舊 ⑤skill 回填候補：ping-slicer 補「UI 支撐牆數＝tree_support_wall_count 普通/樹狀共用鍵」（動 ai-skills-source 需掛跨專案牌）。
+
+---
 ### 🏁 收工快照（2026-07-27 傍晚 — **T010 全鏈結案＋D 槽已換**：牆數 0＋浮鈕改版到位）
 
 **T010（bundle 77 @ `d475e293`、run 30247787533）**：慣性三紅照舊、**Windows 主建置綠＝浮鈕改版 C++（ButtonStyle::Confirm/Head_14/Label.hpp include）首驗過**。成品 **17 項全過**（T009 16 項＋⑰全庫牆數 0 含基底）。上架＝installer `F4F34AC5…9F14` 101.4MB／portable `141D2263…C62B` 133.9MB、G 槽 hash 一致、T009 輪替 old\。**D 槽 17:53 看門狗自動換裝完成**（Eric 預授權）：T008 備份 `-old-v360T008-0727` → 解壓 44 項 → DL1016 重注（10 檔+10 條、版號不動）→ 驗證全過（bundle 77／111/216/30／牆數 0）→ 備份照「留最新兩個」刪 T005＝**現存 T007+T008 兩份**（發車前已刪 0722/T004fix 兩份舊帳）。Eric 開 app 收編 77＝**牆數 0 一次到位、appdata 手術免重跑**。
