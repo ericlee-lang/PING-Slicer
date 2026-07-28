@@ -73,5 +73,11 @@
         "#EA4E16"
     ],
     "alias": "PING PLA - 210",
-    "renamed_from": "PING PLA"
+    "renamed_from": "PING PLA",
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.08"
+    ]
 }

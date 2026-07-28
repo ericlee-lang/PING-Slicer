@@ -74,5 +74,11 @@
     ],
     "default_filament_colour": [
         "#D3D3D3"
+    ],
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.08"
     ]
 }
