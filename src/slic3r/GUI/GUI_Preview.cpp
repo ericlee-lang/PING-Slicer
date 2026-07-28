@@ -300,9 +300,11 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // 右上角（比照摺疊側邊欄的浮動 <> 鈕）。不入 sizer、on size 重定位、Raise 蓋在畫布上
     //（GL canvas 帶 WS_CLIPSIBLINGS，浮鈕區域不會被 GL 繪掉）。
     m_ping_mix_strip = new wxPanel(this, wxID_ANY);
-    // StaticBox/Button 建構時抓父背景色清圓角外緣——先把浮鈕底板調成 GL 畫布同色，
-    // 圓角外才不會殘白方塊（release/v3.6 已驗證有效，2026-07-17 回移主線）。
-    m_ping_mix_strip->SetBackgroundColour(wxGetApp().dark_mode() ? wxColour(84, 84, 90) : wxColour(231, 231, 231));
+    // StaticBox/Button 建構時抓父背景色清圓角外緣——浮鈕底板須與 GL 畫布同色，圓角外才不殘白。
+    // PING(2026-07-29 回報中心 #24 邊角破圖・劉勝賢 test11 實機截圖定罪)：預覽頁畫布「不分主題」
+    // 恆為深色（DEFAULT_BG_LIGHT_COLOR_DARK＝84,84,90；亮主題只有準備頁畫布是 231 淺灰）——
+    // 原本跟 app 主題取色，亮主題把角落塗成 231 淺灰＝深底上的白色直角。固定用畫布深色常數。
+    m_ping_mix_strip->SetBackgroundColour(wxColour(84, 84, 90));
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
         // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）。
