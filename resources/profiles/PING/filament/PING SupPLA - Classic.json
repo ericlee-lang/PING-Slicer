@@ -57,11 +57,11 @@
     "default_filament_colour": [
         "#D3D3D3"
     ],
-    "alias": "PING SupPLA - Classic",
     "enable_pressure_advance": [
         "0"
     ],
     "pressure_advance": [
         "0"
-    ]
+    ],
+    "alias": "PING SupPLA - Classic"
 }

@@ -20,7 +20,7 @@
         "#EA4E16"
     ],
     "default_filament_profile": [
-        "PING PLA - Classic 220"
+        "PING PLA - Classic 210"
     ],
     "default_print_profile": "0.5mm @DUAL 600 單料頭 (1.0)",
     "deretraction_speed": [
