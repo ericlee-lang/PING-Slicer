@@ -273,6 +273,10 @@ for _tn in ("PING TPE - 210", "PING SupTPE"):
     for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
         if _te[1].get(_tk) != ["210"]:
             err(f"[TPE 噴溫 210 0728v2] {_tn}: {_tk}={_te[1].get(_tk)!r}, expected ['210']")
+    # 0729 Eric 裁（回報中心單）：TPE 最大體積流量 7（SpiderMaker 官方起始值）；SupTPE 維持 5.5
+    _mv_want = ["5.5"] if _tn == "PING SupTPE" else ["7"]
+    if _te[1].get("filament_max_volumetric_speed") != _mv_want:
+        err(f"[TPE 最大體積流量 0729] {_tn}: {_te[1].get('filament_max_volumetric_speed')!r}, expected {_mv_want!r}")
 _te = presets.get("PING TPE - 210")
 if _te:
     if _te[1].get("renamed_from") != "PING TPE":
