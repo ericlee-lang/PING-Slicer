@@ -15,6 +15,20 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-30 — **照片磚 C-0 技術尖峰**：四項全過＋Codex 13 條回審補測閉環；球在 Eric 裁 B 進 C-1）
+
+**線況**：**兩線 repo 零觸碰**（不改碼不 build 不 push＝T015 候選 bundle 85 原封不動、出貨線勿推紅線遵守）；portable／%APPDATA% 未動。本棒全部產出在治理 repo：報告＋產物包＋認領簿（c-0729-PT-07 掛→銷）。
+
+**C-0 戰果（計畫 §3 四項、11 項裁決定案值下執行）**：
+1. **①引擎 API 化**＝`generate(request)→Promise<result>` 已做出（`照片磚_C0尖峰產物/phototile_engine.js`＝**C-1 起點**；逐行搬自工作室頁、行號註記；夾值/錯誤分類/取消契約全實測）。**雙路黃金 oracle 6/6 案全等**（`goldenrunner.html` iframe 載真工作室 vs 引擎、同輸入 → 3MF 逐 entry SHA-256 斷言；覆蓋 P2A/交錯齒/無柱/濾除關全分支；存證 `golden_report.json`）＝縫線/水密戰果 100% 內建。
+2. **②隱形宿主**＝獨立 WebView2 原型（C#＋deps 原生 SDK vtable 轉錄、不經 wx）三情境 exit 0：runtime 正負檢測（bogus→0x80070002）／隱形 10 連發 sha 全同／TrySuspend-Resume（sha 驗證）／**崩潰重建三里程碑 controller +378ms・ready +531ms・首結果 +3,465ms**（重建 sha 不同＝FAIL 的 oracle）／**36MB 近上限圖片注入鏈**（247×192K-char ExecuteScript＝產品同形、1.3s 注入+2.5s 生成；UI 執行緒漂移 871ms→C-1 移出 UI 緒項）／生成中取消（grid 邊界砍掉）／noready・crashx4 負測。🔴 **紅字發現＝隱形頁 setTimeout 節流 ~1s/次（探針實測）→ 現行工作室頁不能直接搬進隱形宿主、引擎 API 化是 B 案前提**（引擎零計時器＝免疫；取消讓步點用 MessageChannel＝免疫）。
+3. **③效能包絡**＝常用尺寸 dual 1.1-1.6s／quad 2.4-3.0s；**合法上限 quad・K=48・400×400＝p50 53.6s**（quantize 內積天性）＝**進度顯示＋取消為 C-1 必備**；持續負載變異帶 2.4×（筆電熱節流；「quad/1.0 離群」說經 ×3 複測撤銷）；高像素輸入（48M px）無爆量；記憶體＝JS heap ≤330MB、進程樹 WS 峰值 1Hz 觀測 1,303MB（低規機風險→C-1 GRID_MAX 降階＋OOM gate）；**512MB 傳輸上限非約束**（3MF 實際最大 2.33MB）。runtime 測程中 .99→.105 自動升級＝Evergreen 相依活證據。
+4. **④行為矩陣定稿**＝輸入層 12 列（現況三管道親驗：拖放＝唯一圖片入口 Plater.cpp:4793／開檔 FT_MODEL 無圖片副檔名 GUI_App.cpp:650＋import_model :4480／Ctrl+V 僅內部剪貼簿 :18326）＋11 項裁決映射表（每項定案值落到 C-1~C-4 哪站）。
+5. **Codex（gpt-5.6-sol）對抗審 13 條全數逐條回審**（採納 12/部分 1/不採 0；**4 條阻斷全以補測關閉**：雙路 oracle／包絡／注入鏈／真睡眠轉裁決）——回審表＝報告 §9。
+
+**🔴 下一棒（球在 Eric，見 待確認 頂部）**：①**裁「准 B（隱形引擎）進 C-1」**——C-1 首站三閘門＝最小 wx 整合 smoke（此時才 build C++）＋實機睡眠過夜＋OOM gate，任一敗觸發轉 A（退出條件四條含 OOM、報告 §6）②**核可「真實睡眠喚醒」豁免出 C-0**（不能在 Eric 工作機睡眠；已用 TrySuspend+殺進程代理覆蓋）③准入後 C-1 範圍＝job 協定＋PhotoTileEngineHost（規格草案報告 §3.3）＋最小 metadata schema（計畫 §3 C-1 列）。**接手先讀**：`..\照片磚_C-0尖峰報告_20260729.html`（§6/§9）＋`..\照片磚_C0尖峰產物\README.md`（重現步驟）。
+
+---
 ### 🏁 收工快照（2026-07-29 晚 — **照片磚線全日**：自動選機＋V溝移除＋縫線定案 P2A（量化100%內部化）＋C 案計畫交裁）
 
 **線況**：開發線 `ping/v3.5` tip＝本 handoff commit（前一顆 `93c18f4c`）｜出貨線 `release/v3.6` tip `7e2f96b1`——**兩線各含 T11 參數批（`6caee4bf` bundle 84）＋照片磚線六顆 code commit（兩線對稱、功能行 md5 逐批驗）**，全未推＝押 T015（⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）。**portable 已熱補至最新網頁層**（=出貨線檔 md5 `5ca33e98`）＝Eric 現用即最新；appdata 未動。
