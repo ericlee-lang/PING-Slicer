@@ -568,7 +568,19 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 # 寫入無副作用 → 不分機型全寫（含 FF 範本/照片磚範本——照片磚 enable_prime_tower=0 無副作用）。
 def normalize_prime_tower(proc):
     proc["prime_tower_width"] = "25"
-    proc["wipe_tower_wall_type"] = "rib"
+    # 牆體 2026-07-29 Eric 改裁 rib→cone＋頂角 30＋最快列印速度 60（新規蓋舊規、肋條裁定退役；
+    # 速度＝引擎預設 90 下修 60、錐體自帶底部圓角助穩，cone_angle 引擎預設同為 30＝明寫鎖定）
+    proc["wipe_tower_wall_type"] = "cone"
+    proc["wipe_tower_cone_angle"] = "30"
+    proc["wipe_tower_max_purge_speed"] = "60"
+    return proc
+
+# ★ 內外牆加速度（2026-07-29 Eric 裁「提高表面品質與穩定性」）：全機型統一 1500。
+# 與 normalize_prime_tower 同三呼叫點＝覆蓋全部 emit 製程（0.125mm 細層批原 3000 一併統一）；
+# Classic 前代隨 emit_classic Marlin 隔離歸 0 照舊（既有裁定不變）＝實效 F 系全家＋照片磚。
+def normalize_wall_accel(proc):
+    proc["outer_wall_acceleration"] = "1500"
+    proc["inner_wall_acceleration"] = "1500"
     return proc
 
 # ★ 棧板雙版本製程（2026-07-08 Eric 拍板，同上規格檔）：FD 單料頭/同進＋FP300 出「_棧板」雙生
@@ -676,7 +688,8 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "process"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "process", fn), encoding="utf-8"))
         normalize_fast_speed(d)   # FF 範本製程同套牆速正規化（75/100/150 與 100/100/100 → 60/80/100）
-        normalize_prime_tower(d)  # 換料塔 15＋肋條（2026-07-08）
+        normalize_prime_tower(d)  # 換料塔統一（0708 立；0717 寬 25；0729 錐體30/速60）
+        normalize_wall_accel(d)   # 內外牆加速度 1500（2026-07-29 Eric 裁）
         normalize_unified_values(d, ff=True)  # 主線統一值；FF 範本 jerk 維持 40（上限 56 不警告）
         m_nz = re.search(r"\(([\d.]+)\)\s*$", d["name"])   # 名尾口徑，如 "0.35mm @FF600 3in1 (0.6)"
         if m_nz:
@@ -725,6 +738,7 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
         d["sparse_infill_acceleration"] = "10000"
         normalize_prime_tower(d)  # 統一寫（照片磚 enable_prime_tower=0、無副作用）
+        normalize_wall_accel(d)   # 內外牆加速度 1500（照片磚同套；2026-07-29）
         # ★ 支撐參數全部統一（Eric 2026-07-25 裁「照片磚其實不會用到支撐，把支撐參數全部統一，
         #   就不會有差異了」）——取消照片磚既有的支撐豁免（0714 介面／0717 幾何／0722 七裁／0725 角度）。
         #   實測 enable_support=1（開啟）但磚體平貼床無懸空面 ⇒ 引擎不生成支撐、統一為純消除差異。
@@ -853,7 +867,8 @@ def main(src_base):
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
-                    normalize_prime_tower(proc)  # 換料塔 15＋肋條（2026-07-08）
+                    normalize_prime_tower(proc)  # 換料塔統一（0708 立；0717 寬 25；0729 錐體30/速60）
+                    normalize_wall_accel(proc)   # 內外牆加速度 1500（2026-07-29 Eric 裁）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 主線統一值；FF 四色 jerk 維持 40
                     normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
                     normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×12(上限10)＋分支距離口徑×6＋主體線距口徑×9（0717/0722/0725）
