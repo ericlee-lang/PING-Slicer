@@ -1262,7 +1262,11 @@ async function send3mfToSlicer(r,st){
     st.textContent=`正在送入列印板… ${i+1}/${chunks}`;
     await new Promise(resolve=>setTimeout(resolve,0));
   }
-  sendSlicerMessage('phototile_export_end',{name:'照片磚_連通網格版.3mf'});
+  /* mode/nozzle＝供 C++ 在載入前自動切對應「同進照片磚」機（Eric 2026-07-29 裁 A 案）：
+     dual→FD 家族、quad→FF 家族，口徑對 printer_variant；值與 3MF 配方同源（lastExport／params）。 */
+  sendSlicerMessage('phototile_export_end',{name:'照片磚_連通網格版.3mf',
+    mode:(lastExport&&lastExport.mode)||'',
+    nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
 }
 document.getElementById('btnExport').onclick=async()=>{
   const st=document.getElementById('exportStat');
