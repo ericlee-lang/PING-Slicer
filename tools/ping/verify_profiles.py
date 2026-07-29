@@ -262,6 +262,17 @@ for name, (kind, d) in presets.items():
             _tower = "45" if "PLA+PVA" in name else "25"
             if "照片磚" not in name and d.get("prime_tower_width") != _tower:
                 err(f"[洗料塔寬度 {_tower}] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
+            # 洗料塔 0729 三裁（Eric）：錐體＋頂角 30＋最快列印速度 60（0708 肋條裁定退役）
+            for key, value in (("wipe_tower_wall_type", "cone"),
+                               ("wipe_tower_cone_angle", "30"),
+                               ("wipe_tower_max_purge_speed", "60")):
+                if d.get(key) != value:
+                    err(f"[洗料塔錐體 0729] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            # 內外牆加速度 0729（Eric「表面品質與穩定性」）：全機型 1500；Classic 維持 Marlin 隔離 0
+            _wall_acc = "0" if _cls_proc else "1500"
+            for key in ("outer_wall_acceleration", "inner_wall_acceleration"):
+                if d.get(key) != _wall_acc:
+                    err(f"[內外牆加速度 {_wall_acc}] {name}: {key}={d.get(key)!r}")
             support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
