@@ -24,7 +24,7 @@
         "PING PLA - 高流量噴頭",
         "PING SupPLA - 高流量噴頭"
     ],
-    "default_print_profile": "0.2mm PLA+SUP @FD450 Pro (0.4)",
+    "default_print_profile": "0.2mm 易拆(Z0) @FD450 Pro (0.4)",
     "deretraction_speed": [
         "20",
         "20"

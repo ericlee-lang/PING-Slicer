@@ -932,8 +932,8 @@ static void ping_suggest_pallet_for_abs(const std::string &filament_name)
     if (ft == nullptr || ft->values.empty() || ft->values.front() != "ABS")
         return;
     const std::string cur = bundle->prints.get_selected_preset().name;
-    if (cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 已是 _棧板 版
-        cur.find("ABS+") != std::string::npos)                            // 已是 ABS 組合（雙料棧板版）
+    if (cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 已是 _棧板 版（單一出料）
+        cur.find("+\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos)      // 已是「+棧板」雙料棧板版（0730 功能歸類名）
         return;
     // 目標名：單一出料「{lh}mm @…」→ 插 _棧板；雙料組合「{lh}mm PLA+X @…」→ 對應 ABS 組合
     std::string target;
@@ -941,12 +941,14 @@ static void ping_suggest_pallet_for_abs(const std::string &filament_name)
     if (at_single != std::string::npos) {
         target = cur.substr(0, at_single) + "mm_\xE6\xA3\xA7\xE6\x9D\xBF @" + cur.substr(at_single + 4);
     } else {
-        static const std::pair<const char*, const char*> COMBO_TO_ABS[] = {
-            {" PLA+SUP @", " ABS+SUP @"},
-            {" PLA+PVA @", " ABS+SUP @"},
-            {" PLA+PLA @", " ABS+ABS @"},
+        // 0730 功能歸類名（Codex 四輪定稿）：來源 pattern 帶「 @」終止符＝「易拆(Z0)」不會誤中
+        // 「易拆(Z0)水溶」（前綴防護）；棧板版仍＝ABS 配料（連動表鍵值不變、僅 token 換名）。
+        static const std::pair<const char*, const char*> COMBO_TO_PALLET[] = {
+            {" \xE6\x98\x93\xE6\x8B\x86(Z0) @",                         " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)→易拆(Z0)+棧板
+            {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)水溶→易拆(Z0)+棧板
+            {" \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99) @",              " \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF @"}, // 雙料(Z隙)→雙料(Z隙)+棧板
         };
-        for (const auto& m : COMBO_TO_ABS) {
+        for (const auto& m : COMBO_TO_PALLET) {
             const size_t p = cur.find(m.first);
             if (p != std::string::npos) {
                 target = cur;
@@ -1653,7 +1655,7 @@ void TabPresetComboBox::OnSelect(wxCommandEvent &evt)
 
 wxString TabPresetComboBox::get_preset_name(const Preset& preset)
 {
-    // PING(2026-06-12)：製程下拉顯示 alias（「@機型 (口徑)」前段，如「0.125mm PLA+SUP」）——
+    // PING(2026-06-12)：製程下拉顯示 alias（「@機型 (口徑)」前段，如「0.125mm 易拆(Z0)」）——
     // 機型與口徑跟上方「列印設備」區重複（使用者規格：名稱保留、顯示截短）。
     // 同 alias 多口徑不混淆：清單僅列當前機台相容製程；選擇回填靠 Tab.cpp 以
     // get_preset_name_by_alias 解析回真名（含相容性過濾）。機型/線材維持全名

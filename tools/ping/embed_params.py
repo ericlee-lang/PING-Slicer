@@ -654,6 +654,23 @@ def parse_dir(src_base, dirname):
 
 DUAL_COMBOS = ["PLA+SUP", "PLA+PLA", "ABS+SUP", "ABS+ABS"]
 
+# ★ 組合製程功能歸類名（Eric 2026-07-29 裁「材料對→功能名」＋兩追裁：PVA 留第五支、字面照原話；
+# Codex gpt-5.6-sol 四輪雙審「可定稿」＝計畫 v2+v3+v4 疊加，軌跡 _審查_組合製程功能歸類改名_*）。
+# 顯示名唯一產名入口：pname()／PVA twin／Classic 母檔讀取／machine default 全走本表；
+# 內部 cb token（"PLA+SUP" 等）不動＝easy_release／raft／檔名前綴／combo_overrides 照舊。
+COMBO_DISPLAY = {"PLA+SUP": "易拆(Z0)", "PLA+PVA": "易拆(Z0)水溶", "ABS+SUP": "易拆(Z0)+棧板",
+                 "PLA+PLA": "雙料(Z隙)", "ABS+ABS": "雙料(Z隙)+棧板"}
+
+def combo_display(cb):
+    return COMBO_DISPLAY.get(cb, cb)
+
+def combo_renamed_from(lh, cb, model, nz):
+    # 舊全名（renamed_from＝分號分隔「字串」鐵則；本表僅一條）。
+    # ⚠ 刻意不收「舊去@別名」（計畫 v2 §3.2 原擬收）：同層高的去@形態跨 6 台機共用
+    #（例「0.2mm PLA+SUP」＝六支同名）＝不唯一，塞入會撞 renamed_from 舊名唯一性護欄、
+    # 引擎 rename map 也是 1:1 先到先贏＝語意錯誤。偏離已記回審補遺（v4 補遺段）。
+    return "%smm %s @%s (%s)" % (lh, cb, model, nz)
+
 def combo_overrides(combo, layer_height, nozzle):
     """V3.0 組合別製程差異復原（2026-06-10 使用者規格＋V3.0「最佳 ABS」定稿實證）：
     - 支撐介面：有 SUP＝z 距離 0（貼緊、靠支撐料好剝）；無 SUP＝1 層層高（留縫好拆）
@@ -952,12 +969,16 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         mac_list.append({"name":mac_name, "sub_path":"machine/%s.json" % mac_name})
         gm += 1
 
-        src_proc_name = (("%smm PLA+SUP @%s (%s)" %
-                          ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"]))
+        src_proc_name = (("%smm %s @%s (%s)" %
+                          ("0.2" if nz == "0.4" else "0.3", combo_display("PLA+SUP"),
+                           spec["src_model"], spec["src_nozzle"]))
                          if spec["dual"] else
                          ("%smm @%s (%s)" %
                           ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"])))
         proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_proc_name), encoding="utf-8"))
+        # 0730 改名批：Fast 母檔帶 renamed_from（易拆(Z0) 的舊名）——複製時必剝，否則 Classic
+        # 製程冒領同一舊名＝重複認領地雷（0728 _classic_filament 線材版同族坑、verify 首跑實抓）。
+        proc.pop("renamed_from", None)
         proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
                      "setting_id":"PINGP%03d" % gp, "inherits":"fdm_process_ping_common",
                      "compatible_printers":[mac_name], "layer_height":spec["layer"],
@@ -1180,7 +1201,7 @@ def main(src_base):
                 is_dual_machine = (kind in ("dual", "dual1") and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
                 def pname(cb):
-                    return ("%smm %s @%s (%s)" % (lh, cb, model, nz)) if is_dual_machine \
+                    return ("%smm %s @%s (%s)" % (lh, combo_display(cb), model, nz)) if is_dual_machine \
                         else ("%smm @%s (%s)" % (lh, model, nz))
                 # machine（雙料取 PLA+SUP 母檔）
                 mac = dict(b["M"])
@@ -1228,6 +1249,8 @@ def main(src_base):
                         "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
                         "filename_format": filename_tpl(cb)})
+                    if is_dual_machine:   # 功能歸類改名：舊材料對全名入 renamed_from（舊 3mf 回溯）
+                        proc["renamed_from"] = combo_renamed_from(lh, cb, model, nz)
                     jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
                     proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
                     # 棧板雙生（單料頭/同進/FP 限定；kind=ff 的四色 is_single=False 天然排除）
@@ -1239,7 +1262,8 @@ def main(src_base):
                     #（易拆幾何 Z0／XY 口徑×0.75、支撐料槽 2、速度/層高家規全部自然繼承）
                     if is_dual_machine and cb == "PLA+SUP":
                         pv = dict(proc); pv.update(pva_overrides(nz))
-                        pv["name"] = "%smm PLA+PVA @%s (%s)" % (lh, model, nz)
+                        pv["name"] = "%smm %s @%s (%s)" % (lh, combo_display("PLA+PVA"), model, nz)
+                        pv["renamed_from"] = combo_renamed_from(lh, "PLA+PVA", model, nz)
                         pv["filename_format"] = filename_tpl("PLA+PVA")
                         pva_twins.append(pv)
 

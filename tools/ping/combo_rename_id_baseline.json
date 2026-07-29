@@ -1,0 +1,452 @@
+[
+ {
+  "old": "0.125mm ABS+ABS @FD300 (0.25)",
+  "new": "0.125mm 雙料(Z隙)+棧板 @FD300 (0.25)",
+  "setting_id": "PINGP006"
+ },
+ {
+  "old": "0.125mm ABS+ABS @FD300 Pro (0.25)",
+  "new": "0.125mm 雙料(Z隙)+棧板 @FD300 Pro (0.25)",
+  "setting_id": "PINGP036"
+ },
+ {
+  "old": "0.125mm ABS+ABS @FD300 關門 (0.25)",
+  "new": "0.125mm 雙料(Z隙)+棧板 @FD300 關門 (0.25)",
+  "setting_id": "PINGP024"
+ },
+ {
+  "old": "0.125mm ABS+SUP @FD300 (0.25)",
+  "new": "0.125mm 易拆(Z0)+棧板 @FD300 (0.25)",
+  "setting_id": "PINGP005"
+ },
+ {
+  "old": "0.125mm ABS+SUP @FD300 Pro (0.25)",
+  "new": "0.125mm 易拆(Z0)+棧板 @FD300 Pro (0.25)",
+  "setting_id": "PINGP035"
+ },
+ {
+  "old": "0.125mm ABS+SUP @FD300 關門 (0.25)",
+  "new": "0.125mm 易拆(Z0)+棧板 @FD300 關門 (0.25)",
+  "setting_id": "PINGP023"
+ },
+ {
+  "old": "0.125mm PLA+PLA @FD300 (0.25)",
+  "new": "0.125mm 雙料(Z隙) @FD300 (0.25)",
+  "setting_id": "PINGP004"
+ },
+ {
+  "old": "0.125mm PLA+PLA @FD300 Pro (0.25)",
+  "new": "0.125mm 雙料(Z隙) @FD300 Pro (0.25)",
+  "setting_id": "PINGP034"
+ },
+ {
+  "old": "0.125mm PLA+PLA @FD300 關門 (0.25)",
+  "new": "0.125mm 雙料(Z隙) @FD300 關門 (0.25)",
+  "setting_id": "PINGP022"
+ },
+ {
+  "old": "0.125mm PLA+PVA @FD300 (0.25)",
+  "new": "0.125mm 易拆(Z0)水溶 @FD300 (0.25)",
+  "setting_id": "PINGP188"
+ },
+ {
+  "old": "0.125mm PLA+PVA @FD300 Pro (0.25)",
+  "new": "0.125mm 易拆(Z0)水溶 @FD300 Pro (0.25)",
+  "setting_id": "PINGP194"
+ },
+ {
+  "old": "0.125mm PLA+PVA @FD300 關門 (0.25)",
+  "new": "0.125mm 易拆(Z0)水溶 @FD300 關門 (0.25)",
+  "setting_id": "PINGP191"
+ },
+ {
+  "old": "0.125mm PLA+SUP @FD300 (0.25)",
+  "new": "0.125mm 易拆(Z0) @FD300 (0.25)",
+  "setting_id": "PINGP003"
+ },
+ {
+  "old": "0.125mm PLA+SUP @FD300 Pro (0.25)",
+  "new": "0.125mm 易拆(Z0) @FD300 Pro (0.25)",
+  "setting_id": "PINGP033"
+ },
+ {
+  "old": "0.125mm PLA+SUP @FD300 關門 (0.25)",
+  "new": "0.125mm 易拆(Z0) @FD300 關門 (0.25)",
+  "setting_id": "PINGP021"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD300 (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD300 (0.4)",
+  "setting_id": "PINGP010"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD300 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD300 Pro (0.4)",
+  "setting_id": "PINGP040"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD300 關門 (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD300 關門 (0.4)",
+  "setting_id": "PINGP028"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD450 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD450 Pro (0.4)",
+  "setting_id": "PINGP054"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD600 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD600 Pro (0.4)",
+  "setting_id": "PINGP072"
+ },
+ {
+  "old": "0.2mm ABS+ABS @FD800 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙)+棧板 @FD800 Pro (0.4)",
+  "setting_id": "PINGP090"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD300 (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD300 (0.4)",
+  "setting_id": "PINGP009"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD300 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD300 Pro (0.4)",
+  "setting_id": "PINGP039"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD300 關門 (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4)",
+  "setting_id": "PINGP027"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD450 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD450 Pro (0.4)",
+  "setting_id": "PINGP053"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD600 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD600 Pro (0.4)",
+  "setting_id": "PINGP071"
+ },
+ {
+  "old": "0.2mm ABS+SUP @FD800 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)+棧板 @FD800 Pro (0.4)",
+  "setting_id": "PINGP089"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD300 (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD300 (0.4)",
+  "setting_id": "PINGP008"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD300 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD300 Pro (0.4)",
+  "setting_id": "PINGP038"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD300 關門 (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD300 關門 (0.4)",
+  "setting_id": "PINGP026"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD450 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD450 Pro (0.4)",
+  "setting_id": "PINGP052"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD600 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD600 Pro (0.4)",
+  "setting_id": "PINGP070"
+ },
+ {
+  "old": "0.2mm PLA+PLA @FD800 Pro (0.4)",
+  "new": "0.2mm 雙料(Z隙) @FD800 Pro (0.4)",
+  "setting_id": "PINGP088"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD300 (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD300 (0.4)",
+  "setting_id": "PINGP189"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD300 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD300 Pro (0.4)",
+  "setting_id": "PINGP195"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD300 關門 (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD300 關門 (0.4)",
+  "setting_id": "PINGP192"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD450 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD450 Pro (0.4)",
+  "setting_id": "PINGP197"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD600 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD600 Pro (0.4)",
+  "setting_id": "PINGP200"
+ },
+ {
+  "old": "0.2mm PLA+PVA @FD800 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0)水溶 @FD800 Pro (0.4)",
+  "setting_id": "PINGP203"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD300 (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD300 (0.4)",
+  "setting_id": "PINGP007"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD300 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD300 Pro (0.4)",
+  "setting_id": "PINGP037"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD300 關門 (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD300 關門 (0.4)",
+  "setting_id": "PINGP025"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD450 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD450 Pro (0.4)",
+  "setting_id": "PINGP051"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD600 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD600 Pro (0.4)",
+  "setting_id": "PINGP069"
+ },
+ {
+  "old": "0.2mm PLA+SUP @FD800 Pro (0.4)",
+  "new": "0.2mm 易拆(Z0) @FD800 Pro (0.4)",
+  "setting_id": "PINGP087"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD300 (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD300 (0.6)",
+  "setting_id": "PINGP014"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD300 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD300 Pro (0.6)",
+  "setting_id": "PINGP044"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD300 關門 (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD300 關門 (0.6)",
+  "setting_id": "PINGP032"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD450 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD450 Pro (0.6)",
+  "setting_id": "PINGP058"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD600 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD600 Pro (0.6)",
+  "setting_id": "PINGP076"
+ },
+ {
+  "old": "0.3mm ABS+ABS @FD800 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙)+棧板 @FD800 Pro (0.6)",
+  "setting_id": "PINGP094"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD300 (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD300 (0.6)",
+  "setting_id": "PINGP013"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD300 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD300 Pro (0.6)",
+  "setting_id": "PINGP043"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD300 關門 (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD300 關門 (0.6)",
+  "setting_id": "PINGP031"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD450 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD450 Pro (0.6)",
+  "setting_id": "PINGP057"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD600 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD600 Pro (0.6)",
+  "setting_id": "PINGP075"
+ },
+ {
+  "old": "0.3mm ABS+SUP @FD800 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)+棧板 @FD800 Pro (0.6)",
+  "setting_id": "PINGP093"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD300 (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD300 (0.6)",
+  "setting_id": "PINGP012"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD300 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD300 Pro (0.6)",
+  "setting_id": "PINGP042"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD300 關門 (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD300 關門 (0.6)",
+  "setting_id": "PINGP030"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD450 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD450 Pro (0.6)",
+  "setting_id": "PINGP056"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD600 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD600 Pro (0.6)",
+  "setting_id": "PINGP074"
+ },
+ {
+  "old": "0.3mm PLA+PLA @FD800 Pro (0.6)",
+  "new": "0.3mm 雙料(Z隙) @FD800 Pro (0.6)",
+  "setting_id": "PINGP092"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD300 (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD300 (0.6)",
+  "setting_id": "PINGP190"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD300 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD300 Pro (0.6)",
+  "setting_id": "PINGP196"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD300 關門 (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD300 關門 (0.6)",
+  "setting_id": "PINGP193"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD450 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD450 Pro (0.6)",
+  "setting_id": "PINGP198"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD600 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD600 Pro (0.6)",
+  "setting_id": "PINGP201"
+ },
+ {
+  "old": "0.3mm PLA+PVA @FD800 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0)水溶 @FD800 Pro (0.6)",
+  "setting_id": "PINGP204"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD300 (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD300 (0.6)",
+  "setting_id": "PINGP011"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD300 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD300 Pro (0.6)",
+  "setting_id": "PINGP041"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD300 關門 (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD300 關門 (0.6)",
+  "setting_id": "PINGP029"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD450 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD450 Pro (0.6)",
+  "setting_id": "PINGP055"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD600 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD600 Pro (0.6)",
+  "setting_id": "PINGP073"
+ },
+ {
+  "old": "0.3mm PLA+SUP @FD800 Pro (0.6)",
+  "new": "0.3mm 易拆(Z0) @FD800 Pro (0.6)",
+  "setting_id": "PINGP091"
+ },
+ {
+  "old": "0.5mm ABS+ABS @FD450 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙)+棧板 @FD450 Pro (1.0)",
+  "setting_id": "PINGP062"
+ },
+ {
+  "old": "0.5mm ABS+ABS @FD600 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙)+棧板 @FD600 Pro (1.0)",
+  "setting_id": "PINGP080"
+ },
+ {
+  "old": "0.5mm ABS+ABS @FD800 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙)+棧板 @FD800 Pro (1.0)",
+  "setting_id": "PINGP098"
+ },
+ {
+  "old": "0.5mm ABS+SUP @FD450 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)+棧板 @FD450 Pro (1.0)",
+  "setting_id": "PINGP061"
+ },
+ {
+  "old": "0.5mm ABS+SUP @FD600 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)+棧板 @FD600 Pro (1.0)",
+  "setting_id": "PINGP079"
+ },
+ {
+  "old": "0.5mm ABS+SUP @FD800 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)+棧板 @FD800 Pro (1.0)",
+  "setting_id": "PINGP097"
+ },
+ {
+  "old": "0.5mm PLA+PLA @FD450 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙) @FD450 Pro (1.0)",
+  "setting_id": "PINGP060"
+ },
+ {
+  "old": "0.5mm PLA+PLA @FD600 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙) @FD600 Pro (1.0)",
+  "setting_id": "PINGP078"
+ },
+ {
+  "old": "0.5mm PLA+PLA @FD800 Pro (1.0)",
+  "new": "0.5mm 雙料(Z隙) @FD800 Pro (1.0)",
+  "setting_id": "PINGP096"
+ },
+ {
+  "old": "0.5mm PLA+PVA @FD450 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)水溶 @FD450 Pro (1.0)",
+  "setting_id": "PINGP199"
+ },
+ {
+  "old": "0.5mm PLA+PVA @FD600 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)水溶 @FD600 Pro (1.0)",
+  "setting_id": "PINGP202"
+ },
+ {
+  "old": "0.5mm PLA+PVA @FD800 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0)水溶 @FD800 Pro (1.0)",
+  "setting_id": "PINGP205"
+ },
+ {
+  "old": "0.5mm PLA+SUP @FD450 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0) @FD450 Pro (1.0)",
+  "setting_id": "PINGP059"
+ },
+ {
+  "old": "0.5mm PLA+SUP @FD600 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0) @FD600 Pro (1.0)",
+  "setting_id": "PINGP077"
+ },
+ {
+  "old": "0.5mm PLA+SUP @FD800 Pro (1.0)",
+  "new": "0.5mm 易拆(Z0) @FD800 Pro (1.0)",
+  "setting_id": "PINGP095"
+ }
+]
