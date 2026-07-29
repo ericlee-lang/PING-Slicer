@@ -43,6 +43,15 @@
 **🔴 下一棒**：①**C 案裁決表 11 項＝Eric 0729 晚「全照建議」全項拍板（定案值＝計畫 §5 建議欄）→ 新 session 跑 C-0**（引擎 API 化＋隱形 host spike＋效能基準＋行為矩陣；數據出來交 Eric 裁 A/B 路線）②T015 發車令（車上：T11 參數批＋選機＋V溝移除＋P2A×2；後四顆網頁層已在 portable 生效）③實印終驗（縫內部化＋交界疊縫強度）→ P2A 轉預設裁決 ④規則已沉澱：技術參考 §3.6-C 縫線定案版/§3.6-D V溝作廢＋memory photo-tile-vertical-mixing 0729 段——**接手先讀那兩處＋兩份 0729 報告**。
 
 ---
+### 🏁 收工快照（2026-07-30 —「0728 ORCA 續」棒總收工：**T015 已發車（run 30496218297、建置中）——下一棒接綠後全鏈**）
+
+**T015＝bundle 86 @ `a7d95bad`（四批）**：①內外牆加速度全機型 1500（Classic 隔離 0）②洗料塔 錐體/30°/速60 ③Classic 赤兔雙料禁 T0/T1＝M6050 原生輸出（＋GCode.cpp 一刀防補裸 Tn）④組合製程功能歸類改名（五類、90 支 renamed_from 回溯；Codex 四輪雙審定稿）。**⚠ C++ 三批（GCode/Tab/PresetComboBoxes）＝本輪 CI 首驗**；新 CI 閘門 `ping_verify` 兩線首跑已綠。
+
+**下一棒綠後全鏈（照 T014 前例）**：①run 30496218297 總結論（慣性三紅照舊＝Flatpak×2＋Unit Tests；看 Windows 主建置）②成品驗收＝**a7d95bad 同代 verify 全套打在下載 bundle**＋版號 01.00.00.86＋四批抽驗（牆加速度 1500／wipe_tower cone·30·60／Classic DUAL start 無 T·本體 change_filament M6050 模板／五類名 5×18＋舊 token 0＋renamed_from 逐支）③打包→G 槽上架＋hash 複驗＋T014 三檔輪替 old\④版本資訊（四批變更＋裝機眼驗 checklist：洗料塔錐形/加速度欄 1500/Classic 切檔 grep 三判準/下拉五類新名/舊 3mf 回溯/#39 跳窗切新名）⑤登錄簿結案。**Eric 機 conf 手術**（組合名 90 條）＝裝 T015 後跑 `tools/ping/patch_conf_combo_rename.py --dry-run` 先出清單再 `--apply`（副本冪等已設計）。D 槽換裝＝等 Eric 令（建議直接換 T015）。
+
+**審查軌跡**（改名批、Codex 四輪）＝專案根 `_審查_組合製程功能歸類改名_*`；治理修錯 manifest＝`00治理文件/治理修正_20260729_ORCA_manifest.md`；本棒全帳＝認領簿 c-0728-T11-01～c-0730-T11-19。
+
+---
 ### 🏁 收工快照（2026-07-29 —「0728 ORCA 續」棒：**T012/T013/T014 三顆全鏈出貨＋治理修錯＋T015 候選備妥**）
 
 **線況（0730 四批後）**：開發線 `ping/v3.5` tip＝`222eae5f`（bundle **73**、未推；⚠ PT 照片磚線同 repo 活動中、tip 可能再前進）｜出貨線 `release/v3.6` tip `a7d95bad`（bundle **86**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
