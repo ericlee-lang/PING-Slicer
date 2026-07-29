@@ -928,14 +928,21 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         _fill_array(mac, "max_layer_height", "%g" % (0.75 * float(nz)))
         _fill_array(mac, "min_layer_height", "0.1")
 
-        heat = ["M104 S[nozzle_temperature_initial_layer] T0"]
+        # 0729 Klipper 同步單 #128（Eric 令）：赤兔板無 T 工具語意——溫度行一律不帶 T
+        #（雙料共用一顆熱嘴；單料同去＝V2.1 後處理本就滅全部 M104/M109 T 行）
+        heat = ["M104 S[nozzle_temperature_initial_layer]"]
         if spec["heated_bed"]:
             heat = ["M140 S[bed_temperature_initial_layer_single]"] + heat + [
                 "M190 S[bed_temperature_initial_layer_single]"]
-        heat += ["M109 S[nozzle_temperature_initial_layer] T0"]
+        heat += ["M109 S[nozzle_temperature_initial_layer]"]
         prime_e = "5" if spec["dual"] else "3"
         mac["machine_start_gcode"] = "\n".join(
             ["G21", "G90", "M82"] + heat + ["G28 ;Home", "G92 E0", "G1 F200 E%s" % prime_e, "G92 E0"])
+        if spec["dual"]:
+            # Classic 雙料換刀＝M6050 原生輸出（0729 同步單硬規則）：S=第一路比例（S1=工具0全開、
+            # S0=工具1）、P0 常規檔固定帶。模板含 M6050 ⇒ C++ custom_gcode_changes_tool 認定已換刀
+            # ⇒ 兩呼叫端不再補裸 Tn（含起印首次選刀）；兩路同溫 220 ⇒ 引擎無中途變溫指令。
+            mac["change_filament_gcode"] = "{if next_extruder == 0}M6050 S1 P0{else}M6050 S0 P0{endif}"
         end = ["G91", "G1 Z10 E-1 F9000", "M104 S0"]
         if spec["heated_bed"]:
             end.append("M140 S0")
@@ -1071,11 +1078,11 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                 mac["filament_colors"] = list(mac["default_filament_colors"])
                 _fill_array(mac, "max_layer_height", "%g" % (0.75 * float(nz)))
                 _fill_array(mac, "min_layer_height", "0.1")
-                heat = ["M104 S[nozzle_temperature_initial_layer] T0"]
+                heat = ["M104 S[nozzle_temperature_initial_layer]"]
                 if spec["heated_bed"]:
                     heat = ["M140 S[bed_temperature_initial_layer_single]"] + heat + [
                         "M190 S[bed_temperature_initial_layer_single]"]
-                heat += ["M109 S[nozzle_temperature_initial_layer] T0"]
+                heat += ["M109 S[nozzle_temperature_initial_layer]"]
                 # 同進＝兩馬達同動各半（先 M6050 S0.5 再擠 5）；單料頭＝實體單頭擠 3（同 Classic 單料機）
                 sync = ["M6050 S0.5"] if variant == "同進" else []
                 prime_e = "5" if variant == "同進" else "3"

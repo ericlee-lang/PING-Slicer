@@ -227,6 +227,12 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
     // Return true if tch_prefix is found in custom_gcode
     static bool custom_gcode_changes_tool(const std::string& custom_gcode, const std::string& tch_prefix, unsigned next_extruder)
     {
+        // PING: Classic (ChiTu-board) dual machines select the filament path via "M6050 S<ratio> P0"
+        // instead of Tn (ChiTu firmware has no T tool semantics; a bare T0/T1 or "M104 T…" line is
+        // rejected on that board). When the custom change-filament G-code carries M6050, treat it as
+        // having performed the tool change so no bare Tn gets appended by either caller.
+        if (custom_gcode.find("M6050") != std::string::npos)
+            return true;
         bool ok = false;
         size_t from_pos = 0;
         size_t pos = 0;
