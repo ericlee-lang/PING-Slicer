@@ -1,0 +1,35 @@
+# PING verify 閘門（0730 改名批補；Codex 二輪必改 11）：
+# build_all 只證 C++ 編譯；本 job 跑 tools/ping/verify_profiles.py＝參照完整性＋
+# 連動表/跨層護欄/renamed_from/id 斷言。過去這層只在本機跑、CI 缺席。
+name: PING verify
+on:
+  push:
+    branches: ['release/*', 'ping/*']
+    paths:
+      - 'tools/ping/**'
+      - 'resources/profiles/**'
+      - 'src/slic3r/GUI/Tab.cpp'
+      - 'src/slic3r/GUI/PresetComboBoxes.cpp'
+      - 'src/libslic3r/GCode.cpp'
+      - '.github/workflows/ping_verify.yml'
+  pull_request:
+    branches: ['release/*', 'ping/*']
+    paths:
+      - 'tools/ping/**'
+      - 'resources/profiles/**'
+      - 'src/slic3r/GUI/Tab.cpp'
+      - 'src/slic3r/GUI/PresetComboBoxes.cpp'
+      - 'src/libslic3r/GCode.cpp'
+  workflow_dispatch:
+
+jobs:
+  ping-verify:
+    name: ping profiles verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run PING verify
+        run: python tools/ping/verify_profiles.py

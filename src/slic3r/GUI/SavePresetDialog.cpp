@@ -42,7 +42,7 @@ SavePresetDialog::Item::Item(Preset::Type type, const std::string &suffix, wxBox
     } else if (sel_preset.is_system) {
         std::string copy_base = sel_preset.name;
         // PING(2026-07-15 Eric)：另存列印參數副本時，機型／口徑已由目前選用的列印設備決定，
-        // 預設名稱只保留製程本身，例："0.2mm PLA+SUP @FD300 (0.4)" -> "0.2mm PLA+SUP - 複製"。
+        // 預設名稱只保留製程本身，例："0.2mm 易拆(Z0) @FD300 (0.4)" -> "0.2mm 易拆(Z0) - 複製"。
         // 只套 TYPE_PRINT，避免改到列印設備、線材等其他預設的既有命名。
         if (m_type == Preset::TYPE_PRINT) {
             const size_t printer_suffix = copy_base.find('@');

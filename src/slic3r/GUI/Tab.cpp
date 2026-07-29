@@ -170,7 +170,7 @@ void Tab::set_type()
 }
 
 // PING(2026-06-12)：雙料「組合製程」→ 線材槽自動連動（使用者規格）。
-// 製程名形如「0.125mm PLA+SUP @FD300 (0.25)」——取 @ 前最後一個 token 當組合，
+// 製程名形如「0.125mm 易拆(Z0) @FD300 (0.25)」（0730 功能歸類名）——取 @ 前最後一個 token 當組合，
 // 對應預設用料（值=參數端組合定稿）。僅在使用者「手動點選製程」那一刻觸發
 // （載專案／切機台不走 Tab combo 的 selection_changed，不會蓋掉專案線材）。
 // 線材名集中一處，避免整併／改名時像 0725 那樣漏改而讓連動靜默失效。
@@ -224,25 +224,25 @@ void ping_apply_combo_filaments(const std::string &process_name)
         // PING(2026-07-29 Eric 裁 C・#33 連帶)：SupPLA 全家族統一 210 後，PLA+SUP 連動改帶
         // PLA - 210（兩槽同溫 210＝不觸發 #33 溫度不一致視窗；#32 SUP 與 PLA 同溫單的收口）。
         // 機器「預設」槽 1 仍是 PLA - 220（0728 v2 裁雙料維持 220）——只有手選 PLA+SUP 組合才連動。
-        {"PLA+SUP", {PING_PLA_210, PING_SUP_PLA}},
-        {"PLA+PLA", {PING_PLA_220, PING_PLA_220}},
-        // PLA+PVA（Eric 2026-07-26 回報「選 PLA+PVA 沒跳 PVA」）：0725 新出的專屬製程
-        // 當時只加了 process，忘了補這張連動表 ⇒ 第 2 槽不會換成 PVA。
-        // 0729 Eric 裁「PVA 也改」：PLA 側 220→210（PVA=210 同溫不跳 #33；V2.1 定稿案 PLA 側本就 210）
-        {"PLA+PVA", {PING_PLA_210, PING_PVA}},
-        {"ABS+SUP", {PING_ABS, PING_SUP_ABS}},
-        {"ABS+ABS", {PING_ABS, PING_ABS}},
+        // PING(2026-07-29/30 Eric 裁「材料對→功能歸類名」，Codex 四輪雙審定稿)：
+        // 製程 token 改功能名，鍵值配對不變（0729 裁 C＝易拆連動帶 PLA-210 照舊）。
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)（原 PLA+SUP）
+        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_220, PING_PLA_220}},   // 雙料(Z隙)（原 PLA+PLA）
+        // 水溶（原 PLA+PVA；0726 補表、0729「PVA 也改」＝PLA 側 210 同溫不跳 #33）
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_210, PING_PVA}},       // 易拆(Z0)水溶
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板（原 ABS+SUP）
+        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板（原 ABS+ABS）
     };
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
     // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS_HF = {
-        {"PLA+SUP", {PING_PLA_HF, PING_SUP_HF}},
-        {"PLA+PLA", {PING_PLA_HF, PING_PLA_HF}},
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)
+        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_HF, PING_PLA_HF}},     // 雙料(Z隙)
         // PVA 無高流量版 ⇒ 第 1 槽走高流量 PLA、第 2 槽用一般 PVA（同 ABS 無高流量版的處理）
-        {"PLA+PVA", {PING_PLA_HF, PING_PVA}},
-        {"ABS+SUP", {PING_ABS, PING_SUP_ABS}},
-        {"ABS+ABS", {PING_ABS, PING_ABS}},
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_HF, PING_PVA}},        // 易拆(Z0)水溶
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板
+        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板
     };
     PresetBundle *bundle = wxGetApp().preset_bundle;
     const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
