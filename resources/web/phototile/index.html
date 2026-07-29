@@ -1136,10 +1136,17 @@ async function build3mf(){
        paint_seam="4"（TriangleSelector 葉節點 enforcer 的 nibble 編碼）→ SeamPlacer
        把每圈縫拉到端面，正反面乾淨、雙面可用。縫擠在交界的實印效果待工程端印驗。 */
     const VX=mesh.vertices;
+    /* P2A 加碼（Eric 2026-07-29「最左外側的縫也收進內部」）：磚外側兩窄面（x≈0／x≈寬）
+       在 P2A 開啟時不標 enforcer（中性）→ 邊緣零件的縫被內部交界的 Enforced 型別優先吸走；
+       全寬單色層（無內部交界）時，中性側面仍是唯一非 blocked 去處＝fallback 不會跑去正背面。 */
+    const OUTER_TOL=Math.max(0.01,sx/2);
     const F=mesh.triangles.map(t=>{
       const x0=VX[t[0]][0];
-      if(Math.abs(x0-VX[t[1]][0])<1e-9 && Math.abs(x0-VX[t[2]][0])<1e-9)
+      if(Math.abs(x0-VX[t[1]][0])<1e-9 && Math.abs(x0-VX[t[2]][0])<1e-9){
+        if(params.p2aBlock && (x0<OUTER_TOL || x0>params.width-OUTER_TOL))
+          return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`;
         return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}" paint_seam="4"/>`;
+      }
       /* P2A（Eric 2026-07-29 裁 C 批原型）：y 等值面＝正/背面 → 塗 blocker。
          nibble "8"＝BLOCKER(2)<<2（TriangleSelector.cpp:1773 非分割碼 state=code>>2）；
          blocker 判定在 enforcer 之後＝蓋得掉膨脹進正背面的假 Enforced（SeamPlacer.cpp:507）。 */
