@@ -31,11 +31,11 @@
 ---
 ### 🏁 收工快照（2026-07-29 —「0728 ORCA 續」棒：**T012/T013/T014 三顆全鏈出貨＋治理修錯＋T015 候選備妥**）
 
-**線況**：開發線 `ping/v3.5` tip＝`4013aaea`（bundle **72**、未推）｜出貨線 `release/v3.6` tip `6caee4bf`（bundle **84**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
+**線況（0729 晚三批後）**：開發線 `ping/v3.5` tip＝`1cd30d32`（bundle 72＋GCode.cpp 對稱批、未推；⚠ PT 照片磚線同 repo 活動中、tip 可能再前進）｜出貨線 `release/v3.6` tip `d3d51b53`（bundle **85**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
 
 **T012~T014 全鏈已出貨**（G 槽現行＝TEST-T014、bundle 83；Eric D 槽＝T013）：帳目正本＝`00治理文件/發布登錄簿.md` T 號表＋`00治理文件/認領簿.md` T11 線 c-0728-T11-01~c-0729-T11-16（每張牌含收工全紀錄）。回報中心三單（#24/#51/#39＋#32）已知會發複測。
 
-**T015 候選內容（兩線已入版未推）**：①內外牆加速度全機型 **1500**（Eric 0729 裁「表面品質與穩定性」；77 檔 3000→1500、**Classic Marlin 隔離 0 照舊**）②洗料塔 **錐體/頂角30/最快列印速度60**（rib→cone、20→30、90→60，211 製程統一）。verify 全綠（389/108、305/76）＋值稽核直方圖精準；skill core-rules 已回填（`d6de05d`）。**眼驗項（裝 T015 後）**：多料製程洗料塔呈錐形／內外牆加速度欄 1500／洗料塔速度≤60。
+**T015 候選內容（兩線已入版未推、bundle 85）**：①內外牆加速度全機型 **1500**（Eric 0729 裁「表面品質與穩定性」；77 檔 3000→1500、**Classic Marlin 隔離 0 照舊**）②洗料塔 **錐體/頂角30/最快列印速度60**（rib→cone、20→30、90→60，211 製程統一）③**Classic 赤兔雙料出檔禁 T0/T1＝M6050 原生輸出**（Klipper #128 同步單、Eric 令：32 機 start 去 T＋DUAL 本體 4 台 `change_filament_gcode` M6050 條件模板＋**C++ `custom_gcode_changes_tool` 認 M6050**——不認則引擎兩呼叫端會在模板後補發裸 Tn〔實查定罪〕；Fast FD 照舊；回執在同步單檔）。verify 全綠（389/108、305/76）＋值稽核直方圖精準＋反向測試；skill core-rules 已回填（`d6de05d`＋`abff85e`）。**眼驗項（裝 T015 後）**：多料製程洗料塔呈錐形／內外牆加速度欄 1500／洗料塔速度≤60／**切 Classic DUAL 檔 grep 三判準**（^T[01]=0、M104·M109 T=0、換刀處 M6050 S1/S0 P0）。⚠ **本輪 C++ 兩刀（GUI 零、libslic3r 一函式）＝T015 CI 首驗**。
 
 **治理修正 Stage 1（PM 發包、Eric 拍板）已完成**：三 worktree 根 CLAUDE.md（刪重複 build 段＋Linux build dir 定 `build`）＋ tests/CLAUDE.md（Catch2 v2→實況 **3.11.0**、include=catch_all.hpp、「NEVER USE APPROX」限縮＝**新測試優先 matchers、現存 16 檔豁免不遷移**）＋照片磚過期記憶標上蓋。三 commit：dev `a8580de0`／release `059d17cc`／phototile `f7e139cf`；逐條處置＋備份 SHA-256＝`00治理文件/治理修正_20260729_ORCA_manifest.md`。⚠ **時序鐵則：AGENTS.md 正本化／@AGENTS.md 橋接＝Stage 2，必須等 ping-system pilot gate（至 08-01）通過後另回合做，不得順手**。
 
