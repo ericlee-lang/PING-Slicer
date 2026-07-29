@@ -71,11 +71,13 @@ REQUIRE(a > 0);
 REQUIRE(b < 10);  // Each shows individual values on failure
 ```
 
-### 4. **FLOATING POINT - NEVER USE APPROX**
-❌ **WRONG**: Approx is deprecated and asymmetric
+### 4. **FLOATING POINT - PREFER MATCHERS OVER APPROX IN NEW TESTS**
+❌ **AVOID in new tests**: Approx is legacy and asymmetric
 ```cpp
-REQUIRE(calculated_value == Catch::Approx(expected));  // Deprecated!
+REQUIRE(calculated_value == Catch::Approx(expected));  // Legacy - prefer matchers
 ```
+
+> **Reality note**: 16 existing test files (e.g. `libnest2d/libnest2d_tests_main.cpp`, `libslic3r/test_3mf.cpp`) still use `Catch::Approx`, which remains functional in the bundled Catch2 3.11.0. Do not mass-migrate them as part of unrelated changes; migration is a separate cleanup task if ever prioritized.
 
 ✅ **CORRECT**: Use floating point matchers
 ```cpp
@@ -98,9 +100,9 @@ REQUIRE_THAT(calculated_value, WithinULP(expected, 4));     // 4 ULPs apart
 
 ## Overview of OrcaSlicer's Testing Framework
 
-OrcaSlicer uses **Catch2 v2** as its primary testing framework. The test suite is organized into several modules that mirror the project's architectural components:
+OrcaSlicer uses **Catch2 v3** as its primary testing framework (bundled copy in `tests/catch2/`, version **3.11.0** per `tests/catch2/src/catch2/catch_version_macros.hpp`). The test suite is organized into several modules that mirror the project's architectural components:
 
-> **Note**: OrcaSlicer currently uses Catch2 v2 (based on `#include <catch2/catch.hpp>` includes). Some features mentioned in this guide are only available in v3 and marked accordingly.
+> **Note**: Tests use v3-style includes (`#include <catch2/catch_all.hpp>`). Version-availability annotations in this guide (e.g. "v3.3.0+") are all satisfied by the bundled 3.11.0.
 
 ### Test Structure
 ```
@@ -149,13 +151,13 @@ Stereolithography specific tests:
 
 ### File Organization
 1. **Naming Convention**: `test_<feature>.cpp` (e.g., `test_geometry.cpp`)
-2. **Header Structure**: Include `<catch2/catch.hpp>` first, then relevant headers
+2. **Header Structure**: Include `<catch2/catch_all.hpp>` first, then relevant headers
 3. **Namespace Usage**: Use `using namespace Slic3r;` for convenience
 4. **File Placement**: Add to appropriate test directory and update CMakeLists.txt
 
 ### Test Naming and Structure
 ```cpp
-#include <catch2/catch.hpp>
+#include <catch2/catch_all.hpp>
 #include "libslic3r/Point.hpp"
 
 using namespace Slic3r;
@@ -384,9 +386,7 @@ TEST_CASE("Explicit test control", "[Control]") {
     WARN("This warns but doesn't fail the test");
     
     if (precondition_not_met) {
-        // SKIP("Reason");  // v3.3.0+ only, not available in v2
-        SUCCEED("Test cannot run due to precondition");  // v2 alternative
-        return;
+        SKIP("Reason");  // Available since v3.3.0 (bundled Catch2 is 3.11.0)
     }
     
     if (critical_failure) {
@@ -506,7 +506,7 @@ TEST_CASE("Algorithm performance", "[Performance][Algorithm]") {
     // Large test data
     std::vector<Point> points = generate_large_point_set(10000);
     
-    // Time the operation (manual timing for Catch2 v2)
+    // Time the operation (manual timing; BENCHMARK is also available)
     auto start = std::chrono::high_resolution_clock::now();
     auto result = convex_hull(points);
     auto end = std::chrono::high_resolution_clock::now();
@@ -679,12 +679,12 @@ DynamicPrintConfig config = config(TestConfig::PLA_default);
 
 ### Floating-Point Comparisons
 
-> **CRITICAL**: Never use Approx - it's deprecated due to asymmetry and other issues
+> **CRITICAL**: In new tests, avoid Approx - it's legacy and asymmetric; use matchers instead (existing tests that use Approx are tolerated - see rule 4 at the top)
 
-❌ **Incorrect**:
+❌ **Incorrect** (for new tests):
 ```cpp
 REQUIRE(calculated_volume == expected_volume);           // Exact equality
-REQUIRE(calculated_volume == Catch::Approx(expected));   // Deprecated! Asymmetric!
+REQUIRE(calculated_volume == Catch::Approx(expected));   // Legacy! Asymmetric!
 ```
 
 ✅ **Correct**: Always use floating point matchers
@@ -746,7 +746,7 @@ REQUIRE_THROWS_AS(risky_function(), SpecificException);
 
 ⚠️ **CRITICAL**: Catch2 assertions are **NOT thread-safe** by default!
 
-> **Note**: Catch2 v3.9.0+ has opt-in thread-safe assertions via `CATCH_CONFIG_EXPERIMENTAL_THREAD_SAFE_ASSERTIONS`, but OrcaSlicer uses v2
+> **Note**: Catch2 v3.9.0+ has opt-in thread-safe assertions via `CATCH_CONFIG_EXPERIMENTAL_THREAD_SAFE_ASSERTIONS`; OrcaSlicer bundles 3.11.0 but does not define this flag, so treat assertions as NOT thread-safe
 
 ❌ **Incorrect**: Will cause undefined behavior or crashes
 ```cpp
@@ -812,7 +812,7 @@ TEST_CASE("Resource management", "[Memory]") {
 ### Runtime Performance
 ```cpp
 TEST_CASE("Performance-sensitive test", "[Performance]") {
-    // Manual timing for Catch2 v2 (v3 has built-in benchmarking)
+    // Manual timing example (BENCHMARK is also built in)
     auto start = std::chrono::high_resolution_clock::now();
     
     auto result = expensive_operation();
@@ -921,21 +921,16 @@ std::foo_function();     // Always call qualified
 // NOT: #include <foo.h> and foo_function();
 ```
 
-### Catch2 Version-Specific Limitations
+### Catch2 Version Notes
 ```cpp
-// OrcaSlicer uses Catch2 v2 - these features are NOT available:
-// SKIP() macro                          - Available in v3.3.0+
-// Thread-safe assertions                - Available in v3.9.0+  
-// BENCHMARK improvements                 - Many in v3.x
-// testCasePartial events                - Available in v3.0.1+
-// Multiple reporters                    - Available in v3.0.1+
-// STATIC_CHECK macro                    - Available in v3.0.1+
-
-// v2 Limitations to remember:
-// - Sections can be re-run if last section fails
-// - String matcher is "Contains" not "ContainsSubstring"
-// - Limited benchmarking support compared to v3
-// - No test sharding built-in
+// OrcaSlicer bundles Catch2 3.11.0 (tests/catch2/) - v3 features ARE available:
+// SKIP() macro                          - since v3.3.0
+// Thread-safe assertions (opt-in flag)  - since v3.9.0 (flag not defined in this build)
+// testCasePartial events                - since v3.0.1
+// Multiple reporters                    - since v3.0.1
+// STATIC_CHECK macro                    - since v3.0.1
+// Built-in BENCHMARK and test sharding  - v3
+// String matcher is "ContainsSubstring" (v2's "Contains" is gone)
 ```
 
 ### Test Organization Best Practices
