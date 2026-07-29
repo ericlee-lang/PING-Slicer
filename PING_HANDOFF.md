@@ -15,6 +15,19 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-29 —「0728 ORCA 續」棒：**T012/T013/T014 三顆全鏈出貨＋治理修錯＋T015 候選備妥**）
+
+**線況**：開發線 `ping/v3.5` tip＝`4013aaea`（bundle **72**、未推）｜出貨線 `release/v3.6` tip `6caee4bf`（bundle **84**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
+
+**T012~T014 全鏈已出貨**（G 槽現行＝TEST-T014、bundle 83；Eric D 槽＝T013）：帳目正本＝`00治理文件/發布登錄簿.md` T 號表＋`00治理文件/認領簿.md` T11 線 c-0728-T11-01~c-0729-T11-16（每張牌含收工全紀錄）。回報中心三單（#24/#51/#39＋#32）已知會發複測。
+
+**T015 候選內容（兩線已入版未推）**：①內外牆加速度全機型 **1500**（Eric 0729 裁「表面品質與穩定性」；77 檔 3000→1500、**Classic Marlin 隔離 0 照舊**）②洗料塔 **錐體/頂角30/最快列印速度60**（rib→cone、20→30、90→60，211 製程統一）。verify 全綠（389/108、305/76）＋值稽核直方圖精準；skill core-rules 已回填（`d6de05d`）。**眼驗項（裝 T015 後）**：多料製程洗料塔呈錐形／內外牆加速度欄 1500／洗料塔速度≤60。
+
+**治理修正 Stage 1（PM 發包、Eric 拍板）已完成**：三 worktree 根 CLAUDE.md（刪重複 build 段＋Linux build dir 定 `build`）＋ tests/CLAUDE.md（Catch2 v2→實況 **3.11.0**、include=catch_all.hpp、「NEVER USE APPROX」限縮＝**新測試優先 matchers、現存 16 檔豁免不遷移**）＋照片磚過期記憶標上蓋。三 commit：dev `a8580de0`／release `059d17cc`／phototile `f7e139cf`；逐條處置＋備份 SHA-256＝`00治理文件/治理修正_20260729_ORCA_manifest.md`。⚠ **時序鐵則：AGENTS.md 正本化／@AGENTS.md 橋接＝Stage 2，必須等 ping-system pilot gate（至 08-01）通過後另回合做，不得順手**。
+
+**等 Eric**：①D 槽換 T014？（回「換」全自動；C++ 眼驗三條要裝機看）②T015 發車令 ③T012~T014 眼驗、8/9 實印。詳細等待項＝`待確認/20260604 ORCA客製.md` 頂部。
+
+---
 ### 🏁 收工快照（2026-07-28 — 本 session 總收工：**T009/T010/T011 三顆 T 全結**＋兩台外機異常調查中）
 
 **線況**：開發線 `ping/v3.5` tip＝本 handoff commit（前一顆 `0dff6dfe`、bundle **66**、已 push）｜出貨線 `release/v3.6` tip `81e9a96a`（bundle **77**＝T011、已 push）｜兩線工作區乾淨｜untracked `resources/web/mixer/`、`sandboxes/`＝他線勿動。
