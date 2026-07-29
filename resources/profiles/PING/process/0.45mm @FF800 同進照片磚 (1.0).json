@@ -266,11 +266,11 @@
     "wipe_on_loops": "0",
     "wipe_speed": "80%",
     "wipe_tower_bridging": "10",
-    "wipe_tower_cone_angle": "20",
+    "wipe_tower_cone_angle": "30",
     "wipe_tower_extra_flow": "100%",
     "wipe_tower_extra_spacing": "100%",
     "wipe_tower_filament": "0",
-    "wipe_tower_max_purge_speed": "90",
+    "wipe_tower_max_purge_speed": "60",
     "wipe_tower_no_sparse_layers": "0",
     "wipe_tower_rotation_angle": "0",
     "wiping_volumes_extruders": [
@@ -296,7 +296,7 @@
     "compatible_printers": [
         "FF800 同進照片磚 1.0 nozzle"
     ],
-    "wipe_tower_wall_type": "rib",
+    "wipe_tower_wall_type": "cone",
     "support_base_pattern": "rectilinear",
     "tree_support_wall_count": "0"
 }

@@ -168,6 +168,16 @@ for name, (kind, d) in presets.items():
             _tower = "45" if "PLA+PVA" in name else "25"
             if d.get("prime_tower_width") != _tower:
                 err(f"[洗料塔寬度 {_tower}] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
+            # 洗料塔 0729 三裁（Eric）：錐體＋頂角 30＋最快列印速度 60（0708 肋條裁定退役）
+            for key, value in (("wipe_tower_wall_type", "cone"),
+                               ("wipe_tower_cone_angle", "30"),
+                               ("wipe_tower_max_purge_speed", "60")):
+                if d.get(key) != value:
+                    err(f"[洗料塔錐體 0729] {name}: {key}={d.get(key)!r}, expected {value!r}")
+            # 內外牆加速度 0729（Eric「表面品質與穩定性」）：全機型 1500（本線無 Classic）
+            for key in ("outer_wall_acceleration", "inner_wall_acceleration"):
+                if d.get(key) != "1500":
+                    err(f"[內外牆加速度 1500] {name}: {key}={d.get(key)!r}")
     if kind == "filament":
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
