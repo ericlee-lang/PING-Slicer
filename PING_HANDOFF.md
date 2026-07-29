@@ -45,7 +45,9 @@
 ---
 ### 🏁 收工快照（2026-07-29 —「0728 ORCA 續」棒：**T012/T013/T014 三顆全鏈出貨＋治理修錯＋T015 候選備妥**）
 
-**線況（0729 晚三批後）**：開發線 `ping/v3.5` tip＝`1cd30d32`（bundle 72＋GCode.cpp 對稱批、未推；⚠ PT 照片磚線同 repo 活動中、tip 可能再前進）｜出貨線 `release/v3.6` tip `d3d51b53`（bundle **85**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
+**線況（0730 四批後）**：開發線 `ping/v3.5` tip＝`222eae5f`（bundle **73**、未推；⚠ PT 照片磚線同 repo 活動中、tip 可能再前進）｜出貨線 `release/v3.6` tip `a7d95bad`（bundle **86**、未推＝**押 T015**；⚠ 出貨線 push 即觸發 CI、發車令未下前勿推）｜phototile `f7e139cf`（僅治理 docs、其既存髒檔他線勿動）。
+
+**第四批（0730）＝組合製程功能歸類改名**（Eric 裁＋Codex 四輪雙審「可定稿」才動工；審查軌跡＝專案根 `_審查_組合製程功能歸類改名_*`）：五類名 易拆(Z0)／易拆(Z0)水溶／易拆(Z0)+棧板／雙料(Z隙)／雙料(Z隙)+棧板（90 支純改名、renamed_from 舊全名回溯、內部 cb token 不動＝檔名前綴/easy_release/raft 零改）；C++＝Tab.cpp 兩張連動表換鍵＋#39 守衛「+棧板」與三組 source→target；verify＝token 分類＋五類值鎖＋id baseline fixture＋跨層護欄 v2；**新增 `ping_verify.yml`（verify 首次進 CI）**＋`patch_conf_combo_rename.py`（Eric 機 conf 手術、T015 裝機後跑、先 dry-run）。⚠ 組合連動的操作說明自此以新名為準（材料對舊名只活在 renamed_from 與歷史紀錄）。
 
 **T012~T014 全鏈已出貨**（G 槽現行＝TEST-T014、bundle 83；Eric D 槽＝T013）：帳目正本＝`00治理文件/發布登錄簿.md` T 號表＋`00治理文件/認領簿.md` T11 線 c-0728-T11-01~c-0729-T11-16（每張牌含收工全紀錄）。回報中心三單（#24/#51/#39＋#32）已知會發複測。
 
