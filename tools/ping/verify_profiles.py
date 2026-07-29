@@ -26,12 +26,68 @@ import json
 import os
 import re
 import sys
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 PINGDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "resources", "profiles", "PING")
 ROOT_JSON = PINGDIR + ".json"
 
 errors = []
+
+# ★ 組合製程功能歸類名（Eric 0729 裁；Codex 四輪雙審可定稿）。token 抽取＝與 Tab.cpp
+# ping_apply_combo_filaments 同規則（@ 前、最後一個 ASCII 空白後），分類判定一律走本組，
+# 不再 substring 猜名（二輪必改 9）。
+COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆(Z0)",      "易拆(Z0)水溶"
+COMBO_CAT_EASYPAL, COMBO_CAT_DUAL    = "易拆(Z0)+棧板", "雙料(Z隙)"
+COMBO_CAT_DUALPAL                    = "雙料(Z隙)+棧板"
+COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_DUAL, COMBO_CAT_DUALPAL}
+COMBO_OLD_TOKENS = {"PLA+SUP", "PLA+PVA", "ABS+SUP", "PLA+PLA", "ABS+ABS"}
+
+def cxx_unescape(s):
+    """把 C++ 字面裡的 \\xNN 逸出序列解回 UTF-8 字串（房規：CJK 字面走逸出）。"""
+    return re.sub(r'(?:\\x[0-9A-Fa-f]{2})+',
+                  lambda m: bytes(int(h, 16) for h in re.findall(r'\\x([0-9A-Fa-f]{2})', m.group(0)))
+                            .decode("utf-8", "replace"), s)
+
+def cxx_escape(s):
+    """把字串裡的非 ASCII 字元轉成 C++ \\xNN 逸出形（用於比對 C++ 原始碼字面）。"""
+    return "".join(c if ord(c) < 128 else "".join("\\x%02X" % b for b in c.encode("utf-8")) for c in s)
+
+def combo_token(name):
+    """回傳製程名的組合 token（五新名之一）；非組合製程回 None。"""
+    at = name.find("@")
+    if at <= 0:
+        return None
+    head = name[:at].rstrip()
+    sp = head.rfind(" ")
+    if sp < 0:
+        return None
+    tok = head[sp + 1:]
+    return tok if tok in COMBO_TOKENS else None
+
+# 期望配對 baseline（值＝dump 自 Tab.cpp:177-247 現值；四輪修訂 C——配錯在冊線材也要紅）
+EXPECTED_COMBO_MAP = {
+    COMBO_CAT_EASY:    ("PING PLA - 210", "PING SupPLA"),
+    COMBO_CAT_PVA:     ("PING PLA - 210", "PING PVA"),
+    COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
+    COMBO_CAT_DUAL:    ("PING PLA - 220", "PING PLA - 220"),
+    COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
+}
+EXPECTED_COMBO_MAP_HF = {
+    COMBO_CAT_EASY:    ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),
+    COMBO_CAT_PVA:     ("PING PLA - 高流量噴頭", "PING PVA"),
+    COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
+    COMBO_CAT_DUAL:    ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭"),
+    COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
+}
+# #39 棧板建議（PresetComboBoxes.cpp）期望三組 source→target＋守衛 token（跨層護欄用）
+EXPECTED_P39 = {" %s @" % COMBO_CAT_EASY:  " %s @" % COMBO_CAT_EASYPAL,
+                " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL,
+                " %s @" % COMBO_CAT_DUAL:  " %s @" % COMBO_CAT_DUALPAL}
+
 
 
 def err(msg):
@@ -115,7 +171,8 @@ for name, (kind, d) in presets.items():
             })
             # PLA+PVA 專屬製程（Eric 2026-07-25 裁「出」；值＝V2.1 定稿案對帳）：案值特例覆蓋家規。
             # 支撐角 50 ＝ 案值 Cura 40 換算（Orca ＝ 90 − Cura）＝比全庫 35 多支撐＝水溶支撐合理特例。
-            if "PLA+PVA" in name:
+            _ctok = combo_token(name)
+            if _ctok == COMBO_CAT_PVA:
                 expected["support_threshold_angle"] = "50"
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
@@ -128,7 +185,7 @@ for name, (kind, d) in presets.items():
                 # 線距 2026-07-22 裁 ×9（密度 10%＝Cura 全庫等效；蓋 7/17 ×8=12.5%）
                 # 樹狀 2026-07-25 裁保守配方：分支直徑 ×10→×12（引擎上限 10）、新增分支距離 ×6
                 # 主體線距：家規 ×9（密度 10%）；PLA+PVA 專屬製程 ×19（案值密度 5%）
-                _spacing = ("%g" % round(nz * 19, 2)) if "PLA+PVA" in name else ("%g" % (nz * 9))
+                _spacing = ("%g" % round(nz * 19, 2)) if _ctok == COMBO_CAT_PVA else ("%g" % (nz * 9))
                 for key, value in (("tree_support_branch_diameter", "%g" % min(nz * 12, 10.0)),
                                    ("tree_support_branch_distance", "%g" % (nz * 6)),
                                    ("support_base_pattern_spacing", _spacing)):
@@ -142,9 +199,9 @@ for name, (kind, d) in presets.items():
                                    ("support_base_pattern", "rectilinear")]
                 # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
                 # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1
-                if "PLA+PVA" in name:
+                if _ctok == COMBO_CAT_PVA:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 0.75, 2)))
-                elif "+SUP" not in name and "3in1" not in name:
+                elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL) and "3in1" not in name:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 1.0, 2)))
                 for key, value in expected_recipe:
                     if d.get(key) != value:
@@ -165,7 +222,7 @@ for name, (kind, d) in presets.items():
                     if d.get(key) != value:
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
             # 洗料塔寬：全庫 25（0717 裁）；PLA+PVA 專屬製程 45（案值＝劉勝賢現行）
-            _tower = "45" if "PLA+PVA" in name else "25"
+            _tower = "45" if combo_token(name) == COMBO_CAT_PVA else "25"
             if d.get("prime_tower_width") != _tower:
                 err(f"[洗料塔寬度 {_tower}] {name}: prime_tower_width={d.get('prime_tower_width')!r}")
             # 洗料塔 0729 三裁（Eric）：錐體＋頂角 30＋最快列印速度 60（0708 肋條裁定退役）
@@ -178,6 +235,30 @@ for name, (kind, d) in presets.items():
             for key in ("outer_wall_acceleration", "inner_wall_acceleration"):
                 if d.get(key) != "1500":
                     err(f"[內外牆加速度 1500] {name}: {key}={d.get(key)!r}")
+            # ★ 功能歸類五類值鎖（0730 改名批；Z隙＝一層層高〔三輪更正、非固定 0.2〕）
+            _vtok = combo_token(name)
+            if _vtok:
+                _lh_m = re.match(r"([\d.]+)mm ", name)
+                _lh_v = _lh_m.group(1) if _lh_m else None
+                if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL):
+                    for zk in ("support_top_z_distance", "support_bottom_z_distance"):
+                        if d.get(zk) != "0":
+                            err(f"[功能歸類・易拆 Z0] {name}: {zk}={d.get(zk)!r}")
+                else:
+                    for zk in ("support_top_z_distance", "support_bottom_z_distance"):
+                        if d.get(zk) != _lh_v:
+                            err(f"[功能歸類・雙料 Z隙=層高] {name}: {zk}={d.get(zk)!r}, expected {_lh_v!r}")
+                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, COMBO_CAT_DUALPAL) else "0"
+                if d.get("raft_layers") != _raft:
+                    err(f"[功能歸類・棧板 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
+                # renamed_from＝字串＋恰為對應舊材料對全名（改名批回溯鏈）
+                _new2old = {COMBO_CAT_EASY: "PLA+SUP", COMBO_CAT_PVA: "PLA+PVA",
+                            COMBO_CAT_EASYPAL: "ABS+SUP", COMBO_CAT_DUAL: "PLA+PLA",
+                            COMBO_CAT_DUALPAL: "ABS+ABS"}
+                _rf = d.get("renamed_from")
+                _rf_expect = name.replace(" %s @" % _vtok, " %s @" % _new2old[_vtok])
+                if not isinstance(_rf, str) or _rf != _rf_expect:
+                    err(f"[功能歸類・renamed_from] {name}: {_rf!r}, expected {_rf_expect!r}")
     if kind == "filament":
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
@@ -417,27 +498,96 @@ else:
         if _v not in presets:
             err(f"[跨層護欄・C++ 線材名對不上 profile] Tab.cpp {_k} = {_v!r} 不在 bundle ⇒ 組合連動會靜默失效")
 
-    # 2) 每個「雙料組合製程」的組合 token 都必須在 COMBO_FILAMENTS 表裡有對應
-    _map_keys = set(re.findall(r'\{"([A-Z]{2,4}\+[A-Z]{2,4})",\s*\{', _src))
-    if not _map_keys:
-        err("[跨層護欄] Tab.cpp 抓不到 COMBO_FILAMENTS 的組合鍵（格式變了？護欄失效）")
+    # 2) 功能歸類改名批（0730、Codex 四輪定稿）：兩張連動表**分別**解析、逐張對期望配對 baseline
+    #    exact 比對（缺鍵/多鍵/配錯在冊線材皆紅——二輪必改 10）；process token 與兩張 map 雙向相等。
+    def _parse_combo_map(src, map_name):
+        m = re.search(re.escape(map_name) + r"\s*=\s*\{(.*?)\n\s*\};", src, re.S)
+        if not m:
+            return None
+        body = m.group(1)
+        pairs = {}
+        for k, v1, v2 in re.findall(r'\{"([^"]+)",\s*\{([A-Za-z_0-9]+),\s*([A-Za-z_0-9]+)\}\}', body):
+            pairs[cxx_unescape(k)] = (v1, v2)
+        return pairs
+
+    _consts = {k: cxx_unescape(v) for k, v in
+               re.findall(r'constexpr const char \*(\w+)\s*=\s*"([^"]*)"', _src)}
+    for _map_name, _expected in (("COMBO_FILAMENTS", EXPECTED_COMBO_MAP),
+                                 ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
+        _pairs = _parse_combo_map(_src, _map_name)
+        if _pairs is None:
+            err(f"[跨層護欄] Tab.cpp 抓不到 {_map_name}（格式變了？護欄失效）")
+            continue
+        _resolved = {k: (_consts.get(a, a), _consts.get(b, b)) for k, (a, b) in _pairs.items()}
+        if set(_resolved) != set(_expected):
+            err(f"[跨層護欄・{_map_name} 鍵集合] 實得 {sorted(_resolved)!r} ≠ 期望 {sorted(_expected)!r}")
+        for _k, _exp_pair in _expected.items():
+            if _k in _resolved and _resolved[_k] != _exp_pair:
+                err(f"[跨層護欄・{_map_name} 配對] {_k}: {_resolved[_k]!r} ≠ 期望 {_exp_pair!r}")
+        for _k, (_a, _b) in _resolved.items():
+            for _fil in (_a, _b):
+                if _fil not in presets:
+                    err(f"[跨層護欄・{_map_name} 線材不在 bundle] {_k} → {_fil!r}")
+    # token 契約（三輪建議 1 落點）：五 token 禁含 ASCII 空白與 @；抽取函數 exact 復原
+    for _t in COMBO_TOKENS:
+        if " " in _t or "@" in _t:
+            err(f"[跨層護欄・token 契約] {_t!r} 含空白或 @＝Tab.cpp 最後空白後擷取會壞")
+        if combo_token(f"0.2mm {_t} @FD300 (0.4)") != _t:
+            err(f"[跨層護欄・token 契約] {_t!r} 經抽取函數無法 exact 復原")
+    # process token ↔ map 雙向相等（每支雙料組合製程都有連動；map 無多餘鍵已在鍵集合查過）
     _proc_tokens = set()
     for _n, (_k, _d) in presets.items():
-        if _k != "process" or _d.get("instantiation") != "true":
+        if _k == "process" and _d.get("instantiation") == "true":
+            _t = combo_token(_n)
+            if _t:
+                _proc_tokens.add(_t)
+    if _proc_tokens != COMBO_TOKENS:
+        err(f"[跨層護欄・process token 集合] 實得 {sorted(_proc_tokens)!r} ≠ 期望五類")
+    # 3) #39 棧板建議（PresetComboBoxes.cpp）：三組 source→target＋守衛 pattern exact（二輪必改 8/10）
+    _pcb = os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp")
+    if not os.path.isfile(_pcb):
+        err(f"[跨層護欄] 找不到 {_pcb}（#39 護欄形同虛設）")
+    else:
+        _psrc = io.open(_pcb, encoding="utf-8", errors="ignore").read()
+        for _s, _t in EXPECTED_P39.items():
+            if (_s not in _psrc and cxx_escape(_s) not in _psrc) or \
+               (_t not in _psrc and cxx_escape(_t) not in _psrc):
+                err(f"[跨層護欄・#39 棧板建議] 缺 source/target 字面 {_s!r}→{_t!r}")
+        if cxx_escape("+棧板") not in _psrc and '"+棧板"' not in _psrc:
+            err("[跨層護欄・#39 棧板建議] 守衛未改「+棧板」判定（舊 ABS+ 守衛對新名失效）")
+
+# ★ 功能歸類普查（0730 改名批）：五 token × 18 支 exact；舊材料對名歸零
+_combo_census = {}
+for _n, (_k, _d) in presets.items():
+    if _k != "process":
+        continue
+    _t = combo_token(_n)
+    if _t:
+        _combo_census[_t] = _combo_census.get(_t, 0) + 1
+    for _old in COMBO_OLD_TOKENS:
+        if (" %s @" % _old) in _n:
+            err(f"[功能歸類・舊材料對名殘留] {_n}")
+for _t in sorted(COMBO_TOKENS):
+    if _combo_census.get(_t, 0) != 18:
+        err(f"[功能歸類・{_t} 應 18 支] 實得 {_combo_census.get(_t, 0)}")
+# id baseline（二輪必改 14／四輪修訂 C）：改名前快照＝舊名→新名→setting_id 90 條 exact，
+# 防重構位移／PVA 插回主迴圈／依新名重排 emission（fixture＝regen 前 dump、進 repo）。
+_idb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "combo_rename_id_baseline.json")
+if not os.path.isfile(_idb_path):
+    err("[功能歸類・id baseline] fixture 不存在（combo_rename_id_baseline.json）")
+else:
+    _idb = json.load(io.open(_idb_path, encoding="utf-8"))
+    if len(_idb) != 90:
+        err(f"[功能歸類・id baseline] fixture 應 90 條、實得 {len(_idb)}")
+    for _row in _idb:
+        _ent = presets.get(_row["new"])
+        if not _ent or _ent[0] != "process":
+            err(f"[功能歸類・id baseline] 新名不存在：{_row['new']}")
             continue
-        _at = _n.find("@")
-        if _at <= 0:
-            continue
-        _head = _n[:_at].rstrip()
-        _sp = _head.rfind(" ")
-        if _sp == -1:
-            continue
-        _tok = _head[_sp + 1:]
-        if "+" in _tok:
-            _proc_tokens.add(_tok)
-    for _tok in sorted(_proc_tokens - _map_keys):
-        err(f"[跨層護欄・組合製程沒有連動對應] 製程存在 {_tok} 但 Tab.cpp COMBO_FILAMENTS 無此鍵 "
-            f"⇒ 使用者選了該模式，線材槽不會跟著換")
+        if _ent[1].get("setting_id") != _row["setting_id"]:
+            err(f"[功能歸類・id baseline] {_row['new']}: setting_id={_ent[1].get('setting_id')!r} ≠ {_row['setting_id']!r}（位移！）")
+        if _ent[1].get("renamed_from") != _row["old"]:
+            err(f"[功能歸類・id baseline] {_row['new']}: renamed_from={_ent[1].get('renamed_from')!r} ≠ {_row['old']!r}")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 if errors:

@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.72",
+    "version": "01.00.00.73",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -127,52 +127,52 @@
             "sub_path": "process/0.3mm @FP300 (0.6).json"
         },
         {
-            "name": "0.125mm PLA+SUP @FD300 (0.25)",
-            "sub_path": "process/0.125mm PLA+SUP @FD300 (0.25).json"
+            "name": "0.125mm 易拆(Z0) @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0) @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm PLA+PLA @FD300 (0.25)",
-            "sub_path": "process/0.125mm PLA+PLA @FD300 (0.25).json"
+            "name": "0.125mm 雙料(Z隙) @FD300 (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm ABS+SUP @FD300 (0.25)",
-            "sub_path": "process/0.125mm ABS+SUP @FD300 (0.25).json"
+            "name": "0.125mm 易拆(Z0)+棧板 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm ABS+ABS @FD300 (0.25)",
-            "sub_path": "process/0.125mm ABS+ABS @FD300 (0.25).json"
+            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 (0.25).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD300 (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD300 (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD300 (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD300 (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD300 (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD300 (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD300 (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD300 (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD300 (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD300 (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD300 (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD300 (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD300 (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD300 (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD300 (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD300 (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD300 (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD300 (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 (0.6).json"
         },
         {
             "name": "0.125mm @FD300 單料頭 (0.25)",
@@ -199,100 +199,100 @@
             "sub_path": "process/0.3mm @FD300 同進 (0.6).json"
         },
         {
-            "name": "0.125mm PLA+SUP @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm PLA+SUP @FD300 關門 (0.25).json"
+            "name": "0.125mm 易拆(Z0) @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0) @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm PLA+PLA @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm PLA+PLA @FD300 關門 (0.25).json"
+            "name": "0.125mm 雙料(Z隙) @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm ABS+SUP @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm ABS+SUP @FD300 關門 (0.25).json"
+            "name": "0.125mm 易拆(Z0)+棧板 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm ABS+ABS @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm ABS+ABS @FD300 關門 (0.25).json"
+            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD300 關門 (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD300 關門 (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD300 關門 (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD300 關門 (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD300 關門 (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD300 關門 (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD300 關門 (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD300 關門 (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.125mm PLA+SUP @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm PLA+SUP @FD300 Pro (0.25).json"
+            "name": "0.125mm 易拆(Z0) @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0) @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm PLA+PLA @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm PLA+PLA @FD300 Pro (0.25).json"
+            "name": "0.125mm 雙料(Z隙) @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm ABS+SUP @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm ABS+SUP @FD300 Pro (0.25).json"
+            "name": "0.125mm 易拆(Z0)+棧板 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm ABS+ABS @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm ABS+ABS @FD300 Pro (0.25).json"
+            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD300 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD300 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD300 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD300 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD300 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD300 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD300 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD300 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 Pro (0.6).json"
         },
         {
             "name": "0.125mm @FD300 Pro 單料頭 (0.25)",
@@ -319,52 +319,52 @@
             "sub_path": "process/0.3mm @FD300 Pro 同進 (0.6).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD450 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD450 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD450 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD450 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD450 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD450 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD450 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD450 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+SUP @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+SUP @FD450 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0) @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0) @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm PLA+PLA @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PLA @FD450 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙) @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙) @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+SUP @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+SUP @FD450 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)+棧板 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+ABS @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+ABS @FD450 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙)+棧板 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD450 Pro (1.0).json"
         },
         {
             "name": "0.2mm @FD450 Pro 單料頭 (0.4)",
@@ -391,52 +391,52 @@
             "sub_path": "process/0.5mm @FD450 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD600 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD600 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD600 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD600 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD600 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD600 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD600 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD600 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+SUP @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+SUP @FD600 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0) @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0) @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm PLA+PLA @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PLA @FD600 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙) @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙) @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+SUP @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+SUP @FD600 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)+棧板 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+ABS @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+ABS @FD600 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙)+棧板 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD600 Pro (1.0).json"
         },
         {
             "name": "0.2mm @FD600 Pro 單料頭 (0.4)",
@@ -463,52 +463,52 @@
             "sub_path": "process/0.5mm @FD600 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.2mm PLA+SUP @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+SUP @FD800 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0) @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0) @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm PLA+PLA @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PLA @FD800 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙) @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙) @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+SUP @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+SUP @FD800 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)+棧板 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm ABS+ABS @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm ABS+ABS @FD800 Pro (0.4).json"
+            "name": "0.2mm 雙料(Z隙)+棧板 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+SUP @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+SUP @FD800 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0) @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0) @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm PLA+PLA @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PLA @FD800 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙) @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙) @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+SUP @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+SUP @FD800 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)+棧板 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm ABS+ABS @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm ABS+ABS @FD800 Pro (0.6).json"
+            "name": "0.3mm 雙料(Z隙)+棧板 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+SUP @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+SUP @FD800 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0) @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0) @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm PLA+PLA @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PLA @FD800 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙) @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙) @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+SUP @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+SUP @FD800 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)+棧板 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm ABS+ABS @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm ABS+ABS @FD800 Pro (1.0).json"
+            "name": "0.5mm 雙料(Z隙)+棧板 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD800 Pro (1.0).json"
         },
         {
             "name": "0.2mm @FD800 Pro 單料頭 (0.4)",
@@ -759,76 +759,76 @@
             "sub_path": "process/0.5mm_棧板 @FD800 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.125mm PLA+PVA @FD300 (0.25)",
-            "sub_path": "process/0.125mm PLA+PVA @FD300 (0.25).json"
+            "name": "0.125mm 易拆(Z0)水溶 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 (0.25).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD300 (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD300 (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD300 (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD300 (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 (0.6).json"
         },
         {
-            "name": "0.125mm PLA+PVA @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm PLA+PVA @FD300 關門 (0.25).json"
+            "name": "0.125mm 易拆(Z0)水溶 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD300 關門 (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD300 關門 (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.125mm PLA+PVA @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm PLA+PVA @FD300 Pro (0.25).json"
+            "name": "0.125mm 易拆(Z0)水溶 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD300 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD300 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD450 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD450 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+PVA @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PVA @FD450 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)水溶 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD600 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD600 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+PVA @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PVA @FD600 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)水溶 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.2mm PLA+PVA @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm PLA+PVA @FD800 Pro (0.4).json"
+            "name": "0.2mm 易拆(Z0)水溶 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.3mm PLA+PVA @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm PLA+PVA @FD800 Pro (0.6).json"
+            "name": "0.3mm 易拆(Z0)水溶 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.5mm PLA+PVA @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm PLA+PVA @FD800 Pro (1.0).json"
+            "name": "0.5mm 易拆(Z0)水溶 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD800 Pro (1.0).json"
         }
     ],
     "filament_list": [
