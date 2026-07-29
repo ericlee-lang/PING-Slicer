@@ -4649,6 +4649,50 @@ int GUI_App::request_user_unbind(std::string dev_id)
     return result;
 }
 
+// ---- PING 照片磚：工作室匯出時的自動選機（Eric 2026-07-29 裁 A 案）----
+// 依工作室送來的 mode（dual/quad）＋口徑，從 preset bundle「實資料」解析目標同進照片磚機：
+// printer_model 含「同進照片磚」＋ dual→FD／quad→FF 家族 ＋ printer_variant 對口徑。
+// 不寫死機名＝日後加新照片磚機（或 C 案準備頁整合要列可選機）都吃同一來源。
+struct PingPhotoTilePrinter
+{
+    bool        known_mode       = false; // mode 欄位可辨識（舊版網頁沒帶＝false，行為照舊）
+    bool        already_selected = false; // 目前機器（含其衍生 user preset）已符合＝不切不打擾
+    std::string preset_name;              // 需要切換時的目標；解析不到＝空
+};
+
+static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& mode, const std::string& nozzle)
+{
+    PingPhotoTilePrinter out;
+    if ((mode != "dual" && mode != "quad") || nozzle.empty())
+        return out;
+    out.known_mode = true;
+
+    const std::string family  = mode == "dual" ? "FD" : "FF";
+    const auto        matches = [&](const Preset& preset) {
+        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
+        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
+        if (pm == nullptr || pv == nullptr)
+            return false;
+        return pm->value.find("同進照片磚") != std::string::npos &&
+               pm->value.rfind(family, 0) == 0 &&
+               pv->value == nozzle;
+    };
+
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return out;
+    if (matches(bundle->printers.get_selected_preset())) {
+        out.already_selected = true;
+        return out;
+    }
+    for (const Preset& preset : bundle->printers)
+        if (preset.is_system && matches(preset)) {
+            out.preset_name = preset.name;
+            return out;
+        }
+    return out;
+}
+
 std::string GUI_App::handle_web_request(std::string cmd)
 {
     try {
@@ -4794,7 +4838,27 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 }
 
                 const std::string project_path = output_path.string();
-                CallAfter([this, project_path] { request_open_project(project_path); });
+                // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
+                const auto target = ping_resolve_photo_tile_printer(root.get<std::string>("data.mode", ""),
+                                                                    root.get<std::string>("data.nozzle", ""));
+                CallAfter([this, project_path, target] {
+                    if (!target.preset_name.empty()) {
+                        Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
+                        if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
+                            plater() != nullptr)
+                            plater()->get_notification_manager()->push_notification(
+                                NotificationType::CustomNotification,
+                                NotificationManager::NotificationLevel::RegularNotificationLevel,
+                                std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
+                    } else if (target.known_mode && !target.already_selected && plater() != nullptr) {
+                        // 唯一已知情境＝雙料×1.0 口徑（FD 家族無 1.0 機）：不硬切、提醒手選
+                        plater()->get_notification_manager()->push_notification(
+                            NotificationType::CustomNotification,
+                            NotificationManager::NotificationLevel::WarningNotificationLevel,
+                            "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
+                    }
+                    request_open_project(project_path);
+                });
             }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
