@@ -169,6 +169,9 @@
       <div class="row" id="teethRow" style="display:none"><label>邊界</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
+      <div class="row" id="p2aRow" style="display:none"><label>縫遮罩</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn"> 實驗 P2A：正/背面標禁縫區（blocker；驗證期預設關閉）</label>
+      </div>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 25×4 全料同出柱（防久未用料空燒）</label>
         柱寬 <input type="number" id="pillarXY" value="25" min="5" max="60" step="1" style="width:64px"> mm
@@ -234,7 +237,8 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                width:100, height:75, thick:6,     // 垂直模式實體尺寸（mm）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
-               teeth:false };                     // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
+               teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
+               p2aBlock:false };                  // P2A 正/背面禁縫 blocker（2026-07-29 原型；P1 驗證通過前預設關閉）
 let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
@@ -959,6 +963,7 @@ function syncOrientUI(){
   document.getElementById('sizeRow').style.display=v?'':'none';
   document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
+  document.getElementById('p2aRow').style.display=v?'':'none';      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
   document.getElementById('btnExport').style.display=v?'':'none';   // 3MF 輸出＝垂直模式限定
   if(!v) document.getElementById('exportStat').style.display='none';
@@ -1019,6 +1024,7 @@ noiseIn.onchange=e=>{
   e.target.value=params.noiseMm.toFixed(1); queue();
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
+document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); if(img) suggest(); };
 document.getElementById('pillarXY').onchange=e=>{
   params.pillarXY=Math.max(5,Math.min(60,+e.target.value||25)); e.target.value=params.pillarXY;
@@ -1132,8 +1138,14 @@ async function build3mf(){
     const VX=mesh.vertices;
     const F=mesh.triangles.map(t=>{
       const x0=VX[t[0]][0];
-      const seam=(Math.abs(x0-VX[t[1]][0])<1e-9 && Math.abs(x0-VX[t[2]][0])<1e-9) ? ' paint_seam="4"' : '';
-      return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${seam}/>`;
+      if(Math.abs(x0-VX[t[1]][0])<1e-9 && Math.abs(x0-VX[t[2]][0])<1e-9)
+        return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}" paint_seam="4"/>`;
+      /* P2A（Eric 2026-07-29 裁 C 批原型）：y 等值面＝正/背面 → 塗 blocker。
+         nibble "8"＝BLOCKER(2)<<2（TriangleSelector.cpp:1773 非分割碼 state=code>>2）；
+         blocker 判定在 enforcer 之後＝蓋得掉膨脹進正背面的假 Enforced（SeamPlacer.cpp:507）。 */
+      const y0=VX[t[0]][1];
+      const blk=(params.p2aBlock && Math.abs(y0-VX[t[1]][1])<1e-9 && Math.abs(y0-VX[t[2]][1])<1e-9) ? ' paint_seam="8"' : '';
+      return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${blk}/>`;
     });
     totalTiles+=mesh.tiles; totalVertices+=V.length; totalTriangles+=F.length;
     meshStats.push({label:part.k,components:mesh.components,tiles:mesh.tiles,vertices:V.length,triangles:F.length});
@@ -1221,7 +1233,7 @@ ${cfgParts.join('\n')}
 `PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
 尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
 口徑 ${params.nozzle} mm（水平最小色塊寬 ≥ ${(2*params.nozzle).toFixed(1)} mm，窄條已併入鄰色）
-接縫：端面 paint_seam 標記（交界／側邊窄面）——縫拉往零件交界；接縫位置請用「對齊」（V 溝已於 2026-07-29 移除）
+接縫：端面 paint_seam 標記（交界／側邊窄面）——縫拉往零件交界；接縫位置請用「對齊」（V 溝已於 2026-07-29 移除）；P2A 正背面禁縫=${params.p2aBlock?'開':'關'}
 雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
 ${palLines.join('\n')}`;
   const blob=await makeZip([
