@@ -1119,12 +1119,12 @@ async function build3mf(){
   const f=v=>Math.round(v*1000)/1000;
   const objXml=[]; const cfgParts=[]; const palLines=[];
   const meshStats=[];
-  /* V 溝（Eric 2026-07-20 定「方塊中間做小V」）：交界深度中央 1.2×0.6mm 內埋 V 溝（Eric 0720 二裁縮小：原 2.4×1.2 太大；窄於 2.2mm 的零件自動不開溝、靠端面標記）
-     （切進左零件、右零件平面封口＝隱藏空腔）——每層迴路多一個 90° 凹角，縫被鎖進
-     磚體正中央；搭配端面 paint_seam 與「接縫位置=對齊」使用。 */
-  const SEAM_NOTCH={depth:0.6,width:1.2};
+  /* V 溝已移除（Eric 2026-07-29 裁「尖點拿掉、目前沒有作用」）：0720 引入的交界內埋 V 溝
+     （1.2×0.6mm）實測縫未被可靠吸進溝——只在垂直穩定段開溝、非逐層＝效果不成立。
+     改回平面交界（溝參數傳 null＝走 notchOn=false 原始碼路）；縫定位交給端面
+     paint_seam 標記＋切片器接縫設定（後續方案見縫線位置控制研究）。 */
   parts.forEach((part,pi)=>{
-    const mesh=PhotoTileMesh.buildLabelMesh(L,w,h,part.k,part.runs,sx,sz,T,SEAM_NOTCH);
+    const mesh=PhotoTileMesh.buildLabelMesh(L,w,h,part.k,part.runs,sx,sz,T,null);
     const V=mesh.vertices.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`);
     /* 接縫藏磚體內（Eric 2026-07-20 裁「做」）：X 端面（零件交界／磚側邊窄面）標
        paint_seam="4"（TriangleSelector 葉節點 enforcer 的 nibble 編碼）→ SeamPlacer
@@ -1221,7 +1221,7 @@ ${cfgParts.join('\n')}
 `PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
 尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
 口徑 ${params.nozzle} mm（水平最小色塊寬 ≥ ${(2*params.nozzle).toFixed(1)} mm，窄條已併入鄰色）
-接縫：交界深度中央內埋 V 溝（1.2×0.6mm，窄件自動跳過）＋端面標記——縫鎖進磚體正中央，正反面乾淨；接縫位置請用「對齊」
+接縫：端面 paint_seam 標記（交界／側邊窄面）——縫拉往零件交界；接縫位置請用「對齊」（V 溝已於 2026-07-29 移除）
 雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
 ${palLines.join('\n')}`;
   const blob=await makeZip([
