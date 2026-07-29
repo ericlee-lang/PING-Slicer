@@ -143,6 +143,25 @@ for name, (kind, d) in presets.items():
             # M6050 舊格式只准出現在「同進」變體（該規則在下方變體完整性區檢查）。
             if "M6051" in start or "M6052" in start:
                 err(f"[Classic Klipper mix command] {name}: machine_start_gcode 帶 M6051/M6052")
+            # 0729 Klipper #128（Eric 令）：赤兔板無 T 工具語意——Classic 出檔禁 T0/T1。
+            # start/end 溫度行不帶 T、無裸 T 行；雙料本體換刀＝change_filament_gcode M6050 模板、
+            # 單料模板必空（單料引擎本就不出換刀）。
+            _endg = d.get("machine_end_gcode", "")
+            for _gk, _gv in (("machine_start_gcode", start), ("machine_end_gcode", _endg)):
+                if re.search(r"M10[49][^\n]*\bT\d", _gv):
+                    err(f"[Classic no-T 溫度 0729] {name}: {_gk} 帶 M104/M109 T…")
+                if re.search(r"(?m)^\s*T\d", _gv):
+                    err(f"[Classic no-T 換刀 0729] {name}: {_gk} 帶裸 T 行")
+            _cfg = d.get("change_filament_gcode", "")
+            # 模板只屬雙料「本體」；同進/單料頭變體＝SEMM=0 單一出料、模板必空（下方變體區另鎖）
+            if name.startswith("DUAL") and "同進" not in name and "單料頭" not in name:
+                for _tok in ("{if next_extruder == 0}", "M6050 S1 P0", "M6050 S0 P0"):
+                    if _tok not in _cfg:
+                        err(f"[Classic 雙料 M6050 換刀模板 0729] {name}: change_filament_gcode 缺 {_tok!r}")
+                if re.search(r"(?m)^\s*T\d", _cfg):
+                    err(f"[Classic 雙料 M6050 換刀模板 0729] {name}: change_filament_gcode 帶裸 T 行")
+            elif _cfg:
+                err(f"[Classic 單料 change_filament 應空 0729] {name}: {_cfg[:40]!r}")
             if not spec["bed"] and any(cmd in start for cmd in ("M140", "M190")):
                 err(f"[EDU heated bed command] {name}: machine_start_gcode")
     if kind == "process":
@@ -430,6 +449,11 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
                     err(f"[Classic 同進 start 缺 M6050 S0.5] {mname}")
             elif "M605" in start:
                 err(f"[Classic 單料頭 start 不應有 M605x] {mname}")
+            # 0729 Klipper #128：變體同守 no-T（SEMM=0 引擎不出換刀，start 溫度行也不得帶 T）
+            if re.search(r"M10[49][^\n]*\bT\d", start) or re.search(r"(?m)^\s*T\d", start):
+                err(f"[Classic 變體 no-T 0729] {mname}: machine_start_gcode 帶 T")
+            if d.get("change_filament_gcode", ""):
+                err(f"[Classic 變體 change_filament 應空 0729] {mname}")
 classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
                      "PING SupPLA - Classic", "PING PLA - EDU Classic")
 for name in classic_filaments:
@@ -579,6 +603,19 @@ for (_k, _tok), _ns in sorted(_rf_claims.items()):
     if len(_ns) > 1:
         err(f"[renamed_from 舊名重複認領] {_tok!r} ({_k}): {_ns!r}")
 
+
+# ★ 跨層護欄・Classic M6050 換刀抑制（0729 Klipper #128）：change_filament_gcode 用 M6050 模板時，
+#   引擎兩個呼叫端（wipe tower 路徑／一般路徑）靠 custom_gcode_changes_tool 判斷「模板是否已換刀」，
+#   原版只認行首 T<n> ⇒ M6050 模板會被視為沒換刀而**補發裸 Tn**（赤兔板炸）。C++ 已加 M6050 認定；
+#   本護欄鎖住它不被上游同步/重構沖掉。
+_gcodecpp = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(PINGDIR))), "src", "libslic3r", "GCode.cpp")
+if not os.path.isfile(_gcodecpp):
+    err(f"[跨層護欄] 找不到 {_gcodecpp}（路徑推導失效，護欄形同虛設）")
+else:
+    _gsrc = io.open(_gcodecpp, encoding="utf-8", errors="ignore").read()
+    _gm = re.search(r"custom_gcode_changes_tool\s*\([^)]*\)\s*\{(.{0,800})", _gsrc, re.S)
+    if not _gm or "M6050" not in _gm.group(1):
+        err("[跨層護欄・Classic M6050 換刀抑制] GCode.cpp custom_gcode_changes_tool 未認 M6050 ⇒ 模板後會補裸 Tn")
 
 # ★ 跨層護欄（Eric 2026-07-26 兩爆之後補）：C++ 的「組合製程→線材連動」表必須跟得上 profile。
 #   `Tab.cpp` 的 ping_apply_combo_filaments() 用**硬寫的線材名**呼叫 find_preset()，
