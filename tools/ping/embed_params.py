@@ -160,7 +160,8 @@ HFN_SUP = "PING SupPLA - 高流量噴頭"
 HFN_PETG = "PING PETG - 高流量噴頭"   # 2026-07-18 Eric：PETG 也開高流量支
 # 2026-07-12 Eric 二裁：擦拭/空駛 4 欄也入覆蓋（8 鍵＝完整定義；取代同日稍早「4 鍵免加」）
 # 2026-07-12 統一四值④：PA 0.2 兩支都套；噴溫 210/210 只 PLA 版（SupPLA 版溫度待 Eric 裁）
-HFN_OVERRIDES = {"filament_retraction_length": ["2"], "filament_retraction_speed": ["30"],
+# 2026-07-30 Eric 三裁：高流量家族回抽長度 2→3（「雙料高流量與四料高流量都一致 3/30/30」）
+HFN_OVERRIDES = {"filament_retraction_length": ["3"], "filament_retraction_speed": ["30"],
                  "filament_deretraction_speed": ["30"], "filament_retract_restart_extra": ["0.6"],
                  "filament_retraction_minimum_travel": ["3"], "filament_wipe": ["1"],
                  "filament_wipe_distance": ["5"], "filament_retract_before_wipe": ["100%"],
@@ -1534,7 +1535,13 @@ def main(src_base):
                                                           # ⚠ 0725 稽核抓漏：01148acf 全批移植時這裡漏了 PVA，
                                                           #   PVA 掉進 else 拿 nil＝繼承機器 1.3，與主線 48023ae8 不符
         elif is_hf:
-            fd["filament_retraction_length"] = ["2"]      # 高流量家族一律勾 2（0723 補裁；3in1 同勾）
+            # 2026-07-30 Eric 裁「高流量材料回抽 3/30/30，雙料高流量與四料高流量都一致」：
+            # 長度 2→3（0723 補裁的 2 被上蓋）＋速度/裝填 30 明寫。四料高流量兩支原本 speed/
+            # deretraction 是 nil（＝繼承機器 20/20、非 30）＝Eric 說的「沒改到」，本裁一併補齊。
+            # 範圍＝is_hf 家族（含 3in1，沿 0723「3in1 同勾」的同族慣例）。
+            fd["filament_retraction_length"] = ["3"]
+            fd["filament_retraction_speed"] = ["30"]
+            fd["filament_deretraction_speed"] = ["30"]
         else:
             fd["filament_retraction_length"] = ["nil"]    # 其餘收斂繼承機器 1.3
         if json.dumps(fd, sort_keys=True) != before:
