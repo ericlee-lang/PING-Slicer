@@ -637,6 +637,43 @@ PALLET_OVERRIDES = {"raft_layers": "2", "raft_contact_distance": "0.1", "raft_ex
                     "raft_first_layer_density": "100%", "raft_first_layer_expansion": "3",
                     "initial_layer_line_width": "150%"}
 
+# ★ 高流量製程組（Eric 2026-07-30 裁・客戶（建誌）FF800 同進 0.6 實測參數移植；
+#   來源 P800參數-建誌.zip「FF_0.6_PLA_T200(800)」、巡檢＝FF800高流量參數_巡檢報告_20260730.html）：
+#   六類速度全跟客戶（外100/內125/填充150/頂面150/實心150/支撐與介面100）＋首層也開 100
+#  （Eric 追裁、推翻「保留 40」建議）；加速度逐項取保守 min(客戶, PING 現值)——客戶檔僅明寫
+#   print 2000/travel 2000/wall0 1500、其餘 Cura 繼承 print=2000 ⇒ 實際變更僅 travel 5000→2000
+#   ＋sparse_infill 5000→2000（default 1500/首層 500/頂面 800/內外牆 1500 現值更保守、全維持）；
+#   頂底厚 0.8→1.2（客戶值；高速印薄頂易露填充。layers 4 承基底＝下限語意，1.0 口徑實得 4 層）；
+#   層高照口徑連動 0.5×口徑（0.6＝客戶實測 0.3/0.35；0.4/1.0 推 0.2/0.25、0.5/0.55，首層＝層高+0.05）。
+#   其餘全維持 PING 現值（支撐角 35／gyroid／aligned／溫度／回抽——客戶的 Cura 慣例不吃，
+#   巡檢報告逐項裁定；支撐角客戶 Cura 60＝Orca 30，0724 已踩過的換算坑、維持 35 實測收斂值）。
+#   範圍＝FF800 同進三口徑（0.4/0.6/1.0）；FF600/四色/3in1 等實印驗過再擴（verify 有範圍鎖）。
+#   派生＝emit_ff_extra 正規化完成後複製雙生、id 統一接尾（4a-6，同棧板/PVA 模式＝既有 id 零位移）。
+#   ⚠ 1.0 口徑 150×0.5×1.02≈76mm³/s 超四料線材上限 30 ⇒ 引擎自動夾速（≈60mm/s）＝預期行為
+#  （現行 0.45mm 檔 100 速同樣超上限被夾，非本批新增風險）。
+HF_PROC_LAYER = {"0.4": ("0.2", "0.25"), "0.6": ("0.3", "0.35"), "1.0": ("0.5", "0.55")}
+HF_PROC_OVERRIDES = {
+    "outer_wall_speed": "100", "inner_wall_speed": "125",
+    "sparse_infill_speed": "150", "top_surface_speed": "150",
+    "internal_solid_infill_speed": "150",
+    "support_speed": "100", "support_interface_speed": "100",
+    "initial_layer_speed": "100", "initial_layer_infill_speed": "100",
+    "travel_acceleration": "2000", "sparse_infill_acceleration": "2000",
+    "top_shell_thickness": "1.2", "bottom_shell_thickness": "1.2",
+}
+_HF_FF800_RE = re.compile(r"@FF800 同進 \(([\d.]+)\)\s*$")
+
+def make_hf_twin(proc):
+    """從正規化完成的 FF800 同進製程派生高流量雙生（setting_id 由 4a-6 接尾統一給）。"""
+    nz = _HF_FF800_RE.search(proc["name"]).group(1)
+    lh, flh = HF_PROC_LAYER[nz]
+    tw = dict(proc)
+    tw.update(HF_PROC_OVERRIDES)
+    tw["layer_height"] = lh
+    tw["initial_layer_print_height"] = flh
+    tw["name"] = "%smm 高流量 @FF800 同進 (%s)" % (lh, nz)
+    return tw
+
 # ---------- 3. 交付檔解析 ----------
 def parse_dir(src_base, dirname):
     """回傳 {(nozzle, mode): config}；mode ∈ {dual, 單料頭, 同進, 四色}（dual=PLA+SUP 母檔）"""
@@ -747,8 +784,9 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     - process：重指 setting_id（續 gp）→ proc_list
     - filament（3in1 專用 PLA(3in1)/SupPLA(3in1)，含 T4/T3 filament_start_gcode、淺灰支撐色）→ 回傳 ff_fil
     - cover：複製到 PINGDIR（受 4c 孤兒清除保護，見 ff_models）
-    回傳 (gm, gp, ff_fil, ff_models)。範本本身已驗證，不再改值、只重編 setting_id。"""
+    回傳 (gm, gp, ff_fil, ff_models, hf_twins)。範本本身已驗證，不再改值、只重編 setting_id。"""
     ff_fil, ff_models = [], []
+    hf_twins = []   # ★ 高流量雙生（2026-07-30）：FF800 同進三口徑、正規化後派生、id 由 4a-6 接尾
     n_mac = n_proc = n_cov = 0
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "machine"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "machine", fn), encoding="utf-8"))
@@ -775,6 +813,10 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
             normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過 XY
             normalize_tree_support(d)  # 樹狀保守配方＋organic 防呆（2026-07-25）
         d["filename_format"] = filename_tpl("3in1" if "3in1" in d["name"] else "同進")  # 檔名新格式（2026-07-23）FF 範本同套
+        # ★ 高流量雙生派生點（2026-07-30 Eric 裁）：FF800 同進限定（排除 3in1／FF600），
+        #   在全部正規化完成之後複製＝速度/加速度家規先套滿、再被高流量定案值覆蓋
+        if "3in1" not in d["name"] and _HF_FF800_RE.search(d["name"]):
+            hf_twins.append(make_hf_twin(d))
         d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % d["name"]), d)
         proc_list.append({"name": d["name"], "sub_path": "process/%s.json" % d["name"]}); n_proc += 1
@@ -784,9 +826,9 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         ff_fil.append({"name": d["name"], "sub_path": "filament/%s.json" % d["name"]})
     for fn in os.listdir(os.path.join(FF_EXTRA, "cover")):
         shutil.copy2(os.path.join(FF_EXTRA, "cover", fn), os.path.join(PINGDIR, fn)); n_cov += 1
-    print("  ff_extra 併入：machine=%d + machine_model=%d，process=%d，filament=%d，cover=%d"
-          % (n_mac, len(ff_models), n_proc, len(ff_fil), n_cov))
-    return gm, gp, ff_fil, ff_models
+    print("  ff_extra 併入：machine=%d + machine_model=%d，process=%d，filament=%d，cover=%d（高流量雙生收集 %d）"
+          % (n_mac, len(ff_models), n_proc, len(ff_fil), n_cov, len(hf_twins)))
+    return gm, gp, ff_fil, ff_models, hf_twins
 
 def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     """照片磚範本併入（比照 emit_ff_extra 範本複製法）：machine_model×2＋口徑變體×5＋製程×5＋cover×2。
@@ -1291,9 +1333,9 @@ def main(src_base):
     # 4a-2. FF 同進/3in1 範本併入（衍生模式、無源 config）。須在 4b 之前跑，
     #       好讓 existing_machines 含 同進/3in1 機台 → 高流量線材 compatible 掛得到。
     if any(f[2] == "ff" for f in FAMS) and not PING_ONLY:
-        gm, gp, ff_fil, ff_models = emit_ff_extra(mm_list, mac_list, proc_list, gm, gp)
+        gm, gp, ff_fil, ff_models, hf_twins = emit_ff_extra(mm_list, mac_list, proc_list, gm, gp)
     else:
-        ff_fil, ff_models = [], []
+        ff_fil, ff_models, hf_twins = [], [], []
     # 4a-3b. V3.6 Classic 前代機：和 Fast 同 bundle，但用獨立 machine/process/filament，
     # 避免 Klipper 指令與高加速度滲入 Marlin 舊板。
     if not PING_ONLY:
@@ -1350,6 +1392,15 @@ def main(src_base):
             jdump(_pp, _pd); _pt210 += 1
     if _pt210:
         print("  照片磚 FD300 同進預設 210：改 %d 檔" % _pt210)
+
+    # 4a-6. 高流量製程組統一 emit（Eric 2026-07-30 裁；id 接尾＝既有＋Classic＋棧板＋PVA＋照片磚
+    #        全零位移——⚠ 本線照片磚在 PVA 之後 emit〔id 佈局承重牆〕，高流量必須排照片磚之後）
+    for hf in hf_twins:
+        hf["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % hf["name"]), hf)
+        proc_list.append({"name": hf["name"], "sub_path": "process/%s.json" % hf["name"]})
+    if hf_twins:
+        print("  高流量製程組：%d 支（PINGP%03d 起）" % (len(hf_twins), gp - len(hf_twins)))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
