@@ -15,9 +15,12 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🏁 收工快照（2026-07-30 —「0730 高流量」棒**總收工**：**高流量製程組＋C-12 renamed 回溯**兩批兩線入版）
+### 🏁 收工快照（2026-07-31 —「0730 高流量」棒**總收工**：高流量製程組＋C-12＋**T016 全鏈出貨**）
 
-**線況**：出貨線 `release/v3.6` tip **`ab5d0dc8`（bundle 89＋C-12、未推＝押下顆 T；⚠ push 即觸發 CI）**｜開發線 `ping/v3.5` tip `a1bca37c`（bundle 76＋C-12、已推）｜兩線工作區乾淨（開發線 untracked `resources/web/mixer/`、`sandboxes/`＝他線的、勿動）。
+**線況**：出貨線 `release/v3.6` tip **`ab5d0dc8`（bundle 89＝T016、已推、已出貨上架）**｜開發線 `ping/v3.5` tip `06369af3`（已推）｜兩線工作區乾淨（開發線 untracked `resources/web/mixer/`、`sandboxes/`＝他線的、勿動）。
+
+**T016 全鏈完成（run 30550388975 @ `ab5d0dc8`、bundle 89、已上架 G 槽）**：慣性三紅照舊、**Windows 主建置綠＝C-12 `PresetBundle.cpp` CI 首驗全過**、ping_verify 22s 綠。成品驗收＝同代 verify 392/108 打在下載 bundle＋版號 89＋counts 41/108/27/**216**（213+3 精準）＋本批四批（高流量家族 3/30/30×7・ccw 214/214・高流量三支 24 鍵 exact・範圍鎖零外溢）＋**T015 延續項零倒退**＋成品層反向測試命中復綠。installer 101.5MB `09cf7035…2c43`／portable 134.0MB 3055 entries `6471d2a6…1a34a`；G 槽 hash MATCH、T015 三檔輪替 `old\`。
+> 🆕 **跨棒知識（本棒首次定罪，寫給下一棒）**：**「Unit Tests」慣性紅的真因＝`Publish Test Results` 步驟 `POST /check-runs 403 Forbidden`（CI 回寫權限），`Unpackage and Run Unit Tests` 步驟本身是 success**。⇒ 判定慣性紅不要只靠「與上輪同款」，用 `gh api repos/…/actions/jobs/<id> --jq '.steps[]'` 看**步驟級結論**才是硬證據——尤其動了 C++ 的批次必須這樣排除。
 
 **本棒第二批＝C-12 conf 舊名 renamed 回溯完成**（Eric 已裁「做」）：出貨 `ab5d0dc8`／開發 `a1bca37c`。**實查加碼＝除 handoff 定罪的 `load_selections()` 外，`update_selections()`（切機載入）同病**——切機正是主場景，兩函式對稱四處修（strict 前 initial 名過 `get_preset_name_renamed()`＋兩處多料槽 filament_XX 迴圈同過回溯）；strict 本體不動＝其他呼叫端零影響；map 時序安全（update_system_maps 先建）。verify 新增跨層護欄（PresetBundle.cpp 三 pattern 各 ≥2、漏修即紅）＋反向測試命中復綠；兩線 C++ 新增 28 行 md5 一致 `683927a0`。⚠ **C++ 未本地編譯＝押下顆 T CI 首驗**。眼驗（裝機後）＝改名批前的舊 conf 機器開 app／切機自動選到五類新名對應支、不掉 Default。
 
@@ -26,9 +29,11 @@
 **🔴 下一棒最優先（上棒清單 #1 #2 皆已完成、球全在 Eric）**：
 1. ~~高流量製程組~~ ✅ 完成（bundle 89/76 入版押 T）。**裝機後眼驗**：FF800 同進三口徑下拉各多一支「高流量」、切片速度欄 100/125/150、實印驗過再裁擴 FF600/四色/3in1。
 2. ~~C-12 產品級缺口~~ ✅ 完成（`ab5d0dc8`/`a1bca37c` 入版押 T；含切機 update_selections 加碼刀）。
-3. **下顆 T 發車令（等 Eric）**——車上四批齊：回抽 3/30/30〔bundle 87〕＋牆方向 ccw〔88〕＋高流量製程組〔89〕＋C-12 C++〔ab5d0dc8〕。發車＝T 號原子預留→push 兩線（出貨線觸發 CI；⚠ C-12 C++＝CI 首驗）→綠後全鏈照 T015 前例。
-4. **紋路實印驗證（等 Eric）**：E5 候選四項（`bridge_speed=60`/`bridge_acceleration=100%`/`bridge_flow=1.0`/懸空四級 60）。
-5. **DUAL 分頁 30 秒判別（等 Eric 實走）**：切 Classic 分頁往下滾看 DUAL 在不在——在＝錨點式長清單沒 bug、不在＝真 bug 挖 UI 碼。
+3. ~~下顆 T 發車~~ ✅ **T016 已出貨上架**（四批全在車上）。**剩 Eric 裝機眼驗五項**（版本資訊列明）＋**D 槽換裝**（現＝T015，回「換 T016」即全自動）。
+4. **高流量組實印（等 Eric）**——🔴 **驗過才可擴 FF600／四色／3in1**；verify 已設範圍鎖，擅自擴會紅。
+5. **紋路實印驗證（等 Eric）**：E5 候選四項（`bridge_speed=60`/`bridge_acceleration=100%`/`bridge_flow=1.0`/懸空四級 60）。
+6. **DUAL 分頁 30 秒判別（等 Eric 實走）**：切 Classic 分頁往下滾看 DUAL 在不在——在＝錨點式長清單沒 bug、不在＝真 bug 挖 UI 碼。
+7. **照片磚 C-1（Eric 已裁「准 B＋豁免」）**＝開新 session，起跑包見下方照片磚段。
 
 ---
 ### 🏁 收工快照（2026-07-30 —「0730 續」棒**總收工**：T015 全鏈＋D 槽換裝＋conf 手術六輪審查＋兩參數批＋紋路研究）
