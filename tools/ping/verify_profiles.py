@@ -460,8 +460,13 @@ for name, (kind, d) in presets.items():
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
                 elif is_hf:
-                    if _v("filament_retraction_length") != "2":
-                        err(f"[高流量家族長度 2（0723 補裁含 3in1）] {name}: {_v('filament_retraction_length')!r}")
+                    # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽 3/30/30——長度 2→3 上蓋 0723 補裁；
+                    # 速度/裝填明寫 30（四料高流量兩支原為 nil＝繼承機器 20/20，Eric 抓到的漏）
+                    for _k, _want, _label in (("filament_retraction_length", "3", "長度"),
+                                              ("filament_retraction_speed", "30", "回抽速度"),
+                                              ("filament_deretraction_speed", "30", "裝填速度")):
+                        if _v(_k) != _want:
+                            err(f"[高流量家族 3/30/30（0730 裁·含 3in1）] {name}: {_label}={_v(_k)!r} 應 {_want}")
                 else:
                     if _v("filament_retraction_length") != "nil":
                         err(f"[基礎支長度應收斂繼承 0723] {name}: {_v('filament_retraction_length')!r}")
