@@ -15,6 +15,22 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-30 —「0730 高流量」棒**總收工**：**高流量製程組＋C-12 renamed 回溯**兩批兩線入版）
+
+**線況**：出貨線 `release/v3.6` tip **`ab5d0dc8`（bundle 89＋C-12、未推＝押下顆 T；⚠ push 即觸發 CI）**｜開發線 `ping/v3.5` tip `a1bca37c`（bundle 76＋C-12、已推）｜兩線工作區乾淨（開發線 untracked `resources/web/mixer/`、`sandboxes/`＝他線的、勿動）。
+
+**本棒第二批＝C-12 conf 舊名 renamed 回溯完成**（Eric 已裁「做」）：出貨 `ab5d0dc8`／開發 `a1bca37c`。**實查加碼＝除 handoff 定罪的 `load_selections()` 外，`update_selections()`（切機載入）同病**——切機正是主場景，兩函式對稱四處修（strict 前 initial 名過 `get_preset_name_renamed()`＋兩處多料槽 filament_XX 迴圈同過回溯）；strict 本體不動＝其他呼叫端零影響；map 時序安全（update_system_maps 先建）。verify 新增跨層護欄（PresetBundle.cpp 三 pattern 各 ≥2、漏修即紅）＋反向測試命中復綠；兩線 C++ 新增 28 行 md5 一致 `683927a0`。⚠ **C++ 未本地編譯＝押下顆 T CI 首驗**。眼驗（裝機後）＝改名批前的舊 conf 機器開 app／切機自動選到五類新名對應支、不掉 Default。
+
+**本棒成果＝高流量製程組（Eric 已裁定值、上一棒交辦）**：客戶（建誌）FF800 同進實測參數 → 三支新製程 `0.2mm/0.3mm〔客戶實測〕/0.5mm 高流量 @FF800 同進 (0.4/0.6/1.0)`。定案值全數落地：六類速度全跟（外100/內125/填充150/頂面150/實心150/支撐與介面100）＋首層 100（追裁）＋加速度逐項保守（**實查客戶 .curaprofile 僅明寫 print2000/travel2000/wall0 1500、其餘 Cura 繼承 2000 ⇒ 實際變更僅 travel/sparse 5000→2000**，default 1500/首層 500/頂面 800 現值更保守全維持）＋層高 0.5×口徑（0.2/0.3/0.5、首層+0.05）＋頂底厚 1.2（layers 4 承基底）＋支撐角 35/gyroid/aligned 維持家規。做法＝emit_ff_extra 正規化後派生雙生、id 接尾零位移（⚠ 兩線 emit 順序不同：出貨線照片磚在 PVA 後＝高流量排 P211-213、開發線排 P179-181）。驗證＝兩線 verify 綠（392/108、308/76）＋diff 純度零其他 churn＋跨線逐鍵一致＋反向測試四注四中復綠＋功能行 md5 一致。verify 新增三支 exact 斷言（25 鍵）＋**範圍鎖**（僅 FF800 同進三口徑——Eric 裁「實印驗過再擴」，FF600/四色/3in1 出現即紅）＋safety default 高流量豁免。⚠ 1.0 口徑 150 速超四料線材上限 30＝引擎自動夾速（預期行為）。全帳＝認領簿 c-0730-T11-23。
+
+**🔴 下一棒最優先（上棒清單 #1 #2 皆已完成、球全在 Eric）**：
+1. ~~高流量製程組~~ ✅ 完成（bundle 89/76 入版押 T）。**裝機後眼驗**：FF800 同進三口徑下拉各多一支「高流量」、切片速度欄 100/125/150、實印驗過再裁擴 FF600/四色/3in1。
+2. ~~C-12 產品級缺口~~ ✅ 完成（`ab5d0dc8`/`a1bca37c` 入版押 T；含切機 update_selections 加碼刀）。
+3. **下顆 T 發車令（等 Eric）**——車上四批齊：回抽 3/30/30〔bundle 87〕＋牆方向 ccw〔88〕＋高流量製程組〔89〕＋C-12 C++〔ab5d0dc8〕。發車＝T 號原子預留→push 兩線（出貨線觸發 CI；⚠ C-12 C++＝CI 首驗）→綠後全鏈照 T015 前例。
+4. **紋路實印驗證（等 Eric）**：E5 候選四項（`bridge_speed=60`/`bridge_acceleration=100%`/`bridge_flow=1.0`/懸空四級 60）。
+5. **DUAL 分頁 30 秒判別（等 Eric 實走）**：切 Classic 分頁往下滾看 DUAL 在不在——在＝錨點式長清單沒 bug、不在＝真 bug 挖 UI 碼。
+
+---
 ### 🏁 收工快照（2026-07-30 —「0730 續」棒**總收工**：T015 全鏈＋D 槽換裝＋conf 手術六輪審查＋兩參數批＋紋路研究）
 
 **線況**：出貨線 `release/v3.6` tip **`b6525b0a`（bundle 88、未推＝押下顆 T；⚠ push 即觸發 CI）**｜開發線 `ping/v3.5` tip `5389f846`（bundle 75、已推）｜兩線工作區乾淨（開發線 untracked `resources/web/mixer/`、`sandboxes/` ＝他線的、勿動）。
