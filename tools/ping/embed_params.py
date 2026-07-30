@@ -582,6 +582,13 @@ def normalize_prime_tower(proc):
 def normalize_wall_accel(proc):
     proc["outer_wall_acceleration"] = "1500"
     proc["inner_wall_acceleration"] = "1500"
+    # ★ 牆體列印方向固定逆時針（Eric 2026-07-30 裁「外牆的順序一律改成逆時針(固定的)，
+    # 至少這樣可以提升品質」）。機制＝PerimeterGenerator.cpp:1424 —— auto 時偵測到陡懸空會
+    # 呼叫 reorient_perimeters() 反轉整層迴路，設 ccw 直接跳過該段 ⇒ 層間方向恆一致。
+    # ⚠ 實測記錄（0730 側孔盒 gcode 矩陣）：本測試件上 auto 與 ccw 輸出逐項相同（PING 的牆
+    # 在 auto 下本就全 CCW；殘留的 7 條 CW 是孔洞迴路＝幾何約定、wall_direction 管不到）。
+    # 價值在懸空多的模型（會觸發 reorient 的情形），非本次孔帶紋路的解。
+    proc["wall_direction"] = "ccw"
     return proc
 
 # ★ 棧板雙版本製程（2026-07-08 Eric 拍板，同上規格檔）：FD 單料頭/同進＋FP300 出「_棧板」雙生

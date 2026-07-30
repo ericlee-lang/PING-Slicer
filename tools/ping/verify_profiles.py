@@ -235,6 +235,10 @@ for name, (kind, d) in presets.items():
             for key in ("outer_wall_acceleration", "inner_wall_acceleration"):
                 if d.get(key) != "1500":
                     err(f"[內外牆加速度 1500] {name}: {key}={d.get(key)!r}")
+            # 牆體列印方向固定逆時針（Eric 2026-07-30 裁）：全庫 ccw，跳過引擎的
+            # reorient_perimeters（PerimeterGenerator.cpp:1424）⇒ 層間迴路方向恆一致
+            if d.get("wall_direction") != "ccw":
+                err(f"[牆方向固定 ccw 0730] {name}: wall_direction={d.get('wall_direction')!r}")
             # ★ 功能歸類五類值鎖（0730 改名批；Z隙＝一層層高〔三輪更正、非固定 0.2〕）
             _vtok = combo_token(name)
             if _vtok:
