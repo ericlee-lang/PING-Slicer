@@ -174,6 +174,12 @@ for name, (kind, d) in presets.items():
             _ctok = combo_token(name)
             if _ctok == COMBO_CAT_PVA:
                 expected["support_threshold_angle"] = "50"
+            # 高流量製程組（Eric 2026-07-30 裁・客戶建誌 FF800 同進實測移植）：加速度逐項取保守
+            # ＝travel/sparse 2000（min(客戶 2000, 現值 5000)）⇒ 全庫 5000 斷言對此組豁免；
+            # 完整定案值 exact 斷言在檔尾「高流量製程組」區塊（含範圍鎖）。
+            if " 高流量 @" in name:
+                expected["sparse_infill_acceleration"] = "2000"
+                expected["travel_acceleration"] = "2000"
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
             for key, value in expected.items():
@@ -366,6 +372,41 @@ elif (_se[1].get("nozzle_temperature") != ["210"]
       or _se[1].get("nozzle_temperature_initial_layer") != ["210"]):
     err(f"[SupPLA 噴溫 210 0729] {_se[1].get('nozzle_temperature')!r}/"
         f"{_se[1].get('nozzle_temperature_initial_layer')!r}, expected ['210']")
+
+# ★ 高流量製程組（Eric 2026-07-30 裁・客戶（建誌）FF800 同進 0.6 實測參數移植；0.4/1.0 口徑連動推）：
+# 三支 exact——六類速度全跟客戶（外100/內125/填充150/頂面150/實心150/支撐與介面100）＋首層 100
+#（Eric 追裁）＋加速度逐項取保守（實際變更僅 travel/sparse 2000；default 1500/首層 500/頂面 800
+#  現值更保守維持）＋層高 0.5×口徑（首層＋0.05）＋頂底厚 1.2；支撐角 35/gyroid/aligned 維持家規
+#（客戶 Cura 慣例不吃——support_angle 60 是 Cura 語意＝Orca 30、0724 已踩過的換算坑）。
+HF_PROCS = {"0.2mm 高流量 @FF800 同進 (0.4)": ("0.2", "0.25", "0.4"),
+            "0.3mm 高流量 @FF800 同進 (0.6)": ("0.3", "0.35", "0.6"),
+            "0.5mm 高流量 @FF800 同進 (1.0)": ("0.5", "0.55", "1.0")}
+for _hn, (_lh, _flh, _nz) in HF_PROCS.items():
+    _he = presets.get(_hn)
+    if not _he or _he[0] != "process":
+        err(f"[高流量製程組 0730・缺席] {_hn}")
+        continue
+    _hd = _he[1]
+    for _hk, _hw in (("layer_height", _lh), ("initial_layer_print_height", _flh),
+                     ("outer_wall_speed", "100"), ("inner_wall_speed", "125"),
+                     ("sparse_infill_speed", "150"), ("top_surface_speed", "150"),
+                     ("internal_solid_infill_speed", "150"),
+                     ("support_speed", "100"), ("support_interface_speed", "100"),
+                     ("initial_layer_speed", "100"), ("initial_layer_infill_speed", "100"),
+                     ("travel_acceleration", "2000"), ("sparse_infill_acceleration", "2000"),
+                     ("default_acceleration", "1500"), ("initial_layer_acceleration", "500"),
+                     ("top_surface_acceleration", "800"),
+                     ("outer_wall_acceleration", "1500"), ("inner_wall_acceleration", "1500"),
+                     ("top_shell_thickness", "1.2"), ("bottom_shell_thickness", "1.2"),
+                     ("sparse_infill_pattern", "gyroid"), ("seam_position", "aligned"),
+                     ("support_threshold_angle", "35"), ("instantiation", "true"),
+                     ("compatible_printers", ["FF800 同進 %s nozzle" % _nz])):
+        if _hd.get(_hk) != _hw:
+            err(f"[高流量製程組 0730] {_hn}: {_hk}={_hd.get(_hk)!r} 應 {_hw!r}")
+# 範圍鎖：高流量製程現階段僅 FF800 同進三口徑（Eric 裁「實印驗過再擴」——FF600/四色/3in1 出現即紅）
+for _n, (_k, _d) in presets.items():
+    if _k == "process" and " 高流量 @" in _n and _n not in HF_PROCS:
+        err(f"[高流量製程組 0730・範圍外溢] {_n}: 現階段僅 FF800 同進三口徑")
 
 # TPE 一對（Eric 0728 二輪）：本體改名「PING TPE - 210」＋噴溫 220→210（SupTPE 名不動、溫跟 210）；
 # 回抽速度 30/30（「TPE軟料的回抽 3/30/30」；長度 3 斷言在上方回抽統一段）
