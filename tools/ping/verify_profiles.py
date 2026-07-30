@@ -605,6 +605,22 @@ else:
                 err(f"[跨層護欄・#39 棧板建議] 缺 source/target 字面 {_s!r}→{_t!r}")
         if cxx_escape("+棧板") not in _psrc and '"+棧板"' not in _psrc:
             err("[跨層護欄・#39 棧板建議] 守衛未改「+棧板」判定（舊 ABS+ 守衛對新名失效）")
+    # 4) C-12 renamed 回溯（Eric 2026-07-30 裁）：orca_presets 載入端（load_selections＋
+    #    update_selections）的 strict 選擇與多料槽 filament_XX 必須帶 renamed resolver——
+    #    select_preset_by_name_strict 是 exact-only，系統 preset 改名批後升級版機器 conf
+    #    記的舊名會靜默 fallback 掉使用者記住的選擇（C-12 產品級缺口；切機＝主場景）。
+    _pbc = os.path.join(_repo, "src", "libslic3r", "PresetBundle.cpp")
+    if not os.path.isfile(_pbc):
+        err(f"[跨層護欄] 找不到 {_pbc}（C-12 護欄形同虛設）")
+    else:
+        _pbsrc = io.open(_pbc, encoding="utf-8", errors="ignore").read()
+        for _pat, _need in (("get_preset_name_renamed(initial_print_profile_name", 2),
+                            ("get_preset_name_renamed(initial_filament_profile_name", 2),
+                            ("get_preset_name_renamed(fp_name", 2)):
+            _got = _pbsrc.count(_pat)
+            if _got < _need:
+                err(f"[跨層護欄・C-12 renamed 回溯] PresetBundle.cpp {_pat!r} 出現 {_got} 次"
+                    f"（應 ≥{_need}＝load_selections＋update_selections 各一）")
 
 # ★ 功能歸類普查（0730 改名批）：五 token × 18 支 exact；舊材料對名歸零
 _combo_census = {}

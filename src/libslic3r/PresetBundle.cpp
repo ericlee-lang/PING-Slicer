@@ -1845,6 +1845,13 @@ void PresetBundle::update_selections(AppConfig &config)
     std::string initial_print_profile_name        = config.get_printer_setting(initial_printer_profile_name, PRESET_PRINT_NAME);
     std::string initial_filament_profile_name     = config.get_printer_setting(initial_printer_profile_name, PRESET_FILAMENT_NAME);
 
+    // PING C-12（Eric 2026-07-30 裁）：切機載入該機 conf 記的選擇時，舊 preset 名先過 renamed
+    // 回溯再 strict（與 load_selections 同刀；切機是本缺口的主場景——開機修了、切機沒修＝仍掉選擇）。
+    if (const std::string *renamed = prints.get_preset_name_renamed(initial_print_profile_name))
+        initial_print_profile_name = *renamed;
+    if (const std::string *renamed = filaments.get_preset_name_renamed(initial_filament_profile_name))
+        initial_filament_profile_name = *renamed;
+
     // Selects the profiles, which were selected at the last application close.
     prints.select_preset_by_name_strict(initial_print_profile_name);
     filaments.select_preset_by_name_strict(initial_filament_profile_name);
@@ -1860,7 +1867,11 @@ void PresetBundle::update_selections(AppConfig &config)
         auto f_name = config.get_printer_setting(initial_printer_profile_name, name);
         if (f_name.empty())
             break;
-        this->filament_presets.emplace_back(remove_ini_suffix(f_name));
+        std::string fp_name = remove_ini_suffix(f_name);
+        // PING C-12：多料槽 filament_XX 同過 renamed 回溯（雙料第 2 槽記舊名同病）
+        if (const std::string *renamed = filaments.get_preset_name_renamed(fp_name))
+            fp_name = *renamed;
+        this->filament_presets.emplace_back(std::move(fp_name));
     }
     std::vector<std::string> filament_colors;
     auto f_colors = config.get_printer_setting(initial_printer_profile_name, "filament_colors");
@@ -1974,6 +1985,16 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
             initial_filament_profile_name = prefered_filament_profiles[0];
     }
 
+    // PING C-12（Eric 2026-07-30 裁）：conf（orca_presets）記的舊 preset 名先過 renamed 回溯再 strict。
+    // 系統 preset 改名（renamed_from）後，升級版機器的 conf 仍記舊名；select_preset_by_name_strict
+    // 是 exact-only ⇒ 舊名 strict 失敗＝靜默 fallback 掉使用者記住的 process/filament 選擇。
+    // 回溯鏈與 user preset inherits 同源（get_preset_name_renamed，map 由 update_system_maps 在
+    // load_selections 之前建妥）；只補載入端，strict 函式本體語意不動（其他呼叫端零影響）。
+    if (const std::string *renamed = prints.get_preset_name_renamed(initial_print_profile_name))
+        initial_print_profile_name = *renamed;
+    if (const std::string *renamed = filaments.get_preset_name_renamed(initial_filament_profile_name))
+        initial_filament_profile_name = *renamed;
+
     // Selects the profile, leaves it to -1 if the initial profile name is empty or if it was not found.
     prints.select_preset_by_name_strict(initial_print_profile_name);
     filaments.select_preset_by_name_strict(initial_filament_profile_name);
@@ -1991,7 +2012,12 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
         auto f_name = config.get_printer_setting(initial_printer_profile_name, name);
         if (f_name.empty())
             break;
-        this->filament_presets.emplace_back(remove_ini_suffix(f_name));
+        std::string fp_name = remove_ini_suffix(f_name);
+        // PING C-12：多料槽 filament_XX 同過 renamed 回溯（雙料第 2 槽記舊名同病；
+        // 第 1 槽取自上方 strict 選擇結果＝已回溯）
+        if (const std::string *renamed = filaments.get_preset_name_renamed(fp_name))
+            fp_name = *renamed;
+        this->filament_presets.emplace_back(std::move(fp_name));
     }
 
     // Load data from AppConfig to ProjectConfig when Studio is initialized.
