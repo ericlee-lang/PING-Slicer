@@ -17,6 +17,8 @@
 ---
 ### 🏁 收工快照（2026-07-30 —「0730 續」棒：**T015 全鏈出貨完成**，含 Classic M6050 出檔實證）
 
+> 🆕 **後續同日（0730 午）**：①**D 槽已換裝 T015**（Eric 令；驗證全過、備份留 T012+T013）②**conf 組合名手術完成**——Eric 令「手術前計劃跟 Codex 雙 AI 審查」→ **六輪對抗審**（一輪否決→逐輪故障注入收斂→六輪可定稿）→ Eric 核可 P-4 殘窗＋過目清單 → **apply 一次過**（token `b8c8170686a826c6`、14 種 20 處、獨立複驗五項全過、備份 `.bak-comborename-20260730124159064`）。腳本 v6＝兩線 `dd84cccd`/`dddc79ed`（出貨線押下顆 T）＝**日後動使用者實檔的安全樣板**（SOP_參數入版紀律 §13）。審查全軌跡＝專案根 `_審查_conf組合名手術_*` 21 檔。③🔴 **C-12 產品級缺口交裁**：同事機升 T015 conf 舊組合名會 fallback（引擎 exact-only 實查定罪）——正解 C++ renamed resolver 一刀、押下顆 T，等 Eric「做」。
+
 **T015＝bundle 86 @ `a7d95bad`、run 30496218297＝BUILT＋已上架 G 槽**。慣性三紅照舊（Flatpak×2＋Unit Tests）、**Windows 主建置綠 1h5m48s＝C++ 三批（GCode.cpp 認 M6050／Tab.cpp 連動表＋#39 守衛／PresetComboBoxes.cpp）CI 首驗全過**；**`ping_verify.yml` 新閘門兩線首跑綠＝verify 從此進 CI**。
 
 **成品驗收全過**（同代 verify 389/108 打在下載 bundle＋版號 01.00.00.86＋counts 41/108/27/213）＋**四批抽驗全過**：
