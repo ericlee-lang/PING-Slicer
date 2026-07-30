@@ -15,6 +15,26 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🏁 收工快照（2026-07-30 —「0730 續」棒：**T015 全鏈出貨完成**，含 Classic M6050 出檔實證）
+
+**T015＝bundle 86 @ `a7d95bad`、run 30496218297＝BUILT＋已上架 G 槽**。慣性三紅照舊（Flatpak×2＋Unit Tests）、**Windows 主建置綠 1h5m48s＝C++ 三批（GCode.cpp 認 M6050／Tab.cpp 連動表＋#39 守衛／PresetComboBoxes.cpp）CI 首驗全過**；**`ping_verify.yml` 新閘門兩線首跑綠＝verify 從此進 CI**。
+
+**成品驗收全過**（同代 verify 389/108 打在下載 bundle＋版號 01.00.00.86＋counts 41/108/27/213）＋**四批抽驗全過**：
+① 牆加速度 1500×358・Classic Marlin 隔離 0×64
+② 洗料塔 cone×211・頂角 30・速 60
+③ **Classic 32 實體機 start 零帶 T（M104/M109 無 T 參數、無行首裸 T0/T1）・DUAL 本體 4 台 `change_filament_gcode` 全為 `{if next_extruder == 0}M6050 S1 P0{else}M6050 S0 P0{endif}`・同進/單料頭變體零誤帶**
+④ 五類名各×18・舊 token 0・renamed_from 90/90
+＋**反向測試三注三中**（製程加速度污染／DUAL 模板改裸 T／start 塞回 M109 T0 全精準命中，還原復綠）＝斷言有效性雙向驗證。
+
+**上架**：installer 101.5MB `8363f5b9…a0a4`／portable 134.0MB（3052 entries、與 T014 同構）`10d4bc1a…7599`；G 槽實檔 hash 複驗 MATCH、**T014 三檔輪替 `old\`**；版本資訊＝四批變更＋裝機眼驗七項。成品夾 `_staging/v3.6-T015-30496218297/`。
+
+**兩則跨棒知識（避免下次誤判）**：
+1. **Classic 前代機的識別是 `^(EDU|DUAL|PING 2|PING 3)` 前綴，沒有任何機器叫「Classic」**——寫抽驗腳本時用 `"Classic" in name` 會 0 命中卻看似「無異常」（本棒首跑即踩、當場修正）。製程名格式 `0.125mm @DUAL 300 同進 (0.25)`，機型段在 `@` 之後。
+2. **共通基底 `fdm_process_common`／`fdm_process_ping_common` 不列入全庫值斷言**：`instantiation=false`（選不到）＋211 支實際製程 100% 明寫加速度鍵故永遠被覆蓋＋T014 同檔同值（非本批迴歸）。⚠ 與 T010「支撐牆數需補基底」不同——判準是**該鍵是否每支都明寫**：全明寫→基底不必動；有繼承→基底要補。
+
+**🔴 下一棒／等 Eric**：①**D 槽換裝**（現＝T013、G 槽＝T015）——回「換 T015」即全自動（備份→解壓→DL1016 重注→驗證）②**裝機眼驗**＝版本資訊七項（洗料塔錐形／加速度欄 1500／Classic DUAL 切檔 grep 三判準／下拉五類新名／舊 3mf 回溯／#39 跳窗新名）③**conf 手術**（組合名 90 條）＝裝 T015 後跑 `tools/ping/patch_conf_combo_rename.py --dry-run` 先出清單再 `--apply` ④T012~T015 實印照舊。**照片磚線 C-0 球仍在 Eric**（准 B 進 C-1＋睡眠豁免，見待確認頂部）。
+
+---
 ### 🏁 收工快照（2026-07-30 — **照片磚 C-0 技術尖峰**：四項全過＋Codex 13 條回審補測閉環；球在 Eric 裁 B 進 C-1）
 
 **線況**：**兩線 repo 零觸碰**（不改碼不 build 不 push＝T015 候選 bundle 85 原封不動、出貨線勿推紅線遵守）；portable／%APPDATA% 未動。本棒全部產出在治理 repo：報告＋產物包＋認領簿（c-0729-PT-07 掛→銷）。
