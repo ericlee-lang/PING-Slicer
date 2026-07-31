@@ -581,10 +581,19 @@ function paletteDto(palette, mode){
     : { index:i+1, hex:rgbHex(...pal.rgb).toUpperCase(), recipe:{ gcode:'M6051', S:Math.round((1-pal.t)*100)/100 } });
 }
 
+/* SHA-256：優先用 crypto.subtle（快），沒有就用協定模組的純 JS 版。
+   ⚠ **不得回傳 null**——宿主端把「沒有 digest」當協定錯誤處理（四項驗證不可有空門）。
+   file:// 之類環境是否具備 subtle 因 runtime 而異，所以這裡不賭環境。 */
 async function sha256Hex(bytes){
-  if (!(root.crypto && root.crypto.subtle)) return null;      // 非安全內容＝略過（診斷用途，不阻斷生成）
-  const d = await root.crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  if (root.crypto && root.crypto.subtle) {
+    try {
+      const d = await root.crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    } catch (e) { /* 落到後備 */ }
+  }
+  if (root.PhotoTileProtocol && root.PhotoTileProtocol.sha256HexSync)
+    return root.PhotoTileProtocol.sha256HexSync(bytes);
+  throw new EngineError(ERR.INTERNAL, 'SHA-256 不可用（crypto.subtle 與後備實作都缺席）');
 }
 function base64ToBytes(b64){
   const bin = atob(b64); const out = new Uint8Array(bin.length);
