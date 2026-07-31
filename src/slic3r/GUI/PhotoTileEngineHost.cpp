@@ -546,7 +546,11 @@ void PhotoTileEngineHost::handle_message(const std::string& json)
         }
         const std::string expect = m.get<std::string>("sha256", impl->xfer.sha256);
         const std::string got    = sha256_hex(impl->xfer.bytes.data(), impl->xfer.bytes.size());
-        if (!expect.empty() && expect != got) {                     // ④SHA-256
+        if (expect.empty()) {                                       // ④SHA-256：不得有空門
+            impl->fail_job(job, "protocol_sha_mismatch", "引擎未提供 SHA-256，無法驗收，已丟棄整份 3MF。");
+            return;
+        }
+        if (expect != got) {
             impl->fail_job(job, "protocol_sha_mismatch", "SHA-256 不符，已丟棄整份 3MF。");
             return;
         }

@@ -52,6 +52,35 @@ check('chunkCount：邊界（0／剛好整除／多一位元組）', () => {
   assertEq(P.chunkCount(301, 100), 4, '多一位元組');
 });
 
+console.log('\n§1.5 純 JS SHA-256 後備（不得與 node:crypto 有任何差異）');
+check('標準向量：空字串／abc／448bit 邊界', () => {
+  assertEq(P.sha256HexSync(new Uint8Array(0)),
+    'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '空字串');
+  assertEq(P.sha256HexSync(new Uint8Array([0x61,0x62,0x63])),
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', '"abc"');
+  const s = 'abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq';           // 56 bytes＝補位邊界
+  assertEq(P.sha256HexSync(new Uint8Array(Buffer.from(s))),
+    '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1', '56 位元組邊界');
+});
+check('與 node:crypto 對拍：長度 0…200 逐一比對', () => {
+  for (let n = 0; n <= 200; n++) {
+    const b = makeBytes(n, n + 1);
+    assertEq(P.sha256HexSync(b), sha256(b), `長度 ${n}`);
+  }
+});
+check('與 node:crypto 對拍：跨區塊長度（55/56/57/63/64/65/119/120/1MB+1）', () => {
+  for (const n of [55, 56, 57, 63, 64, 65, 119, 120, 1024 * 1024 + 1]) {
+    const b = makeBytes(n, 99);
+    assertEq(P.sha256HexSync(b), sha256(b), `長度 ${n}`);
+  }
+});
+check('翻一個位元組就變值（雪崩，證明不是常數回傳）', () => {
+  const b = makeBytes(4096, 5);
+  const h1 = P.sha256HexSync(b);
+  b[2048] ^= 0x01;
+  assert(h1 !== P.sha256HexSync(b), '改一位元組雜湊必須改變');
+});
+
 console.log('\n§2 正向：3MF 分塊往返（四項驗證全過）');
 check('2.3MB 分塊往返後位元組與 SHA 全等', () => {
   const bytes = makeBytes(2 * 1024 * 1024 + 12345, 7);
