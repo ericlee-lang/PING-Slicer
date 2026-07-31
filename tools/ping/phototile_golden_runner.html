@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>PhotoTile 黃金比對 Runner（雙路 oracle・C-1 產品版）</title>
+<!-- =====================================================================
+     照片磚雙路黃金 oracle（C-1 起改為 repo 常駐迴歸工具，2026-07-31）
+     血統＝C-0 尖峰產物 goldenrunner.html（6/6 全等的那支），只改兩處：
+       ① 受測對象換成產品引擎 resources/web/phototile/engine.js
+       ② iframe 指向 repo 現行工作室頁（非產物包複本）
+     用途：任何動到 engine.js／index.html 幾何鏈的改動，都必須先過這 6 案，
+           證明「重構不改位元組」。C-1 的 metadata 走 opt-in 正是為了保住這條線。
+     跑法（需 http，file:// 的 iframe 取不到 contentDocument）：
+       python -m http.server 8791 --directory <repo 根>
+       開 http://localhost:8791/tools/ping/phototile_golden_runner.html?auto=1
+     ===================================================================== -->
+<style>
+  body{font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif; font-size:14px; color:#202221; margin:0; padding:14px 20px;}
+  h1{font-size:17px; border-left:4px solid #EA4E16; padding-left:9px;}
+  #status{font-weight:700; margin:8px 0;}
+  pre{background:#fafafa; border:1px solid #EFEFEF; border-radius:6px; padding:10px; font-size:11.5px;
+      font-family:Consolas,monospace; white-space:pre-wrap; max-height:40vh; overflow:auto;}
+  iframe{width:100%; height:420px; border:1px solid #EFEFEF; border-radius:6px;}
+</style>
+</head>
+<body>
+<h1>雙路黃金比對：真工作室頁（iframe）vs 產品引擎 <code>resources/web/phototile/engine.js</code>——同輸入 → 3MF 逐 entry SHA-256 斷言</h1>
+<div id="status">載入中…</div>
+<pre id="out">—</pre>
+<iframe id="studio" src="../../resources/web/phototile/index.html?mode=vertical"></iframe>
+
+<script src="../../resources/web/phototile/mesh_union.js"></script>
+<script src="../../resources/web/phototile/size_ratio.js"></script>
+<script src="../../resources/web/phototile/engine.js"></script>
+<script>
+"use strict";
+const out=document.getElementById('out'), statusEl=document.getElementById('status');
+const log=o=>{ out.textContent = typeof o==='string'?o:JSON.stringify(o,null,2); };
+const setStatus=t=>statusEl.textContent=t;
+
+/* ---- 比對工具（與 harness 同實作） ---- */
+async function unzip3mf(bytes){
+  const dv=new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const entries=[]; let off=0; const dec=new TextDecoder();
+  while(off+30<=bytes.length && dv.getUint32(off,true)===0x04034b50){
+    const method=dv.getUint16(off+8,true);
+    const clen=dv.getUint32(off+18,true), rlen=dv.getUint32(off+22,true);
+    const nameLen=dv.getUint16(off+26,true), extraLen=dv.getUint16(off+28,true);
+    const name=dec.decode(bytes.subarray(off+30,off+30+nameLen));
+    const comp=bytes.subarray(off+30+nameLen+extraLen, off+30+nameLen+extraLen+clen);
+    let data;
+    if(method===0) data=comp.slice();
+    else { const ds=new DecompressionStream('deflate-raw');
+      data=new Uint8Array(await new Response(new Blob([comp]).stream().pipeThrough(ds)).arrayBuffer()); }
+    if(data.length!==rlen) throw new Error('unzip 長度不符 '+name);
+    entries.push({name, bytes:data});
+    off += 30+nameLen+extraLen+clen;
+  }
+  return entries;
+}
+async function sha256hex(bytes){
+  const d=await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+async function hashesOfBlob(blob){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const h={};
+  for(const e of await unzip3mf(bytes)) h[e.name]=await sha256hex(e.bytes);
+  return {bytes:bytes.length, hashes:h};
+}
+
+/* ---- iframe 詞法橋：studio 的 params/slots/lastExport 是 top-level let（非 window 屬性），
+       跨 frame 取不到——注入 classic script 到 iframe 文件內建立 window.__st 存取器。 ---- */
+const frame=document.getElementById('studio');
+function injectBridge(){
+  const idoc=frame.contentDocument;
+  const s=idoc.createElement('script');
+  s.textContent=`window.__st={
+    get lastExport(){ return (typeof lastExport!=='undefined')?lastExport:undefined; },
+    get params(){ return params; },
+    get slots(){ return slots.slice(0,slotCount); },
+    get slotCount(){ return slotCount; },
+    sim(){ clearTimeout(tq); simulate(); }   /* 與匯出鈕同法（index.html:1295）＝同步強制重算 */
+  };`;
+  idoc.body.appendChild(s);
+}
+const sw=()=>frame.contentWindow;
+const st=()=>sw().__st;
+const el=id=>frame.contentDocument.getElementById(id);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function waitFor(pred, timeoutMs, what){
+  const t0=performance.now();
+  while(performance.now()-t0<timeoutMs){ if(pred()) return; await sleep(100); }
+  throw new Error('等待逾時：'+what);
+}
+async function waitNewExport(prevRef, what){
+  await waitFor(()=>st().lastExport && st().lastExport!==prevRef, 20000, what);
+}
+
+/* ---- 案例定義：configure=把 iframe 調到位；engineReq=同輸入的引擎請求 ---- */
+function baseReq(mode, over){
+  return Object.assign({ jobId:'golden-'+mode+'-'+(over&&over.tag||''), mode, nozzle:0.4,
+    size:{widthMm:100,heightMm:75,thickMm:6}, klevels:8, noiseMm:2.0,
+    pillar:{enabled:true,xyMm:25}, seam:{p2aBlock:false,teeth:false}, slots:null }, over||{});
+}
+const CASES=[
+  { label:'dual-default',
+    async configure(){ const prev=st().lastExport;
+      frame.contentDocument.querySelector('#modeSeg button[data-n="2"]').click();
+      await waitNewExport(prev,'dual sim'); await waitFor(()=>st().lastExport.mode==='dual',5000,'mode dual'); },
+    req:()=>baseReq('dual',{tag:'default'}) },
+  { label:'quad-default',
+    async configure(){ const prev=st().lastExport;
+      frame.contentDocument.querySelector('#modeSeg button[data-n="4"]').click();
+      await waitNewExport(prev,'quad sim'); await waitFor(()=>st().lastExport.mode==='quad',5000,'mode quad'); },
+    req:()=>baseReq('quad',{tag:'default'}) },
+  { label:'quad-p2a',
+    async configure(){ const cb=el('p2aOn'); cb.checked=true; cb.dispatchEvent(new Event('change')); },
+    async cleanup(){ const cb=el('p2aOn'); cb.checked=false; cb.dispatchEvent(new Event('change')); },
+    req:()=>baseReq('quad',{tag:'p2a', seam:{p2aBlock:true,teeth:false}}) },
+  { label:'quad-nopillar',
+    async configure(){ const prev=st().lastExport;
+      const cb=el('pillarOn'); cb.checked=false; cb.dispatchEvent(new Event('change'));   // 觸發 suggest→sim
+      await waitNewExport(prev,'nopillar sim'); },
+    async cleanup(){ const prev=st().lastExport;
+      const cb=el('pillarOn'); cb.checked=true; cb.dispatchEvent(new Event('change'));
+      await waitNewExport(prev,'pillar restore sim'); },
+    req:()=>baseReq('quad',{tag:'nopillar', pillar:{enabled:false,xyMm:25}}) },
+  { label:'dual-teeth',
+    async configure(){ const prev=st().lastExport;
+      frame.contentDocument.querySelector('#modeSeg button[data-n="2"]').click();
+      await waitNewExport(prev,'back to dual'); await waitFor(()=>st().lastExport.mode==='dual',5000,'mode dual');
+      const cb=el('teethOn'); cb.checked=true; cb.dispatchEvent(new Event('change')); },
+    async cleanup(){ const cb=el('teethOn'); cb.checked=false; cb.dispatchEvent(new Event('change')); },
+    req:()=>baseReq('dual',{tag:'teeth', seam:{p2aBlock:false,teeth:true}}) },
+  { label:'dual-noise0',
+    async configure(){ const prev=st().lastExport;
+      const ni=el('noiseIn'); ni.value='0'; ni.dispatchEvent(new Event('change'));        // queue() 60ms 防抖
+      await waitNewExport(prev,'noise0 sim'); },
+    async cleanup(){ const prev=st().lastExport;
+      const ni=el('noiseIn'); ni.value='2.0'; ni.dispatchEvent(new Event('change'));
+      await waitNewExport(prev,'noise restore sim'); },
+    req:()=>baseReq('dual',{tag:'noise0', noiseMm:0}) },
+];
+
+const ENTRY_NAMES=['[Content_Types].xml','_rels/.rels','3D/3dmodel.model','Metadata/model_settings.config','Metadata/ping_palette.txt'];
+async function runAll(){
+  setStatus('等待 iframe 工作室就緒（自動載測試圖＋建議＋首次模擬）…');
+  await waitFor(()=>{ try{ return !!sw().__buildExport; }catch(e){ return false; } },20000,'iframe __buildExport');
+  injectBridge();
+  await waitFor(()=>{ try{ return !!st().lastExport; }catch(e){ return false; } },30000,'首次 lastExport');
+  const report={ ua:navigator.userAgent, engine:PhotoTileEngine.version, when:new Date().toISOString(), cases:[], allPass:false };
+  for(const c of CASES){
+    setStatus('執行案例：'+c.label);
+    try{
+      if(c.configure) await c.configure();
+      st().sim();                                        // 與匯出鈕同法：先套最新參數同步重算
+      const sres=await sw().__buildExport();
+      const studio=await hashesOfBlob(sres.blob);
+      /* 引擎側：同一張來源圖（直接從 iframe 的 srcCanvas 取像素＝與工作室完全同源） */
+      const eng=await PhotoTileEngine.generate(Object.assign(c.req(),{image:await createImageBitmap(frame.contentDocument.getElementById('srcCanvas'))}));
+      if(!eng.ok) throw new Error('引擎失敗:'+eng.error.code+' '+eng.error.message);
+      const engine={bytes:eng.byteLength, hashes:{}};
+      for(const e of await unzip3mf(eng.threeMF)) engine.hashes[e.name]=await sha256hex(e.bytes);
+      const mismatches=ENTRY_NAMES.filter(n=>studio.hashes[n]!==engine.hashes[n]);
+      const pass = mismatches.length===0 && studio.bytes===engine.bytes;
+      report.cases.push({label:c.label, pass, bytes:{studio:studio.bytes, engine:engine.bytes},
+                         mismatchedEntries:mismatches,
+                         model:{studio:studio.hashes['3D/3dmodel.model'], engine:engine.hashes['3D/3dmodel.model']},
+                         entries:{studio:studio.hashes, engine:engine.hashes}});
+      if(c.cleanup) await c.cleanup();
+      log(report);
+    }catch(e){
+      report.cases.push({label:c.label, pass:false, error:String(e && e.message || e)});
+      log(report);
+    }
+  }
+  report.allPass = report.cases.length===CASES.length && report.cases.every(x=>x.pass);
+  window.__goldenReport=report;
+  setStatus(report.allPass ? '✅ 全部通過（'+report.cases.length+'/'+CASES.length+' 案雙路全等）'
+                           : '❌ 有不一致——見 JSON');
+  log(report);
+  return report;
+}
+window.GoldenRunner={runAll};
+setStatus('就緒——呼叫 GoldenRunner.runAll()');
+/* ?auto=1＝載入即跑（讓 AI／CI 免手動點；結果落 window.__goldenReport） */
+if(new URLSearchParams(location.search).get('auto')==='1') runAll();
+</script>
+</body>
+</html>
