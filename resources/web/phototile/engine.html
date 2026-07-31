@@ -94,9 +94,14 @@
     for (const msg of P.buildTransfer(r.jobId, r.threeMF, sha, P.CHUNK_BYTES)) post(msg);
   }
 
+  /* 數值欄位一律過 Number()：宿主端的 JSON writer 可能把數字寫成字串
+     （boost::property_tree 就是這樣，2026-07-31 閘門①首跑被此坑擋下）。
+     協定要求的是「值等於」，不是「型別也要是 number」——嚴格比較留給版本以外的語意檢查。 */
+  const num = v => (v === undefined || v === null || v === '') ? NaN : Number(v);
+
   async function onCommand(m){
     if (!m || typeof m !== 'object') { postError(null, P.PERR.BAD_MESSAGE, '訊息不是物件'); return; }
-    if (m.v !== P.PROTOCOL_VERSION) { postError(m.jobId, P.PERR.BAD_VERSION, `協定版本不符（收到 ${m.v}）`); return; }
+    if (num(m.v) !== P.PROTOCOL_VERSION) { postError(m.jobId, P.PERR.BAD_VERSION, `協定版本不符（收到 ${m.v}）`); return; }
     switch (m.cmd) {
       case P.CMD.PING:
         post({ type: P.MSG.PONG, seq: m.seq === undefined ? null : m.seq, busy: !!active });
@@ -107,11 +112,11 @@
       case P.CMD.IMAGE_BEGIN:
         injectReset();
         inject.jobId = m.jobId; inject.mime = m.mime || 'image/png'; inject.name = m.name || null;
-        inject.expected = m.chunks; inject.chars = m.totalChars;
+        inject.expected = num(m.chunks); inject.chars = num(m.totalChars);
         return;
       case P.CMD.IMAGE_CHUNK:
         if (inject.jobId !== m.jobId) { postError(m.jobId, P.PERR.JOB_MISMATCH, '影像分塊 jobId 不符'); return; }
-        if (m.index !== inject.parts.length) {
+        if (num(m.index) !== inject.parts.length) {
           postError(m.jobId, P.PERR.CHUNK_ORDER, `影像分塊序號不連續（期望 ${inject.parts.length}、收到 ${m.index}）`);
           injectReset(); return;
         }
@@ -119,12 +124,12 @@
         return;
       case P.CMD.IMAGE_END: {
         if (inject.jobId !== m.jobId) { postError(m.jobId, P.PERR.JOB_MISMATCH, '影像結束 jobId 不符'); return; }
-        if (inject.parts.length !== m.chunks) {
+        if (inject.parts.length !== num(m.chunks)) {
           postError(m.jobId, P.PERR.CHUNK_COUNT, `影像塊數不符（宣告 ${m.chunks}、實收 ${inject.parts.length}）`);
           injectReset(); return;
         }
         const chars = inject.parts.reduce((a, s) => a + s.length, 0);
-        if (chars !== m.totalChars) {
+        if (chars !== num(m.totalChars)) {
           postError(m.jobId, P.PERR.LENGTH_MISMATCH, `影像字元數不符（宣告 ${m.totalChars}、實收 ${chars}）`);
           injectReset(); return;
         }

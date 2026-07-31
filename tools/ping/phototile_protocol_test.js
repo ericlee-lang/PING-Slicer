@@ -163,6 +163,41 @@ check('chunk 早於 begin → protocol_chunk_order', () => {
   assertEq(st.error && st.error.code, P.PERR.CHUNK_ORDER, '錯誤碼');
 });
 
+console.log('\n§3.5 數值型別容錯（2026-07-31 閘門①實戰坑：boost ptree 把數字寫成字串）');
+check('num()：字串數字／空值／非數字', () => {
+  assertEq(P.num('1'), 1, '字串 "1"');
+  assertEq(P.num(0), 0, '數字 0');
+  assert(Number.isNaN(P.num(null)) && Number.isNaN(P.num(undefined)) && Number.isNaN(P.num('')), 'null/undefined/空字串應為 NaN');
+  assert(Number.isNaN(P.num('abc')), '非數字應為 NaN');
+});
+check('宿主把 v／size／chunks／index／length 全寫成字串 → 仍能組裝成功', () => {
+  const bytes = makeBytes(300 * 1024, 31);
+  const msgs = P.buildTransfer('job-1', bytes, sha256(bytes)).map(m => {
+    const o = Object.assign({}, m);
+    for (const k of ['v', 'size', 'chunks', 'index', 'length'])
+      if (o[k] !== undefined) o[k] = String(o[k]);
+    return o;
+  });
+  const st = feed(msgs, 'job-1');
+  assert(!st.error, '不應有錯：' + JSON.stringify(st.error));
+  assertEq(sha256(st.bytes), sha256(bytes), 'SHA-256');
+});
+check('容錯不得放水：字串型別下亂序／竄改仍要紅', () => {
+  const bytes = makeBytes(300 * 1024, 32);
+  const msgs = P.buildTransfer('job-1', bytes, sha256(bytes)).map(m => {
+    const o = Object.assign({}, m);
+    for (const k of ['v', 'size', 'chunks', 'index', 'length'])
+      if (o[k] !== undefined) o[k] = String(o[k]);
+    return o;
+  });
+  const swapped = msgs.slice(); const t = swapped[1]; swapped[1] = swapped[2]; swapped[2] = t;
+  assertEq(feed(swapped, 'job-1').error?.code, P.PERR.CHUNK_ORDER, '亂序仍須擋');
+  const tampered = P.buildTransfer('job-1', bytes, sha256(bytes)).map(m => Object.assign({}, m, { v: '1' }));
+  const b = P.base64ToBytes(tampered[1].base64); b[0] ^= 0xff;
+  tampered[1].base64 = P.bytesToBase64(b);
+  assertEq(feed(tampered, 'job-1').error?.code, P.PERR.SHA_MISMATCH, '竄改仍須擋');
+});
+
 console.log('\n§4 影像注入分塊（C++→page）');
 check('192K 字元分塊：塊數與字元總數一致、可還原', () => {
   const raw = makeBytes(700 * 1024, 21);
