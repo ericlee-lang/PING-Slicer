@@ -128,7 +128,8 @@ private:
     // 內部流程（Windows 實作；非 Windows 不會被呼叫到）
     void create_controller();
     void navigate_and_wait_ready();
-    void handle_message(const std::string& json);
+    void handle_message(const std::string& json);        // 護欄：吞掉一切例外（COM 回呼不得逃逸）
+    void handle_message_inner(const std::string& json);  // 真正的分派邏輯
     void pump_inject_queue();
     static std::string build_generate_command(const PhotoTileEngineRequest& req);
 
