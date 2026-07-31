@@ -122,7 +122,7 @@ function normalizeRequest(req){
    三形態：ImageBitmap（呼叫端已解碼）／{mime,base64}（原生橋接形態，對應
    index.html:698-704 finishImage 的 data URL 解碼路）／{width,height,rgba}（測試注入）。 */
 async function resolveImage(image, limits){
-  let bmp = null, source = null;
+  let bmp = null, source = null, owned = false;       // owned＝引擎自己解碼的，用完要關
   try {
     if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) {
       bmp = image;                                    // 工作室路徑：呼叫端已解碼、無原始位元組
@@ -131,10 +131,12 @@ async function resolveImage(image, limits){
       const response = await fetch(`data:${mime};base64,${image.base64}`);
       const blob = await response.blob();
       bmp = await createImageBitmap(blob);
+      owned = true;
       source = { mime, base64: image.base64, byteLength: blob.size, name: image.name || null };
     } else if (image && image.rgba && image.width > 0 && image.height > 0) {
       const data = new ImageData(new Uint8ClampedArray(image.rgba), image.width, image.height);
       bmp = await createImageBitmap(data);
+      owned = true;
     }
   } catch (e) {
     throw new EngineError(ERR.BAD_IMAGE, '影像解碼失敗：' + (e && e.message || e));
@@ -150,7 +152,7 @@ async function resolveImage(image, limits){
     throw new EngineError(ERR.IMAGE_TOO_LARGE,
       `影像 ${bmp.width}×${bmp.height}＝${(got/1e6).toFixed(1)}M 像素，超過上限 ${(cap/1e6).toFixed(1)}M 像素`);
   }
-  return { bitmap: bmp, source };
+  return { bitmap: bmp, source, owned };
 }
 
 /* ================= 影像 → 格點（index.html:648-674，canvas 畫面與 DOM 文案拿掉） ================= */
@@ -686,6 +688,10 @@ async function generate(request, options){
 
     t = performance.now();
     const img = buildGridData(bitmap, P.width, P.height, P.limits.gridMax);
+    /* 格點建完，解碼後的點陣圖就沒用了。**引擎自己解碼的才關**（呼叫端傳進來的
+       ImageBitmap 屬於呼叫端，關掉會害它下一案沒圖——黃金 runner 就是重複使用同一張）。
+       高像素輸入時這一關就是幾百 MB 的差別（C-0 §4.3：真壓力在 decoded bitmap）。 */
+    if (resolved.owned && bitmap && typeof bitmap.close === 'function') bitmap.close();
     timings.gridMs = performance.now() - t;    report('grid', 1); await yieldMacro(); ck('grid');
 
     if (!P.slots) P.slots = suggestSlots(img, P.mode);          // 自動配色（工作室「開圖即建議」等價）

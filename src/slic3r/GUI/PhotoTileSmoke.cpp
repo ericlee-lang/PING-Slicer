@@ -35,9 +35,13 @@ namespace {
 
 // 與 PhotoTileSleepVigil.MakeTestImage 逐像素相同的決定性測試圖。
 // 只要解碼後像素相同，引擎輸出就該相同——PNG 編碼器差異不影響（rgb 值才進格點）。
+std::string write_test_image(int W, int H, const char* name);
 std::string write_test_image()
 {
-    const int W = 480, H = 360;
+    return write_test_image(480, 360, "phototile_smoke_input.png");
+}
+std::string write_test_image(int W, int H, const char* name)
+{
     wxImage img(W, H);
     unsigned char* d = img.GetData();
     for (int y = 0; y < H; ++y)
@@ -47,7 +51,7 @@ std::string write_test_image()
             d[i + 1] = (unsigned char) ((y * 255) / H);
             d[i + 2] = (unsigned char) ((x ^ y) & 0xFF);
         }
-    const wxString path = wxFileName(from_u8(data_dir()), "phototile_smoke_input.png").GetFullPath();
+    const wxString path = wxFileName(from_u8(data_dir()), name).GetFullPath();
     img.SaveFile(path, wxBITMAP_TYPE_PNG);
     return into_u8(path);
 }

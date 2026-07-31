@@ -62,13 +62,22 @@ std::string sha256_hex(const unsigned char* data, size_t len)
     return out;
 }
 
+/* ⚠ write_json 會對「純量節點」丟例外（boost 無法把裸值寫成 JSON 文件）——
+   2026-07-31 閘門③ 首跑就是這樣炸的：引擎回 env:null ⇒ 純量節點 ⇒ 例外從 COM
+   回呼逃逸 ⇒ std::terminate ⇒ app fail-fast。這裡一律吞掉並回空字串，
+   呼叫端自己判斷「空＝沒有」。 */
 std::string ptree_to_json(const pt::ptree& tree)
 {
-    std::ostringstream ss;
-    pt::write_json(ss, tree, false);
-    std::string s = ss.str();
-    s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
-    return s;
+    try {
+        std::ostringstream ss;
+        pt::write_json(ss, tree, false);
+        std::string s = ss.str();
+        s.erase(std::remove(s.begin(), s.end(), '\n'), s.end());
+        return s;
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTileEngineHost: ptree 轉 JSON 失敗（" << e.what() << "）";
+        return std::string();
+    }
 }
 
 /* ⚠ 為什麼 host→page 的訊息不能用 ptree 產：
@@ -484,7 +493,24 @@ void PhotoTileEngineHost::navigate_and_wait_ready()
     impl->webview->Navigate(utf8_to_wide(engine_url()).c_str());
 }
 
+/* 例外絕不可穿越 COM 回呼：WebView2 的 handler 是從 Chromium 的訊息泵叫進來的，
+   讓 C++ 例外逃出去＝std::terminate＝整個 app 以 0xC0000409 猝死（2026-07-31 閘門③實錄：
+   一個 ptree 序列化的小錯就把 app 殺了）。這層護欄把任何例外收斂成「這個 job 失敗」，
+   app 續活、使用者看得到原因。 */
 void PhotoTileEngineHost::handle_message(const std::string& json)
+{
+    try {
+        handle_message_inner(json);
+    } catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: 處理引擎訊息時丟出例外（已攔下）：" << e.what();
+        p->fail_job(p->active_job, "internal", std::string("宿主處理引擎訊息時發生例外：") + e.what());
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: 處理引擎訊息時丟出未知例外（已攔下）";
+        p->fail_job(p->active_job, "internal", "宿主處理引擎訊息時發生未知例外");
+    }
+}
+
+void PhotoTileEngineHost::handle_message_inner(const std::string& json)
 {
     Impl* impl = p.get();
     const double t0 = now_ms();
@@ -527,8 +553,9 @@ void PhotoTileEngineHost::handle_message(const std::string& json)
         impl->pending.wall_ms = m.get<int>("wallMs", 0);
         impl->pending.result_json = json;
         {
+            // env 可能是 null（呼叫端沒帶快照）＝純量節點，不可拿去 write_json
             auto env_node = m.get_child_optional("env");
-            if (env_node) impl->pending.env_json = ptree_to_json(*env_node);
+            if (env_node && !env_node->empty()) impl->pending.env_json = ptree_to_json(*env_node);
         }
         impl->pending_valid = true;
     }
