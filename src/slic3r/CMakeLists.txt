@@ -480,6 +480,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/WebViewDialog.hpp
     GUI/PhotoTileEngineHost.cpp
     GUI/PhotoTileEngineHost.hpp
+    GUI/PhotoTileSmoke.cpp
+    GUI/PhotoTileSmoke.hpp
     GUI/Widgets/AMSControl.cpp
     GUI/Widgets/AMSControl.hpp
     GUI/Widgets/AMSItem.cpp

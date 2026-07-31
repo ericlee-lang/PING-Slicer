@@ -33,6 +33,17 @@ const PERR = { BAD_MESSAGE:'protocol_bad_message', BAD_VERSION:'protocol_bad_ver
                SHA_MISMATCH:'protocol_sha_mismatch', JOB_MISMATCH:'protocol_job_mismatch',
                NO_IMAGE:'protocol_no_image', STALE_ENV:'protocol_stale_env' };
 
+/* ================= 數值容錯 =================
+   協定要求「值相等」，不要求「型別必須是 number」。有些宿主的 JSON writer
+   會把數字寫成字串——boost::property_tree 就是（`"v":"1"`、`"index":"0"`），
+   2026-07-31 C-1 閘門①首跑即被此坑整條擋下。兩端一律用本函式取數值欄位。
+   注意：null／undefined／空字串回 NaN（不當成 0），缺欄位仍會被驗證擋下。 */
+function num(v){
+  if (v === undefined || v === null || v === '') return NaN;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 /* ================= base64（無 DOM 依賴，Node/瀏覽器同一份） ================= */
 function bytesToBase64(bytes){
   if (typeof Buffer !== 'undefined') return Buffer.from(bytes).toString('base64');
@@ -127,21 +138,22 @@ function createAssembler(jobId, opts){
     accept(msg){
       if (state.done && state.error) return state;
       if (!msg || typeof msg !== 'object') return fail(PERR.BAD_MESSAGE, '訊息不是物件');
-      if (msg.v !== PROTOCOL_VERSION) return fail(PERR.BAD_VERSION, `協定版本不符（收到 ${msg.v}）`);
+      if (num(msg.v) !== PROTOCOL_VERSION) return fail(PERR.BAD_VERSION, `協定版本不符（收到 ${msg.v}）`);
       if (msg.jobId !== jobId) return fail(PERR.JOB_MISMATCH, `jobId 不符（期望 ${jobId}、收到 ${msg.jobId}）`);
       if (msg.type === MSG.BEGIN) {
-        state.size = msg.size; state.chunks = msg.chunks; state.sha256 = msg.sha256 || null;
-        state.parts = new Array(msg.chunks).fill(null); state.received = 0;
+        state.size = num(msg.size); state.chunks = num(msg.chunks); state.sha256 = msg.sha256 || null;
+        state.parts = new Array(state.chunks).fill(null); state.received = 0;
         return state;
       }
       if (msg.type === MSG.CHUNK) {
         if (!state.parts.length) return fail(PERR.CHUNK_ORDER, 'chunk 早於 begin');
-        if (msg.index !== state.received)
+        if (num(msg.index) !== state.received)
           return fail(PERR.CHUNK_ORDER, `分塊序號不連續（期望 ${state.received}、收到 ${msg.index}）`);
         const bytes = base64ToBytes(msg.base64);
-        if (typeof msg.length === 'number' && bytes.length !== msg.length)
+        const declaredLen = num(msg.length);
+        if (Number.isFinite(declaredLen) && bytes.length !== declaredLen)
           return fail(PERR.LENGTH_MISMATCH, `分塊 ${msg.index} 長度不符（宣告 ${msg.length}、實得 ${bytes.length}）`);
-        state.parts[msg.index] = bytes; state.received++;
+        state.parts[num(msg.index)] = bytes; state.received++;
         return state;
       }
       if (msg.type === MSG.END) {
@@ -204,7 +216,7 @@ function checkFresh(resultEnv, currentEnv){
 }
 
 return { PROTOCOL_VERSION, CHUNK_BYTES, INJECT_CHARS, READY_TIMEOUT_MS,
-         CMD, MSG, PERR,
+         CMD, MSG, PERR, num,
          bytesToBase64, base64ToBytes, chunkCount, sha256HexSync,
          buildTransfer, createAssembler, buildImageInjection,
          envEqual, checkFresh };

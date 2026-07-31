@@ -39,6 +39,7 @@
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"
+#include "PhotoTileSmoke.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
 // BBS
@@ -752,6 +753,27 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     // bind events from DiffDlg
 
     bind_diff_dialog();
+
+    // PING C-1 閘門①：設了 PING_PHOTOTILE_SMOKE 就自動跑 smoke、跑完自己關閉。
+    // 目的是讓閘門可以無人值守重跑（AI 自己跑測試，不勞人去點選單）；
+    // 一般啟動完全不受影響（沒設環境變數就什麼都不做）。
+    if (::getenv("PING_PHOTOTILE_SMOKE") != nullptr) {
+        // PING_PHOTOTILE_SMOKE_DELAY_MS：延後起跑，讓 app 自己的初始化先做完。
+        // 用途＝把「冷啟動漂移」歸因清楚——不延後量到的是 app 初始化＋引擎冷啟動的總和，
+        // 延後後量到的才是引擎自己的成本。
+        const char* delay_env = ::getenv("PING_PHOTOTILE_SMOKE_DELAY_MS");
+        const int   delay_ms  = delay_env ? ::atoi(delay_env) : 0;
+        if (delay_ms > 0) {
+            auto* t = new wxTimer(this);
+            this->Bind(wxEVT_TIMER, [t](wxTimerEvent&) {
+                t->Stop();
+                run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+            }, t->GetId());
+            t->StartOnce(delay_ms);
+        } else {
+            CallAfter([]() { run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA); });
+        }
+    }
 }
 
 void MainFrame::bind_diff_dialog()
@@ -2533,6 +2555,15 @@ static wxMenu* generate_help_menu()
             std::string html_path = Slic3r::resources_dir() + "/web/phototile/index.html";
             wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
         });
+
+    // PING C-1 閘門①：照片磚引擎 wx 整合 smoke。**只在開發者模式出現**（客戶端看不到）。
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("照片磚引擎 smoke（開發）"),
+        wxString::FromUTF8("量 wx 事件圈成本並與守夜基準比對 SHA-256（C-1 閘門①）"),
+        [](wxCommandEvent&) {
+            run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+        }, "", nullptr,
+        []() { return wxGetApp().app_config->get_bool("developer_mode"); });
 
     helpMenu->AppendSeparator();
     // Open Config Folder

@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <deque>
 #include <fstream>
 #include <sstream>
@@ -70,6 +71,40 @@ std::string ptree_to_json(const pt::ptree& tree)
     return s;
 }
 
+/* ⚠ 為什麼 host→page 的訊息不能用 ptree 產：
+   boost::property_tree 的 JSON writer **把所有值都寫成字串**（`"v":"1"`、`"index":"0"`），
+   引擎頁用嚴格比較 `m.v !== 1` 就會判定版本不符——2026-07-31 閘門① 首跑即被此坑擋下。
+   訊息形狀固定，直接手組 JSON＝型別正確、零依賴。（page→host 的**解析**仍用 ptree，
+   因為 get<int>/get<size_t> 會把字串轉回數值，方向相反不受影響。） */
+std::string json_escape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (unsigned char c : s) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+            if (c < 0x20) { char buf[8]; ::snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
+            else          out += (char) c;
+        }
+    }
+    return out;
+}
+std::string jkv(const std::string& key, const std::string& value)   // 字串值
+{ return "\"" + json_escape(key) + "\":\"" + json_escape(value) + "\""; }
+std::string jkn(const std::string& key, double value)               // 數值
+{
+    std::ostringstream ss;
+    if (value == (long long) value) ss << (long long) value; else ss << value;
+    return "\"" + json_escape(key) + "\":" + ss.str();
+}
+std::string jkb(const std::string& key, bool value)                 // 布林
+{ return "\"" + json_escape(key) + "\":" + (value ? "true" : "false"); }
+
 bool json_from_string(const std::string& text, pt::ptree& out)
 {
     try {
@@ -103,6 +138,28 @@ double now_ms()
     using namespace std::chrono;
     return duration_cast<duration<double, std::milli>>(steady_clock::now().time_since_epoch()).count();
 }
+
+#ifdef _WIN32
+// UTF-8 ↔ UTF-16。⚠ 不可用 std::wstring(s.begin(), s.end()) 逐位元組拓寬——
+// 那會把中文（檔名／機型名／metadata）打成亂碼。
+std::wstring utf8_to_wide(const std::string& s)
+{
+    if (s.empty()) return std::wstring();
+    const int n = ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), nullptr, 0);
+    std::wstring w((size_t) n, L'\0');
+    ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), &w[0], n);
+    return w;
+}
+std::string wide_to_utf8(const wchar_t* s)
+{
+    if (!s) return std::string();
+    const int n = ::WideCharToMultiByte(CP_UTF8, 0, s, -1, nullptr, 0, nullptr, nullptr);
+    if (n <= 1) return std::string();
+    std::string out((size_t) n - 1, '\0');
+    ::WideCharToMultiByte(CP_UTF8, 0, s, -1, &out[0], n, nullptr, nullptr);
+    return out;
+}
+#endif
 
 } // namespace
 
@@ -164,7 +221,7 @@ struct PhotoTileEngineHost::Impl
     {
         if (!webview) return;
         const double t0 = now_ms();
-        webview->PostWebMessageAsJson(std::wstring(json.begin(), json.end()).c_str());
+        webview->PostWebMessageAsJson(utf8_to_wide(json).c_str());
         if (smoke_on)
             smoke.inject_dispatch_max_ms = (std::max)(smoke.inject_dispatch_max_ms, now_ms() - t0);
     }
@@ -237,24 +294,6 @@ using Microsoft::WRL::ComPtr;
 using Microsoft::WRL::Make;
 
 namespace {
-
-std::wstring utf8_to_wide(const std::string& s)
-{
-    if (s.empty()) return std::wstring();
-    const int n = ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), nullptr, 0);
-    std::wstring w((size_t) n, L'\0');
-    ::MultiByteToWideChar(CP_UTF8, 0, s.data(), (int) s.size(), &w[0], n);
-    return w;
-}
-std::string wide_to_utf8(const wchar_t* s)
-{
-    if (!s) return std::string();
-    const int n = ::WideCharToMultiByte(CP_UTF8, 0, s, -1, nullptr, 0, nullptr, nullptr);
-    if (n <= 1) return std::string();
-    std::string out((size_t) n - 1, '\0');
-    ::WideCharToMultiByte(CP_UTF8, 0, s, -1, &out[0], n, nullptr, nullptr);
-    return out;
-}
 
 // WebView2Loader.dll 隨 app 佈署（CMakeLists.txt:827/862）。動態載入＝不動連結設定，
 // 且**載不到就是誠實不可用**——不像現行鏈那樣把 Create() 回傳值丟掉造成沉默假成功。
@@ -637,35 +676,19 @@ bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& req)
 
         const size_t chunks = (b64.size() + INJECT_CHUNK_CHARS - 1) / INJECT_CHUNK_CHARS;
         std::deque<std::string> queue;
-        {
-            pt::ptree begin;
-            begin.put("v", PROTOCOL_VERSION);
-            begin.put("cmd", "imageBegin");
-            begin.put("jobId", job_id);
-            begin.put("mime", mime);
-            begin.put("totalChars", b64.size());
-            begin.put("chunks", chunks);
-            queue.push_back(ptree_to_json(begin));
-        }
+        queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageBegin") + "," +
+                        jkv("jobId", job_id) + "," + jkv("mime", mime) + "," +
+                        jkn("totalChars", (double) b64.size()) + "," + jkn("chunks", (double) chunks) + "}");
         for (size_t i = 0; i < chunks; ++i) {
-            pt::ptree c;
-            c.put("v", PROTOCOL_VERSION);
-            c.put("cmd", "imageChunk");
-            c.put("jobId", job_id);
-            c.put("index", i);
-            c.put("base64", b64.substr(i * INJECT_CHUNK_CHARS,
-                                       (std::min)(INJECT_CHUNK_CHARS, b64.size() - i * INJECT_CHUNK_CHARS)));
-            queue.push_back(ptree_to_json(c));
+            const std::string part = b64.substr(i * INJECT_CHUNK_CHARS,
+                                                (std::min)(INJECT_CHUNK_CHARS, b64.size() - i * INJECT_CHUNK_CHARS));
+            queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageChunk") + "," +
+                            jkv("jobId", job_id) + "," + jkn("index", (double) i) + "," +
+                            jkv("base64", part) + "}");     // base64 字元集不含需跳脫者，仍走同一組裝器
         }
-        {
-            pt::ptree end;
-            end.put("v", PROTOCOL_VERSION);
-            end.put("cmd", "imageEnd");
-            end.put("jobId", job_id);
-            end.put("totalChars", b64.size());
-            end.put("chunks", chunks);
-            queue.push_back(ptree_to_json(end));
-        }
+        queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageEnd") + "," +
+                        jkv("jobId", job_id) + "," + jkn("totalChars", (double) b64.size()) + "," +
+                        jkn("chunks", (double) chunks) + "}");
         queue.push_back(build_generate_command(req_copy));
 
         wxTheApp->CallAfter([this, impl, queue, encode_ms]() mutable {
@@ -696,42 +719,28 @@ void PhotoTileEngineHost::pump_inject_queue()
 
 std::string PhotoTileEngineHost::build_generate_command(const PhotoTileEngineRequest& req)
 {
-    pt::ptree msg, r, size, pillar, seam, limits;
-    msg.put("v", PROTOCOL_VERSION);
-    msg.put("cmd", "generate");
-    msg.put("jobId", req.job_id);
-
-    r.put("jobId", req.job_id);
-    r.put("mode", req.mode);
-    r.put("nozzle", req.nozzle);
-    size.put("widthMm", req.width_mm);
-    size.put("heightMm", req.height_mm);
-    size.put("thickMm", req.thick_mm);
-    r.add_child("size", size);
-    r.put("klevels", req.klevels);
-    r.put("noiseMm", req.noise_mm);
-    pillar.put("enabled", req.pillar);
-    pillar.put("xyMm", req.pillar_xy_mm);
-    r.add_child("pillar", pillar);
-    seam.put("teeth", req.teeth);
-    seam.put("p2aBlock", req.p2a_block);
-    r.add_child("seam", seam);
-    if (req.grid_max > 0)            limits.put("gridMax", req.grid_max);
-    if (req.max_decoded_pixels > 0)  limits.put("maxDecodedPixels", req.max_decoded_pixels);
-    if (!limits.empty())             r.add_child("limits", limits);
-    if (req.want_metadata) {
-        pt::ptree md;
-        md.put("groupUuid", req.group_uuid);
-        md.put("embedSource", req.embed_source);
-        md.put("createdBy", "PING-Slicer");
-        r.add_child("metadata", md);
+    std::string r = "{" + jkv("jobId", req.job_id) + "," + jkv("mode", req.mode) + "," +
+                    jkn("nozzle", req.nozzle) + "," +
+                    "\"size\":{" + jkn("widthMm", req.width_mm) + "," + jkn("heightMm", req.height_mm) + "," +
+                                   jkn("thickMm", req.thick_mm) + "}," +
+                    jkn("klevels", req.klevels) + "," + jkn("noiseMm", req.noise_mm) + "," +
+                    "\"pillar\":{" + jkb("enabled", req.pillar) + "," + jkn("xyMm", req.pillar_xy_mm) + "}," +
+                    "\"seam\":{" + jkb("teeth", req.teeth) + "," + jkb("p2aBlock", req.p2a_block) + "}";
+    if (req.grid_max > 0 || req.max_decoded_pixels > 0) {
+        r += ",\"limits\":{";
+        bool first = true;
+        if (req.grid_max > 0)           { r += jkn("gridMax", req.grid_max); first = false; }
+        if (req.max_decoded_pixels > 0) { if (!first) r += ","; r += jkn("maxDecodedPixels", (double) req.max_decoded_pixels); }
+        r += "}";
     }
-    if (!req.env_json.empty()) {
-        pt::ptree env;
-        if (json_from_string(req.env_json, env)) r.add_child("env", env);
-    }
-    msg.add_child("request", r);
-    return ptree_to_json(msg);
+    if (req.want_metadata)
+        r += ",\"metadata\":{" + jkv("groupUuid", req.group_uuid) + "," +
+             jkb("embedSource", req.embed_source) + "," + jkv("createdBy", "PING-Slicer") + "}";
+    if (!req.env_json.empty())
+        r += ",\"env\":" + req.env_json;          // 呼叫端給的就是 JSON 原文，原封帶入／原封回傳
+    r += "}";
+    return "{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "generate") + "," +
+           jkv("jobId", req.job_id) + ",\"request\":" + r + "}";
 }
 
 void PhotoTileEngineHost::shutdown()
@@ -749,11 +758,7 @@ void PhotoTileEngineHost::shutdown()
 void PhotoTileEngineHost::cancel(const std::string& job_id)
 {
     if (!p->webview) return;
-    pt::ptree msg;
-    msg.put("v", PROTOCOL_VERSION);
-    msg.put("cmd", "cancel");
-    msg.put("jobId", job_id);
-    p->send_json(ptree_to_json(msg));
+    p->send_json("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "cancel") + "," + jkv("jobId", job_id) + "}");
 }
 
 #endif // _WIN32
