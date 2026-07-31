@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<!-- =====================================================================
+     照片磚隱形引擎頁（C-1 產品版，2026-07-31・照片磚線 PT）
+     由 PhotoTileEngineHost（C++）以隱藏視窗載入；**沒有 UI、永不顯示**。
+     使用者看得到的介面＝準備頁側卡（C-3），本頁只負責算。
+
+     ⚠ 零計時器紀律（C-0 §3.2 實錘：隱形頁 setTimeout 被節流到 ~1s/次）
+       本頁與 engine.js 的生成路徑一律不得出現 setTimeout／setInterval／
+       requestAnimationFrame。讓步用 MessageChannel（engine.js 的 yieldMacro）。
+       宿主端另有第二道防線＝啟動參數 --disable-background-timer-throttling。
+
+     協定正本＝tools/ping/phototile_protocol.md；框架實作＝engine_protocol.js
+     ===================================================================== -->
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>PING PhotoTile Engine</title>
+</head>
+<body>
+<script src="mesh_union.js"></script>
+<script src="engine_protocol.js"></script>
+<script src="engine.js"></script>
+<script>
+"use strict";
+(function () {
+  const P = window.PhotoTileProtocol;
+  const E = window.PhotoTileEngine;
+  const inHost = !!(window.chrome && window.chrome.webview);
+
+  function post(o){
+    o.v = P.PROTOCOL_VERSION;
+    if (inHost) window.chrome.webview.postMessage(JSON.stringify(o));
+    else window.dispatchEvent(new CustomEvent('phototile-engine-out', { detail: o }));  // 測試用觀察點
+  }
+  function postError(jobId, code, message){
+    post({ type: P.MSG.ERROR, jobId: jobId || null, code, message: String(message) });
+  }
+
+  /* ============ 影像注入緩衝（C++→page，192K 字元分塊；同 WebViewDialog 現值） ============ */
+  const inject = { jobId: null, mime: null, name: null, parts: [], expected: 0, chars: 0 };
+  function injectReset(){ inject.jobId = null; inject.parts = []; inject.expected = 0; inject.chars = 0; }
+
+  /* ============ 作業狀態（一次一個 job；新 job 進來＝supersede 舊的） ============ */
+  let active = null;   // { jobId }
+
+  async function runGenerate(m){
+    const jobId = m.jobId;
+    if (!jobId) { postError(null, P.PERR.BAD_MESSAGE, 'generate 缺 jobId'); return; }
+
+    /* supersede：C-0 §5.2 矩陣 #8——生成中有新輸入＝取消進行中的，不排隊 */
+    if (active && active.jobId !== jobId) {
+      const old = active.jobId;
+      E.cancel(old);
+      post({ type: P.MSG.SUPERSEDED, jobId: old, by: jobId });
+    }
+    active = { jobId };
+
+    const req = Object.assign({}, m.request || {}, { jobId });
+    /* 影像來源：①本次注入緩衝 ②request.image 直接帶（測試／小圖） */
+    if (!req.image) {
+      if (inject.jobId === jobId && inject.parts.length)
+        req.image = { mime: inject.mime, base64: inject.parts.join(''), name: inject.name };
+      else { active = null; postError(jobId, P.PERR.NO_IMAGE, '沒有影像可生成（請先注入 imageBegin/Chunk/End）'); return; }
+    }
+
+    const t0 = performance.now();
+    let r;
+    try {
+      r = await E.generate(req, { onProgress: p => post({ type: P.MSG.PROGRESS, jobId: p.jobId,
+              stage: p.stage, stageLabel: p.stageLabel, pct: +p.pct.toFixed(4), elapsedMs: Math.round(p.elapsedMs) }) });
+    } catch (e) {
+      active = null;
+      postError(jobId, 'internal', (e && e.message) || e);
+      return;
+    }
+    if (active && active.jobId === jobId) active = null;
+    if (inject.jobId === jobId) injectReset();
+
+    if (!r.ok) {
+      post({ type: P.MSG.RESULT, jobId: r.jobId || jobId, ok: false, error: r.error,
+             diagnostics: r.diagnostics || null });
+      return;
+    }
+
+    const sha = await E.sha256Hex(r.threeMF);
+    /* result＝先給宿主「這份是什麼」；bytes 走 begin/chunk/end。
+       ⚠ 宿主只有在 end 且四項驗證全過後才算 success（協定 §3）。 */
+    post({ type: P.MSG.RESULT, jobId: r.jobId, ok: true,
+           byteLength: r.byteLength, sha256: sha, chunks: P.chunkCount(r.byteLength, P.CHUNK_BYTES),
+           fileName: r.fileName, mode: r.mode, nozzle: r.nozzle,
+           palette: r.palette, slots: r.slots, stats: r.stats,
+           metadata: r.metadata, env: r.env, limits: r.limits,
+           diagnostics: r.diagnostics, wallMs: Math.round(performance.now() - t0) });
+    for (const msg of P.buildTransfer(r.jobId, r.threeMF, sha, P.CHUNK_BYTES)) post(msg);
+  }
+
+  async function onCommand(m){
+    if (!m || typeof m !== 'object') { postError(null, P.PERR.BAD_MESSAGE, '訊息不是物件'); return; }
+    if (m.v !== P.PROTOCOL_VERSION) { postError(m.jobId, P.PERR.BAD_VERSION, `協定版本不符（收到 ${m.v}）`); return; }
+    switch (m.cmd) {
+      case P.CMD.PING:
+        post({ type: P.MSG.PONG, seq: m.seq === undefined ? null : m.seq, busy: !!active });
+        return;
+      case P.CMD.CANCEL:
+        post({ type: P.MSG.CANCEL_ACK, jobId: m.jobId, existed: E.cancel(m.jobId) });
+        return;
+      case P.CMD.IMAGE_BEGIN:
+        injectReset();
+        inject.jobId = m.jobId; inject.mime = m.mime || 'image/png'; inject.name = m.name || null;
+        inject.expected = m.chunks; inject.chars = m.totalChars;
+        return;
+      case P.CMD.IMAGE_CHUNK:
+        if (inject.jobId !== m.jobId) { postError(m.jobId, P.PERR.JOB_MISMATCH, '影像分塊 jobId 不符'); return; }
+        if (m.index !== inject.parts.length) {
+          postError(m.jobId, P.PERR.CHUNK_ORDER, `影像分塊序號不連續（期望 ${inject.parts.length}、收到 ${m.index}）`);
+          injectReset(); return;
+        }
+        inject.parts.push(m.base64);
+        return;
+      case P.CMD.IMAGE_END: {
+        if (inject.jobId !== m.jobId) { postError(m.jobId, P.PERR.JOB_MISMATCH, '影像結束 jobId 不符'); return; }
+        if (inject.parts.length !== m.chunks) {
+          postError(m.jobId, P.PERR.CHUNK_COUNT, `影像塊數不符（宣告 ${m.chunks}、實收 ${inject.parts.length}）`);
+          injectReset(); return;
+        }
+        const chars = inject.parts.reduce((a, s) => a + s.length, 0);
+        if (chars !== m.totalChars) {
+          postError(m.jobId, P.PERR.LENGTH_MISMATCH, `影像字元數不符（宣告 ${m.totalChars}、實收 ${chars}）`);
+          injectReset(); return;
+        }
+        post({ type: P.MSG.IMAGE_ACK, jobId: m.jobId, chars, chunks: m.chunks, mime: inject.mime });
+        return;
+      }
+      case P.CMD.GENERATE:
+        await runGenerate(m);
+        return;
+      default:
+        postError(m.jobId, P.PERR.UNKNOWN_CMD, `未知指令 ${m.cmd}`);
+    }
+  }
+
+  if (inHost) {
+    window.chrome.webview.addEventListener('message', ev => {
+      let m = ev.data;
+      if (typeof m === 'string') { try { m = JSON.parse(m); } catch (e) { postError(null, P.PERR.BAD_MESSAGE, 'JSON 解析失敗'); return; } }
+      onCommand(m);   // 非同步；錯誤已在內部收斂
+    });
+  }
+  window.PhotoTileEngineHostPage = { onCommand, post };   // 測試／非宿主環境的入口
+
+  /* ready 握手：宿主等這則（逾時 15s＝誠實失敗）。
+     ⚠ 時序：ready 可能早於 NavigationCompleted 抵達，宿主兩序皆須處理（C-0 §3.1 實測）。 */
+  post({ type: P.MSG.READY, engine: E.version, protocol: P.PROTOCOL_VERSION,
+         metadataSchema: E.metadataSchema, hasMesh: !!window.PhotoTileMesh,
+         limitsDefault: E.limitsDefault, ua: navigator.userAgent });
+})();
+</script>
+</body>
+</html>
