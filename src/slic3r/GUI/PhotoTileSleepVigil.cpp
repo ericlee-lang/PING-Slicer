@@ -73,6 +73,18 @@ std::string wall_text()
     return into_u8(wxDateTime::Now().Format("%Y-%m-%d %H:%M:%S"));
 }
 
+/* Windows 的 ::getenv() 回的是**系統 ANSI 碼頁**字串（本機＝CP950）。
+   路徑一旦含中文，拿去餵 nowide::ofstream（吃 UTF-8）就是無效序列 ⇒ 開檔失敗。
+   2026-08-01 實錄：守夜的 PING_PHOTOTILE_VIGIL_OUT 指到含中文的資料夾，
+   報告整份沒寫出來、而且**完全沒有訊息**（見下方 write_report 的第二個修）。
+   一律走 wxWidgets 取環境變數（內部是 wide API），轉成 UTF-8 才安全。 */
+std::string env_utf8(const char* name)
+{
+    wxString v;
+    if (!wxGetEnv(wxString::FromUTF8(name), &v)) return std::string();
+    return into_u8(v);
+}
+
 class VigilRun;
 std::unique_ptr<VigilRun> g_vigil;
 
@@ -81,13 +93,13 @@ class VigilRun : public wxEvtHandler
 public:
     VigilRun() : m_host(new PhotoTileEngineHost())
     {
-        const char* hours_env = ::getenv("PING_PHOTOTILE_VIGIL_HOURS");
-        m_max_hours = hours_env ? ::atof(hours_env) : (double) DEFAULT_MAX_HOURS;
-        const char* sim_env = ::getenv("PING_PHOTOTILE_VIGIL_SIMULATE_WAKE");
-        m_simulate_wakes = sim_env ? ::atoi(sim_env) : 0;
-        const char* out_env = ::getenv("PING_PHOTOTILE_VIGIL_OUT");
-        m_out_path = out_env && *out_env ? std::string(out_env)
-                                         : data_dir() + "/phototile_vigil_report.json";
+        const std::string hours_env = env_utf8("PING_PHOTOTILE_VIGIL_HOURS");
+        m_max_hours = hours_env.empty() ? (double) DEFAULT_MAX_HOURS : ::atof(hours_env.c_str());
+        const std::string sim_env = env_utf8("PING_PHOTOTILE_VIGIL_SIMULATE_WAKE");
+        m_simulate_wakes = sim_env.empty() ? 0 : ::atoi(sim_env.c_str());
+        const std::string out_env = env_utf8("PING_PHOTOTILE_VIGIL_OUT");
+        m_out_path = !out_env.empty() ? out_env
+                                      : data_dir() + "/phototile_vigil_report.json";
 
         m_host->set_status_handler([this](const std::string& s, const std::string& d) {
             add_event(s, d);
@@ -231,8 +243,8 @@ private:
         /* 跑完自己關掉 app：守夜是無人值守跑的（整夜），關掉才能讓自動化收報告、
            也不會一直佔著 OrcaSlicer.dll 讓下一次建置 LNK1104（0801 實際踩過一次）。
            PING_PHOTOTILE_VIGIL_KEEP_OPEN=1 可留著（人要親眼看結論時用）。 */
-        const char* keep = ::getenv("PING_PHOTOTILE_VIGIL_KEEP_OPEN");
-        const bool  keep_open = keep && *keep && std::string(keep) != "0";
+        const std::string keep = env_utf8("PING_PHOTOTILE_VIGIL_KEEP_OPEN");
+        const bool  keep_open = !keep.empty() && keep != "0";
         wxTheApp->CallAfter([keep_open]() {
             g_vigil.reset();
             if (!keep_open && wxGetApp().mainframe) wxGetApp().mainframe->Close(true);
@@ -305,7 +317,21 @@ private:
               << (i + 1 < m_events.size() ? ",\n" : "\n");
         }
         j << "  ]\n}\n";
-        try { boost::nowide::ofstream f(m_out_path); f << j.str(); } catch (...) {}
+        /* 寫檔失敗**不得靜默**：守夜是無人值守跑整夜的，報告寫不出來又不吭聲，
+           隔天只會看到「什麼都沒有」而完全不知道發生什麼事（2026-08-01 已實際踩過一次）。
+           第一次失敗大聲記一筆，之後不再洗版。 */
+        bool wrote = false;
+        try {
+            boost::nowide::ofstream f(m_out_path);
+            if (f) { f << j.str(); wrote = f.good(); }
+        } catch (const std::exception& e) {
+            if (!m_write_failed) BOOST_LOG_TRIVIAL(error) << "PhotoTile 守夜報告寫檔丟例外：" << e.what();
+        } catch (...) {}
+        if (!wrote && !m_write_failed) {
+            m_write_failed = true;
+            BOOST_LOG_TRIVIAL(error) << "PhotoTile 守夜報告寫不進 " << m_out_path
+                                     << "（之後不再重複回報；請確認路徑存在且可寫）";
+        }
     }
 
     struct Cycle { int index = 0; double slept_minutes = 0; std::string sha; bool matches = false;
@@ -323,6 +349,7 @@ private:
     long long   m_baseline_bytes = 0;
     int         m_sleep_count = 0, m_rebuilds = 0, m_simulate_wakes = 0;
     bool        m_job_in_flight = false, m_simulated_used = false, m_wake_pending = false;
+    bool        m_write_failed = false;
     bool        m_mismatch = false, m_concluded = false, m_baseline_matches_smoke = false;
 };
 
