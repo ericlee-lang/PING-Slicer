@@ -34,6 +34,9 @@ void run_photo_tile_wx_smoke(wxWindow* parent, const std::string& expected_sha);
 // 閘門③：OOM／低記憶體 gate（降階有效性＋超限誠實報錯）。實作＝PhotoTileLimitsGate.cpp
 void run_photo_tile_limits_gate();
 
+// C-1 活體實測：capability／取消／supersede／環境快照過期即棄。實作＝PhotoTileLiveGate.cpp
+void run_photo_tile_live_gate();
+
 // 守夜基準（PhotoTileSleepVigil 2026-07-31，480×360 決定性測試圖／dual 60×45／K=6／無柱）
 extern const char* PHOTOTILE_SMOKE_EXPECTED_SHA;
 

@@ -126,18 +126,34 @@ bool json_from_string(const std::string& text, pt::ptree& out)
     }
 }
 
-// 逐鍵嚴格相等——鏡像 engine_protocol.js 的 envEqual（含「鍵數不同即不等」）
+/* 環境快照比對——鏡像 engine_protocol.js 的 envEqual。
+   ⚠ 三條刻意的設計（2026-08-01 活體實測 D 項打臉後定的）：
+     ① **按鍵查找，不看順序**：快照是字典不是序列。實測回傳的鍵序與送出不同
+        （送 printerPresetName,nozzle,plateRevision → 回 nozzle,plateRevision,printerPresetName），
+        原本的逐位置比對因此永遠判不相等。
+     ② **數值容忍**：JSON 往返會把 0.4 變成 "0.4"。兩邊都能轉成數字就比數值，
+        否則比字串——避免「型別表示法」被誤判成「環境變了」。
+     ③ **鍵數仍要相同**：少一個鍵＝環境定義變了，照樣視為過期（不放水）。 */
+bool leaf_equal(const std::string& a, const std::string& b)
+{
+    if (a == b) return true;
+    try {
+        size_t ia = 0, ib = 0;
+        const double da = std::stod(a, &ia), db = std::stod(b, &ib);
+        if (ia == a.size() && ib == b.size()) return da == db;
+    } catch (...) {}
+    return false;
+}
 bool ptree_equal(const pt::ptree& a, const pt::ptree& b)
 {
     if (a.size() != b.size())
         return false;
     if (a.empty())
-        return a.data() == b.data();
-    auto ia = a.begin();
-    auto ib = b.begin();
-    for (; ia != a.end() && ib != b.end(); ++ia, ++ib) {
-        if (ia->first != ib->first)   return false;
-        if (!ptree_equal(ia->second, ib->second)) return false;
+        return leaf_equal(a.data(), b.data());
+    for (const auto& kv : a) {
+        const auto other = b.get_child_optional(pt::ptree::path_type(kv.first, '\0'));
+        if (!other) return false;
+        if (!ptree_equal(kv.second, *other)) return false;
     }
     return true;
 }

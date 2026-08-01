@@ -483,6 +483,9 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhotoTileSmoke.cpp
     GUI/PhotoTileSmoke.hpp
     GUI/PhotoTileLimitsGate.cpp
+    GUI/PhotoTileLiveGate.cpp
+    GUI/PhotoTileCapability.cpp
+    GUI/PhotoTileCapability.hpp
     GUI/Widgets/AMSControl.cpp
     GUI/Widgets/AMSControl.hpp
     GUI/Widgets/AMSItem.cpp
