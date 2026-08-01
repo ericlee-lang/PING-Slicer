@@ -15,6 +15,38 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🟠 照片磚 C-1（協定＋生成）——2026-08-01 交接：四阻斷已修、故障注入已證，**C-1 尚不得標 PASS**
+
+**一句話**：切片器已能在內部驅動隱形網頁引擎產出照片磚 3MF，並通過故障注入證明驗證真的擋得住；
+但 Codex 對抗審查列的加固項還有七條沒清，閘門②只拿到一次 6.4 分鐘的真實睡眠。
+
+- **先讀**：`../照片磚_C1產物/_審查_C1_Codex一輪_處置表_20260801.md`（**逐條狀態，接手看這份就夠**）
+  ／`../SOP_WebView2隱形宿主與跨層協定.md`（永久教訓：例外不得穿越 COM 回呼、weak_ptr 生命週期、
+  job epoch、四項驗證不可有空門、boost ptree 兩陷阱、自己測自己的假綠燈、中文路徑會卡死建置）
+- **已入版（開發線 ping/v3.5，六顆 commit）**：引擎頁產品化＋協定＋metadata schema；
+  `PhotoTileEngineHost`（加固版：shared_ptr/weak_ptr 生命週期、noexcept 邊界護欄、job epoch、
+  序列化重建狀態機）；`PhotoTileCapability`（單一判定＋effective nozzle）；
+  三個閘門測試（Smoke／LimitsGate／LiveGate）；故障注入八案。
+- **證據**：`../照片磚_C1產物/`＝黃金 6/6、閘門①、閘門③、活體 A–E、守夜、Codex 全文與處置表。
+- **閘門標記（不得對外簡化成 PASS）**：①`PASS_STEADY` ②`PARTIAL`（待整夜）③`PASS_ON_64GB_FUNCTIONAL`
+- **兩件仍未證明**：重建路徑從未實際觸發（需殺 renderer）；頁面 supersede 分支從未命中。
+
+**下一棒接手就做（處置表 #1/#6/#7/#8/#10/#11/#12/#13）**
+1. 測試類別 RAII 化（`delete this`＋裸 timer）——屬阻斷 #1 的未完成半
+2. 殺 renderer 驗重建；讓頁面真的走 supersede 分支
+3. 閘門①判準拆 startup／steady；閘門③補 metadata-on、48M 像素不降階、限記憶體
+4. capability 加 family/nozzle 合法性，並讓 `BackgroundSlicingProcess` 改接同一判定
+5. 取消要在 grid/filter/mesh 各階段可停＋bitmap try/finally
+6. 黃金比整包 SHA、走正式 importer；守夜改產品宿主跑整夜
+7. 全部清完 → C-1 結案報告（HTML・PING CIS）→ Codex 二輪 → 交 Eric 裁進 C-2
+
+**環境**：本機建置走 ASCII junction `D:\ping-slicer-c1`（中文路徑會讓 nasm/7z 卡死）；
+deps 已自建完成可直接重編。測試一律 `--datadir D:\ping-slicer-c1\_smokedata`（隔離，勿碰 %APPDATA%）。
+跑法：`$env:PING_PHOTOTILE_SMOKE="1|limits|live"`（可加 `_DELAY_MS=15000`）→ 啟動 exe → 報告落 datadir。
+
+**紅線**：本棒全程只動開發線，**出貨線 release/v3.6 未碰**；C-1 尚未押 T（Mac/Linux 分支從未編譯過，
+押 T 時 CI 會首驗）。Eric 0801 裁：Codex #9「過期即棄的 apply guard」**留給 C-2**。
+
 ### 🏁 收工快照（2026-07-31 —「0730 高流量」棒**總收工**：高流量製程組＋C-12＋**T016 全鏈出貨**）
 
 **線況**：出貨線 `release/v3.6` tip **`ab5d0dc8`（bundle 89＝T016、已推、已出貨上架）**｜開發線 `ping/v3.5` tip `06369af3`（已推）｜兩線工作區乾淨（開發線 untracked `resources/web/mixer/`、`sandboxes/`＝他線的、勿動）。
