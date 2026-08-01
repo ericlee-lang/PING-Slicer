@@ -72,6 +72,22 @@ std::string jesc(const std::string& s)
     return o;
 }
 
+/* 故障注入矩陣（Codex 重要 #5 的答案）：讓真的引擎頁送出真的壞掉的傳輸，
+   證明**產品在用的 C++ 四項驗證**真的擋得住。每案的期望錯誤碼＝協定 §7 的分類。
+   ⚠ foreign_job 期望「完全不交付結果」——舊/他人 job 的訊息必須被 epoch 隔離丟棄，
+   所以它的期望碼是空字串，改用逾時觀察窗判定。 */
+struct FaultCase { const char* fault; const char* expect_code; };
+static const FaultCase FAULTS[] = {
+    { "chunk_skip",   "protocol_chunk_order"     },
+    { "chunk_len",    "protocol_length_mismatch" },
+    { "chunk_tamper", "protocol_sha_mismatch"    },
+    { "no_length",    "protocol_length_mismatch" },
+    { "end_chunks",   "protocol_chunk_count"     },
+    { "end_size",     "protocol_length_mismatch" },
+    { "no_sha",       "protocol_sha_mismatch"    },
+    { "foreign_job",  ""                         },
+};
+
 const char* ENV_A = "{\"printerPresetName\":\"live-A\",\"nozzle\":0.4,\"plateRevision\":1}";
 const char* ENV_B = "{\"printerPresetName\":\"live-A\",\"nozzle\":0.4,\"plateRevision\":2}";  // 只差換盤
 
@@ -169,6 +185,41 @@ private:
         m_host->generate(req);
     }
 
+    // 每個故障案：送一個小 job 並要求引擎頁刻意送壞傳輸，斷言宿主回報的錯誤碼
+    void run_fault_case()
+    {
+        if (m_fault_index >= (int)(sizeof(FAULTS) / sizeof(FAULTS[0]))) { finish("done"); return; }
+        const FaultCase& fc = FAULTS[m_fault_index];
+        PhotoTileEngineRequest req;
+        req.job_id   = std::string("live-fault-") + fc.fault;
+        req.mode     = "dual";  req.nozzle = 0.4;
+        req.width_mm = 60.0;    req.height_mm = 45.0;  req.thick_mm = 6.0;
+        req.klevels  = 6;       req.noise_mm  = 2.0;
+        req.pillar   = false;   req.teeth = false;     req.p2a_block = false;
+        req.image_path    = m_image;
+        req.want_metadata = false;
+        req.env_json      = ENV_A;
+        req.fault_inject  = fc.fault;
+        m_job_t0 = lv_now_ms();
+        m_current_job = req.job_id;
+        m_log.push_back(std::string("[fault] 起跑 ") + fc.fault);
+        m_host->generate(req);
+
+        // 期望「不得交付」的案例：開一個觀察窗，時間到還沒收到結果＝通過（被正確丟棄）
+        if (std::string(fc.expect_code).empty()) {
+            const int idx = m_fault_index;
+            schedule([this, idx]() {
+                if (m_finished || m_fault_index != idx) return;    // 已經收到結果＝失敗路徑已記錄
+                m_fault_rows.push_back(std::string("    { \"fault\": \"foreign_job\", \"expected\": ")
+                    + "\"(不得交付)\", \"got\": \"(觀察窗內未交付)\", \"pass\": true }");
+                m_log.push_back("[fault] foreign_job → 觀察窗內未交付（符合預期：被 epoch 隔離丟棄）");
+                ++m_fault_index;
+                m_host->cancel(m_current_job);
+                run_fault_case();
+            }, 12000);
+        }
+    }
+
     void cancel_now()
     {
         m_cancel_sent_ms = lv_now_ms() - m_job_t0;
@@ -209,7 +260,30 @@ private:
             m_env_echo_equal = PhotoTileEngineHost::env_is_fresh(r.env_json, ENV_A);
             m_env_stale_caught = !PhotoTileEngineHost::env_is_fresh(r.env_json, ENV_B);
             m_env_pass = m_env_echo_equal && m_env_stale_caught;
-            finish("done");
+            m_phase = "faults";
+            run_fault_case();
+            return;
+        }
+        if (m_phase == "faults") {
+            const FaultCase& fc = FAULTS[m_fault_index];
+            const bool expect_silence = std::string(fc.expect_code).empty();
+            bool ok_case;
+            if (expect_silence) {
+                ok_case = false;                       // 收到任何結果都算失敗（應該被丟棄才對）
+                m_fault_rows.push_back(std::string("    { \"fault\": \"") + fc.fault +
+                    "\", \"expected\": \"(不得交付)\", \"got\": \"" + (r.ok ? "success" : r.error_code) +
+                    "\", \"pass\": false }");
+            } else {
+                ok_case = (!r.ok && r.error_code == fc.expect_code);
+                m_fault_rows.push_back(std::string("    { \"fault\": \"") + fc.fault +
+                    "\", \"expected\": \"" + fc.expect_code + "\", \"got\": \"" +
+                    (r.ok ? "success" : r.error_code) + "\", \"pass\": " + (ok_case ? "true" : "false") + " }");
+            }
+            if (!ok_case) m_fault_pass = false;
+            m_log.push_back(std::string("[fault] ") + fc.fault + " → " + (r.ok ? "success" : r.error_code) +
+                            (ok_case ? "（符合預期）" : "（不符預期）"));
+            ++m_fault_index;
+            run_fault_case();
             return;
         }
     }
@@ -218,7 +292,7 @@ private:
     {
         if (m_finished) return;
         m_finished = true;
-        const bool pass_all = m_cap_pass && m_cancel_pass && m_supersede_pass && m_env_pass && why == "done";
+        const bool pass_all = m_cap_pass && m_cancel_pass && m_supersede_pass && m_env_pass && m_fault_pass && why == "done";
 
         std::ostringstream j;
         j << "{\n"
@@ -243,6 +317,11 @@ private:
           << ", \"staleDetected\": " << jbool(m_env_stale_caught)
           << ", \"sent\": \"" << jesc(ENV_A) << "\""
           << ", \"echoed\": \"" << jesc(m_env_echo_raw) << "\" },\n"
+          << "  \"E_faultInjection\": { \"pass\": " << jbool(m_fault_pass)
+          << ", \"casesRun\": " << m_fault_rows.size() << ", \"cases\": [\n";
+        for (size_t i = 0; i < m_fault_rows.size(); ++i)
+            j << m_fault_rows[i] << (i + 1 < m_fault_rows.size() ? ",\n" : "\n");
+        j << "  ] },\n"
           << "  \"totalMs\": " << (long) (lv_now_ms() - m_t0) << ",\n"
           << "  \"log\": [\n";
         for (size_t i = 0; i < m_log.size(); ++i)
@@ -268,6 +347,9 @@ private:
     bool                     m_cap_pass = false, m_cancel_pass = false, m_supersede_pass = false, m_env_pass = false;
     bool                     m_supersede_old_ok_result = false, m_supersede_new_ok = false, m_superseded_seen = false;
     bool                     m_env_echo_equal = false, m_env_stale_caught = false, m_finished = false;
+    std::vector<std::string> m_fault_rows;
+    int                      m_fault_index = 0;
+    bool                     m_fault_pass = true;
 };
 
 } // namespace
