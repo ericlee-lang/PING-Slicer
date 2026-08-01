@@ -61,6 +61,12 @@ struct PhotoTileEngineRequest
     // 故障注入（**僅測試用**，產品路徑一律空）：讓引擎頁刻意送出壞掉的傳輸，
     // 用來證明 C++ 端的四項驗證真的擋得住。值＝協定文件 §9 的 fault 代碼。
     std::string fault_inject;
+
+    // 【僅測試用】不對進行中的舊 job 預先送 cancel，讓**引擎頁自己**收到第二個
+    // generate ⇒ 走它的 supersede 分支。產品路徑一律 false（宿主先收斂比較快）。
+    // 為什麼要有：Codex 重要 #8——原本的 supersede 案從沒命中頁面那條分支，
+    // 報告自己寫著 supersededStatusSeen:false 卻標 pass。
+    bool test_page_supersede = false;
 };
 
 struct PhotoTileEngineResult
@@ -74,6 +80,17 @@ struct PhotoTileEngineResult
     std::string result_json;
     std::string env_json;
     int         wall_ms = 0;
+};
+
+// 宿主內部狀態的唯讀快照。用途＝閘門要能斷言「重建真的發生過」而不是只看日誌；
+// browser_pid 讓測試找得到引擎行程去殺（Codex 阻斷 #4：重建路徑從未被實際觸發過）。
+struct PhotoTileEngineDiag
+{
+    std::string  stage;              // Stopped/CreatingEnv/.../Ready/Rebuilding/Unavailable/Closing
+    int          rebuild_count = 0;  // 連續重建計數（穩定 ready 後歸零）
+    unsigned int browser_pid = 0;    // WebView2 browser 行程 PID；0＝取不到
+    bool         busy = false;
+    std::string  active_job;
 };
 
 struct PhotoTileEngineSmokeStats
@@ -122,6 +139,12 @@ public:
     // 環境快照比對（鏡像 engine_protocol.js 的 envEqual）：不相等＝結果丟棄。
     // 比對規則：按鍵查找（不看順序）＋數值容忍，但鍵數不同仍判過期。
     static bool env_is_fresh(const std::string& result_env_json, const std::string& current_env_json);
+
+    PhotoTileEngineDiag diagnostics() const;
+
+    // 【僅測試用】把引擎頁導到不存在的位址：之後每次建立都會 ready 逾時 ⇒
+    // 可決定性地驗證 REBUILD_CAP 真的會截停（閘門 H）。產品路徑永不呼叫。
+    void test_break_engine_url(bool on);
 
     void enable_smoke_metrics(bool on);
     const PhotoTileEngineSmokeStats& smoke_stats() const;

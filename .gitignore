@@ -51,3 +51,6 @@ test.js
 internal_docs/
 *.flatpak
 /flatpak-repo/
+# 照片磚閘門的本機測試 datadir（--datadir 隔離用，勿入版）
+_smokedata/
+_vigildata/

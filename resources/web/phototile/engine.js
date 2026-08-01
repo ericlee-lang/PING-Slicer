@@ -667,6 +667,17 @@ async function generate(request, options){
   const job = { cancelled:false };
   activeJobs.set(P.jobId, job);
   const timings = {};
+  /* 引擎自己解碼出來的 ImageBitmap 一定要關，**不管這個 job 怎麼結束**。
+     原本只在成功路徑的 grid 之後關（見下方 own 註解），取消或任何階段丟例外都會漏掉——
+     48M 像素的圖漏一張就是幾百 MB，連續取消幾次就爆（Codex 重要 #11）。
+     用 finally 兜底：ownedBitmap 在 resolveImage 之後登記，關過就清掉不重複關。 */
+  let ownedBitmap = null;
+  const releaseOwnedBitmap = () => {
+    if (ownedBitmap && typeof ownedBitmap.close === 'function') {
+      try { ownedBitmap.close(); } catch (e) { /* 已關過／不支援：忽略 */ }
+    }
+    ownedBitmap = null;
+  };
   const ck = stage => { if (job.cancelled) throw new EngineError(ERR.CANCELLED, '已取消（' + stage + '）'); };
   /* 進度回報：宿主給 onProgress 才回報；回報本身不得引入計時器（§零計時器紀律） */
   const onProgress = options && typeof options.onProgress === 'function' ? options.onProgress : null;
@@ -684,6 +695,7 @@ async function generate(request, options){
     report('decode', 0);
     const resolved = await resolveImage(P.image, P.limits);
     const bitmap = resolved.bitmap;
+    if (resolved.owned) ownedBitmap = bitmap;      // 從這一刻起，finally 保證會關
     timings.decodeMs = performance.now() - t;  report('decode', 1); await yieldMacro(); ck('decode');
 
     t = performance.now();
@@ -691,7 +703,7 @@ async function generate(request, options){
     /* 格點建完，解碼後的點陣圖就沒用了。**引擎自己解碼的才關**（呼叫端傳進來的
        ImageBitmap 屬於呼叫端，關掉會害它下一案沒圖——黃金 runner 就是重複使用同一張）。
        高像素輸入時這一關就是幾百 MB 的差別（C-0 §4.3：真壓力在 decoded bitmap）。 */
-    if (resolved.owned && bitmap && typeof bitmap.close === 'function') bitmap.close();
+    releaseOwnedBitmap();
     timings.gridMs = performance.now() - t;    report('grid', 1); await yieldMacro(); ck('grid');
 
     if (!P.slots) P.slots = suggestSlots(img, P.mode);          // 自動配色（工作室「開圖即建議」等價）
@@ -742,6 +754,7 @@ async function generate(request, options){
     return { jobId: P.jobId, ok:false, error:{ code, message: e && e.message || String(e) },
              diagnostics: { timings } };
   } finally {
+    releaseOwnedBitmap();                        // 取消／例外／早退都走這裡
     activeJobs.delete(P.jobId);
   }
 }
