@@ -82,16 +82,44 @@
       return;
     }
 
+    /* ============ 故障注入（**測試專用**，產品路徑 request.faultInject 一律空） ============
+       為什麼要在頁面端做：C++ 那四項驗證（連號／塊數／總長度／SHA）是**產品真正在用**的
+       驗證，但先前只走過成功路徑——Codex 審查點名「32 個綠燈測的是產品沒用到的 JS 代理」。
+       要證明它擋得住，唯一誠實的辦法就是讓真的引擎頁送出真的壞掉的傳輸。
+       每個案例對應一個宿主端應該回報的錯誤碼，對照表＝tools/ping/phototile_protocol.md §9。 */
+    const fault = (m.request && m.request.faultInject) || '';
     const sha = await E.sha256Hex(r.threeMF);
     /* result＝先給宿主「這份是什麼」；bytes 走 begin/chunk/end。
        ⚠ 宿主只有在 end 且四項驗證全過後才算 success（協定 §3）。 */
     post({ type: P.MSG.RESULT, jobId: r.jobId, ok: true,
-           byteLength: r.byteLength, sha256: sha, chunks: P.chunkCount(r.byteLength, P.CHUNK_BYTES),
+           byteLength: r.byteLength, sha256: fault === 'no_sha' ? undefined : sha,
+           chunks: P.chunkCount(r.byteLength, P.CHUNK_BYTES),
            fileName: r.fileName, mode: r.mode, nozzle: r.nozzle,
            palette: r.palette, slots: r.slots, stats: r.stats,
            metadata: r.metadata, env: r.env, limits: r.limits,
            diagnostics: r.diagnostics, wallMs: Math.round(performance.now() - t0) });
-    for (const msg of P.buildTransfer(r.jobId, r.threeMF, sha, P.CHUNK_BYTES)) post(msg);
+
+    let msgs = P.buildTransfer(r.jobId, r.threeMF, sha, P.CHUNK_BYTES);
+    if (fault) {
+      const chunkIdx = msgs.findIndex(x => x.type === P.MSG.CHUNK);
+      const last     = msgs.length - 1;
+      switch (fault) {
+        case 'chunk_skip':   msgs.splice(chunkIdx + 1, 1); break;                       // 抽掉一塊＝序號跳號
+        case 'chunk_len':    msgs[chunkIdx].length = msgs[chunkIdx].length - 1; break;  // 宣告長度說謊
+        case 'chunk_tamper': {                                                          // 內容翻一個位元組（長度塊數全對）
+          const b = P.base64ToBytes(msgs[chunkIdx].base64); b[0] ^= 0xff;
+          msgs[chunkIdx].base64 = P.bytesToBase64(b); break;
+        }
+        case 'no_length':    delete msgs[chunkIdx].length; break;                       // 缺 length 欄位
+        case 'end_chunks':   msgs[last].chunks = msgs[last].chunks + 1; break;          // end 自報塊數與 begin 不符
+        case 'end_size':     msgs[last].size   = msgs[last].size + 1;   break;          // end 自報大小與 begin 不符
+        case 'no_sha':       msgs[0].sha256 = undefined; msgs[last].sha256 = undefined; break;
+        case 'foreign_job':  msgs = msgs.map(x => Object.assign({}, x, { jobId: x.jobId + '-foreign' })); break;
+        default: post({ type: P.MSG.ERROR, jobId: r.jobId, code: 'protocol_bad_message',
+                        message: '未知的故障注入代碼 ' + fault });
+      }
+    }
+    for (const msg of msgs) post(msg);
   }
 
   /* 數值欄位一律過 Number()：宿主端的 JSON writer 可能把數字寫成字串
