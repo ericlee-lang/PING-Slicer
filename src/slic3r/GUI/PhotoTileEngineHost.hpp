@@ -2,23 +2,31 @@
 #define slic3r_GUI_PhotoTileEngineHost_hpp_
 
 // =====================================================================
-// 照片磚隱形引擎宿主（C-1，2026-07-31・照片磚線 PT）
+// 照片磚隱形引擎宿主（C-1，2026-08-01 加固版・照片磚線 PT）
 //
 // 什麼是它：以「永不顯示」的 WebView2 載入 resources/web/phototile/engine.html，
 // 用 job 協定驅動它產生照片磚 3MF。使用者看不到這個 webview。
 //
 // 為什麼不沿用 WebViewPanel（C-0 §3.3 三個親驗的不可沿用點）：
-//   ① WebViewPanel::load_url() 必 Show()/Raise()/SetFocus()（WebViewDialog.cpp:259-268）
-//   ② Windows 分支 new WebViewEdge 永不為 null、Create() 回傳值被無視
-//      （Widgets/WebView.cpp:274）⇒ runtime 真的缺失時是**沉默假成功**
+//   ① WebViewPanel::load_url() 必 Show()/Raise()/SetFocus()
+//   ② Windows 分支 Create() 回傳值被無視 ⇒ runtime 真缺失時是沉默假成功
 //   ③ 完全沒有 ready 握手／逾時／崩潰重建的概念
 //
-// 協定正本＝tools/ping/phototile_protocol.md；JS 端＝resources/web/phototile/
-// engine_protocol.js。**本檔的驗證規則必須與該檔逐條一致**（四項驗證：
-// 連號／塊數／總長度／SHA-256；全過才算 success）。
+// 【2026-08-01 加固】Codex 對抗審查（4 阻斷）後的結構改動——這四點是**設計約束**，
+// 日後 C-2/C-3 往上加東西時不得破壞：
+//   A. 狀態一律由 `shared_ptr<Impl>` 持有，**所有非同步邊界只捕捉 weak_ptr**
+//      （COM 回呼／背景執行緒／CallAfter／wxTimer）。shutdown() 先標 Closing 再拆，
+//      晚到的回呼 lock 不到或看到 Closing 就安靜退場 ⇒ 消滅 use-after-free。
+//   B. **每個邊界都是 noexcept trampoline**：例外一律在邊界收斂（穿越 COM 回呼＝
+//      std::terminate＝app 猝死，2026-07-31 已實錄一次）。外部 handler 亦獨立包覆。
+//   C. **job epoch**：每次 generate 遞增；工作執行緒、注入佇列、頁面訊息全部帶 epoch，
+//      對不上就丟棄 ⇒ 舊 job 不可能清掉新 job 的狀態或交付舊 3MF。
+//   D. **序列化生命週期狀態機**（Stopped→CreatingEnv→CreatingController→Navigating→
+//      Ready→Rebuilding→Unavailable/Closing）：任何時刻只有一條建立路徑在跑，
+//      重建依 failure kind 分流，連續失敗計數在穩定就緒後歸零。
 //
-// 平台：目前僅 Windows（WebView2）。其他平台一律回報「誠實不可用」＋指引
-// （C 案裁決 8），不 fallback 回工作室頁。
+// 協定正本＝tools/ping/phototile_protocol.md；JS 端＝engine_protocol.js。
+// 平台：目前僅 Windows（WebView2）；其他平台誠實不可用（C 案裁決 8）。
 // =====================================================================
 
 #include <functional>
@@ -28,13 +36,11 @@
 
 namespace Slic3r { namespace GUI {
 
-// 生成請求。夾值與預設值由引擎負責（engine.js normalizeRequest），
-// 這裡只做「宿主知道、引擎不知道」的欄位（影像檔路徑、環境快照、限額）。
 struct PhotoTileEngineRequest
 {
     std::string job_id;
     std::string mode  = "dual";      // dual | quad
-    double      nozzle = 0.4;        // 0.4 | 0.6 | 1.0＝機器 effective nozzle（不是面板選的）
+    double      nozzle = 0.4;        // effective nozzle（機器實際噴嘴，不是面板選的）
     double      width_mm = 100.0, height_mm = 75.0, thick_mm = 6.0;
     int         klevels = 8;
     double      noise_mm = 2.0;
@@ -43,40 +49,41 @@ struct PhotoTileEngineRequest
     bool        teeth = false;
     bool        p2a_block = false;   // 裁決 7：實印終驗前預設關
 
-    // 低規機保護（C-0 §4.3）。gridMax 預設＝工作室現值；0＝用引擎預設。
-    int         grid_max = 0;
+    int         grid_max = 0;        // 0＝引擎預設（3200）
     long long   max_decoded_pixels = 0;
 
-    std::string image_path;          // 原圖檔；宿主自行讀取＋base64（編碼在背景執行緒）
+    std::string image_path;          // 原圖檔；宿主自行讀取＋base64（背景執行緒）
     bool        want_metadata = true;// 寫入 3MF 的 ping_phototile.json（裁決 6）
     bool        embed_source  = true;
-    std::string group_uuid;          // 物件身分（C-2 原子替換用）
+    std::string group_uuid;
     std::string env_json;            // 環境快照；引擎原封回傳，上盤前再比一次
+
+    // 故障注入（**僅測試用**，產品路徑一律空）：讓引擎頁刻意送出壞掉的傳輸，
+    // 用來證明 C++ 端的四項驗證真的擋得住。值＝協定文件 §9 的 fault 代碼。
+    std::string fault_inject;
 };
 
 struct PhotoTileEngineResult
 {
     bool        ok = false;
     std::string job_id;
-    std::string error_code;          // 引擎層或協定層錯誤碼（見協定 §7）
+    std::string error_code;
     std::string error_message;
     std::vector<unsigned char> three_mf;
     std::string sha256;
-    std::string result_json;         // palette／slots／stats／metadata／diagnostics 原文
-    std::string env_json;            // 引擎回傳的環境快照（呼叫端負責比對過期）
+    std::string result_json;
+    std::string env_json;
     int         wall_ms = 0;
 };
 
-// wx 整合 smoke（C-1 首站閘門①）用的量測。C-0 只有 C# 代理量測，
-// 這裡量的是**真的 wx 事件圈**。
 struct PhotoTileEngineSmokeStats
 {
     int    heartbeat_samples = 0;
-    double heartbeat_drift_max_ms = 0;   // 心跳漂移最大值（UI 卡頓的直接證據）
+    double heartbeat_drift_max_ms = 0;
     double heartbeat_drift_p95_ms = 0;
-    double inject_encode_ms = 0;         // base64 編碼耗時（應在背景執行緒）
-    double inject_dispatch_max_ms = 0;   // 單次注入分塊派發的 UI 執行緒成本
-    double message_handle_max_ms = 0;    // 單則 page→host 訊息的處理成本
+    double inject_encode_ms = 0;
+    double inject_dispatch_max_ms = 0;
+    double message_handle_max_ms = 0;
     int    chunks_received = 0;
 };
 
@@ -86,7 +93,7 @@ public:
     struct Availability
     {
         bool        available = false;
-        std::string reason;      // 不可用時給使用者看的原因（誠實不可用＋指引）
+        std::string reason;
         std::string runtime_version;
     };
 
@@ -98,43 +105,31 @@ public:
     PhotoTileEngineHost();
     ~PhotoTileEngineHost();
 
-    // WebView2 runtime 檢測——**建立前**先問，缺失即誠實不可用（裁決 8）。
     static Availability check_runtime();
 
-    // 建立隱形宿主並等 ready 握手（非阻塞；成敗走 status callback）。
-    // 重複呼叫安全：已就緒＝直接回 true。
     bool start();
     void shutdown();
     bool is_ready() const;
     bool is_busy() const;
 
-    // 送出生成請求。生成中再送＝supersede（引擎端取消舊 job）。
     bool generate(const PhotoTileEngineRequest& req);
     void cancel(const std::string& job_id);
 
     void set_progress_handler(ProgressFn fn);
     void set_result_handler(ResultFn fn);
-    void set_status_handler(StatusFn fn);   // ready／unavailable／rebuild／superseded…
+    void set_status_handler(StatusFn fn);
 
     // 環境快照比對（鏡像 engine_protocol.js 的 envEqual）：不相等＝結果丟棄。
+    // 比對規則：按鍵查找（不看順序）＋數值容忍，但鍵數不同仍判過期。
     static bool env_is_fresh(const std::string& result_env_json, const std::string& current_env_json);
 
-    // 閘門①用：開啟量測（心跳探針由呼叫端驅動 tick）
     void enable_smoke_metrics(bool on);
     const PhotoTileEngineSmokeStats& smoke_stats() const;
     void smoke_heartbeat_tick(double expected_interval_ms);
 
 private:
-    // 內部流程（Windows 實作；非 Windows 不會被呼叫到）
-    void create_controller();
-    void navigate_and_wait_ready();
-    void handle_message(const std::string& json);        // 護欄：吞掉一切例外（COM 回呼不得逃逸）
-    void handle_message_inner(const std::string& json);  // 真正的分派邏輯
-    void pump_inject_queue();
-    static std::string build_generate_command(const PhotoTileEngineRequest& req);
-
     struct Impl;
-    std::unique_ptr<Impl> p;
+    std::shared_ptr<Impl> p;   // ⚠ 非同步邊界只准捕捉 weak_ptr（見檔頭 A）
 };
 
 }} // namespace Slic3r::GUI

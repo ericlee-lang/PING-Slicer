@@ -1,8 +1,5 @@
-// 照片磚隱形引擎宿主（C-1）——實作。規格＝PhotoTileEngineHost.hpp 檔頭與
-// tools/ping/phototile_protocol.md。Windows 走 WebView2 COM；其餘平台誠實不可用。
-//
-// 四項驗證（連號／塊數／總長度／SHA-256）與 engine_protocol.js 的 createAssembler
-// 逐條對應；改一邊就要改另一邊＋補測（協定 §9）。
+// 照片磚隱形引擎宿主（C-1 加固版）——實作。設計約束 A/B/C/D 見 .hpp 檔頭。
+// 四項驗證（連號／塊數／總長度／SHA-256）與 engine_protocol.js 逐條對應。
 
 #include "PhotoTileEngineHost.hpp"
 
@@ -10,10 +7,10 @@
 #include "libslic3r/Utils.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <deque>
-#include <fstream>
 #include <sstream>
 #include <thread>
 
@@ -42,12 +39,12 @@ namespace Slic3r { namespace GUI {
 
 namespace {
 
-constexpr int    PROTOCOL_VERSION   = 1;        // 與 engine_protocol.js 同步
+constexpr int    PROTOCOL_VERSION   = 1;
 constexpr size_t INJECT_CHUNK_CHARS = 192 * 1024;
-constexpr size_t INJECT_BATCH       = 8;        // 每次 CallAfter 派發幾塊＝攤平 UI 執行緒成本
-constexpr int    READY_TIMEOUT_MS   = 15000;    // C-0 §3.2 noready 負測即此值
-constexpr int    REBUILD_CAP        = 3;        // C-0 §3.2 crashx4 負測即此上限
-constexpr long long MAX_IMAGE_BYTES = 64LL * 1024LL * 1024LL;   // 同 WebViewDialog.cpp:301
+constexpr size_t INJECT_BATCH       = 8;
+constexpr int    READY_TIMEOUT_MS   = 15000;
+constexpr int    REBUILD_CAP        = 3;
+constexpr long long MAX_IMAGE_BYTES = 64LL * 1024LL * 1024LL;
 
 std::string sha256_hex(const unsigned char* data, size_t len)
 {
@@ -62,10 +59,8 @@ std::string sha256_hex(const unsigned char* data, size_t len)
     return out;
 }
 
-/* ⚠ write_json 會對「純量節點」丟例外（boost 無法把裸值寫成 JSON 文件）——
-   2026-07-31 閘門③ 首跑就是這樣炸的：引擎回 env:null ⇒ 純量節點 ⇒ 例外從 COM
-   回呼逃逸 ⇒ std::terminate ⇒ app fail-fast。這裡一律吞掉並回空字串，
-   呼叫端自己判斷「空＝沒有」。 */
+/* ⚠ write_json 對「純量節點」會丟例外（boost 無法把裸值寫成 JSON 文件）——
+   2026-07-31 閘門③即因 env:null 炸掉整個 app。一律吞掉並回空字串。 */
 std::string ptree_to_json(const pt::ptree& tree)
 {
     try {
@@ -80,40 +75,6 @@ std::string ptree_to_json(const pt::ptree& tree)
     }
 }
 
-/* ⚠ 為什麼 host→page 的訊息不能用 ptree 產：
-   boost::property_tree 的 JSON writer **把所有值都寫成字串**（`"v":"1"`、`"index":"0"`），
-   引擎頁用嚴格比較 `m.v !== 1` 就會判定版本不符——2026-07-31 閘門① 首跑即被此坑擋下。
-   訊息形狀固定，直接手組 JSON＝型別正確、零依賴。（page→host 的**解析**仍用 ptree，
-   因為 get<int>/get<size_t> 會把字串轉回數值，方向相反不受影響。） */
-std::string json_escape(const std::string& s)
-{
-    std::string out;
-    out.reserve(s.size() + 8);
-    for (unsigned char c : s) {
-        switch (c) {
-        case '"':  out += "\\\""; break;
-        case '\\': out += "\\\\"; break;
-        case '\n': out += "\\n";  break;
-        case '\r': out += "\\r";  break;
-        case '\t': out += "\\t";  break;
-        default:
-            if (c < 0x20) { char buf[8]; ::snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
-            else          out += (char) c;
-        }
-    }
-    return out;
-}
-std::string jkv(const std::string& key, const std::string& value)   // 字串值
-{ return "\"" + json_escape(key) + "\":\"" + json_escape(value) + "\""; }
-std::string jkn(const std::string& key, double value)               // 數值
-{
-    std::ostringstream ss;
-    if (value == (long long) value) ss << (long long) value; else ss << value;
-    return "\"" + json_escape(key) + "\":" + ss.str();
-}
-std::string jkb(const std::string& key, bool value)                 // 布林
-{ return "\"" + json_escape(key) + "\":" + (value ? "true" : "false"); }
-
 bool json_from_string(const std::string& text, pt::ptree& out)
 {
     try {
@@ -126,14 +87,9 @@ bool json_from_string(const std::string& text, pt::ptree& out)
     }
 }
 
-/* 環境快照比對——鏡像 engine_protocol.js 的 envEqual。
-   ⚠ 三條刻意的設計（2026-08-01 活體實測 D 項打臉後定的）：
-     ① **按鍵查找，不看順序**：快照是字典不是序列。實測回傳的鍵序與送出不同
-        （送 printerPresetName,nozzle,plateRevision → 回 nozzle,plateRevision,printerPresetName），
-        原本的逐位置比對因此永遠判不相等。
-     ② **數值容忍**：JSON 往返會把 0.4 變成 "0.4"。兩邊都能轉成數字就比數值，
-        否則比字串——避免「型別表示法」被誤判成「環境變了」。
-     ③ **鍵數仍要相同**：少一個鍵＝環境定義變了，照樣視為過期（不放水）。 */
+/* 環境快照比對：①按鍵查找不看順序 ②數值容忍（0.4 與 "0.4" 相同）
+   ③鍵數不同仍判過期。實測依據：2026-08-01 活體實測 D 項——JSON 往返會重排鍵序、
+   數值會變字串，逐位置比對永遠判不相等。 */
 bool leaf_equal(const std::string& a, const std::string& b)
 {
     if (a == b) return true;
@@ -165,8 +121,7 @@ double now_ms()
 }
 
 #ifdef _WIN32
-// UTF-8 ↔ UTF-16。⚠ 不可用 std::wstring(s.begin(), s.end()) 逐位元組拓寬——
-// 那會把中文（檔名／機型名／metadata）打成亂碼。
+// UTF-8 ↔ UTF-16。⚠ 不可用 std::wstring(begin,end) 逐位元組拓寬（中文會變亂碼）。
 std::wstring utf8_to_wide(const std::string& s)
 {
     if (s.empty()) return std::wstring();
@@ -184,22 +139,78 @@ std::string wide_to_utf8(const wchar_t* s)
     ::WideCharToMultiByte(CP_UTF8, 0, s, -1, &out[0], n, nullptr, nullptr);
     return out;
 }
+std::string hex_hr(long hr)
+{
+    char buf[32];
+    ::snprintf(buf, sizeof(buf), "0x%08lX", (unsigned long) hr);
+    return buf;
+}
 #endif
+
+/* host→page 訊息一律手組 JSON（boost ptree 會把數值寫成字串，引擎頁嚴格比較會拒收） */
+std::string json_escape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (unsigned char c : s) {
+        switch (c) {
+        case '"':  out += "\\\""; break;
+        case '\\': out += "\\\\"; break;
+        case '\n': out += "\\n";  break;
+        case '\r': out += "\\r";  break;
+        case '\t': out += "\\t";  break;
+        default:
+            if (c < 0x20) { char buf[8]; ::snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
+            else          out += (char) c;
+        }
+    }
+    return out;
+}
+std::string jkv(const std::string& k, const std::string& v) { return "\"" + json_escape(k) + "\":\"" + json_escape(v) + "\""; }
+std::string jkn(const std::string& k, double v)
+{
+    std::ostringstream ss;
+    if (v == (long long) v) ss << (long long) v; else ss << v;
+    return "\"" + json_escape(k) + "\":" + ss.str();
+}
+std::string jkb(const std::string& k, bool v) { return "\"" + json_escape(k) + "\":" + (v ? "true" : "false"); }
 
 } // namespace
 
-// ===================== 共用狀態 =====================
-struct PhotoTileEngineHost::Impl
+// ===================== Impl：所有狀態與邏輯都在這裡 =====================
+// 設計約束 A：外界（含所有非同步回呼）只透過 weak_ptr 取得它。
+struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTileEngineHost::Impl>
 {
+    // ---- 生命週期狀態機（設計約束 D）----
+    enum class Stage { Stopped, CreatingEnv, CreatingController, Navigating, Ready, Rebuilding, Unavailable, Closing };
+    Stage stage = Stage::Stopped;
+
+    static const char* stage_name(Stage s)
+    {
+        switch (s) {
+        case Stage::Stopped:            return "Stopped";
+        case Stage::CreatingEnv:        return "CreatingEnv";
+        case Stage::CreatingController: return "CreatingController";
+        case Stage::Navigating:         return "Navigating";
+        case Stage::Ready:              return "Ready";
+        case Stage::Rebuilding:         return "Rebuilding";
+        case Stage::Unavailable:        return "Unavailable";
+        default:                        return "Closing";
+        }
+    }
+    bool closing()  const { return stage == Stage::Closing; }
+    bool building() const { return stage == Stage::CreatingEnv || stage == Stage::CreatingController ||
+                                   stage == Stage::Navigating  || stage == Stage::Rebuilding; }
+
     PhotoTileEngineHost::ProgressFn on_progress;
     PhotoTileEngineHost::ResultFn   on_result;
     PhotoTileEngineHost::StatusFn   on_status;
 
-    bool        ready = false;
-    bool        busy  = false;
-    bool        creating = false;
-    std::string active_job;
-    int         rebuild_count = 0;
+    // ---- job epoch（設計約束 C）----
+    unsigned long long epoch = 0;         // 每次 generate 遞增
+    std::string        active_job;        // 目前唯一有效的 job
+    bool               busy = false;
+    int                rebuild_count = 0;
 
     struct Transfer {
         bool        active = false;
@@ -209,57 +220,111 @@ struct PhotoTileEngineHost::Impl
         std::vector<unsigned char> bytes;
     } xfer;
 
-    PhotoTileEngineResult     pending;      // result 訊息先到、bytes 隨後
+    PhotoTileEngineResult     pending;
     bool                      pending_valid = false;
+    PhotoTileEngineRequest    queued_request;
+    bool                      has_queued_request = false;
 
     PhotoTileEngineSmokeStats smoke;
     bool                      smoke_on = false;
     double                    last_heartbeat_ms = 0;
     std::vector<double>       heartbeat_drifts;
 
+    // ---- 外部 handler 一律獨立包覆（設計約束 B）：呼叫端丟例外不得殺掉宿主 ----
+    template<class F> static void safe_call(const char* what, F&& f)
+    {
+        try { f(); }
+        catch (const std::exception& e) { BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: " << what << " 丟出例外（已攔下）：" << e.what(); }
+        catch (...)                     { BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: " << what << " 丟出未知例外（已攔下）"; }
+    }
+    void set_stage(Stage s, const std::string& detail = std::string())
+    {
+        if (stage == s) return;
+        BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost stage " << stage_name(stage) << " → " << stage_name(s)
+                                << (detail.empty() ? "" : "（" + detail + "）");
+        stage = s;
+    }
     void status(const std::string& s, const std::string& detail)
     {
         BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost [" << s << "] " << detail;
-        if (on_status) on_status(s, detail);
+        if (on_status) safe_call("status handler", [&] { on_status(s, detail); });
     }
+    void deliver(const PhotoTileEngineResult& r)
+    {
+        if (on_result) safe_call("result handler", [&] { on_result(r); });
+    }
+    /* 只有「目前 epoch 的 job」能改動狀態或交付結果。舊 job 遲到的失敗只通知、不清狀態。
+       （Codex 阻斷 #3：舊 job 曾可清掉新 job 的 active state 或被當新結果交付） */
     void fail_job(const std::string& job_id, const std::string& code, const std::string& msg)
     {
-        BOOST_LOG_TRIVIAL(warning) << "PhotoTileEngineHost job 失敗 " << job_id << " " << code << " " << msg;
+        const bool is_active = !job_id.empty() && job_id == active_job;
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTileEngineHost job 失敗 " << job_id << "（active=" << active_job
+                                   << "）" << code << " " << msg;
         PhotoTileEngineResult r;
         r.ok = false; r.job_id = job_id; r.error_code = code; r.error_message = msg;
-        busy = false; active_job.clear(); xfer = Transfer(); pending_valid = false;
-        if (on_result) on_result(r);
+        if (is_active) {
+            busy = false; active_job.clear(); xfer = Transfer(); pending_valid = false;
+        }
+        deliver(r);
+    }
+    void fail_active_and_queued(const std::string& code, const std::string& msg)
+    {
+        if (!active_job.empty()) fail_job(active_job, code, msg);
+        if (has_queued_request) {                       // 排隊中的 job 也要有交代（Codex #4）
+            const std::string qid = queued_request.job_id;
+            has_queued_request = false;
+            PhotoTileEngineResult r;
+            r.ok = false; r.job_id = qid; r.error_code = code; r.error_message = msg;
+            deliver(r);
+        }
     }
 
 #ifdef _WIN32
     Microsoft::WRL::ComPtr<ICoreWebView2Environment> env;
     Microsoft::WRL::ComPtr<ICoreWebView2Controller>  controller;
     Microsoft::WRL::ComPtr<ICoreWebView2>            webview;
+    EventRegistrationToken       token_message {};
+    EventRegistrationToken       token_failed {};
     wxFrame*                     host_frame = nullptr;    // 建了但**永不 Show()**
     std::unique_ptr<wxTimer>     ready_timer;
-    std::deque<std::string>      inject_queue;            // 待派發的注入訊息
+    std::deque<std::string>      inject_queue;
     bool                         inject_pumping = false;
-    PhotoTileEngineRequest       queued_request;          // ready 之前先收著
-    bool                         has_queued_request = false;
 
     void send_json(const std::string& json)
     {
-        if (!webview) return;
+        if (!webview || closing()) return;
         const double t0 = now_ms();
-        webview->PostWebMessageAsJson(utf8_to_wide(json).c_str());
+        const HRESULT hr = webview->PostWebMessageAsJson(utf8_to_wide(json).c_str());
+        if (FAILED(hr)) {                               // Codex #2：HRESULT 不可忽略，否則 busy 永不結束
+            status("post_failed", "送訊息給引擎失敗（HRESULT " + hex_hr(hr) + "）");
+            fail_active_and_queued("internal", "與引擎的通訊中斷（HRESULT " + hex_hr(hr) + "）");
+            return;
+        }
         if (smoke_on)
             smoke.inject_dispatch_max_ms = (std::max)(smoke.inject_dispatch_max_ms, now_ms() - t0);
     }
+
+    // 以下為生命週期與協定實作（全部是 Impl 的成員＝回呼不必捕捉 host 的 this）
+    bool start_engine();
+    void create_controller();
+    void navigate_and_wait_ready();
+    void handle_message_inner(const std::string& json);
+    void pump_inject_queue();
+    void on_process_failed(int kind);
+    bool generate(const PhotoTileEngineRequest& req);
+    void cancel(const std::string& job_id);
+    void shutdown();
 #endif
 };
 
-PhotoTileEngineHost::PhotoTileEngineHost() : p(new Impl()) {}
+// ===================== 對外薄殼 =====================
+PhotoTileEngineHost::PhotoTileEngineHost() : p(std::make_shared<Impl>()) {}
 PhotoTileEngineHost::~PhotoTileEngineHost() { shutdown(); }
 
 void PhotoTileEngineHost::set_progress_handler(ProgressFn fn) { p->on_progress = std::move(fn); }
 void PhotoTileEngineHost::set_result_handler(ResultFn fn)     { p->on_result   = std::move(fn); }
 void PhotoTileEngineHost::set_status_handler(StatusFn fn)     { p->on_status   = std::move(fn); }
-bool PhotoTileEngineHost::is_ready() const                    { return p->ready; }
+bool PhotoTileEngineHost::is_ready() const                    { return p->stage == Impl::Stage::Ready; }
 bool PhotoTileEngineHost::is_busy() const                     { return p->busy; }
 void PhotoTileEngineHost::enable_smoke_metrics(bool on)       { p->smoke_on = on; }
 const PhotoTileEngineSmokeStats& PhotoTileEngineHost::smoke_stats() const { return p->smoke; }
@@ -275,7 +340,7 @@ void PhotoTileEngineHost::smoke_heartbeat_tick(double expected_interval_ms)
             p->smoke.heartbeat_drift_max_ms = (std::max)(p->smoke.heartbeat_drift_max_ms, drift);
             std::vector<double> sorted = p->heartbeat_drifts;
             std::sort(sorted.begin(), sorted.end());
-            size_t idx = (size_t)(sorted.size() * 0.95);
+            size_t idx = (size_t) (sorted.size() * 0.95);
             if (idx >= sorted.size()) idx = sorted.size() - 1;
             p->smoke.heartbeat_drift_p95_ms = sorted[idx];
         }
@@ -304,7 +369,7 @@ PhotoTileEngineHost::Availability PhotoTileEngineHost::check_runtime()
     return a;
 }
 bool PhotoTileEngineHost::start()    { p->status("unavailable", check_runtime().reason); return false; }
-void PhotoTileEngineHost::shutdown() { if (p) { p->ready = false; p->busy = false; } }
+void PhotoTileEngineHost::shutdown() { if (p) { p->stage = Impl::Stage::Closing; p->busy = false; } }
 bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& req)
 {
     p->fail_job(req.job_id, "engine_unavailable", check_runtime().reason);
@@ -320,8 +385,6 @@ using Microsoft::WRL::Make;
 
 namespace {
 
-// WebView2Loader.dll 隨 app 佈署（CMakeLists.txt:827/862）。動態載入＝不動連結設定，
-// 且**載不到就是誠實不可用**——不像現行鏈那樣把 Create() 回傳值丟掉造成沉默假成功。
 typedef HRESULT (STDMETHODCALLTYPE *PFN_CreateEnv)(PCWSTR, PCWSTR,
         ICoreWebView2EnvironmentOptions*, ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler*);
 typedef HRESULT (STDMETHODCALLTYPE *PFN_GetVersion)(PCWSTR, LPWSTR*);
@@ -331,7 +394,6 @@ HMODULE loader_module()
     static HMODULE mod = ::LoadLibraryW(L"WebView2Loader.dll");
     return mod;
 }
-
 std::string engine_url()
 {
     std::string url = "file://" + resources_dir() + "/web/phototile/engine.html";
@@ -339,11 +401,25 @@ std::string engine_url()
     return url;
 }
 
-std::string hex_hr(HRESULT hr)
+/* noexcept 護欄（設計約束 A＋B 的合體）：
+   非同步邊界只捕捉 weak_ptr；lock 不到（物件已死）或已 Closing 就安靜退場；
+   任何例外一律在邊界收斂——**例外穿越 COM 回呼＝std::terminate＝app 猝死**。
+   ⚠ COM 回呼本身必須是「具體簽章」的 lambda（WRL 無法推導可變參數泛型 lambda），
+   所以護欄做成內層函式，由各回呼包住自己的主體。 */
+// ⚠ ImplT 用型別參數：`Impl` 是 host 的 private 巢狀型別，匿名命名空間的自由函式
+//    不得直接具名（會變成「找不到相符的多載」）。
+template<class ImplT, class Fn>
+void run_guarded(const std::weak_ptr<ImplT>& w, const char* what, Fn fn)
 {
-    char buf[32];
-    ::snprintf(buf, sizeof(buf), "0x%08lX", (unsigned long) hr);
-    return buf;
+    auto impl = w.lock();
+    if (!impl || impl->closing())
+        return;
+    try { fn(impl); }
+    catch (const std::exception& e) {
+        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: " << what << " 例外（已攔下）：" << e.what();
+    } catch (...) {
+        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: " << what << " 未知例外（已攔下）";
+    }
 }
 
 } // namespace
@@ -374,163 +450,198 @@ PhotoTileEngineHost::Availability PhotoTileEngineHost::check_runtime()
     return a;
 }
 
-bool PhotoTileEngineHost::start()
+bool PhotoTileEngineHost::Impl::start_engine()
 {
-    if (p->ready || p->creating) return true;
+    // 狀態機（設計約束 D）：任何時刻只有一條建立路徑。Rebuilding 也算建立中，
+    // 不會被 generate() 觸發第二次建環境（Codex 阻斷 #4 的雙重建立競賽）。
+    if (stage == Stage::Ready || building())
+        return true;
+    if (stage == Stage::Closing)
+        return false;
 
-    const Availability avail = check_runtime();
-    if (!avail.available) { p->status("unavailable", avail.reason); return false; }
+    const Availability avail = PhotoTileEngineHost::check_runtime();
+    if (!avail.available) { set_stage(Stage::Unavailable); status("unavailable", avail.reason); return false; }
 
     auto create_env = (PFN_CreateEnv) ::GetProcAddress(loader_module(), "CreateCoreWebView2EnvironmentWithOptions");
-    if (!create_env) { p->status("unavailable", "WebView2Loader.dll 缺少建立介面。請重新安裝 PING Slicer。"); return false; }
-
-    if (!p->host_frame) {
-        // 隱藏宿主視窗：**永不 Show()**。WebView2 controller 需要真 HWND
-        //（message-only 視窗不支援），故用不進工作列的 tool window。
-        p->host_frame = new wxFrame(nullptr, wxID_ANY, "PING PhotoTile Engine", wxDefaultPosition,
-                                    wxSize(1, 1), wxFRAME_TOOL_WINDOW | wxFRAME_NO_TASKBAR);
+    if (!create_env) {
+        set_stage(Stage::Unavailable);
+        status("unavailable", "WebView2Loader.dll 缺少建立介面。請重新安裝 PING Slicer。");
+        return false;
     }
-
-    // 保險絲（C-0 §3.2 第二道防線）：頁面端已守零計時器紀律，這裡再關掉背景計時器節流，
-    // 免得日後有人在頁面加回計時器就悄悄變慢。
+    if (!host_frame) {
+        // 隱藏宿主視窗：**永不 Show()**。WebView2 controller 需要真 HWND。
+        host_frame = new wxFrame(nullptr, wxID_ANY, "PING PhotoTile Engine", wxDefaultPosition,
+                                 wxSize(1, 1), wxFRAME_TOOL_WINDOW | wxFRAME_NO_TASKBAR);
+    }
+    // 保險絲：頁面端已守零計時器紀律，這裡再關掉背景計時器節流（C-0 §3.2 第二道防線）
     auto options = Make<CoreWebView2EnvironmentOptions>();
     options->put_AdditionalBrowserArguments(L"--disable-background-timer-throttling");
 
     const std::wstring user_data = utf8_to_wide(data_dir() + "/webview2_phototile");
-    p->creating = true;
-    p->status("starting", "建立隱形引擎宿主…（runtime " + avail.runtime_version + "）");
+    set_stage(Stage::CreatingEnv);
+    status("starting", "建立隱形引擎宿主…（runtime " + avail.runtime_version + "）");
 
-    Impl* impl = p.get();
+    std::weak_ptr<Impl> w = shared_from_this();
     const HRESULT hr = create_env(nullptr, user_data.c_str(), options.Get(),
         Callback<ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler>(
-            [this, impl](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT {
-                if (FAILED(result) || environment == nullptr) {
-                    impl->creating = false;
-                    impl->status("unavailable", "WebView2 環境建立失敗（HRESULT " + hex_hr(result) + "）。");
-                    return S_OK;
-                }
-                impl->env = environment;
-                this->create_controller();
+            [w](HRESULT result, ICoreWebView2Environment* environment) -> HRESULT {
+                run_guarded(w, "environment 完成回呼", [&](std::shared_ptr<Impl> impl) {
+                    if (FAILED(result) || environment == nullptr) {
+                        impl->set_stage(Stage::Unavailable);
+                        impl->status("unavailable", "WebView2 環境建立失敗（HRESULT " + hex_hr(result) + "）。");
+                        impl->fail_active_and_queued("engine_unavailable", "引擎環境建立失敗。");
+                        return;
+                    }
+                    impl->env = environment;
+                    impl->create_controller();
+                });
                 return S_OK;
             }).Get());
 
     if (FAILED(hr)) {
-        p->creating = false;
-        p->status("unavailable", "WebView2 環境建立呼叫失敗（HRESULT " + hex_hr(hr) + "）。");
+        set_stage(Stage::Unavailable);
+        status("unavailable", "WebView2 環境建立呼叫失敗（HRESULT " + hex_hr(hr) + "）。");
         return false;
     }
     return true;
 }
 
-void PhotoTileEngineHost::create_controller()
+void PhotoTileEngineHost::Impl::create_controller()
 {
-    Impl* impl = p.get();
-    if (!impl->env || !impl->host_frame) return;
+    if (closing() || !env || !host_frame) return;
+    set_stage(Stage::CreatingController);
 
-    const HRESULT hr = impl->env->CreateCoreWebView2Controller((HWND) impl->host_frame->GetHandle(),
+    std::weak_ptr<Impl> w = shared_from_this();
+    const HRESULT hr = env->CreateCoreWebView2Controller((HWND) host_frame->GetHandle(),
         Callback<ICoreWebView2CreateCoreWebView2ControllerCompletedHandler>(
-            [this, impl](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
-                impl->creating = false;
-                if (FAILED(result) || controller == nullptr) {
-                    impl->status("unavailable", "WebView2 controller 建立失敗（HRESULT " + hex_hr(result) + "）。");
-                    return S_OK;
-                }
-                impl->controller = controller;
-                impl->controller->put_IsVisible(FALSE);          // 隱形：連 1x1 都不畫
-                impl->controller->get_CoreWebView2(&impl->webview);
-                if (!impl->webview) {
-                    impl->status("unavailable", "WebView2 取得核心介面失敗。");
-                    return S_OK;
-                }
+            [w](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
+              run_guarded(w, "controller 完成回呼", [&](std::shared_ptr<Impl> impl) {
+                    if (FAILED(result) || controller == nullptr) {
+                        // controller 失敗也要計入重建次數，否則 cap 形同虛設（Codex #4）
+                        ++impl->rebuild_count;
+                        if (impl->rebuild_count > REBUILD_CAP) {
+                            impl->set_stage(Stage::Unavailable);
+                            impl->status("unavailable", "引擎建立連續失敗 " + std::to_string(REBUILD_CAP) +
+                                                        " 次，已停止重試。請重開 PING Slicer。");
+                            impl->fail_active_and_queued("engine_unavailable", "引擎無法建立。");
+                            return;
+                        }
+                        impl->set_stage(Stage::Rebuilding);
+                        impl->status("rebuilding", "controller 建立失敗（HRESULT " + hex_hr(result) + "），重試中。");
+                        impl->create_controller();
+                        return;
+                    }
+                    impl->controller = controller;
+                    impl->controller->put_IsVisible(FALSE);          // 隱形：連 1x1 都不畫
+                    const HRESULT hr_core = impl->controller->get_CoreWebView2(&impl->webview);
+                    if (FAILED(hr_core) || !impl->webview) {
+                        impl->set_stage(Stage::Unavailable);
+                        impl->status("unavailable", "取得 WebView2 核心介面失敗（HRESULT " + hex_hr(hr_core) + "）。");
+                        impl->fail_active_and_queued("engine_unavailable", "引擎核心介面取得失敗。");
+                        return;
+                    }
 
-                EventRegistrationToken token;
-                impl->webview->add_WebMessageReceived(
-                    Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-                        [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
-                            LPWSTR raw = nullptr;
-                            if (SUCCEEDED(args->TryGetWebMessageAsString(&raw)) && raw) {
-                                const std::string json = wide_to_utf8(raw);
-                                ::CoTaskMemFree(raw);
-                                this->handle_message(json);
-                            }
-                            return S_OK;
-                        }).Get(), &token);
-
-                impl->webview->add_ProcessFailed(
-                    Callback<ICoreWebView2ProcessFailedEventHandler>(
-                        [this, impl](ICoreWebView2*, ICoreWebView2ProcessFailedEventArgs* args) -> HRESULT {
-                            COREWEBVIEW2_PROCESS_FAILED_KIND kind = COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
-                            if (args) args->get_ProcessFailedKind(&kind);
-                            impl->ready = false;
-                            if (!impl->active_job.empty())
-                                impl->fail_job(impl->active_job, "engine_crashed", "引擎行程中止，正在重建…");
-                            if (impl->rebuild_count >= REBUILD_CAP) {
-                                impl->status("unavailable", "引擎連續重建 " + std::to_string(REBUILD_CAP) +
-                                                            " 次仍失敗，已停止重試。請重開 PING Slicer。");
+                    std::weak_ptr<Impl> w2 = impl;
+                    impl->webview->add_WebMessageReceived(
+                        Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                            [w2](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                                run_guarded(w2, "WebMessageReceived", [&](std::shared_ptr<Impl> im) {
+                                    LPWSTR raw = nullptr;
+                                    // ⚠ UTF 轉換也必須在護欄內（Codex #2 指出原本在外面）
+                                    if (args && SUCCEEDED(args->TryGetWebMessageAsString(&raw)) && raw) {
+                                        const std::string json = wide_to_utf8(raw);
+                                        ::CoTaskMemFree(raw);
+                                        im->handle_message_inner(json);
+                                    }
+                                });
                                 return S_OK;
-                            }
-                            ++impl->rebuild_count;
-                            impl->status("rebuilding", "引擎行程中止（kind=" + std::to_string((int) kind) +
-                                                       "），第 " + std::to_string(impl->rebuild_count) + " 次重建。");
-                            impl->controller.Reset();
-                            impl->webview.Reset();
-                            this->create_controller();
-                            return S_OK;
-                        }).Get(), &token);
+                            }).Get(), &impl->token_message);
 
-                this->navigate_and_wait_ready();
-                return S_OK;
+                    impl->webview->add_ProcessFailed(
+                        Callback<ICoreWebView2ProcessFailedEventHandler>(
+                            [w2](ICoreWebView2*, ICoreWebView2ProcessFailedEventArgs* args) -> HRESULT {
+                                run_guarded(w2, "ProcessFailed", [&](std::shared_ptr<Impl> im) {
+                                    COREWEBVIEW2_PROCESS_FAILED_KIND kind =
+                                        COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED;
+                                    if (args) args->get_ProcessFailedKind(&kind);
+                                    im->on_process_failed((int) kind);
+                                });
+                                return S_OK;
+                            }).Get(), &impl->token_failed);
+
+                    impl->navigate_and_wait_ready();
+              });
+              return S_OK;
             }).Get());
 
     if (FAILED(hr)) {
-        impl->creating = false;
-        impl->status("unavailable", "WebView2 controller 建立呼叫失敗（HRESULT " + hex_hr(hr) + "）。");
+        set_stage(Stage::Unavailable);
+        status("unavailable", "WebView2 controller 建立呼叫失敗（HRESULT " + hex_hr(hr) + "）。");
+        fail_active_and_queued("engine_unavailable", "引擎建立失敗。");
     }
 }
 
-void PhotoTileEngineHost::navigate_and_wait_ready()
+void PhotoTileEngineHost::Impl::navigate_and_wait_ready()
 {
-    Impl* impl = p.get();
-    if (!impl->webview) return;
+    if (closing() || !webview) return;
+    set_stage(Stage::Navigating);
 
-    // ready 逾時＝誠實失敗（C-0 §3.2 noready 負測）。注意 ready 可能早於
-    // NavigationCompleted 抵達——所以我們只等 ready，不綁導覽完成事件。
-    if (!impl->ready_timer) {
-        impl->ready_timer.reset(new wxTimer(impl->host_frame));
-        impl->host_frame->Bind(wxEVT_TIMER, [impl](wxTimerEvent&) {
-            if (impl->ready) return;
-            impl->status("unavailable", "引擎頁未在 " + std::to_string(READY_TIMEOUT_MS / 1000) +
-                                        " 秒內回報就緒（ready 握手逾時）。");
-            if (!impl->active_job.empty())
-                impl->fail_job(impl->active_job, "engine_timeout", "引擎啟動逾時。");
+    // ready 逾時＝誠實失敗；只等 ready 不綁 NavigationCompleted（C-0 實測 ready 可能先到）
+    if (!ready_timer) {
+        ready_timer.reset(new wxTimer(host_frame));
+        std::weak_ptr<Impl> w = shared_from_this();
+        host_frame->Bind(wxEVT_TIMER, [w](wxTimerEvent&) {
+            auto impl = w.lock();
+            if (!impl || impl->closing() || impl->stage == Stage::Ready) return;
+            Impl::safe_call("ready 逾時處理", [&] {
+                impl->set_stage(Stage::Unavailable);
+                impl->status("unavailable", "引擎頁未在 " + std::to_string(READY_TIMEOUT_MS / 1000) +
+                                            " 秒內回報就緒（ready 握手逾時）。");
+                impl->fail_active_and_queued("engine_timeout", "引擎啟動逾時。");
+            });
         });
     }
-    impl->ready_timer->StartOnce(READY_TIMEOUT_MS);
-    impl->webview->Navigate(utf8_to_wide(engine_url()).c_str());
-}
+    ready_timer->StartOnce(READY_TIMEOUT_MS);
 
-/* 例外絕不可穿越 COM 回呼：WebView2 的 handler 是從 Chromium 的訊息泵叫進來的，
-   讓 C++ 例外逃出去＝std::terminate＝整個 app 以 0xC0000409 猝死（2026-07-31 閘門③實錄：
-   一個 ptree 序列化的小錯就把 app 殺了）。這層護欄把任何例外收斂成「這個 job 失敗」，
-   app 續活、使用者看得到原因。 */
-void PhotoTileEngineHost::handle_message(const std::string& json)
-{
-    try {
-        handle_message_inner(json);
-    } catch (const std::exception& e) {
-        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: 處理引擎訊息時丟出例外（已攔下）：" << e.what();
-        p->fail_job(p->active_job, "internal", std::string("宿主處理引擎訊息時發生例外：") + e.what());
-    } catch (...) {
-        BOOST_LOG_TRIVIAL(error) << "PhotoTileEngineHost: 處理引擎訊息時丟出未知例外（已攔下）";
-        p->fail_job(p->active_job, "internal", "宿主處理引擎訊息時發生未知例外");
+    const HRESULT hr = webview->Navigate(utf8_to_wide(engine_url()).c_str());
+    if (FAILED(hr)) {
+        set_stage(Stage::Unavailable);
+        status("unavailable", "載入引擎頁失敗（HRESULT " + hex_hr(hr) + "）。");
+        fail_active_and_queued("engine_unavailable", "引擎頁載入失敗。");
     }
 }
 
-void PhotoTileEngineHost::handle_message_inner(const std::string& json)
+/* 依 failure kind 分流（Codex #4）：
+   - browser/render process exited：真的要重建
+   - render unresponsive：只記錄（WebView2 會自行恢復；重複發事件不該吃掉重建額度）
+   - GPU／utility／其他：記錄不重建（Chromium 自行復原） */
+void PhotoTileEngineHost::Impl::on_process_failed(int kind)
 {
-    Impl* impl = p.get();
-    const double t0 = now_ms();
+    if (closing()) return;
+    const bool fatal = (kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED ||
+                        kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED);
+    if (!fatal) {
+        status("process_warning", "引擎子行程異常（kind=" + std::to_string(kind) + "），不重建、續觀察。");
+        return;
+    }
+    fail_active_and_queued("engine_crashed", "引擎行程中止。");
+    if (rebuild_count >= REBUILD_CAP) {
+        set_stage(Stage::Unavailable);
+        status("unavailable", "引擎連續重建 " + std::to_string(REBUILD_CAP) + " 次仍失敗，已停止重試。請重開 PING Slicer。");
+        return;
+    }
+    ++rebuild_count;
+    set_stage(Stage::Rebuilding);
+    status("rebuilding", "引擎行程中止（kind=" + std::to_string(kind) + "），第 " +
+                         std::to_string(rebuild_count) + " 次重建。");
+    if (controller) { controller->Close(); controller.Reset(); }
+    webview.Reset();
+    create_controller();
+}
 
+void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
+{
+    const double t0 = now_ms();
     pt::ptree m;
     if (!json_from_string(json, m)) return;
     const int         v    = m.get<int>("v", 0);
@@ -538,229 +649,163 @@ void PhotoTileEngineHost::handle_message_inner(const std::string& json)
     const std::string job  = m.get<std::string>("jobId", "");
 
     if (v != PROTOCOL_VERSION) {
-        impl->fail_job(job, "protocol_bad_version", "引擎頁協定版本不符（收到 " + std::to_string(v) + "）。");
+        fail_job(job, "protocol_bad_version", "引擎頁協定版本不符（收到 " + std::to_string(v) + "）。");
         return;
     }
 
+    // ready 以外的 job 訊息，一律只接受目前 active job（設計約束 C）
+    const bool job_scoped = (type == "progress" || type == "result" || type == "begin" ||
+                             type == "chunk"    || type == "end");
+    if (job_scoped && job != active_job) {
+        BOOST_LOG_TRIVIAL(warning) << "PhotoTileEngineHost 丟棄過期 job 的訊息：" << type << " " << job
+                                   << "（active=" << active_job << "）";
+        return;                                  // 舊 job 的殘響：丟棄，不得改動狀態
+    }
+
     if (type == "ready") {
-        if (impl->ready_timer) impl->ready_timer->Stop();
-        impl->ready = true;
-        impl->status("ready", "引擎就緒（engine " + m.get<std::string>("engine", "?") +
-                              "／protocol " + std::to_string(m.get<int>("protocol", 0)) + "）");
-        if (impl->has_queued_request) {
-            impl->has_queued_request = false;
-            this->generate(impl->queued_request);
+        if (ready_timer) ready_timer->Stop();
+        set_stage(Stage::Ready);
+        rebuild_count = 0;                       // 穩定就緒＝連續失敗數歸零（Codex #4）
+        status("ready", "引擎就緒（engine " + m.get<std::string>("engine", "?") +
+                        "／protocol " + std::to_string(m.get<int>("protocol", 0)) + "）");
+        if (has_queued_request) {
+            has_queued_request = false;
+            PhotoTileEngineRequest q = queued_request;
+            generate(q);
         }
     }
     else if (type == "progress") {
-        if (impl->on_progress)
-            impl->on_progress(job, m.get<std::string>("stage", ""), m.get<std::string>("stageLabel", ""),
-                              m.get<double>("pct", 0.0));
+        if (on_progress)
+            safe_call("progress handler", [&] {
+                on_progress(job, m.get<std::string>("stage", ""), m.get<std::string>("stageLabel", ""),
+                            m.get<double>("pct", 0.0));
+            });
     }
     else if (type == "result") {
         if (!m.get<bool>("ok", false)) {
-            impl->fail_job(job, m.get<std::string>("error.code", "internal"),
-                                m.get<std::string>("error.message", "引擎回報失敗"));
+            fail_job(job, m.get<std::string>("error.code", "internal"),
+                          m.get<std::string>("error.message", "引擎回報失敗"));
             return;
         }
-        impl->pending = PhotoTileEngineResult();
-        impl->pending.job_id  = job;
-        impl->pending.sha256  = m.get<std::string>("sha256", "");
-        impl->pending.wall_ms = m.get<int>("wallMs", 0);
-        impl->pending.result_json = json;
-        {
-            // env 可能是 null（呼叫端沒帶快照）＝純量節點，不可拿去 write_json
+        pending = PhotoTileEngineResult();
+        pending.job_id  = job;
+        pending.sha256  = m.get<std::string>("sha256", "");
+        pending.wall_ms = m.get<int>("wallMs", 0);
+        pending.result_json = json;
+        {   // env 可能是 null（純量節點），不可拿去 write_json
             auto env_node = m.get_child_optional("env");
-            if (env_node && !env_node->empty()) impl->pending.env_json = ptree_to_json(*env_node);
+            if (env_node && !env_node->empty()) pending.env_json = ptree_to_json(*env_node);
         }
-        impl->pending_valid = true;
+        pending_valid = true;
     }
     else if (type == "begin") {
-        impl->xfer = Impl::Transfer();
-        impl->xfer.active = true;
-        impl->xfer.job_id = job;
-        impl->xfer.size   = m.get<size_t>("size", 0);
-        impl->xfer.chunks = m.get<size_t>("chunks", 0);
-        impl->xfer.sha256 = m.get<std::string>("sha256", "");
-        impl->xfer.bytes.reserve(impl->xfer.size);
-    }
-    else if (type == "chunk") {
-        if (!impl->xfer.active || impl->xfer.job_id != job) {
-            impl->fail_job(job, "protocol_job_mismatch", "收到不屬於目前作業的分塊。");
+        xfer = Transfer();
+        xfer.active = true;
+        xfer.job_id = job;
+        xfer.size   = m.get<size_t>("size", 0);
+        xfer.chunks = m.get<size_t>("chunks", 0);
+        xfer.sha256 = m.get<std::string>("sha256", "");
+        if (xfer.size == 0 || xfer.chunks == 0) {
+            fail_job(job, "protocol_bad_message", "begin 缺少 size／chunks，無法驗收。");
             return;
         }
-        const size_t index = m.get<size_t>("index", 0);
-        if (index != impl->xfer.received) {                       // ①連號
-            impl->fail_job(job, "protocol_chunk_order",
-                           "分塊序號不連續（期望 " + std::to_string(impl->xfer.received) +
-                           "、收到 " + std::to_string(index) + "）。");
+        xfer.bytes.reserve(xfer.size);
+    }
+    else if (type == "chunk") {
+        if (!xfer.active) { fail_job(job, "protocol_chunk_order", "chunk 早於 begin。"); return; }
+        const size_t index = m.get<size_t>("index", (size_t) -1);
+        if (index != xfer.received) {                                  // ①連號
+            fail_job(job, "protocol_chunk_order",
+                     "分塊序號不連續（期望 " + std::to_string(xfer.received) + "、收到 " + std::to_string(index) + "）。");
+            return;
+        }
+        auto declared_opt = m.get_optional<size_t>("length");
+        if (!declared_opt) {                                           // 長度必填（Codex #5：原本缺就跳過檢查）
+            fail_job(job, "protocol_length_mismatch", "分塊缺少 length 欄位，無法驗收。");
             return;
         }
         const wxMemoryBuffer buf = wxBase64Decode(m.get<std::string>("base64", ""));
-        const size_t declared = m.get<size_t>("length", buf.GetDataLen());
-        if (buf.GetDataLen() != declared) {                        // ③長度
-            impl->fail_job(job, "protocol_length_mismatch",
-                           "分塊長度不符（宣告 " + std::to_string(declared) +
-                           "、實得 " + std::to_string(buf.GetDataLen()) + "）。");
+        if (buf.GetDataLen() != *declared_opt) {                       // ③長度
+            fail_job(job, "protocol_length_mismatch",
+                     "分塊長度不符（宣告 " + std::to_string(*declared_opt) +
+                     "、實得 " + std::to_string(buf.GetDataLen()) + "）。");
+            return;
+        }
+        if (xfer.bytes.size() + buf.GetDataLen() > xfer.size) {        // 溢出上限也要擋
+            fail_job(job, "protocol_length_mismatch", "分塊總長超過 begin 宣告的大小。");
             return;
         }
         const unsigned char* data = (const unsigned char*) buf.GetData();
-        impl->xfer.bytes.insert(impl->xfer.bytes.end(), data, data + buf.GetDataLen());
-        ++impl->xfer.received;
-        if (impl->smoke_on) impl->smoke.chunks_received = (int) impl->xfer.received;
+        xfer.bytes.insert(xfer.bytes.end(), data, data + buf.GetDataLen());
+        ++xfer.received;
+        if (smoke_on) smoke.chunks_received = (int) xfer.received;
     }
     else if (type == "end") {
-        if (!impl->xfer.active || impl->xfer.job_id != job) {
-            impl->fail_job(job, "protocol_job_mismatch", "收到不屬於目前作業的結束訊息。");
+        if (!xfer.active) { fail_job(job, "protocol_bad_message", "end 早於 begin。"); return; }
+        // end 自報的塊數／大小必須與 begin 一致（Codex #5：原本完全沒檢查）
+        auto end_chunks = m.get_optional<size_t>("chunks");
+        auto end_size   = m.get_optional<size_t>("size");
+        if (end_chunks && *end_chunks != xfer.chunks) {
+            fail_job(job, "protocol_chunk_count",
+                     "end 宣告塊數與 begin 不符（begin " + std::to_string(xfer.chunks) +
+                     "、end " + std::to_string(*end_chunks) + "）。");
             return;
         }
-        if (impl->xfer.received != impl->xfer.chunks) {             // ②塊數
-            impl->fail_job(job, "protocol_chunk_count",
-                           "塊數不符（宣告 " + std::to_string(impl->xfer.chunks) +
-                           "、實收 " + std::to_string(impl->xfer.received) + "）。");
+        if (end_size && *end_size != xfer.size) {
+            fail_job(job, "protocol_length_mismatch",
+                     "end 宣告大小與 begin 不符（begin " + std::to_string(xfer.size) +
+                     "、end " + std::to_string(*end_size) + "）。");
             return;
         }
-        if (impl->xfer.bytes.size() != impl->xfer.size) {           // ③總長度
-            impl->fail_job(job, "protocol_length_mismatch",
-                           "總長度不符（宣告 " + std::to_string(impl->xfer.size) +
-                           "、實得 " + std::to_string(impl->xfer.bytes.size()) + "）。");
+        if (xfer.received != xfer.chunks) {                            // ②塊數
+            fail_job(job, "protocol_chunk_count",
+                     "塊數不符（宣告 " + std::to_string(xfer.chunks) + "、實收 " + std::to_string(xfer.received) + "）。");
             return;
         }
-        const std::string expect = m.get<std::string>("sha256", impl->xfer.sha256);
-        const std::string got    = sha256_hex(impl->xfer.bytes.data(), impl->xfer.bytes.size());
-        if (expect.empty()) {                                       // ④SHA-256：不得有空門
-            impl->fail_job(job, "protocol_sha_mismatch", "引擎未提供 SHA-256，無法驗收，已丟棄整份 3MF。");
+        if (xfer.bytes.size() != xfer.size) {                          // ③總長度
+            fail_job(job, "protocol_length_mismatch",
+                     "總長度不符（宣告 " + std::to_string(xfer.size) + "、實得 " + std::to_string(xfer.bytes.size()) + "）。");
+            return;
+        }
+        const std::string expect = m.get<std::string>("sha256", xfer.sha256);
+        const std::string got    = sha256_hex(xfer.bytes.data(), xfer.bytes.size());
+        if (expect.empty()) {                                          // ④SHA-256：不得有空門
+            fail_job(job, "protocol_sha_mismatch", "引擎未提供 SHA-256，無法驗收，已丟棄整份 3MF。");
             return;
         }
         if (expect != got) {
-            impl->fail_job(job, "protocol_sha_mismatch", "SHA-256 不符，已丟棄整份 3MF。");
+            fail_job(job, "protocol_sha_mismatch", "SHA-256 不符，已丟棄整份 3MF。");
             return;
         }
-        if (!impl->pending_valid || impl->pending.job_id != job) {
-            impl->fail_job(job, "protocol_bad_message", "收到 3MF 但沒有對應的 result 中繼資料。");
+        if (!pending_valid || pending.job_id != job) {
+            fail_job(job, "protocol_bad_message", "收到 3MF 但沒有對應的 result 中繼資料。");
             return;
         }
-        // 四項全過才算 success（協定 §3）
-        PhotoTileEngineResult r = impl->pending;
+        PhotoTileEngineResult r = pending;
         r.ok       = true;
-        r.three_mf = std::move(impl->xfer.bytes);
+        r.three_mf = std::move(xfer.bytes);
         r.sha256   = got;
-        impl->xfer = Impl::Transfer();
-        impl->pending_valid = false;
-        impl->busy = false;
-        impl->active_job.clear();
-        if (impl->on_result) impl->on_result(r);
+        xfer = Transfer();
+        pending_valid = false;
+        busy = false;
+        active_job.clear();
+        deliver(r);
     }
     else if (type == "superseded") {
-        impl->status("superseded", "作業 " + job + " 已被新的輸入取代。");
+        status("superseded", "作業 " + job + " 已被新的輸入取代。");
     }
     else if (type == "error") {
-        impl->fail_job(job, m.get<std::string>("code", "internal"), m.get<std::string>("message", ""));
+        fail_job(job, m.get<std::string>("code", "internal"), m.get<std::string>("message", ""));
     }
     else if (type == "imageAck") {
-        impl->status("imageAck", "影像注入完成（" + std::to_string(m.get<size_t>("chars", 0)) + " 字元）。");
+        status("imageAck", "影像注入完成（" + std::to_string(m.get<size_t>("chars", 0)) + " 字元）。");
     }
 
-    if (impl->smoke_on)
-        impl->smoke.message_handle_max_ms = (std::max)(impl->smoke.message_handle_max_ms, now_ms() - t0);
+    if (smoke_on)
+        smoke.message_handle_max_ms = (std::max)(smoke.message_handle_max_ms, now_ms() - t0);
 }
 
-bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& req)
-{
-    Impl* impl = p.get();
-    if (!impl->ready) {
-        impl->queued_request     = req;      // ready 之後自動補送
-        impl->has_queued_request = true;
-        return start();
-    }
-    if (impl->busy && !impl->active_job.empty() && impl->active_job != req.job_id)
-        cancel(impl->active_job);            // supersede：引擎端也會自己收斂（協定 §1）
-
-    impl->busy       = true;
-    impl->active_job = req.job_id;
-    impl->xfer       = Impl::Transfer();
-    impl->pending_valid = false;
-
-    // 影像讀檔＋base64＝**背景執行緒**（C-0 §3.3 ④：不要在 UI 執行緒付這筆帳）
-    const std::string path   = req.image_path;
-    const std::string job_id = req.job_id;
-    PhotoTileEngineRequest req_copy = req;
-    std::thread([this, impl, path, job_id, req_copy]() {
-        const double t0 = now_ms();
-        boost::nowide::ifstream input(path, std::ios::binary | std::ios::ate);
-        if (!input) {
-            wxTheApp->CallAfter([impl, job_id]() {
-                impl->fail_job(job_id, "bad_image", "圖片無法讀取，請重新選擇檔案。"); });
-            return;
-        }
-        const std::streamoff size = input.tellg();
-        if (size <= 0 || size > MAX_IMAGE_BYTES) {
-            wxTheApp->CallAfter([impl, job_id]() {
-                impl->fail_job(job_id, "bad_image", "圖片檔案過大（上限 64 MB），請先縮小圖片再試。"); });
-            return;
-        }
-        input.seekg(0, std::ios::beg);
-        std::vector<unsigned char> bytes((size_t) size);
-        if (!input.read((char*) bytes.data(), size)) {
-            wxTheApp->CallAfter([impl, job_id]() {
-                impl->fail_job(job_id, "bad_image", "圖片讀取失敗，請重新選擇檔案。"); });
-            return;
-        }
-        const std::string b64 = wxBase64Encode(bytes.data(), bytes.size()).ToStdString();
-        const double encode_ms = now_ms() - t0;
-
-        // 副檔名 → mime（同 WebViewDialog::SendPendingPhotoTileImage 的對照）
-        std::string ext = path.substr(path.find_last_of('.') + 1);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-        std::string mime = "image/png";
-        if (ext == "jpg" || ext == "jpeg") mime = "image/jpeg";
-        else if (ext == "webp")            mime = "image/webp";
-        else if (ext == "bmp")             mime = "image/bmp";
-
-        const size_t chunks = (b64.size() + INJECT_CHUNK_CHARS - 1) / INJECT_CHUNK_CHARS;
-        std::deque<std::string> queue;
-        queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageBegin") + "," +
-                        jkv("jobId", job_id) + "," + jkv("mime", mime) + "," +
-                        jkn("totalChars", (double) b64.size()) + "," + jkn("chunks", (double) chunks) + "}");
-        for (size_t i = 0; i < chunks; ++i) {
-            const std::string part = b64.substr(i * INJECT_CHUNK_CHARS,
-                                                (std::min)(INJECT_CHUNK_CHARS, b64.size() - i * INJECT_CHUNK_CHARS));
-            queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageChunk") + "," +
-                            jkv("jobId", job_id) + "," + jkn("index", (double) i) + "," +
-                            jkv("base64", part) + "}");     // base64 字元集不含需跳脫者，仍走同一組裝器
-        }
-        queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageEnd") + "," +
-                        jkv("jobId", job_id) + "," + jkn("totalChars", (double) b64.size()) + "," +
-                        jkn("chunks", (double) chunks) + "}");
-        queue.push_back(build_generate_command(req_copy));
-
-        wxTheApp->CallAfter([this, impl, queue, encode_ms]() mutable {
-            if (impl->smoke_on) impl->smoke.inject_encode_ms = encode_ms;
-            for (auto& msg : queue) impl->inject_queue.push_back(std::move(msg));
-            this->pump_inject_queue();
-        });
-    }).detach();
-
-    return true;
-}
-
-// 分批派發＝把 247 則注入訊息攤平在多個事件圈迭代，別讓 UI 一次卡住
-void PhotoTileEngineHost::pump_inject_queue()
-{
-    Impl* impl = p.get();
-    if (impl->inject_queue.empty()) { impl->inject_pumping = false; return; }
-    impl->inject_pumping = true;
-    for (size_t i = 0; i < INJECT_BATCH && !impl->inject_queue.empty(); ++i) {
-        impl->send_json(impl->inject_queue.front());
-        impl->inject_queue.pop_front();
-    }
-    if (!impl->inject_queue.empty())
-        wxTheApp->CallAfter([this]() { this->pump_inject_queue(); });
-    else
-        impl->inject_pumping = false;
-}
-
-std::string PhotoTileEngineHost::build_generate_command(const PhotoTileEngineRequest& req)
+std::string build_generate_command_impl(const PhotoTileEngineRequest& req)
 {
     std::string r = "{" + jkv("jobId", req.job_id) + "," + jkv("mode", req.mode) + "," +
                     jkn("nozzle", req.nozzle) + "," +
@@ -780,29 +825,162 @@ std::string PhotoTileEngineHost::build_generate_command(const PhotoTileEngineReq
         r += ",\"metadata\":{" + jkv("groupUuid", req.group_uuid) + "," +
              jkb("embedSource", req.embed_source) + "," + jkv("createdBy", "PING-Slicer") + "}";
     if (!req.env_json.empty())
-        r += ",\"env\":" + req.env_json;          // 呼叫端給的就是 JSON 原文，原封帶入／原封回傳
+        r += ",\"env\":" + req.env_json;
+    if (!req.fault_inject.empty())            // 測試用故障注入（產品路徑一律空）
+        r += "," + jkv("faultInject", req.fault_inject);
     r += "}";
     return "{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "generate") + "," +
            jkv("jobId", req.job_id) + ",\"request\":" + r + "}";
 }
 
-void PhotoTileEngineHost::shutdown()
+bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
 {
-    if (!p) return;
-    if (p->ready_timer) { p->ready_timer->Stop(); p->ready_timer.reset(); }
-    if (p->controller)  { p->controller->Close(); p->controller.Reset(); }
-    p->webview.Reset();
-    p->env.Reset();
-    if (p->host_frame)  { p->host_frame->Destroy(); p->host_frame = nullptr; }
-    p->ready = false;
-    p->busy  = false;
+    if (closing()) return false;
+    if (stage != Stage::Ready) {
+        // 建立／重建中：排隊。被覆寫的排隊 job 要有交代（Codex #4）
+        if (has_queued_request && queued_request.job_id != req.job_id) {
+            PhotoTileEngineResult r;
+            r.ok = false; r.job_id = queued_request.job_id; r.error_code = "cancelled";
+            r.error_message = "已被更新的請求取代（引擎尚未就緒）。";
+            deliver(r);
+        }
+        queued_request     = req;
+        has_queued_request = true;
+        return start_engine();
+    }
+    if (busy && !active_job.empty() && active_job != req.job_id)
+        cancel(active_job);                  // supersede：引擎端也會自己收斂
+
+    ++epoch;
+    const unsigned long long my_epoch = epoch;
+    busy       = true;
+    active_job = req.job_id;
+    xfer       = Transfer();
+    pending_valid = false;
+
+    // 影像讀檔＋base64＝背景執行緒（C-0 §3.3 ④）。整段包在 try/catch 內：
+    // 例外逃出 thread function＝std::terminate（設計約束 B）。
+    const std::string path   = req.image_path;
+    const std::string job_id = req.job_id;
+    PhotoTileEngineRequest req_copy = req;
+    std::weak_ptr<Impl> w = shared_from_this();
+
+    std::thread([w, path, job_id, req_copy, my_epoch]() {
+        std::string error;
+        std::deque<std::string> queue;
+        double encode_ms = 0;
+        try {
+            const double t0 = now_ms();
+            boost::nowide::ifstream input(path, std::ios::binary | std::ios::ate);
+            if (!input) error = "圖片無法讀取，請重新選擇檔案。";
+            std::vector<unsigned char> bytes;
+            if (error.empty()) {
+                const std::streamoff size = input.tellg();
+                if (size <= 0 || size > MAX_IMAGE_BYTES)
+                    error = "圖片檔案過大（上限 64 MB），請先縮小圖片再試。";
+                else {
+                    input.seekg(0, std::ios::beg);
+                    bytes.resize((size_t) size);
+                    if (!input.read((char*) bytes.data(), size))
+                        error = "圖片讀取失敗，請重新選擇檔案。";
+                }
+            }
+            if (error.empty()) {
+                const std::string b64 = wxBase64Encode(bytes.data(), bytes.size()).ToStdString();
+                encode_ms = now_ms() - t0;
+
+                std::string ext = path.substr(path.find_last_of('.') + 1);
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                std::string mime = "image/png";
+                if (ext == "jpg" || ext == "jpeg") mime = "image/jpeg";
+                else if (ext == "webp")            mime = "image/webp";
+                else if (ext == "bmp")             mime = "image/bmp";
+
+                const size_t chunks = (b64.size() + INJECT_CHUNK_CHARS - 1) / INJECT_CHUNK_CHARS;
+                queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageBegin") + "," +
+                                jkv("jobId", job_id) + "," + jkv("mime", mime) + "," +
+                                jkn("totalChars", (double) b64.size()) + "," + jkn("chunks", (double) chunks) + "}");
+                for (size_t i = 0; i < chunks; ++i)
+                    queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageChunk") + "," +
+                                    jkv("jobId", job_id) + "," + jkn("index", (double) i) + "," +
+                                    jkv("base64", b64.substr(i * INJECT_CHUNK_CHARS,
+                                        (std::min)(INJECT_CHUNK_CHARS, b64.size() - i * INJECT_CHUNK_CHARS))) + "}");
+                queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageEnd") + "," +
+                                jkv("jobId", job_id) + "," + jkn("totalChars", (double) b64.size()) + "," +
+                                jkn("chunks", (double) chunks) + "}");
+                queue.push_back(build_generate_command_impl(req_copy));
+            }
+        } catch (const std::exception& e) {
+            error = std::string("影像處理失敗：") + e.what();
+        } catch (...) {
+            error = "影像處理發生未知錯誤。";
+        }
+
+        // 回 UI 執行緒：weak 鎖不到（宿主已死）就安靜退場；epoch 對不上＝這個 job 已過期
+        wxTheApp->CallAfter([w, job_id, my_epoch, error, queue, encode_ms]() mutable {
+            auto impl = w.lock();
+            if (!impl || impl->closing()) return;
+            Impl::safe_call("影像注入回主緒", [&] {
+                if (my_epoch != impl->epoch) {
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost 丟棄過期 job 的注入資料：" << job_id;
+                    return;
+                }
+                if (!error.empty()) { impl->fail_job(job_id, "bad_image", error); return; }
+                if (impl->smoke_on) impl->smoke.inject_encode_ms = encode_ms;
+                for (auto& msg : queue) impl->inject_queue.push_back(std::move(msg));
+                impl->pump_inject_queue();
+            });
+        });
+    }).detach();
+
+    return true;
 }
 
-void PhotoTileEngineHost::cancel(const std::string& job_id)
+void PhotoTileEngineHost::Impl::pump_inject_queue()
 {
-    if (!p->webview) return;
-    p->send_json("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "cancel") + "," + jkv("jobId", job_id) + "}");
+    if (closing() || inject_queue.empty()) { inject_pumping = false; return; }
+    inject_pumping = true;
+    for (size_t i = 0; i < INJECT_BATCH && !inject_queue.empty(); ++i) {
+        send_json(inject_queue.front());
+        inject_queue.pop_front();
+    }
+    if (!inject_queue.empty()) {
+        std::weak_ptr<Impl> w = shared_from_this();
+        wxTheApp->CallAfter([w]() { run_guarded(w, "注入分批派發", [](std::shared_ptr<Impl> impl) { impl->pump_inject_queue(); }); });
+    } else {
+        inject_pumping = false;
+    }
 }
+
+void PhotoTileEngineHost::Impl::cancel(const std::string& job_id)
+{
+    if (!webview || closing()) return;
+    send_json("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "cancel") + "," + jkv("jobId", job_id) + "}");
+}
+
+void PhotoTileEngineHost::Impl::shutdown()
+{
+    // 先標 Closing：所有晚到的回呼（COM／thread／CallAfter／timer）看到就安靜退場，
+    // 不會再碰任何已拆掉的東西（設計約束 A）。
+    set_stage(Stage::Closing);
+    busy = false;
+    has_queued_request = false;
+    inject_queue.clear();
+    if (ready_timer) { ready_timer->Stop(); ready_timer.reset(); }
+    if (webview) {
+        webview->remove_WebMessageReceived(token_message);
+        webview->remove_ProcessFailed(token_failed);
+    }
+    if (controller) { controller->Close(); controller.Reset(); }
+    webview.Reset();
+    env.Reset();
+    if (host_frame) { host_frame->Destroy(); host_frame = nullptr; }
+}
+
+bool PhotoTileEngineHost::start()                                  { return p->start_engine(); }
+void PhotoTileEngineHost::shutdown()                               { if (p) p->shutdown(); }
+bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& r){ return p->generate(r); }
+void PhotoTileEngineHost::cancel(const std::string& job_id)        { p->cancel(job_id); }
 
 #endif // _WIN32
 
