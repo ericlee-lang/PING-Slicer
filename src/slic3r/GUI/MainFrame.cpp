@@ -764,10 +764,11 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         const char* delay_env = ::getenv("PING_PHOTOTILE_SMOKE_DELAY_MS");
         const int   delay_ms  = delay_env ? ::atoi(delay_env) : 0;
         // PING_PHOTOTILE_SMOKE=limits ⇒ 跑閘門③（OOM／低記憶體），其餘值＝閘門①
-        const bool  limits    = std::string(::getenv("PING_PHOTOTILE_SMOKE")) == "limits";
-        auto launch = [limits]() {
-            if (limits) run_photo_tile_limits_gate();
-            else        run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+        const std::string what = ::getenv("PING_PHOTOTILE_SMOKE");
+        auto launch = [what]() {
+            if (what == "limits")    run_photo_tile_limits_gate();
+            else if (what == "live") run_photo_tile_live_gate();
+            else                     run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
         };
         if (delay_ms > 0) {
             auto* t = new wxTimer(this);

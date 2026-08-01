@@ -76,6 +76,7 @@
 #include "3DScene.hpp"
 #include "MainFrame.hpp"
 #include "Plater.hpp"
+#include "PhotoTileCapability.hpp"
 #include "GLCanvas3D.hpp"
 #include "EncodedFilament.hpp"
 #include "GeneratedConfig.hpp"
@@ -4667,15 +4668,16 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
         return out;
     out.known_mode = true;
 
+    // C-1：照片磚機的判定收斂到 PhotoTileCapability（單一來源），這裡只再加
+    // 「家族要對得上 mode」與「口徑要等於網頁送來的值」兩個本流程專屬條件。
+    // 判準若要改（例如日後 preset 欄位化），只改 PhotoTileCapability 一處。
     const std::string family  = mode == "dual" ? "FD" : "FF";
     const auto        matches = [&](const Preset& preset) {
-        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
-        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
-        if (pm == nullptr || pv == nullptr)
+        const PhotoTileCapability cap = photo_tile_capability_of(preset);
+        if (!cap.is_photo_tile || cap.family != family)
             return false;
-        return pm->value.find("同進照片磚") != std::string::npos &&
-               pm->value.rfind(family, 0) == 0 &&
-               pv->value == nozzle;
+        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
+        return pv != nullptr && pv->value == nozzle;
     };
 
     PresetBundle* bundle = wxGetApp().preset_bundle;

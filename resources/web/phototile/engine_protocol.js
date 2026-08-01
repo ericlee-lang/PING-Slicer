@@ -195,6 +195,18 @@ function buildImageInjection(jobId, mime, base64, name, chunkChars){
    生成期間換機／換盤／關專案 ⇒ 舊結果不得寫回新情境（Codex #7）。
    宿主在 generate 時帶入 env，引擎原封回傳；上盤前再比一次。
    欄位由宿主定義，本函式只做「逐鍵嚴格相等」＝新增欄位自動納入比較。 */
+/* ⚠ 三條刻意的設計（與 C++ 端 ptree_equal 逐條一致；2026-08-01 活體實測 D 項定的）：
+     ① 按鍵比對、不看順序（快照是字典不是序列；實測 JSON 往返鍵序真的會變）
+     ② 數值容忍（0.4 與 "0.4" 視為相同——那是型別表示法差異，不是環境變了）
+     ③ 鍵數仍須相同（少一個鍵＝環境定義變了，照樣過期，不放水） */
+function leafEqual(a, b){
+  if (a === b) return true;
+  if (a === null || b === null || a === undefined || b === undefined) return false;
+  const na = Number(a), nb = Number(b);
+  if (Number.isFinite(na) && Number.isFinite(nb) && String(a).trim() !== '' && String(b).trim() !== '')
+    return na === nb;
+  return String(a) === String(b);
+}
 function envEqual(a, b){
   if (!a || !b) return false;
   const ka = Object.keys(a).sort(), kb = Object.keys(b).sort();
@@ -202,8 +214,8 @@ function envEqual(a, b){
   for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return false;
   for (const k of ka) {
     const va = a[k], vb = b[k];
-    if (va === null || typeof va !== 'object') { if (va !== vb) return false; }
-    else if (!envEqual(va, vb)) return false;
+    if (va !== null && typeof va === 'object') { if (!envEqual(va, vb)) return false; }
+    else if (!leafEqual(va, vb)) return false;
   }
   return true;
 }

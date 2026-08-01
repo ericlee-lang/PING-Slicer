@@ -240,6 +240,19 @@ check('缺快照＝視為過期（不得預設放行）', () => {
   assert(!P.checkFresh(null, envA).fresh, 'null 應丟棄');
   assert(!P.checkFresh(envA, null).fresh, 'null 應丟棄');
 });
+check('鍵序不同仍算同一環境（2026-08-01 活體實測：JSON 往返真的會重排鍵序）', () => {
+  const reordered = { plateRevision: 7, nozzle: 0.4, projectRevision: 12, plateId: 1, printerPresetName: 'FD300 同進照片磚' };
+  assert(P.checkFresh(envA, reordered).fresh, '只是鍵序不同不該判成過期');
+});
+check('數字 vs 字串數字仍算同一環境（型別表示法差異，不是環境變了）', () => {
+  const stringified = { printerPresetName: 'FD300 同進照片磚', nozzle: '0.4', plateId: '1', plateRevision: '7', projectRevision: '12' };
+  assert(P.checkFresh(envA, stringified).fresh, '"0.4" 與 0.4 應視為相同');
+  assert(P.checkFresh(stringified, envA).fresh, '反向亦然');
+});
+check('容忍不得放水：值真的變了仍要判過期（字串型別下亦然）', () => {
+  const changed = { printerPresetName: 'FD300 同進照片磚', nozzle: '0.6', plateId: '1', plateRevision: '7', projectRevision: '12' };
+  assert(!P.checkFresh(envA, changed).fresh, '口徑從 0.4 變 0.6 必須判過期');
+});
 check('巢狀欄位差異也抓得到', () => {
   const a = { printer: { name: 'FD300', nozzle: 0.4 }, plateRevision: 1 };
   const b = { printer: { name: 'FD300', nozzle: 0.6 }, plateRevision: 1 };
