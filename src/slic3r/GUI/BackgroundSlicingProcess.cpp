@@ -2,6 +2,7 @@
 #include "GUI_App.hpp"
 #include "GUI.hpp"
 #include "MainFrame.hpp"
+#include "PhotoTileCapability.hpp"
 #include "format.hpp"
 
 #include <wx/app.h>
@@ -315,23 +316,26 @@ static PingMix::PhotoPaletteStatus ping_collect_photo_palette(const Print& print
 static void ping_apply_photo_tile(const std::string& gcode_path, const DynamicPrintConfig& config,
                                   const std::map<int, std::string>& palette)
 {
-    const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
-    const std::string printer_model = pm != nullptr ? pm->value : std::string();
-    if (printer_model.find("同進") == std::string::npos) {
+    /* 判定一律走 PhotoTileCapability（單一來源，2026-08-01 Codex #10）——
+       這裡原本自己 find("同進")／rfind("DUAL")／rfind("FF")，與 GUI 那邊各判各的，
+       判準一漂移就會出現「側卡認得、後處理不認得」的鬼故事。 */
+    const PhotoTileCapability cap = photo_tile_capability_of_config(config);
+    const std::string& printer_model = cap.printer_model;
+    if (!cap.is_mixing) {
         BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: palette present but printer '" << printer_model
                                    << "' is not a mixing (tongjin) machine; gcode untouched";
         return;
     }
     // Classic 前代 DUAL 同進（Marlin 韌體）不支援照片磚後處理——palette 只產 M6051/M6052、
     // 前代韌體不認。寧可留 Tn 顯性報錯，不默默下錯指令（同下方機型×配比互驗原則）。
-    if (printer_model.rfind("DUAL", 0) == 0) {
+    if (cap.is_classic) {
         BOOST_LOG_TRIVIAL(error) << "PING photo-tile: printer '" << printer_model
                                  << "' is a Classic (Marlin) machine; photo-tile unsupported; gcode untouched";
         return;
     }
     // 機型×配比互驗：FF（四進一出）↔M6052、FD↔M6051。開錯機型寧可不動——
     // 留著 Tn 讓韌體顯性報錯，勝過默默下錯混色指令。
-    const bool is_quad_machine = printer_model.rfind("FF", 0) == 0;
+    const bool is_quad_machine = (cap.mode == "quad");
     for (const auto& kv : palette) {
         const bool is_quad_cmd = kv.second.compare(0, 5, "M6052") == 0;
         if (is_quad_cmd != is_quad_machine) {

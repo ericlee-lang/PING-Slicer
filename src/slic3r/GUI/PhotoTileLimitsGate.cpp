@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -116,6 +117,9 @@ struct LimitsCase
     std::string expect_error;              // expect_ok=false 時必須等於這個碼
 };
 
+class LimitsRun;
+std::unique_ptr<LimitsRun> g_limits_run;  // 唯一擁有者（Codex #1：取代 `delete this`）
+
 class LimitsRun : public wxEvtHandler
 {
 public:
@@ -143,7 +147,7 @@ public:
         m_cases.push_back({ "oversize-image-capped",   "dual",  60.0,  6, 0,    8000000LL, true,  false, "image_too_large" });
         m_cases.push_back({ "oversize-image-uncapped", "dual",  60.0,  6, 800,  0,        true,  true,  "" });
     }
-    ~LimitsRun() override { m_beat.Stop(); delete m_host; }
+    ~LimitsRun() override { m_beat.Stop(); }       // m_host 是 unique_ptr（Codex #1）
 
     void start()
     {
@@ -268,13 +272,13 @@ private:
         BOOST_LOG_TRIVIAL(info) << "PhotoTile 閘門③ 報告：" << path;
 
         m_host->shutdown();
-        wxTheApp->CallAfter([this]() {
-            delete this;
+        wxTheApp->CallAfter([]() {
+            g_limits_run.reset();                 // RAII：擁有者釋放，取代 `delete this`
             if (wxGetApp().mainframe) wxGetApp().mainframe->Close(true);
         });
     }
 
-    PhotoTileEngineHost*     m_host;
+    std::unique_ptr<PhotoTileEngineHost> m_host;
     wxTimer                  m_beat;
     std::vector<LimitsCase>  m_cases;
     std::vector<std::string> m_rows;
@@ -289,7 +293,8 @@ private:
 
 void run_photo_tile_limits_gate()
 {
-    (new LimitsRun())->start();
+    g_limits_run.reset(new LimitsRun());
+    g_limits_run->start();
 }
 
 }} // namespace Slic3r::GUI

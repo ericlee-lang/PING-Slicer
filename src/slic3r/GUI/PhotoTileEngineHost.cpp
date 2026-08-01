@@ -207,6 +207,7 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
     PhotoTileEngineHost::StatusFn   on_status;
 
     // ---- job epoch（設計約束 C）----
+    bool               test_break_engine_url = false;   // 僅測試用（閘門 H：驗 REBUILD_CAP）
     unsigned long long epoch = 0;         // 每次 generate 遞增
     std::string        active_job;        // 目前唯一有效的 job
     bool               busy = false;
@@ -249,8 +250,27 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
         BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost [" << s << "] " << detail;
         if (on_status) safe_call("status handler", [&] { on_status(s, detail); });
     }
+    /* 每個 job 只准交付一次 terminal 結果（Codex #8）。
+       為什麼需要：supersede 時舊 job 會同時有兩個終結來源——宿主自己發的
+       `superseded`，以及引擎頁被 cancel 後回來的 error（`error` 型別不在
+       job-scoped 過濾清單內，因為那是「連 active 都還沒建立就失敗」的通道）。
+       呼叫端（C-2 的上盤入口）看到同一個 job 終結兩次會很難寫對，所以在這裡收斂。
+       只留最近 16 筆＝夠涵蓋任何合理的殘響延遲，又不會無限長大。 */
+    std::deque<std::string> terminated;
+    bool mark_terminal(const std::string& job_id)
+    {
+        if (job_id.empty()) return true;
+        if (std::find(terminated.begin(), terminated.end(), job_id) != terminated.end()) {
+            BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost 忽略重複的 terminal 結果：" << job_id;
+            return false;
+        }
+        terminated.push_back(job_id);
+        while (terminated.size() > 16) terminated.pop_front();
+        return true;
+    }
     void deliver(const PhotoTileEngineResult& r)
     {
+        if (!mark_terminal(r.job_id)) return;
         if (on_result) safe_call("result handler", [&] { on_result(r); });
     }
     /* 只有「目前 epoch 的 job」能改動狀態或交付結果。舊 job 遲到的失敗只通知、不清狀態。
@@ -311,6 +331,7 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
     void handle_message_inner(const std::string& json);
     void pump_inject_queue();
     void on_process_failed(int kind);
+    void try_rebuild(const std::string& why);
     bool generate(const PhotoTileEngineRequest& req);
     void cancel(const std::string& job_id);
     void shutdown();
@@ -326,6 +347,24 @@ void PhotoTileEngineHost::set_result_handler(ResultFn fn)     { p->on_result   =
 void PhotoTileEngineHost::set_status_handler(StatusFn fn)     { p->on_status   = std::move(fn); }
 bool PhotoTileEngineHost::is_ready() const                    { return p->stage == Impl::Stage::Ready; }
 bool PhotoTileEngineHost::is_busy() const                     { return p->busy; }
+void PhotoTileEngineHost::test_break_engine_url(bool on) { p->test_break_engine_url = on; }
+
+PhotoTileEngineDiag PhotoTileEngineHost::diagnostics() const
+{
+    PhotoTileEngineDiag d;
+    d.stage         = Impl::stage_name(p->stage);
+    d.rebuild_count = p->rebuild_count;
+    d.busy          = p->busy;
+    d.active_job    = p->active_job;
+#ifdef _WIN32
+    if (p->webview) {
+        UINT32 pid = 0;
+        if (SUCCEEDED(p->webview->get_BrowserProcessId(&pid))) d.browser_pid = (unsigned int) pid;
+    }
+#endif
+    return d;
+}
+
 void PhotoTileEngineHost::enable_smoke_metrics(bool on)       { p->smoke_on = on; }
 const PhotoTileEngineSmokeStats& PhotoTileEngineHost::smoke_stats() const { return p->smoke; }
 
@@ -517,18 +556,9 @@ void PhotoTileEngineHost::Impl::create_controller()
             [w](HRESULT result, ICoreWebView2Controller* controller) -> HRESULT {
               run_guarded(w, "controller 完成回呼", [&](std::shared_ptr<Impl> impl) {
                     if (FAILED(result) || controller == nullptr) {
-                        // controller 失敗也要計入重建次數，否則 cap 形同虛設（Codex #4）
-                        ++impl->rebuild_count;
-                        if (impl->rebuild_count > REBUILD_CAP) {
-                            impl->set_stage(Stage::Unavailable);
-                            impl->status("unavailable", "引擎建立連續失敗 " + std::to_string(REBUILD_CAP) +
-                                                        " 次，已停止重試。請重開 PING Slicer。");
-                            impl->fail_active_and_queued("engine_unavailable", "引擎無法建立。");
-                            return;
-                        }
-                        impl->set_stage(Stage::Rebuilding);
-                        impl->status("rebuilding", "controller 建立失敗（HRESULT " + hex_hr(result) + "），重試中。");
-                        impl->create_controller();
+                        // controller 失敗也要計入重建次數，否則 cap 形同虛設（Codex #4）。
+                        // 走與崩潰／逾時同一支 try_rebuild＝保險絲只有一個實作（2026-08-01 統一）
+                        impl->try_rebuild("controller 建立失敗（HRESULT " + hex_hr(result) + "）");
                         return;
                     }
                     impl->controller = controller;
@@ -594,16 +624,28 @@ void PhotoTileEngineHost::Impl::navigate_and_wait_ready()
             auto impl = w.lock();
             if (!impl || impl->closing() || impl->stage == Stage::Ready) return;
             Impl::safe_call("ready 逾時處理", [&] {
-                impl->set_stage(Stage::Unavailable);
-                impl->status("unavailable", "引擎頁未在 " + std::to_string(READY_TIMEOUT_MS / 1000) +
-                                            " 秒內回報就緒（ready 握手逾時）。");
+                /* 【2026-08-01 修】原本 ready 逾時直接判**永久**不可用——一次啟動慢
+                   （機器忙、防毒掃描、剛從睡眠醒來）就讓照片磚整個 session 廢掉，而且
+                   完全繞過重建狀態機與 REBUILD_CAP。閘門 G 實測抓到：連殺引擎時真正
+                   截停的是這條路，不是 cap ⇒ cap 根本不是那個保險絲。
+                   改成與行程崩潰走同一條路：算一次重建、受同一個 cap 節制。 */
                 impl->fail_active_and_queued("engine_timeout", "引擎啟動逾時。");
+                impl->try_rebuild("引擎頁未在 " + std::to_string(READY_TIMEOUT_MS / 1000) +
+                                  " 秒內回報就緒（ready 握手逾時）");
             });
         });
     }
     ready_timer->StartOnce(READY_TIMEOUT_MS);
 
-    const HRESULT hr = webview->Navigate(utf8_to_wide(engine_url()).c_str());
+    /* 【僅測試用】把引擎頁指到一個不存在的位址 ⇒ 頁面永遠不會回報 ready ⇒ 每次都走 ready 逾時。
+       用途＝**決定性地**驗證 REBUILD_CAP 真的會截停（閘門 H）。
+       為什麼不用「連殺行程」驗：實測（0801 閘門 G）引擎每次都在 ~380ms 內復原、
+       計數在穩定就緒時歸零，殺得再快也只是在賽跑，證不出保險絲——那是量測方法的問題，
+       不是保險絲的問題。這裡改成讓每次重建都必定失敗，cap 才是唯一能停下來的東西。 */
+    const std::string url = test_break_engine_url
+        ? std::string("file:///%%%__phototile_engine_missing__%%%.html")
+        : engine_url();
+    const HRESULT hr = webview->Navigate(utf8_to_wide(url).c_str());
     if (FAILED(hr)) {
         set_stage(Stage::Unavailable);
         status("unavailable", "載入引擎頁失敗（HRESULT " + hex_hr(hr) + "）。");
@@ -624,16 +666,38 @@ void PhotoTileEngineHost::Impl::on_process_failed(int kind)
         status("process_warning", "引擎子行程異常（kind=" + std::to_string(kind) + "），不重建、續觀察。");
         return;
     }
+    /* 【2026-08-01 修】同一次崩潰會連發多則 ProcessFailed（閘門 F 實測：一次殺掉
+       5 個子行程 ⇒ 收到 3 則 fatal，rebuild_count 一口氣從 0 跳到 3）。
+       cap 要數的是「崩潰事件」不是「通知則數」，否則**單一次崩潰就把保險絲燒掉**。
+       已經在重建中就只記錄不計數——在飛的那條重建路徑會自己收斂或逾時。 */
+    if (building()) {
+        // 建立／重建**在飛的整段**都算同一次崩潰的餘波（不只 Rebuilding 那一瞬間）。
+        // 這段期間真的又壞掉，由 ready 逾時當後手接住——它現在也走 try_rebuild、同受 cap 節制。
+        status("process_warning", "建立／重建進行中又收到行程失敗通知（kind=" + std::to_string(kind) +
+                                  "），視為同一次崩潰、不重複計數。");
+        return;
+    }
     fail_active_and_queued("engine_crashed", "引擎行程中止。");
+    try_rebuild("引擎行程中止（kind=" + std::to_string(kind) + "）");
+}
+
+/* 所有「引擎壞了、想再站起來」的路徑唯一入口（行程崩潰／ready 逾時）。
+   ⚠ 保險絲的語意就寫在這裡：連續失敗 REBUILD_CAP 次就停手、不再無限重試；
+   計數只在**穩定就緒**時歸零（handle_message_inner 的 ready 分支）。
+   日後任何新的失敗路徑都要走這支，不要再自己 set_stage(Unavailable) 繞過去。 */
+void PhotoTileEngineHost::Impl::try_rebuild(const std::string& why)
+{
+    if (closing()) return;
     if (rebuild_count >= REBUILD_CAP) {
         set_stage(Stage::Unavailable);
-        status("unavailable", "引擎連續重建 " + std::to_string(REBUILD_CAP) + " 次仍失敗，已停止重試。請重開 PING Slicer。");
+        status("unavailable", "引擎連續重建 " + std::to_string(REBUILD_CAP) +
+                              " 次仍失敗，已停止重試。請重開 PING Slicer。");
+        fail_active_and_queued("engine_unavailable", "引擎無法建立。");
         return;
     }
     ++rebuild_count;
     set_stage(Stage::Rebuilding);
-    status("rebuilding", "引擎行程中止（kind=" + std::to_string(kind) + "），第 " +
-                         std::to_string(rebuild_count) + " 次重建。");
+    status("rebuilding", why + "，第 " + std::to_string(rebuild_count) + " 次重建。");
     if (controller) { controller->Close(); controller.Reset(); }
     webview.Reset();
     create_controller();
@@ -792,7 +856,9 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
         deliver(r);
     }
     else if (type == "superseded") {
-        status("superseded", "作業 " + job + " 已被新的輸入取代。");
+        // 兩個 jobId 都寫進 detail：閘門要能斷言「頁面那條 supersede 分支真的被命中」，
+        // 而不是只看到一句人話（Codex #8）。格式固定＝ old → by，勿改。
+        status("superseded", job + " → " + m.get<std::string>("by", ""));
     }
     else if (type == "error") {
         fail_job(job, m.get<std::string>("code", "internal"), m.get<std::string>("message", ""));
@@ -848,8 +914,19 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
         has_queued_request = true;
         return start_engine();
     }
-    if (busy && !active_job.empty() && active_job != req.job_id)
-        cancel(active_job);                  // supersede：引擎端也會自己收斂
+    /* supersede（Codex #8）：舊 job **必須拿到 terminal 結果**。
+       原本只送 cancel 給引擎頁、等頁面回 cancelled——但那個回應的 jobId 已經不是
+       active_job 了，會被 epoch 過濾器丟掉 ⇒ 呼叫端手上留下一個永遠不會結束的 job
+       （2026-08-01 的活體報告因此拿到 oldJobReturnedSuccess:false 的**空值假綠燈**）。
+       現在由宿主自己終結，不依賴頁面的回應。 */
+    std::string superseded_job;
+    if (busy && !active_job.empty() && active_job != req.job_id) {
+        superseded_job = active_job;
+        if (!req.test_page_supersede)
+            cancel(superseded_job);          // 產品路徑：宿主先收斂（比等頁面快）
+        // test_page_supersede＝故意不預先取消，讓引擎頁自己收到第二個 generate、
+        // 走它的 supersede 分支（那條分支原本從沒被命中過）。
+    }
 
     ++epoch;
     const unsigned long long my_epoch = epoch;
@@ -932,6 +1009,24 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
             });
         });
     }).detach();
+
+    /* 舊 job 的 terminal 結果排在**新 job 狀態全部就位之後**才發：
+       同步 deliver 會讓呼叫端在 generate() 內部重入（handler 可能又呼叫 generate），
+       CallAfter 把它推到下一輪事件圈，順序仍保證「舊的先終結、新的後回來」
+       （新 job 至少要等影像編碼＋注入，不可能更早）。 */
+    if (!superseded_job.empty()) {
+        const std::string by = req.job_id;
+        wxTheApp->CallAfter([w, superseded_job, by]() {
+            auto impl = w.lock();
+            if (!impl || impl->closing()) return;
+            Impl::safe_call("supersede 終結", [&] {
+                PhotoTileEngineResult r;
+                r.ok = false; r.job_id = superseded_job; r.error_code = "superseded";
+                r.error_message = "作業已被新的請求（" + by + "）取代。";
+                impl->deliver(r);
+            });
+        });
+    }
 
     return true;
 }

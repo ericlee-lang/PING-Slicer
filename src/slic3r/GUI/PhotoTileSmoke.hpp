@@ -19,6 +19,13 @@
 //   - 心跳漂移 p95 ≤ 100ms、max ≤ 500ms
 //   - dual 60×45 生成 ≤ 6s（C-0 瀏覽器基準 ~2.6s，宿主約 1.5× 上浮）
 //   - SHA 與守夜基準一致、四項驗證全過
+//
+// 【2026-08-01 二版：判準拆兩段（Codex 重要 #6）】上面那組門檻**同時**套在兩個 verdict 上：
+//   steady ＝第 2~5 輪（使用者反覆生成的真實情境）
+//   startup＝含第 1 輪的全程（app 初始化＋WebView2 首建＋頁面首載）
+// `ok` 只在兩者皆過時 true；只有 steady 過＝誠實標 `PASS_STEADY`，不是 PASS。
+// ⚠ 不准為了讓 startup 變綠而放寬它的門檻——正解是產品做「閒置預熱」（開 app 就先建引擎），
+//    預熱到位後 startup 自然會綠。這條寫在這裡是因為它已經被偷換過一次。
 // =====================================================================
 
 #include <string>
@@ -37,8 +44,17 @@ void run_photo_tile_limits_gate();
 // C-1 活體實測：capability／取消／supersede／環境快照過期即棄。實作＝PhotoTileLiveGate.cpp
 void run_photo_tile_live_gate();
 
+// 閘門②：過夜睡眠守夜（**產品宿主**版）。實作＝PhotoTileSleepVigil.cpp
+void run_photo_tile_sleep_vigil();
+
 // 守夜基準（PhotoTileSleepVigil 2026-07-31，480×360 決定性測試圖／dual 60×45／K=6／無柱）
 extern const char* PHOTOTILE_SMOKE_EXPECTED_SHA;
+
+/* 各閘門共用的決定性測試圖（與 C# 守夜的 MakeTestImage 逐像素相同）。
+   ⚠ 一定要共用同一支：三個閘門各抄一份的話，只要有人改了其中一份，
+   SHA 比對就會靜默失去意義——那正是黃金比對最不該發生的失效模式。 */
+std::string write_photo_tile_test_image(int W = 480, int H = 360,
+                                        const char* name = "phototile_test_input.png");
 
 }} // namespace Slic3r::GUI
 
