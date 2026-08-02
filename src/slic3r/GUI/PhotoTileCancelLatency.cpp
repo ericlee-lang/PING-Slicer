@@ -57,13 +57,21 @@ double cl_now_ms()
 struct Probe
 {
     const char* name;          // 量的是哪個同步大段
-    const char* trigger_stage; // 這個 stage 完成（pct>=1）就送 cancel
+    const char* trigger_stage; // 這個 stage 的「段末事件」一到就送 cancel
+    double      trigger_end_pct = 0; // 該段結束時的**累計** pct（見下）
     // 結果
     bool   done = false, cancelled_ok = false, cancel_sent = false;
     double trigger_at_ms = 0;  // job 起跑到觸發點
     double latency_ms = 0;     // cancel → terminal
     std::string terminal_code;
 };
+
+/* ⚠ 首跑教訓（0802）：progress 的 pct 是**全程累計值**（stageBase＋權重×frac），不是單段 0〜1。
+   一版用 `pct>=1.0` 當觸發 ⇒ 四支探針全部「觸發段未出現」——量測自己誠實喊了失效（這正是
+   當初把「cancel 沒送出」設計成顯性欄位的原因，不然就是四個假 0ms）。
+   段末累計值抄自 engine.js 的 STAGE_WEIGHT（那邊是 SSOT）：
+     decode:0.02 grid:0.10 suggest:0.03 quantize:0.45 filter:0.25 metric:0.03 mesh:0.12
+   權重若改，這裡的探針會**大聲失效**（又回到「觸發段未出現」），不會靜默量錯。 */
 
 class CancelLatRun;
 std::unique_ptr<CancelLatRun> g_cancel_lat;
@@ -73,10 +81,10 @@ class CancelLatRun : public wxEvtHandler
 public:
     CancelLatRun() : m_host(new PhotoTileEngineHost())
     {
-        m_probes.push_back({ "grid",     "decode"   });
-        m_probes.push_back({ "quantize", "suggest"  });   // 有 tick yield 的段＝對照組
-        m_probes.push_back({ "filter",   "quantize" });
-        m_probes.push_back({ "mesh",     "metric"   });
+        m_probes.push_back({ "grid",     "decode",   0.02 });
+        m_probes.push_back({ "quantize", "suggest",  0.15 });   // 有 tick yield 的段＝對照組
+        m_probes.push_back({ "filter",   "quantize", 0.60 });
+        m_probes.push_back({ "mesh",     "metric",   0.88 });
 
         m_host->set_result_handler([this](const PhotoTileEngineResult& r) { on_result(r); });
         m_host->set_progress_handler([this](const std::string& job, const std::string& stage,
@@ -140,7 +148,8 @@ private:
         if (m_index >= m_probes.size() || job != m_current_job) return;
         Probe& p = m_probes[m_index];
         if (p.cancel_sent || p.done) return;
-        if (stage == p.trigger_stage && pct >= 1.0) {
+        // 段末事件＝stage 相符且累計 pct 到段末值（pct 被引擎 toFixed(4)，容差 1e-4）
+        if (stage == p.trigger_stage && pct + 1e-4 >= p.trigger_end_pct) {
             p.cancel_sent   = true;
             p.trigger_at_ms = cl_now_ms() - m_job_t0;
             m_cancel_at     = cl_now_ms();
