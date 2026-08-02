@@ -47,6 +47,10 @@ void run_photo_tile_live_gate();
 // 閘門②：過夜睡眠守夜（**產品宿主**版）。實作＝PhotoTileSleepVigil.cpp
 void run_photo_tile_sleep_vigil();
 
+// 黃金閘門：六案經產品宿主產生，用 app 自己的 zip reader 與真 importer 驗。
+// 實作＝PhotoTileGoldenGate.cpp（Codex 重要 #12）
+void run_photo_tile_golden_gate();
+
 // 守夜基準（PhotoTileSleepVigil 2026-07-31，480×360 決定性測試圖／dual 60×45／K=6／無柱）
 extern const char* PHOTOTILE_SMOKE_EXPECTED_SHA;
 

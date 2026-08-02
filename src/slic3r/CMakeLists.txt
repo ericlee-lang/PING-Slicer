@@ -488,6 +488,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhotoTileCapability.hpp
     GUI/PhotoTileGateJson.hpp
     GUI/PhotoTileSleepVigil.cpp
+    GUI/PhotoTileGoldenGate.cpp
     GUI/Widgets/AMSControl.cpp
     GUI/Widgets/AMSControl.hpp
     GUI/Widgets/AMSItem.cpp

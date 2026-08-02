@@ -3,6 +3,7 @@
 
 #include "PhotoTileSmoke.hpp"
 #include "PhotoTileEngineHost.hpp"
+#include "PhotoTileGateJson.hpp"
 
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
@@ -181,10 +182,12 @@ private:
 
         std::ostringstream j;
         j << "{\n"
-          << "  \"_note\": \"照片磚 C-1 閘門①：wx 整合 smoke（真 wx 事件圈量測＋跨宿主黃金）\",\n"
-          << "  \"ok\": " << (pass_all ? "true" : "false") << ", \"why\": \"" << why << "\",\n"
-          << "  \"verdict\": \"" << verdict << "\",\n"
-          << "  \"_verdictMeaning\": \"PASS＝含冷啟動全程都過｜PASS_STEADY＝穩態過但冷啟動超門檻（產品需閒置預熱才可排除 cold）｜FAIL＝穩態就不過\",\n"
+          << "  " << jfield("_note", "照片磚 C-1 閘門①：wx 整合 smoke（真 wx 事件圈量測＋跨宿主黃金）") << ",\n"
+          // why／verdict／sha 一律走 writer：why 會塞引擎的失敗訊息（含換行與控制字元），
+          // 手拼引號會讓報告在**最需要它的那一刻**變成非法 JSON（Codex 次要 #14）
+          << "  " << jfield("ok", pass_all) << ", " << jfield("why", why) << ",\n"
+          << "  " << jfield("verdict", verdict) << ",\n"
+          << "  " << jfield("_verdictMeaning", "PASS＝含冷啟動全程都過｜PASS_STEADY＝穩態過但冷啟動超門檻（產品需閒置預熱才可排除 cold）｜FAIL＝穩態就不過") << ",\n"
           << "  \"steady\": { \"pass\": " << (pass_steady ? "true" : "false")
           << ", \"driftP95Ms\": " << (long) sdy_p95 << ", \"driftMaxMs\": " << (long) sdy_max
           << ", \"jobMsMax\": " << (long) sdy_job_max << " },\n"
@@ -193,11 +196,11 @@ private:
           << ", \"jobMsMax\": " << (long) job_max
           << ", \"startDelayMs\": " << delay_ms
           << ", \"coversAppInit\": " << (covers_app_init ? "true" : "false")
-          << ", \"_note\": \"門檻與 steady 同（p95≤100／max≤500／單輪≤6000）；不另設寬鬆門檻。"
-             "startDelayMs>0＝有延後起跑、app 初始化不在量測內 ⇒ 不得據此宣稱全程過\" },\n"
+          << ", " << jfield("_note", "門檻與 steady 同（p95≤100／max≤500／單輪≤6000）；不另設寬鬆門檻。"
+                                     "startDelayMs>0＝有延後起跑、app 初始化不在量測內 ⇒ 不得據此宣稱全程過") << " },\n"
           << "  \"rounds\": " << m_shas.size() << ", \"shaAllSame\": " << (sha_same ? "true" : "false") << ",\n"
-          << "  \"sha256\": \"" << (m_shas.empty() ? std::string() : m_shas[0]) << "\",\n"
-          << "  \"expectedSha\": \"" << m_expected << "\", \"matchesVigilBaseline\": " << (golden_ok ? "true" : "false") << ",\n"
+          << "  " << jfield("sha256", m_shas.empty() ? std::string() : m_shas[0]) << ",\n"
+          << "  " << jfield("expectedSha", m_expected) << ", \"matchesVigilBaseline\": " << (golden_ok ? "true" : "false") << ",\n"
           << "  \"envEchoOk\": " << (m_env_echo_ok ? "true" : "false") << ",\n"
           << "  \"jobMs\": [";
         for (size_t i = 0; i < m_job_ms.size(); ++i) j << (i ? ", " : "") << (long) m_job_ms[i];
