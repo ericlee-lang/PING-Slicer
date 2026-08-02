@@ -280,15 +280,18 @@ public:
         });
 
         // ① 合法上限（C-0 §4.2 的包絡案）／② 同案降階／③ 大圖超限／④ 大圖不設限
-        m_cases.push_back({ "legal-max-quad-K48",      "quad", 400.0, 48, 0,    0,        false, true,  "" });
-        m_cases.push_back({ "downshift-gridMax1600",   "quad", 400.0, 48, 1600, 0,        false, true,  "" });
+        // 【K 上限 48→8＝Eric 2026-08-02 裁 B】「合法上限案」的定義跟著產品上限走：
+        // 引擎 clamp 已改 2..8，這裡再填 48 只會被夾成 8——填 8 讓案例誠實寫出它真正測的東西。
+        // ⚠ 上限變更後本閘門所有數字（峰值/耗時）都要重跑重判，0802 的 K48 數字只當歷史對照。
+        m_cases.push_back({ "legal-max-quad-K8",       "quad", 400.0,  8, 0,    0,        false, true,  "" });
+        m_cases.push_back({ "downshift-gridMax1600",   "quad", 400.0,  8, 1600, 0,        false, true,  "" });
         m_cases.push_back({ "oversize-image-capped",   "dual",  60.0,  6, 0,    8000000LL, true,  false, "image_too_large" });
         m_cases.push_back({ "oversize-image-uncapped", "dual",  60.0,  6, 800,  0,        true,  true,  "" });
         // ⑤【#7】metadata-on：產品的 opt-in 路徑會多產一份中繼資料，峰值沒量過就不能說量過
-        m_cases.push_back({ "legal-max-quad-K48-metadata", "quad", 400.0, 48, 0, 0,       false, true,  "", true });
+        m_cases.push_back({ "legal-max-quad-K8-metadata", "quad", 400.0, 8, 0, 0,         false, true,  "", true });
         // ⑥【#7】48M 像素 × 3200² 格點**同時**拉滿——一版的大圖案是 dual 60mm＋gridMax 800（降過階的），
-        //         兩個維度從沒同時到頂過，而那正是低規機真正會遇到的那一刀
-        m_cases.push_back({ "peak-48Mpx-x-fullgrid-quad", "quad", 400.0, 48, 0, 0,        true,  true,  "" });
+        //         兩個維度從沒同時到頂過，而那正是低規機真正會遇到的那一刀（48M＝像素數，與 K 無關）
+        m_cases.push_back({ "peak-48Mpx-x-fullgrid-quad", "quad", 400.0, 8, 0, 0,         true,  true,  "" });
     }
     ~LimitsRun() override { m_beat.Stop(); stop_sampler(); }   // m_host 是 unique_ptr（Codex #1）
 
@@ -406,10 +409,10 @@ private:
                                              : (!r.ok && r.error_code == c.expect_error);
         if (!as_expected) m_all_ok = false;
         // 用 label 比對而不是索引：#7 在中間插了新案，索引式比對會靜默對錯人
-        if (c.label == "legal-max-quad-K48")    m_grid_full = (long long) grid_w * grid_h;
+        if (c.label == "legal-max-quad-K8")     m_grid_full = (long long) grid_w * grid_h;
         if (c.label == "downshift-gridMax1600") m_grid_down = (long long) grid_w * grid_h;
-        if (c.label == "legal-max-quad-K48")          m_bytes_meta_off = (long long) r.three_mf.size();
-        if (c.label == "legal-max-quad-K48-metadata") m_bytes_meta_on  = (long long) r.three_mf.size();
+        if (c.label == "legal-max-quad-K8")          m_bytes_meta_off = (long long) r.three_mf.size();
+        if (c.label == "legal-max-quad-K8-metadata") m_bytes_meta_on  = (long long) r.three_mf.size();
         /* 失敗時只有兩種：**誠實失敗**（引擎回一個代碼）與崩潰／掛死。限記憶體模式下
            我們要的答案正是前者，所以它必須是報告裡一個獨立、看得見的欄位。 */
         const bool honest_failure = !r.ok && !r.error_code.empty();

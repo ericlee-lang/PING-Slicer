@@ -65,7 +65,7 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
 |---|---|---|
 | `ready` | `engine,protocol,metadataSchema,hasMesh,limitsDefault,ua` | 握手 |
 | `pong` | `seq,busy` | |
-| `progress` | `jobId,stage,stageLabel,pct,elapsedMs` | 階段權重見 §6；合法上限 quad K48 ≈1 分鐘＝進度與取消是必備 |
+| `progress` | `jobId,stage,stageLabel,pct,elapsedMs` | 階段權重見 §6；合法上限案 quad K8 ≈20 秒（K 上限 48→8＝Eric 2026-08-02 裁 B，引擎 clamp 2..8）＝進度與取消是必備 |
 | `imageAck` | `jobId,chars,chunks,mime` | |
 | `result` | `jobId,ok,…` | 成功時含 `byteLength,sha256,chunks,palette,slots,stats,metadata,env,limits,diagnostics`；失敗時含 `error{code,message}` |
 | `begin`／`chunk`／`end` | 見 §3 | |

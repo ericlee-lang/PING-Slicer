@@ -16,8 +16,9 @@
 //   filter          quantize                  filter 大段
 //   mesh            metric                    mesh/zip 大段
 //
-// 用**最重的合法案**（quad 400mm K48、gridMax 預設 3200）：延遲問題只在重案有意義
-// （0802 閘門③實測這個案全程 162.8s）。
+// 用**最重的合法案**（quad 400mm、K=產品上限、gridMax 預設 3200）：延遲問題只在重案有意義。
+// 【K 上限 48→8＝Eric 2026-08-02 裁 B】0802 的 17.6s/4.3s 是 K48 時代的數字；上限改 8 後
+// 本量測要重跑重判（mesh 分塊讓步已另證 17.6→1.4s）。
 //
 // 【判定】這是量測，不設通過門檻（門檻要等數字出來跟 Eric 一起裁）；
 // ok 只代表「四支探針都真的量到 cancelled terminal」＝量測本身有效。
@@ -115,7 +116,7 @@ private:
         req.job_id     = std::string("cancellat-") + p.name;
         req.mode       = "quad";  req.nozzle = 0.4;
         req.width_mm   = 400.0;   req.height_mm = 400.0; req.thick_mm = 6.0;
-        req.klevels    = 48;      req.noise_mm  = 0.0;
+        req.klevels    = 8;       req.noise_mm  = 0.0;   // 上限 8＝Eric 2026-08-02 裁 B（合法上限案跟著走）
         req.pillar     = false;   req.teeth = false; req.p2a_block = false;
         req.image_path = m_image;
         req.want_metadata = false;
