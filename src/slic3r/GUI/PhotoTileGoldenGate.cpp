@@ -202,7 +202,9 @@ ModelStat save_reopen(const std::string& src_utf8, const std::string& dst_utf8, 
 {
     ModelStat s;
     try {
-        Model m = Model::read_from_file(src_utf8);
+        // 同上：沒有 LoadModel 就載不到幾何（0802 第二次踩同一顆——改的時候漏了這一支）
+        Model m = Model::read_from_file(src_utf8, nullptr, nullptr,
+                                        LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel);
         DynamicPrintConfig cfg;
         StoreParams sp;
         sp.path   = dst_utf8.c_str();
