@@ -378,9 +378,12 @@ async function deflateRaw(u8){
   const cs=new CompressionStream('deflate-raw');
   return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer());
 }
-async function makeZip(entries){
+async function makeZip(entries, tick){
+  /* tick（可選）＝每個 entry 壓縮前讓步＋看一次取消旗標（C-1 #11 後半，Eric 裁 C）。
+     只在 entry 邊界讓步、完全不動 deflate 本身 ⇒ 輸出位元組與原版逐位元相同。 */
   const enc=new TextEncoder(); const chunks=[]; const central=[]; let offset=0;
   for(const e of entries){
+    if(tick) await tick();
     const nameB=enc.encode(e.name);
     const data= typeof e.data==='string' ? enc.encode(e.data) : e.data;
     const crc=crc32(data);
@@ -415,8 +418,13 @@ async function makeZip(entries){
 }
 function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ================= 3MF 組裝（index.html:1096-1257 verbatim；params→P、slots 注入） ================= */
-async function build3mfFrom(P, img, labels, palette, noiseStats, extras){
+/* ================= 3MF 組裝（index.html:1096-1257 verbatim；params→P、slots 注入） =================
+   【C-1 #11 後半・Eric 2026-08-02 裁 C＝只修 mesh 段】實測取消落在本段要等 17.6 秒
+   （最重合法案；cancellat_report_20260802.json）——本段原本從頭到尾零讓步點。
+   修法與 quantizeQuad 同款：hooks.tick＝回報進度＋讓步＋檢查取消。讓步只加在
+   「零件迴圈每 4 件」與「zip 每個 entry 之間」，**迴圈順序、算式、字串組裝完全不變**
+   ⇒ 輸出位元組逐位元相同（黃金閘門複驗把關）。hooks 缺席＝行為與原版完全一致。 */
+async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
   if (!root.PhotoTileMesh) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
   const mode=P.mode, noiseMm=P.noiseMm;
   const w=img.w,h=img.h;
@@ -437,8 +445,10 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras){
   const f=v=>Math.round(v*1000)/1000;
   const objXml=[]; const cfgParts=[]; const palLines=[];
   const meshStats=[];
-  /* V 溝已移除（Eric 2026-07-29 裁）；溝參數傳 null＝notchOn=false 原始碼路（index.html:1128-1133） */
-  parts.forEach((part,pi)=>{
+  /* V 溝已移除（Eric 2026-07-29 裁）；溝參數傳 null＝notchOn=false 原始碼路（index.html:1128-1133）
+     forEach→for：迴圈體一字未動，只為了能在零件之間 await（forEach 的 callback 不能 await）。 */
+  for(let pi=0;pi<parts.length;pi++){
+    const part=parts[pi];
     const mesh=root.PhotoTileMesh.buildLabelMesh(L,w,h,part.k,part.runs,sx,sz,T,null);
     const V=mesh.vertices.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`);
     const VX=mesh.vertices;
@@ -472,7 +482,9 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras){
     palLines.push( mode==='quad'
       ? `extruder ${pi+1} color ${previewColor} = M6052 A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
       : `extruder ${pi+1} color ${previewColor} = M6051 S${Math.round((1-pal.t)*100)/100}`);
-  });
+    // 每 4 件讓步一次：K48 重案 ~250 件⇒~60 個讓步點；dual K6 只有 6 件⇒開銷趨近零
+    if(hooks && hooks.tick && (pi&3)===3) await hooks.tick(0.05+0.75*(pi+1)/parts.length);
+  }
   let pillarOid=0;
   if(P.pillar){
     const side=P.pillarXY, gap=15;
@@ -552,7 +564,7 @@ ${palLines.join('\n')}`;
     if (extras.sourceImage && extras.sourceImage.bytes && extras.sourceImage.name)
       entries.push({name:'Metadata/'+extras.sourceImage.name, data:extras.sourceImage.bytes});
   }
-  const blob=await makeZip(entries);
+  const blob=await makeZip(entries, hooks && hooks.tick ? (()=>hooks.tick(0.9)) : null);
   return {blob, parts:parts.length, components:collected.components, tiles:totalTiles,
           vertices:totalVertices, triangles:totalTriangles, pillar:!!pillarOid, extruders:nObjs,
           meshStats, teethFlips};
@@ -726,7 +738,8 @@ async function generate(request, options){
 
     t = performance.now();
     report('mesh', 0);
-    const built = await build3mfFrom(P, img, filtered.labels, q.palette, filtered.stats, extras);
+    // hooksFor('mesh')＝零件間與 zip entry 間可取消（Eric 2026-08-02 裁 C；#11 後半）
+    const built = await build3mfFrom(P, img, filtered.labels, q.palette, filtered.stats, extras, hooksFor('mesh'));
     timings.meshZipMs = performance.now() - t; report('mesh', 1); ck('mesh');
 
     const bytes = new Uint8Array(await built.blob.arrayBuffer());

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>照片磚 K 階成本掃描（quad 合法上限案）</title>
+<!-- ================================================================
+  用途：回答「色階上限從 48 降下來，重案會輕多少」——不臆測，直接量。
+  做法：與黃金 runner 同款（引擎 API 直呼、引擎零改動），固定
+        quad 400×400、gridMax 3200（＝閘門③的合法上限案），只掃 K。
+  讀數：引擎 result 自帶 timings（decode/grid/quantize/filter/mesh 各段 ms）
+        ＋3MF bytes＋調色盤實際色數 ⇒ 每個 K 一列。
+  跑法：瀏覽器開本頁即自動跑（K=48,24,12,8,6），完成後表格＋JSON 落在頁上。
+  2026-08-02・照片磚線 PT（Eric 問「降 K 會差多少」的量測憑據）
+================================================================ -->
+<script src="../../resources/web/phototile/mesh_union.js"></script>
+<script src="../../resources/web/phototile/engine.js"></script>
+<style>
+  body{font-family:"Microsoft JhengHei",sans-serif;color:#202221;padding:24px;max-width:860px;margin:0 auto}
+  h1{font-size:1.2rem;margin-bottom:8px} .sub{color:#666;font-size:.85rem;margin-bottom:16px}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:.9rem}
+  th,td{border-bottom:1px solid #ddd;padding:6px 10px;text-align:right;font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left}
+  th{border-bottom:2px solid #202221}
+  #status{padding:8px 12px;background:#EFEFEF;border-radius:6px;margin-bottom:8px}
+  pre{background:#EFEFEF;padding:10px;border-radius:6px;font-size:.75rem;overflow-x:auto}
+</style>
+</head>
+<body>
+<h1>照片磚 K 階成本掃描</h1>
+<div class="sub">固定：quad／400×400mm／厚 6／gridMax 3200（格點 3200×3200）／noise 0／無柱。只變 K。</div>
+<div id="status">初始化…</div>
+<table id="tbl"><thead>
+<tr><th>K 階</th><th>候選色數</th><th>quantize (s)</th><th>mesh+zip (s)</th><th>filter (s)</th><th>grid (s)</th><th>全程 (s)</th><th>3MF (MB)</th></tr>
+</thead><tbody></tbody></table>
+<pre id="json">（跑完會放 JSON）</pre>
+<script>
+const KS = [48, 24, 12, 8, 6];
+const rows = [];
+const $ = id => document.getElementById(id);
+
+/* 決定性測試圖（與閘門共用同一條公式：x/y 漸層 + xor 紋理；尺寸不影響格點數） */
+function makeImage(W=480,H=360){
+  const c=document.createElement('canvas'); c.width=W; c.height=H;
+  const g=c.getContext('2d'); const d=g.createImageData(W,H);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const i=(y*W+x)*4;
+    d.data[i]=(x*255/W)|0; d.data[i+1]=(y*255/H)|0; d.data[i+2]=(x^y)&255; d.data[i+3]=255; }
+  g.putImageData(d,0,0); return createImageBitmap(c);
+}
+
+async function run(){
+  const bmp = await makeImage();
+  for(const K of KS){
+    $('status').textContent = `K=${K} 生成中…（${rows.length}/${KS.length} 完成）`;
+    const t0 = performance.now();
+    const r = await PhotoTileEngine.generate({
+      jobId:'ksweep-'+K, mode:'quad', nozzle:0.4,
+      size:{widthMm:400,heightMm:400,thickMm:6},
+      klevels:K, noiseMm:0,
+      pillar:{enabled:false,xyMm:25}, seam:{p2aBlock:false,teeth:false},
+      slots:null, image:bmp, metadata:false
+    });
+    const wall = performance.now()-t0;
+    if(!r.ok){ rows.push({K, error:(r.error&&r.error.code)||'?' }); continue; }
+    const tm = r.timings||{};
+    rows.push({ K, palette:(r.palette&&r.palette.length)||0,
+      quantizeMs:Math.round(tm.quantizeMs||0), meshZipMs:Math.round(tm.meshZipMs||0),
+      filterMs:Math.round(tm.filterMs||0), gridMs:Math.round(tm.gridMs||0),
+      totalMs:Math.round(tm.totalMs||wall), wallMs:Math.round(wall),
+      bytes:(r.bytes&&r.bytes.length)||r.byteLength||0 });
+    render();
+  }
+  $('status').textContent = `✅ 掃描完成（${rows.length}/${KS.length}）`;
+  $('json').textContent = 'KSWEEP_RESULT='+JSON.stringify(rows);
+  window.KSWEEP_DONE = true;
+}
+function render(){
+  const tb = document.querySelector('#tbl tbody'); tb.innerHTML='';
+  for(const r of rows){
+    const tr=document.createElement('tr');
+    tr.innerHTML = r.error
+      ? `<td>${r.K}</td><td colspan="7">❌ ${r.error}</td>`
+      : `<td>${r.K}</td><td>${r.palette}</td><td>${(r.quantizeMs/1000).toFixed(1)}</td>`+
+        `<td>${(r.meshZipMs/1000).toFixed(1)}</td><td>${(r.filterMs/1000).toFixed(1)}</td>`+
+        `<td>${(r.gridMs/1000).toFixed(1)}</td><td>${(r.totalMs/1000).toFixed(1)}</td>`+
+        `<td>${(r.bytes/1048576).toFixed(1)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+run().catch(e=>{ $('status').textContent='❌ '+(e&&e.message||e); });
+</script>
+</body>
+</html>
