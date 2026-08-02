@@ -51,6 +51,9 @@ void run_photo_tile_sleep_vigil();
 // 實作＝PhotoTileGoldenGate.cpp（Codex 重要 #12）
 void run_photo_tile_golden_gate();
 
+// 取消延遲量測（#11 後半的「先量」；引擎零改動）。實作＝PhotoTileCancelLatency.cpp
+void run_photo_tile_cancel_latency();
+
 // 守夜基準（PhotoTileSleepVigil 2026-07-31，480×360 決定性測試圖／dual 60×45／K=6／無柱）
 extern const char* PHOTOTILE_SMOKE_EXPECTED_SHA;
 

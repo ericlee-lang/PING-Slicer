@@ -770,6 +770,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
             else if (what == "live")   run_photo_tile_live_gate();
             else if (what == "vigil")  run_photo_tile_sleep_vigil();   // 閘門②：產品宿主過夜守夜
             else if (what == "golden") run_photo_tile_golden_gate();   // 黃金六案（真 importer／真 zip reader）
+            else if (what == "cancellat") run_photo_tile_cancel_latency(); // #11 取消延遲量測
             else                     run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
         };
         if (delay_ms > 0) {
