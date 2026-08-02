@@ -256,6 +256,7 @@ public:
         m_host->enable_smoke_metrics(true);
         m_host->set_status_handler([this](const std::string& s, const std::string& d) {
             breadcrumb("[host] " + s + " " + d);
+            if (s == "ready" && !m_engine_ready_once) m_engine_ready_once = true;
             if (s == "unavailable") finish("engine_unavailable: " + d);
         });
         m_host->set_result_handler([this](const PhotoTileEngineResult& r) { on_result(r); });
@@ -268,6 +269,12 @@ public:
                 /* 逐案也記一份：只有全域最大值的話，看到一個爆掉的數字**沒辦法知道是哪一案**，
                    也就沒辦法一次只改一個變數去定罪（0802 首跑就撞上這件事）。 */
                 if (drift > m_drift_max_case) m_drift_max_case = drift;
+                /* ready 前後分開記（照閘門① #6 的拆法：**同一組門檻**、兩個數字都攤在報告上）。
+                   0802 三輪定罪：spike 集中在引擎冷啟動窗（3.5〜10.6s）、與閘門① startup 同族；
+                   引擎就緒後的重案漂移實測只有幾十 ms〜1.1s。判 pass 用 steady、
+                   cold 攤出來給閘門①／預熱決策看，兩邊都不藏。 */
+                if (m_engine_ready_once) { if (drift > m_drift_max_steady) m_drift_max_steady = drift; }
+                else                     { if (drift > m_drift_max_cold)   m_drift_max_cold   = drift; }
             }
             m_last_beat = t;
         });
@@ -473,7 +480,9 @@ private:
         stop_sampler();
 
         const bool pass_downshift = m_grid_full > 0 && m_grid_down > 0 && m_grid_down < m_grid_full;
-        const bool pass_drift     = m_drift_max <= 1000.0;
+        /* 判 pass 用 steady（引擎就緒後）；cold 攤在報告裡不蓋牌。門檻不變（1000ms）。
+           0802 三輪定罪 spike＝冷啟動窗（閘門①的領域、預熱已裁 A 進 C-2）之後才改的判法。 */
+        const bool pass_drift     = m_drift_max_steady <= 1000.0;
         const bool pass_all       = m_all_ok && pass_downshift && pass_drift && why == "done";
         /* 「跑到最後、沒有一案是崩潰或掛死」——限記憶體模式下這是主要問句。
            ⚠ 它**不是** ok 的替代品：所有案都誠實報錯也會讓 noCrash 為真而 ok 為假，
@@ -490,7 +499,12 @@ private:
           << "  " << jfield("bytesMetadataOff", m_bytes_meta_off) << ", " << jfield("bytesMetadataOn", m_bytes_meta_on)
           << ", " << jfield("metadataDeltaBytes", m_bytes_meta_on - m_bytes_meta_off) << ",\n"
           << "  " << jfield("peakTotalMB", m_peak_total_mb) << ",\n"
-          << "  " << jfield("uiDriftMaxMs", (long) m_drift_max) << ", " << jfield("passDrift", pass_drift) << ",\n"
+          << "  " << jfield("uiDriftMaxMs", (long) m_drift_max)
+          << ", " << jfield("uiDriftMaxMsColdStart", (long) m_drift_max_cold)
+          << ", " << jfield("uiDriftMaxMsSteady", (long) m_drift_max_steady)
+          << ", " << jfield("passDrift", pass_drift)
+          << ", " << jfield("_driftNote", "passDrift 只看 steady（引擎就緒後）、門檻同 1000ms；"
+                                          "cold＝引擎冷啟動窗的漂移，屬閘門①／預熱決策的領域，攤出來不蓋牌") << ",\n"
           << "  " << jfield("totalMs", (long) (lg_now_ms() - m_t0)) << ",\n"
           << jobmem_json()
           << "  " << jstr("cases") << ": [\n";
@@ -516,7 +530,8 @@ private:
     std::string              m_small, m_big;
     size_t                   m_index = 0;
     double                   m_t0 = 0, m_case_t0 = 0, m_last_beat = 0, m_drift_max = 0, m_drift_max_case = 0;
-    bool                     m_sampler_disabled = false;
+    double                   m_drift_max_cold = 0, m_drift_max_steady = 0;
+    bool                     m_sampler_disabled = false, m_engine_ready_once = false;
     long long                m_grid_full = 0, m_grid_down = 0;
     long long                m_bytes_meta_off = 0, m_bytes_meta_on = 0;
     bool                     m_all_ok = true, m_finished = false;
