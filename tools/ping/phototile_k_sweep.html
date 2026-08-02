@@ -34,7 +34,9 @@
 </thead><tbody></tbody></table>
 <pre id="json">（跑完會放 JSON）</pre>
 <script>
-const KS = [48, 24, 12, 8, 6];
+/* 上限 8 生效後（Eric 2026-08-02 裁 B）：48 這一列的用途變成「證明 clamp 咬得住」——
+   引擎該把它夾成 8 ⇒ bytes 必須與 K=8 那列完全同號，不同號＝clamp 壞了。 */
+const KS = [48, 8, 6, 4];
 const rows = [];
 const $ = id => document.getElementById(id);
 

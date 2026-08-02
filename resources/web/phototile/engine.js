@@ -15,7 +15,7 @@
    階段讓步一律走 MessageChannel macrotask（實測免疫節流）。
 
    C-1 相對 C-0 spike 的四項增補（演算法零變更＝黃金比對仍須 6/6 全等）：
-     ① progress 回報（階段權重＋量化熱迴圈分塊回報；合法上限 quad K48 ≈1 分鐘）
+     ① progress 回報（階段權重＋量化熱迴圈分塊回報；合法上限案 quad K8 ≈20 秒【K 上限 8＝Eric 0802 裁 B】）
      ② limits 可降階（gridMax／maxDecodedPixels＝OOM gate 與低規機保護）
      ③ metadata／原圖嵌入＝**opt-in**（request.metadata 缺席時 3MF 位元組與工作室全等，
         黃金 oracle 因此得以持續有效——這是刻意的設計約束，勿改成預設開）
@@ -92,7 +92,11 @@ function normalizeRequest(req){
     width:  clamp('width',  size.widthMm,  SIZE_MIN_MM, SIZE_MAX_MM, 100),
     height: clamp('height', size.heightMm, SIZE_MIN_MM, SIZE_MAX_MM, 75),
     thick:  clamp('thick',  size.thickMm,  2, 30, 6),                       // index.html:1014-1016
-    klevels: Math.round(clamp('klevels', req.klevels, 2, 48, 8)),           // index.html:995-998
+    /* 上限 48→8＝Eric 2026-08-02 裁 B。依據：①他實測雙料 8 階已偏多、6 階足夠
+       ②K 掃描實證最終調色盤有 64 色上限，K≥11 之後色數完全不變、只是白燒 quantize
+       （K48 比 K12 慢 3.3 倍、零色數收益；ksweep_result_20260802.json）。
+       同值另住 index.html 的輸入框 max 與 clamp——改要一起改。 */
+    klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 25)), // index.html:1029-1031
