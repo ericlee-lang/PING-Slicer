@@ -382,25 +382,46 @@ async function deflateRaw(u8){
   const cs=new CompressionStream('deflate-raw');
   return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer());
 }
+/* 分段 CRC：與 crc32() 同一張表、同一條公式，只是允許跨多段累積——
+   為了讓 entry 的內容可以是「字串陣列」而不必先合成單一巨串（V8 字串上限 ~512MB；
+   2026-08-03 閘門③ 48Mpx×fullgrid 案實撞「Invalid string length」＝model XML 過大）。 */
+function crc32Pieces(pieces){
+  let c=0xFFFFFFFF;
+  for(const u8 of pieces)
+    for(let i=0;i<u8.length;i++) c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+async function deflateRawPieces(pieces){
+  if(typeof CompressionStream==='undefined') return null;
+  const cs=new CompressionStream('deflate-raw');
+  // Blob 接受分段來源＝全程不存在單一 JS 巨串/巨陣列的合成點
+  return new Uint8Array(await new Response(new Blob(pieces).stream().pipeThrough(cs)).arrayBuffer());
+}
 async function makeZip(entries, tick){
   /* tick（可選）＝每個 entry 壓縮前讓步＋看一次取消旗標（C-1 #11 後半，Eric 裁 C）。
-     只在 entry 邊界讓步、完全不動 deflate 本身 ⇒ 輸出位元組與原版逐位元相同。 */
+     只在 entry 邊界讓步、完全不動 deflate 本身 ⇒ 輸出位元組與原版逐位元相同。
+     e.data 可為：字串｜Uint8Array｜**字串/Uint8Array 陣列**（大 XML 分段用；位元組等價）。 */
   const enc=new TextEncoder(); const chunks=[]; const central=[]; let offset=0;
   for(const e of entries){
     if(tick) await tick();
     const nameB=enc.encode(e.name);
-    const data= typeof e.data==='string' ? enc.encode(e.data) : e.data;
-    const crc=crc32(data);
-    let comp=await deflateRaw(data), method=8;
-    if(!comp || comp.length>=data.length){ comp=data; method=0; }
+    const raw = Array.isArray(e.data) ? e.data : [e.data];
+    const pieces = raw.map(p => typeof p==='string' ? enc.encode(p) : p);
+    let rlen=0; for(const p of pieces) rlen+=p.length;
+    const crc=crc32Pieces(pieces);
+    let comp=await deflateRawPieces(pieces), method=8;
+    let stored=null;
+    if(!comp || comp.length>=rlen){ stored=pieces; method=0; }
+    const clen = comp ? comp.length : rlen;
     const lh=new DataView(new ArrayBuffer(30));
     lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
     lh.setUint16(8,method,true);
-    lh.setUint32(14,crc,true); lh.setUint32(18,comp.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,clen,true); lh.setUint32(22,rlen,true);
     lh.setUint16(26,nameB.length,true);
-    chunks.push(new Uint8Array(lh.buffer),nameB,comp);
-    central.push({nameB,crc,clen:comp.length,rlen:data.length,method,offset});
-    offset+=30+nameB.length+comp.length;
+    chunks.push(new Uint8Array(lh.buffer),nameB);
+    if(comp) chunks.push(comp); else chunks.push(...stored);
+    central.push({nameB,crc,clen,rlen,method,offset});
+    offset+=30+nameB.length+clen;
   }
   const cdStart=offset;
   for(const c of central){
@@ -518,16 +539,23 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
   const MID=1000;
   const nObjs=parts.length+(pillarOid?1:0);
   const comps=Array.from({length:nObjs},(_,i)=>`<component objectid="${i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
-  const model=
+  /* 【2026-08-03】model XML 改「分段」而不合成單一字串：48Mpx×fullgrid 案的 XML 逼近
+     V8 字串上限（~512MB），昨天 K48 險過、今天 K8 實撞「Invalid string length」＝
+     這個案一直在懸崖邊滑冰。分段序列與原本的樣板字串**逐位元組等價**：
+     原式＝objXml.map(o=>'  '+o).join('\n') 後接樣板換行 ⇒ 每個 objXml 項恰好
+     「兩空格＋內容＋\n」一次；黃金閘門把關等價性。 */
+  const modelPieces=[
 `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
  <metadata name="Application">PING-PhotoTile-Prototype</metadata>
  <resources>
-${objXml.map(o=>'  '+o).join('\n')}
-  <object id="${MID}" type="model"><components>${comps}</components></object>
+`];
+  for(const o of objXml) modelPieces.push('  '+o+'\n');
+  modelPieces.push(
+`  <object id="${MID}" type="model"><components>${comps}</components></object>
  </resources>
  <build><item objectid="${MID}" transform="1 0 0 0 1 0 0 0 1 ${f(-P.width/2)} ${f(-P.thick/2)} 0" printable="1"/></build>
-</model>`;
+</model>`);
   const cfg=
 `<?xml version="1.0" encoding="UTF-8"?>
 <config>
@@ -557,7 +585,7 @@ ${palLines.join('\n')}`;
   const entries=[
     {name:'[Content_Types].xml', data:types},
     {name:'_rels/.rels', data:rels},
-    {name:'3D/3dmodel.model', data:model},
+    {name:'3D/3dmodel.model', data:modelPieces},   // 分段（位元組等價，見上）
     {name:'Metadata/model_settings.config', data:cfg},
     {name:'Metadata/ping_palette.txt', data:palTxt},
   ];
