@@ -151,10 +151,11 @@ async function resolveImage(image, limits){
      解碼後像素無上限；48M px 源圖 decoded bitmap 才是真記憶體壓力）。 */
   const cap = limits && limits.maxDecodedPixels;
   if (cap > 0 && bmp.width * bmp.height > cap) {
-    const got = bmp.width * bmp.height;
+    // 二輪 M15：先存尺寸再 close——close 後 width/height 歸零，錯誤訊息永遠顯示 0×0
+    const W = bmp.width, H = bmp.height, got = W * H;
     if (typeof bmp.close === 'function') bmp.close();
     throw new EngineError(ERR.IMAGE_TOO_LARGE,
-      `影像 ${bmp.width}×${bmp.height}＝${(got/1e6).toFixed(1)}M 像素，超過上限 ${(cap/1e6).toFixed(1)}M 像素`);
+      `影像 ${W}×${H}＝${(got/1e6).toFixed(1)}M 像素，超過上限 ${(cap/1e6).toFixed(1)}M 像素`);
   }
   return { bitmap: bmp, source, owned };
 }
@@ -779,6 +780,7 @@ async function generate(request, options){
     timings.meshZipMs = performance.now() - t; report('mesh', 1); ck('mesh');
 
     const bytes = new Uint8Array(await built.blob.arrayBuffer());
+    ck('mesh');   // 二輪 I6：arrayBuffer 的 await 是 zip 後第一個讓步點，取消要在這裡被看到
     timings.totalMs = performance.now() - t0;
 
     return {

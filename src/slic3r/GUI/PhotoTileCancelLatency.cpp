@@ -205,7 +205,8 @@ private:
           << "  " << jfield("final", final_done) << ",\n"
           << "  " << jfield("ok", m_all_ok && m_fatal.empty()) << ",\n"
           << "  " << jfield("fatal", m_fatal) << ",\n"
-          << "  " << jfield("_case", "quad 400mm K48 gridMax=3200（0802 閘門③同案全程 162.8s）") << ",\n"
+          << "  " << jfield("_case", "quad 400mm K=8（產品上限；二輪 I12 起報告寫實際請求值） gridMax=3200") << ",\n"
+          << "  " << jfield("requestedK", 8) << ",\n"
           << "  " << jfield("_meaning", "latencyMs＝使用者按取消後實際要等的時間＝該同步大段的不可中斷長度") << ",\n"
           << "  " << jfield("totalMs", (long) (cl_now_ms() - m_t0)) << ",\n"
           << "  " << jstr("probes") << ": [\n";

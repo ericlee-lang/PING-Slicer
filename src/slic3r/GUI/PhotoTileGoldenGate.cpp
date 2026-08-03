@@ -130,6 +130,14 @@ ZipInspect inspect_zip(const std::string& path_utf8)
     mz_zip_zero_struct(&zip);
     if (!open_zip_reader(&zip, path_utf8)) { z.error = "open_zip_reader 失敗（central directory 讀不到）"; return z; }
 
+    /* 【二輪 I7】先做 miniz 的全檔驗證：local header vs central directory 一致性、
+       descriptor、壓縮資料完整性——「entry 各自解得開」不等於「整包結構自洽」。 */
+    if (!mz_zip_validate_archive(&zip, MZ_ZIP_FLAG_VALIDATE_HEADERS_ONLY)) {
+        z.error = "mz_zip_validate_archive 失敗（local/central 不一致或結構損壞）";
+        close_zip_reader(&zip);
+        return z;
+    }
+
     const mz_uint n = mz_zip_reader_get_num_files(&zip);
     for (mz_uint i = 0; i < n; ++i) {
         mz_zip_archive_file_stat st;
@@ -138,7 +146,19 @@ ZipInspect inspect_zip(const std::string& path_utf8)
             close_zip_reader(&zip);
             return z;
         }
-        if (st.m_is_directory) continue;
+        /* 【二輪 I7】目錄項與重名一律 FAIL：本產出永遠不該有目錄項；重名 entry 在
+           std::map 會後蓋前＝比對看不見第二份（Codex 指出的靜默洞）。 */
+        if (st.m_is_directory) {
+            z.error = std::string("非預期的目錄項：") + st.m_filename;
+            close_zip_reader(&zip);
+            return z;
+        }
+        const std::string name = st.m_filename;
+        if (z.sha.count(name)) {
+            z.error = "重名 entry：" + name;
+            close_zip_reader(&zip);
+            return z;
+        }
         size_t sz = 0;
         /* extract_to_heap 會解壓並**比對 CRC32**——這就是一版自製 unzipper 缺的那一道。
            解不出來或 CRC 不符都會回 nullptr，於是「檔案壞掉」不可能靜默通過。 */
@@ -148,7 +168,6 @@ ZipInspect inspect_zip(const std::string& path_utf8)
             close_zip_reader(&zip);
             return z;
         }
-        const std::string name = st.m_filename;
         z.names.push_back(name);
         z.sha[name] = gg_sha256((const unsigned char*) p, sz);
         mz_free(p);
@@ -165,12 +184,18 @@ struct ModelStat
     std::string error;
     int objects = 0, volumes = 0;
     long long facets = 0;
+    /* 【二輪 I8】語意 digest：三個數字擋不住「extruder 全變 1／零件名丟失／型別變了」這類
+       真實劣化（照片磚的多零件配色**全靠 per-volume extruder**——丟了就是單色磚，面數不變）。
+       digest 內容＝每 object：名稱｜instance 數；每 volume：名稱｜型別｜extruder｜面數，
+       依序串接後 SHA-256。幾何逐頂點 hash 列 C-2（成本高、面數已在）。 */
+    std::string semantic_sha;
 
     bool same_as(const ModelStat& o) const
-    { return ok && o.ok && objects == o.objects && volumes == o.volumes && facets == o.facets; }
+    { return ok && o.ok && objects == o.objects && volumes == o.volumes && facets == o.facets &&
+             semantic_sha == o.semantic_sha; }
     std::string brief() const
     { return std::to_string(objects) + " 物件／" + std::to_string(volumes) + " volume／" +
-             std::to_string(facets) + " 三角面"; }
+             std::to_string(facets) + " 三角面／語意 " + semantic_sha.substr(0, 12); }
 };
 
 ModelStat import_3mf(const std::string& path_utf8)
@@ -184,10 +209,19 @@ ModelStat import_3mf(const std::string& path_utf8)
         Model m = Model::read_from_file(path_utf8, nullptr, nullptr,
                                         LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel);
         s.objects = (int) m.objects.size();
+        std::string sem;                       // 語意 digest 的原文（二輪 I8）
         for (const ModelObject* o : m.objects) {
             s.volumes += (int) o->volumes.size();
-            for (const ModelVolume* v : o->volumes) s.facets += (long long) v->mesh().facets_count();
+            sem += "O|" + o->name + "|inst=" + std::to_string(o->instances.size()) + "\n";
+            for (const ModelVolume* v : o->volumes) {
+                const long long fc = (long long) v->mesh().facets_count();
+                s.facets += fc;
+                const int ext = v->config.has("extruder") ? v->config.option("extruder")->getInt() : 0;
+                sem += "V|" + v->name + "|t=" + std::to_string((int) v->type()) +
+                       "|e=" + std::to_string(ext) + "|f=" + std::to_string(fc) + "\n";
+            }
         }
+        s.semantic_sha = gg_sha256((const unsigned char*) sem.data(), sem.size());
         s.ok = true;
     } catch (const std::exception& e) {
         s.error = std::string("importer 丟例外：") + e.what();
@@ -303,6 +337,7 @@ public:
 
         if (!prepare_input()) { conclude(); return; }
         load_manifest();
+        if (!m_fatal.empty()) { conclude(); return; }   // B4：manifest 損壞＝fail-closed，不起跑
 
         if (!m_host->start()) { m_fatal = "宿主啟動失敗"; conclude(); return; }
         run_job();
@@ -349,9 +384,13 @@ private:
             }
             m_manifest_loaded = true;
         } catch (const std::exception& e) {
-            BOOST_LOG_TRIVIAL(warning) << "黃金 manifest 讀取失敗（視為沒有基準）：" << e.what();
+            /* 【二輪 B4】manifest 存在但壞掉 ≠ 沒有基準：當「沒有」處理會讓下一輪**自動重凍**
+               ＝把可能被竄改/截斷的狀態洗成新基準。fail-closed：判 FATAL、人來處理。 */
             m_golden.clear();
             m_manifest_loaded = false;
+            m_fatal = std::string("manifest 存在但解析失敗（") + e.what() +
+                      "）——拒絕自動重凍；請人工確認後手動刪除 " + m_manifest_path;
+            BOOST_LOG_TRIVIAL(error) << "黃金 manifest 損壞，fail-closed：" << e.what();
         }
     }
 
@@ -410,8 +449,8 @@ private:
         j.imported = import_3mf(out);
         if (!j.imported.ok) m_all_ok = false;
 
-        // ③ save-reopen
-        j.reopened = save_reopen(out, m_out_dir + "/" + base + "_resaved.3mf", j.store_error);
+        // ③ save-reopen【二輪 I8 附註：resave 目的地改進中文資料夾＝「寫入中文路徑」也入保】
+        j.reopened = save_reopen(out, m_cn_dir + "/" + base + "_resaved.3mf", j.store_error);
         if (!j.reopened.same_as(j.imported)) m_all_ok = false;
 
         // ④ 中文路徑：同一份檔搬進含中文的資料夾再開一次
@@ -427,25 +466,42 @@ private:
         }
         if (!j.chinese_path_ok) m_all_ok = false;
 
-        // ⑤ 與黃金比對（只有 metadata=off 有黃金）／metadata=on 比 entry 增量
-        if (!j.metadata) {
-            auto it = m_golden.find(c.label);
+        // ⑤ 與黃金比對【二輪 B3：off 與 on **全部 12 案**都比整包 SHA＋entry 全集；
+        //    先前只凍 off、on 只驗增量，verdict 卻宣稱 12 案全相符＝過度宣稱】
+        {
+            const std::string key = c.label + (j.metadata ? "_meta" : "");
+            auto it = m_golden.find(key);
             if (it != m_golden.end()) {
                 j.golden_known         = true;
                 j.golden_package_match = (it->second.sha_package == j.sha_package && it->second.bytes == j.bytes);
                 j.golden_entries_match = compare_entries(it->second.entries, j.zip.sha, j.entry_diffs);
                 if (!j.golden_package_match || !j.golden_entries_match) m_all_ok = false;
+            } else if (m_manifest_loaded) {
+                /* 【二輪 B4】有基準檔卻缺這一案＝首輪凍出過不完整基準（fail-open 遺毒）。
+                   缺基準不准靜默跳過——那正是「兩輪合謀假 PASS」的入口。 */
+                j.entry_diffs.push_back("manifest 缺本案基準（" + key + "）＝基準不完整，判 FAIL");
+                m_all_ok = false;
             }
+        }
+        if (!j.metadata) {
             m_off_entries[c.label] = j.zip.sha;
         } else {
             /* metadata-on 的 entry 全集必須恰好是 off 的全集 ＋ ping_phototile.json（＋內嵌原圖），
-               而且**共同的 entry 一個位元組都不能動**——那是「metadata 是 opt-in、不動黃金」的保命索。 */
+               共同 entry 一個位元組都不能動——「metadata 是 opt-in、不動黃金」的保命索。
+               （B3 之後這是**第二道**不變量檢查，與整包基準比對並行，不再是唯一防線。） */
             auto off = m_off_entries.find(c.label);
             if (off != m_off_entries.end()) {
                 for (const auto& kv : off->second) {
                     auto f = j.zip.sha.find(kv.first);
                     if (f == j.zip.sha.end())        j.entry_diffs.push_back("metadata-on 少了 " + kv.first);
                     else if (f->second != kv.second) j.entry_diffs.push_back("metadata-on 改動了 " + kv.first);
+                }
+                // 額外 entry 也擋（Codex：原版不拒絕多出來的檔）
+                for (const auto& kv : j.zip.sha) {
+                    if (off->second.count(kv.first)) continue;
+                    if (kv.first == "Metadata/ping_phototile.json") continue;
+                    if (kv.first.rfind("Metadata/ping_phototile_source.", 0) == 0) continue;
+                    j.entry_diffs.push_back("metadata-on 多了非預期 entry " + kv.first);
                 }
                 bool has_meta = j.zip.sha.count("Metadata/ping_phototile.json") > 0;
                 if (!has_meta) j.entry_diffs.push_back("metadata-on 沒有 Metadata/ping_phototile.json");
@@ -471,22 +527,31 @@ private:
 
     void next() { ++m_index; write_report(false); run_job(); }
 
-    // 沒有基準就寫一份，並誠實標 BASELINE_CREATED——建基準不是通過
+    /* 【二輪 B4：fail-closed】只有 **12/12 全部生成且全檢查通過**（m_all_ok）才寫 manifest。
+       先前失敗案被靜默跳過＝首輪凍出殘缺基準、第二輪缺案不比對 ⇒ 兩輪合謀假 PASS。
+       凍不出來就誠實回 FAIL_BASELINE_NOT_FROZEN，寧可再跑一輪，不留半套基準。 */
+    bool manifest_complete_and_green() const
+    {
+        if (m_index < m_jobs.size() || !m_all_ok) return false;
+        for (const GoldenJob& job : m_jobs)
+            if (!job.generated || !job.zip.ok) return false;
+        return true;
+    }
+
     void write_manifest()
     {
         std::ostringstream j;
         j << "{\n"
-          << "  " << jfield("_note", "照片磚黃金基準（不可變）：輸入 PNG 與六案 metadata-off 的整包 SHA／entry 雜湊") << ",\n"
+          << "  " << jfield("_note", "照片磚黃金基準（不可變）：輸入 PNG 與 12 案（六案×metadata off/on）的整包 SHA／entry 雜湊【二輪 B3 起含 on 案】") << ",\n"
           << "  " << jfield("inputSha", m_input_sha) << ",\n"
           << "  " << jfield("inputBytes", m_input_bytes) << ",\n"
           << "  " << jstr("cases") << ": {\n";
         bool first = true;
         for (const GoldenJob& job : m_jobs) {
-            if (job.metadata || !job.generated || !job.zip.ok) continue;
-            const std::string& label = m_cases[job.case_index].label;
+            const std::string key = m_cases[job.case_index].label + (job.metadata ? "_meta" : "");
             if (!first) j << ",\n";
             first = false;
-            j << "    " << jstr(label) << ": { " << jfield("packageSha", job.sha_package)
+            j << "    " << jstr(key) << ": { " << jfield("packageSha", job.sha_package)
               << ", " << jfield("bytes", job.bytes) << ", " << jstr("entries") << ": {";
             bool fe = true;
             for (const auto& kv : job.zip.sha) {
@@ -506,19 +571,21 @@ private:
     std::string verdict() const
     {
         if (!m_fatal.empty())   return "FAIL：" + m_fatal;
-        if (!m_manifest_loaded)
+        if (!m_manifest_loaded) {
             /* ⚠ 建基準的那一輪**也會做** zip／importer／save-reopen／中文路徑的檢查，
-               所以 verdict 不能只寫「已建基準」就把那些紅的蓋掉——0802 首跑十二案 importer 全紅，
-               verdict 卻是一句樂觀的 BASELINE_CREATED，差點就是我們自己在造假綠燈。 */
-            return std::string("BASELINE_CREATED：本次為第一次跑，已凍結輸入圖與六案基準；"
-                               "**建基準不等於通過**，下一次跑才會有比對結果") +
-                   (m_all_ok ? "（本輪 zip／importer／save-reopen／中文路徑均通過）"
-                             : "。🔴 **但本輪有檢查沒過**（zip／importer／save-reopen／中文路徑其一），見 cases 逐項");
+               verdict 不能只寫「已建基準」把紅的蓋掉（0802 首跑教訓）。
+               【二輪 B4】而且**沒有全綠就不寫 manifest**——半套基準比沒有基準更毒。 */
+            if (!manifest_complete_and_green())
+                return "FAIL_BASELINE_NOT_FROZEN：本輪有案未生成或檢查未過（見 cases 逐項），"
+                       "**不寫 manifest**——半套基準會讓下一輪的缺案靜默不比對";
+            return "BASELINE_CREATED：12/12 全綠，已凍結輸入圖與 12 案基準（off＋on）；"
+                   "**建基準不等於通過**，下一次跑才會有比對結果";
+        }
         if (m_input_sha != m_manifest_input_sha)
             return "FAIL：輸入圖與基準不同（基準 " + m_manifest_input_sha.substr(0, 12) +
                    "…／本次 " + m_input_sha.substr(0, 12) + "…）⇒ 其餘比對全部無意義";
-        return m_all_ok ? "PASS：六案 ×（metadata off／on）整包 SHA、entry 全集、真 importer、"
-                          "save-reopen、中文路徑全部相符"
+        return m_all_ok ? "PASS：12 案（六案 × metadata off／on）**逐案對凍結基準**整包 SHA＋entry 全集相符；"
+                          "真 importer／save-reopen（含語意 digest）／中文路徑全部通過"
                         : "FAIL：見 cases 內逐項";
     }
 
@@ -584,7 +651,8 @@ private:
     {
         if (m_concluded) return;
         m_concluded = true;
-        if (!m_manifest_loaded && m_fatal.empty()) write_manifest();
+        // 【二輪 B4】fail-closed：12/12 全綠才凍基準
+        if (!m_manifest_loaded && m_fatal.empty() && manifest_complete_and_green()) write_manifest();
         write_report(true);
         BOOST_LOG_TRIVIAL(warning) << "PhotoTile 黃金閘門結束：" << verdict() << "（報告 " << m_report_path << "）";
         m_host->shutdown();

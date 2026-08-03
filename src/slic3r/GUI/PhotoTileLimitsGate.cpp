@@ -241,7 +241,8 @@ struct LimitsCase
     bool        expect_ok    = true;
     std::string expect_error;              // expect_ok=false 時必須等於這個碼
     bool        want_metadata = false;     // #7：產品 opt-in 路徑也要量峰值
-    double      peak_main_mb = 0, peak_wv_mb = 0;   // 本案期間的峰值（跑完才填）
+    double      peak_main_mb = 0, peak_wv_mb = 0;   // 本案期間的峰值（跑完才填；分項僅參考）
+    double      peak_total_mb = 0;                  // 同一筆取樣的 main+wv 總和峰值（二輪 I11；判讀以此為準）
     int         peak_wv_procs = 0;
 };
 
@@ -308,6 +309,9 @@ public:
             BOOST_LOG_TRIVIAL(warning) << "PhotoTile 閘門③ 限記憶體模式："
                                        << (m_jobmem_applied ? "已套用－" : "套用失敗－") << m_jobmem_detail;
             breadcrumb("[jobmem] " + std::string(m_jobmem_applied ? "applied " : "failed ") + m_jobmem_detail);
+            /* 【二輪 I10】要求了帽卻套不上（例：已在不允許巢狀 assignment 的外層 job）＝
+               整輪立即 FAIL——不然閘門會**無帽跑完還標綠**，正是假綠燈的形狀。 */
+            if (!m_jobmem_applied) { finish("jobmem_requested_but_not_applied"); return; }
         }
 
         m_t0 = lg_now_ms();
@@ -323,6 +327,25 @@ public:
 private:
     /* 取樣跑在**背景執行緒**：CreateToolhelp32Snapshot 掃全機器行程要十幾毫秒，
        放在 UI 執行緒上量到的 uiDriftMaxMs 就變成「量測工具自己造成的漂移」＝自證的假數據。 */
+    /* 【二輪 I11】峰值必須取「同一筆 sample 的 main＋wv 總和」的最大值：一版把
+       「main 的峰」與「wv 的峰」（可能在不同秒）相加＝報一個**從未同時存在**的數字。
+       main/wv 分項峰值保留當參考，判讀以 sameSampleTotal 為準。 */
+    void ingest_sample(const MemSample& s)
+    {
+        const long main_kb  = (long) (s.main_mb * 1024.0);
+        const long wv_kb    = (long) (s.webview_mb * 1024.0);
+        const long total_kb = main_kb + wv_kb;
+        if (main_kb  > m_peak_main_kb.load())  m_peak_main_kb.store(main_kb);
+        if (wv_kb    > m_peak_wv_kb.load())    m_peak_wv_kb.store(wv_kb);
+        if (total_kb > m_peak_total_kb.load()) m_peak_total_kb.store(total_kb);
+        if (s.webview_procs > m_peak_wv_procs.load()) m_peak_wv_procs.store(s.webview_procs);
+    }
+    void sample_once_now()
+    {
+        if (m_sampler_disabled) return;
+        ingest_sample(sample_memory());
+    }
+
     void start_sampler()
     {
         /* 取樣本身也是嫌疑犯。要證明「漂移不是量測工具自己造成的」，就得有辦法把它關掉重跑
@@ -336,12 +359,7 @@ private:
         m_sampling.store(true);
         m_sampler = std::thread([this]() {
             while (m_sampling.load()) {
-                const MemSample s = sample_memory();
-                const long main_kb = (long) (s.main_mb * 1024.0);
-                const long wv_kb   = (long) (s.webview_mb * 1024.0);
-                if (main_kb > m_peak_main_kb.load()) m_peak_main_kb.store(main_kb);
-                if (wv_kb   > m_peak_wv_kb.load())   m_peak_wv_kb.store(wv_kb);
-                if (s.webview_procs > m_peak_wv_procs.load()) m_peak_wv_procs.store(s.webview_procs);
+                ingest_sample(sample_memory());
                 for (int i = 0; i < 10 && m_sampling.load(); ++i)   // 1Hz，但 100ms 就能收工
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
@@ -356,6 +374,7 @@ private:
     {
         m_peak_main_kb.store(0);
         m_peak_wv_kb.store(0);
+        m_peak_total_kb.store(0);
         m_peak_wv_procs.store(0);
         m_drift_max_case = 0;
     }
@@ -377,6 +396,25 @@ private:
         req.want_metadata      = c.want_metadata;
         m_case_t0 = lg_now_ms();
         reset_case_peaks();      // 峰值逐案獨立，才知道是哪一案把記憶體頂上去的
+        sample_once_now();       // 二輪 I11：案起跑先強制取樣一次——1Hz 對 <1s 的案會整案漏拍（實據：案峰值 0）
+        /* 【二輪 I10】per-case watchdog：renderer 死撐或 modal 卡死時，一版會永遠吊死
+           （0803 事故實錄 2.2 小時）。300s（重案 ~170s 的近兩倍）沒 terminal＝記誠實逾時、收整輪。 */
+        if (!m_watchdog) {
+            m_watchdog.reset(new wxTimer(this));
+            Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+                if (m_finished || m_index >= m_cases.size()) return;
+                std::ostringstream o;
+                o << "    { " << jfield("label", m_cases[m_index].label)
+                  << ", " << jfield("ok", false) << ", " << jfield("asExpected", false)
+                  << ", " << jfield("honestFailure", false)
+                  << ", " << jfield("errorCode", "case_watchdog_timeout_300s")
+                  << ", " << jfield("errorMessage", "案例 300 秒無 terminal（吊死／無回應）") << " }";
+                m_rows.push_back(o.str());
+                m_all_ok = false;
+                finish("case_watchdog_timeout");
+            }, m_watchdog->GetId());
+        }
+        m_watchdog->StartOnce(300000);
         BOOST_LOG_TRIVIAL(warning) << "PhotoTile 閘門③ 起跑案例 " << c.label
                                    << "（mode=" << c.mode << " size=" << c.size_mm << " K=" << c.klevels
                                    << " gridMax=" << c.grid_max << " maxPx=" << c.max_pixels
@@ -393,8 +431,10 @@ private:
         const double ms = lg_now_ms() - m_case_t0;
         c.peak_main_mb  = m_peak_main_kb.load() / 1024.0;
         c.peak_wv_mb    = m_peak_wv_kb.load() / 1024.0;
+        c.peak_total_mb = m_peak_total_kb.load() / 1024.0;   // 二輪 I11：同刻總和峰值（判讀以此為準）
         c.peak_wv_procs = m_peak_wv_procs.load();
-        if (c.peak_main_mb + c.peak_wv_mb > m_peak_total_mb) m_peak_total_mb = c.peak_main_mb + c.peak_wv_mb;
+        if (c.peak_total_mb > m_peak_total_mb) m_peak_total_mb = c.peak_total_mb;
+        if (m_watchdog) m_watchdog->Stop();                  // 二輪 I10：case 有 terminal＝解除 watchdog
         long grid_w = 0, grid_h = 0, parts = 0;
         if (r.ok && !r.result_json.empty()) {
             try {
@@ -434,7 +474,8 @@ private:
           << ", " << jfield("bigImage", c.use_big_image)
           << ", " << jfield("peakMainMB", c.peak_main_mb)
           << ", " << jfield("peakWebViewMB", c.peak_wv_mb)
-          << ", " << jfield("peakTotalMB", c.peak_main_mb + c.peak_wv_mb)
+          << ", " << jfield("peakTotalMB", c.peak_total_mb)
+          << ", " << jfield("_peakNote", "peakTotalMB＝同一筆取樣的 main+wv 總和峰值（二輪 I11；main/wv 分項峰值可能在不同時刻）")
           << ", " << jfield("webViewProcs", c.peak_wv_procs)
           << ", " << jfield("uiDriftMaxMsThisCase", (long) m_drift_max_case) << " }";
         m_rows.push_back(o.str());
@@ -487,16 +528,23 @@ private:
            0802 三輪定罪 spike＝冷啟動窗（閘門①的領域、預熱已裁 A 進 C-2）之後才改的判法。 */
         const bool pass_drift     = m_drift_max_steady <= 1000.0;
         const bool pass_all       = m_all_ok && pass_downshift && pass_drift && why == "done";
-        /* 「跑到最後、沒有一案是崩潰或掛死」——限記憶體模式下這是主要問句。
-           ⚠ 它**不是** ok 的替代品：所有案都誠實報錯也會讓 noCrash 為真而 ok 為假，
-           那正確地代表「這個記憶體上限下閘門③不通過，但產品沒崩」。 */
-        const bool no_crash = (why == "done");
+        /* 【二輪 I11】欄位改名講實話：一版的 noCrash 只是 why=="done"，會出現
+           「noCrash:true＋engine_crashed」並排的報告（字面矛盾）。拆成：
+           runnerCompleted＝閘門本身跑完六案；appSurvived＝app 活著寫出報告（能寫就是活著）；
+           engineCrashCount＝引擎崩了幾次（誠實失敗次數，不藏在布林裡）。 */
+        const bool runner_completed = (why == "done");
+        int engine_crash_count = 0;
+        for (const std::string& row : m_rows)
+            if (row.find("engine_crashed") != std::string::npos) ++engine_crash_count;
 
         std::ostringstream j;
         j << "{\n"
           << "  " << jfield("_note", "照片磚 C-1 閘門③：OOM／低記憶體 gate（降階有效性＋超限誠實報錯＋峰值記憶體）") << ",\n"
           << "  " << jfield("ok", pass_all) << ", " << jfield("why", why) << ",\n"
-          << "  " << jfield("allCasesAsExpected", m_all_ok) << ", " << jfield("noCrash", no_crash) << ",\n"
+          << "  " << jfield("allCasesAsExpected", m_all_ok)
+          << ", " << jfield("runnerCompleted", runner_completed)
+          << ", " << jfield("appSurvived", true)
+          << ", " << jfield("engineCrashCount", engine_crash_count) << ",\n"
           << "  " << jfield("gridCellsFull", m_grid_full) << ", " << jfield("gridCellsDownshifted", m_grid_down)
           << ", " << jfield("downshiftEffective", pass_downshift) << ",\n"
           << "  " << jfield("bytesMetadataOff", m_bytes_meta_off) << ", " << jfield("bytesMetadataOn", m_bytes_meta_on)
@@ -541,8 +589,9 @@ private:
 
     // 記憶體取樣（背景執行緒）與限記憶體模式
     std::thread              m_sampler;
+    std::unique_ptr<wxTimer> m_watchdog;            // 二輪 I10：per-case 300s
     std::atomic<bool>        m_sampling{false};
-    std::atomic<long>        m_peak_main_kb{0}, m_peak_wv_kb{0};
+    std::atomic<long>        m_peak_main_kb{0}, m_peak_wv_kb{0}, m_peak_total_kb{0};
     std::atomic<int>         m_peak_wv_procs{0};
     double                   m_peak_total_mb = 0;
     long                     m_jobmem_mb = 0;

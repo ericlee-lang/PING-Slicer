@@ -117,6 +117,10 @@ static const FaultCase FAULTS[] = {
     { "end_chunks",   "protocol_chunk_count"     },
     { "end_size",     "protocol_length_mismatch" },
     { "no_sha",       "protocol_sha_mismatch"    },
+    /* 二輪 I14：end 欄位**整欄省略**——一輪八案只測了「有值且說謊」，
+       沒測「乾脆不給」；宿主 optional 讀取當時就默默放行。 */
+    { "no_end_chunks", "protocol_bad_message"    },
+    { "no_end_size",   "protocol_bad_message"    },
     { "foreign_job",  ""                         },
 };
 
