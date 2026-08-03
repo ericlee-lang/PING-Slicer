@@ -55,6 +55,14 @@
    **驗收條件＝實查視窗標題字串含掛牌**（`EnumWindows`＋`GetWindowTextW`，P/Invoke 必須
    `CharSet=Unicode`），不是看 code diff。零 build 擋法只救工作列、救不到 app 自繪 topbar。
 
+**明早開工順序（Eric 0803 17:5x 裁「明天再說」＝C-2 今晚不開工）**
+1. 讀 `../照片磚_C1產物/vigil_overnight_20260803.json` 收閘門②（拿到 ≥6h 單一週期＝`PASS_OVERNIGHT`）。
+2. **守夜收掉才解得開 DLL**（掛著就 build 不了，0802 已踩過）⇒ 收完才動 C++。
+3. C-2 開新牌（`c-0803-PT-11`，WRITE：開發線＋`resources/web/phototile/**`＋`PhotoTile*` C++）。
+4. 零 build 前段先做（規格對齊＝`../照片磚_C案準備頁整合計畫_20260729.html` 11 項定案值／
+   工作室「進度＋取消」**可操作原型交 Eric 實走**／宿主 API 對工作室生成鏈的接線圖）；
+   C++ 第一刀建議＝**第 7 項掛牌回歸**（最小、且是「實查視窗標題」這條新驗收紀律的首發案例）。
+
 **工具與紀律（C-1 留下的、C-2 直接用）**
 - 黃金閘門：`PING_PHOTOTILE_SMOKE=golden`（12 案基準比對；**動生成路徑後必跑**；fail-closed）
 - 其餘模式：`1|limits|live|vigil|cancellat`（`--datadir D:\ping-slicer-c1\_smokedata` 隔離）
