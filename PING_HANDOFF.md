@@ -65,8 +65,12 @@
 - ⚠ `ping/v3.5` push 不觸發 CI（要手動 dispatch build_all）；**C-1 全程未押 T、Mac/Linux 從未編譯
   ＝日後押 T 時 CI 首驗**
 
-**線況（0803 收工）**：開發線 `ping/v3.5` 本地領先遠端 13 顆（遠端 `64e8bb9a`→本地 `dfeac43f`，
-**未推遠端——要不要推等 Eric 一句話**）；出貨線 `release/v3.6` 全程未碰。
+**線況（0803 收工）**：開發線 `ping/v3.5` **已推遠端**（Eric 0803 17:28 令「推」；`64e8bb9a`→`9f8fd317`
+共 14 顆＝C-1 全部工作＋兩顆 handoff）。首次嘗試遇 GitHub `HTTP 503` 失敗、重試即過，**推完必查
+`git ls-remote` 確認 ref 真的動了**（503 那次 git 還印了誤導的 "Everything up-to-date"）。
+ℹ️ **更正一條長期寫錯的話**：push `ping/v3.5` **會**觸發 CI ——只是觸發的是輕量 `PING verify`
+（run 30801517223、12 秒、success），**不是 `Build all`**；要 build 仍得手動 dispatch。
+出貨線 `release/v3.6` 全程未碰。
 守夜（二輪修正版、PID 67716、12:44 起跑）掛著等今晚整夜週期，明天讀
 `../照片磚_C1產物/vigil_overnight_20260803.json`；報告目前自標 `INCONCLUSIVE`＝本機插電永不自動睡、
 **要 Eric 闔蓋才會有週期**（判準沒放寬）。⚠ 該視窗已於 0803 下午用外部 `SetWindowTextW` 補掛
