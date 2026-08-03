@@ -411,7 +411,11 @@ async function makeZip(entries, tick){
     const crc=crc32Pieces(pieces);
     let comp=await deflateRawPieces(pieces), method=8;
     let stored=null;
-    if(!comp || comp.length>=rlen){ stored=pieces; method=0; }
+    /* ⚠ fallback 必須把 comp 清掉（Codex 二輪 B2）：0803 首版只設 stored/method、comp 留著
+       ⇒ 下面 clen 取到 deflate 長度、chunks 塞進 deflate bytes，但 header 寫 method=0
+       ＝自相矛盾的壞 ZIP。原版 index.html 的 `comp=data` 重指派本來是安全的，是我改壞的。
+       黃金五輪沒炸純因現有 entries 全可壓縮、這條路從未走到——高熵內嵌圖（JPEG/亂數 PNG）就會中。 */
+    if(!comp || comp.length>=rlen){ stored=pieces; method=0; comp=null; }
     const clen = comp ? comp.length : rlen;
     const lh=new DataView(new ArrayBuffer(30));
     lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
@@ -808,5 +812,6 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, ERR,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },
-         _internals: { buildGridData, quantizeDual, quantizeQuad, filterLabels, build3mfFrom, paletteDto } };
+         _internals: { buildGridData, quantizeDual, quantizeQuad, filterLabels, build3mfFrom, paletteDto,
+                       makeZip /* 二輪 B2：讓 zip fallback 可被直接測（node 高熵案） */ } };
 });
