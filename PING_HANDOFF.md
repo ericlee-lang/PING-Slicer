@@ -45,6 +45,15 @@
 5. **大檔 result 段**：漂移 ~5s 歸因定罪（嫌疑＝UI 執行緒 base64/SHA 隨 80MB 檔放大）→ 移背景；
    傳輸逐塊 cancel
 6. 小項：filter 段補量（避段界競態＝觸發後延遲 200ms 再 cancel）／LiveGate K8 長案時長重標定
+7. 🔴 **壓測掛牌回歸——C-1 那個防呆其實沒生效（0803 下午實查發現）**：
+   [MainFrame.cpp:771](src/slic3r/GUI/MainFrame.cpp:771) 只在建構時 `SetTitle()` 一次，之後
+   [Plater.cpp:10700](src/slic3r/GUI/Plater.cpp:10700) `set_project_name()` 與
+   [Plater.cpp:10717](src/slic3r/GUI/Plater.cpp:10717) `update_title_dirty_status()` 會拿專案名把
+   **frame 標題與 topbar 兩處都覆寫**回去 ⇒ 守夜行程實查標題＝「未命名」＝**與正式版無法分辨、
+   0803 事故條件原封存在**（DLL 12:21 build 已含 11:27 的修正，所以是覆寫、不是漏編）。
+   修法＝gate 模式在**所有改標題路徑**強制前綴（frame＋topbar 同一來源）；
+   **驗收條件＝實查視窗標題字串含掛牌**（`EnumWindows`＋`GetWindowTextW`，P/Invoke 必須
+   `CharSet=Unicode`），不是看 code diff。零 build 擋法只救工作列、救不到 app 自繪 topbar。
 
 **工具與紀律（C-1 留下的、C-2 直接用）**
 - 黃金閘門：`PING_PHOTOTILE_SMOKE=golden`（12 案基準比對；**動生成路徑後必跑**；fail-closed）
@@ -56,9 +65,13 @@
 - ⚠ `ping/v3.5` push 不觸發 CI（要手動 dispatch build_all）；**C-1 全程未押 T、Mac/Linux 從未編譯
   ＝日後押 T 時 CI 首驗**
 
-**線況（0803 收工）**：開發線 `ping/v3.5` 本地 领先 13 顆（0801 起 `8c50bb1e`→`265fd6bc`，
+**線況（0803 收工）**：開發線 `ping/v3.5` 本地領先遠端 13 顆（遠端 `64e8bb9a`→本地 `dfeac43f`，
 **未推遠端——要不要推等 Eric 一句話**）；出貨線 `release/v3.6` 全程未碰。
-守夜（二輪修正版）掛著等今晚整夜週期，明天讀 `../照片磚_C1產物/vigil_overnight_20260803.json`。
+守夜（二輪修正版、PID 67716、12:44 起跑）掛著等今晚整夜週期，明天讀
+`../照片磚_C1產物/vigil_overnight_20260803.json`；報告目前自標 `INCONCLUSIVE`＝本機插電永不自動睡、
+**要 Eric 闔蓋才會有週期**（判準沒放寬）。⚠ 該視窗已於 0803 下午用外部 `SetWindowTextW` 補掛
+「⚠ 守夜壓測中・勿操作」（**只有 OS／工作列標題，app 內 topbar 仍顯示「未命名」**）＝過渡擋法，
+真修見上方 C-2 第 7 項。
 
 ### 🏁 收工快照（2026-07-31 —「0730 高流量」棒**總收工**：高流量製程組＋C-12＋**T016 全鏈出貨**）
 
