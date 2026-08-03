@@ -15,37 +15,50 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🟠 照片磚 C-1（協定＋生成）——2026-08-01 交接：四阻斷已修、故障注入已證，**C-1 尚不得標 PASS**
+### ✅ 照片磚 C-1 結案（Eric 2026-08-03 裁「標 PASS 開 C-2」）——C-2 起跑包在此
 
-**一句話**：切片器已能在內部驅動隱形網頁引擎產出照片磚 3MF，並通過故障注入證明驗證真的擋得住；
-但 Codex 對抗審查列的加固項還有七條沒清，閘門②只拿到一次 6.4 分鐘的真實睡眠。
+**一句話**：C-1（協定＋生成）PASS——隱形宿主驅動產品引擎產出照片磚 3MF，Codex 兩輪對抗審查
+（一輪 14 條＋二輪 15 條）全數處置並驗證；**C-2＝整合站**（工作室接宿主＋原子上盤＋預熱），照前例開新 session。
 
-- **先讀**：`../照片磚_C1產物/_審查_C1_Codex一輪_處置表_20260801.md`（**逐條狀態，接手看這份就夠**）
-  ／`../SOP_WebView2隱形宿主與跨層協定.md`（永久教訓：例外不得穿越 COM 回呼、weak_ptr 生命週期、
-  job epoch、四項驗證不可有空門、boost ptree 兩陷阱、自己測自己的假綠燈、中文路徑會卡死建置）
-- **已入版（開發線 ping/v3.5，六顆 commit）**：引擎頁產品化＋協定＋metadata schema；
-  `PhotoTileEngineHost`（加固版：shared_ptr/weak_ptr 生命週期、noexcept 邊界護欄、job epoch、
-  序列化重建狀態機）；`PhotoTileCapability`（單一判定＋effective nozzle）；
-  三個閘門測試（Smoke／LimitsGate／LiveGate）；故障注入八案。
-- **證據**：`../照片磚_C1產物/`＝黃金 6/6、閘門①、閘門③、活體 A–E、守夜、Codex 全文與處置表。
-- **閘門標記（不得對外簡化成 PASS）**：①`PASS_STEADY` ②`PARTIAL`（待整夜）③`PASS_ON_64GB_FUNCTIONAL`
-- **兩件仍未證明**：重建路徑從未實際觸發（需殺 renderer）；頁面 supersede 分支從未命中。
+**C-1 最終閘門標記（誠實版，殘項全數列 C-2、無隱藏項）**
+- 閘門① `PASS_STEADY`（穩態 p95 17ms；冷啟動轉正＝C-2 的閒置預熱，Eric 已裁 A）
+- 閘門② `PASS_RESUME`（3 個自然睡眠週期 SHA 全等、最長 74 分；≥6h 的 `PASS_OVERNIGHT` 守夜掛著隨時會到）
+- 閘門③ **整體 `ok:true`**（六案 K8 全符、steady 漂移 360ms、同刻峰值 5,169MB；4GB 帽下引擎誠實
+  `engine_crashed`＋app 續活）
+- 黃金 oracle：**12 案（六案×metadata off/on）凍結基準＋兩輪 PASS**；輸入 PNG 凍結押 SHA
 
-**下一棒接手就做（處置表 #1/#6/#7/#8/#10/#11/#12/#13）**
-1. 測試類別 RAII 化（`delete this`＋裸 timer）——屬阻斷 #1 的未完成半
-2. 殺 renderer 驗重建；讓頁面真的走 supersede 分支
-3. 閘門①判準拆 startup／steady；閘門③補 metadata-on、48M 像素不降階、限記憶體
-4. capability 加 family/nozzle 合法性，並讓 `BackgroundSlicingProcess` 改接同一判定
-5. 取消要在 grid/filter/mesh 各階段可停＋bitmap try/finally
-6. 黃金比整包 SHA、走正式 importer；守夜改產品宿主跑整夜
-7. 全部清完 → C-1 結案報告（HTML・PING CIS）→ Codex 二輪 → 交 Eric 裁進 C-2
+**先讀（接 C-2 的人）**
+1. `../照片磚_C1產物/_審查_C1_Codex二輪_處置表_20260803.md`（15 條逐條＋驗證電池表）
+2. `../照片磚_C1產物/_審查_C1_Codex一輪_處置表_20260801.md`（14 條史＋閘門標記沿革）
+3. `../SOP_WebView2隱形宿主與跨層協定.md`（永久教訓）
+4. `../照片磚_C案準備頁整合計畫_20260729.html`（C 案 11 項裁決定案值＝C-2 的規格正本）
 
-**環境**：本機建置走 ASCII junction `D:\ping-slicer-c1`（中文路徑會讓 nasm/7z 卡死）；
-deps 已自建完成可直接重編。測試一律 `--datadir D:\ping-slicer-c1\_smokedata`（隔離，勿碰 %APPDATA%）。
-跑法：`$env:PING_PHOTOTILE_SMOKE="1|limits|live"`（可加 `_DELAY_MS=15000`）→ 啟動 exe → 報告落 datadir。
+**C-2 範圍（歷輪裁示與發現的收斂清單）**
+1. **工作室接隱形宿主**：照片磚工作室 UI 改呼叫 `PhotoTileEngineHost`（生成從 index.html 內建鏈
+   改走宿主）＋進度顯示＋取消鈕（C-0 裁決：重案必做；宿主已給 progress/cancel，mesh 取消 814ms）
+   ⇒ index.html 生成 fork 退役＝二輪 B1（工作室字串上限）自然解
+2. **原子上盤入口**＝一輪 #9（Eric 0801 裁）：current-env provider＋apply guard（過期即棄真正的守門點）
+3. **閒置預熱**（Eric 0802 裁 A）：選中照片磚機時預建長命宿主 ⇒ 閘門① startup 轉正；
+   預熱條件直接用 `photo_tile_capability_of(preset)`
+4. **低記憶體韌性**：預設 `maxDecodedPixels` 依可用 RAM（護欄已存在只差預設值；真峰值 5.1GB、
+   4GB 帽實證）＋crash 探針補 SEH＋「切片在 4GB 帽下 AV 硬崩」app 級議題
+5. **大檔 result 段**：漂移 ~5s 歸因定罪（嫌疑＝UI 執行緒 base64/SHA 隨 80MB 檔放大）→ 移背景；
+   傳輸逐塊 cancel
+6. 小項：filter 段補量（避段界競態＝觸發後延遲 200ms 再 cancel）／LiveGate K8 長案時長重標定
 
-**紅線**：本棒全程只動開發線，**出貨線 release/v3.6 未碰**；C-1 尚未押 T（Mac/Linux 分支從未編譯過，
-押 T 時 CI 會首驗）。Eric 0801 裁：Codex #9「過期即棄的 apply guard」**留給 C-2**。
+**工具與紀律（C-1 留下的、C-2 直接用）**
+- 黃金閘門：`PING_PHOTOTILE_SMOKE=golden`（12 案基準比對；**動生成路徑後必跑**；fail-closed）
+- 其餘模式：`1|limits|live|vigil|cancellat`（`--datadir D:\ping-slicer-c1\_smokedata` 隔離）
+- 守夜/閘門視窗自帶「壓測中勿操作」標題（0803 事故防呆）；jobmem 模式 `PING_PHOTOTILE_LIMITS_JOBMEM_MB`
+- node 測：`tools/ping/phototile_zip_fallback_test.js`＋`phototile_protocol_test.js`（32 案）
+- K 上限＝8（Eric 0802 裁 B；engine clamp＋UI 同值）；K sweep 工具 `tools/ping/phototile_k_sweep.html`
+- 本機建置：ASCII junction `D:\ping-slicer-c1`（中文路徑卡 nasm/7z）；deps 已自建
+- ⚠ `ping/v3.5` push 不觸發 CI（要手動 dispatch build_all）；**C-1 全程未押 T、Mac/Linux 從未編譯
+  ＝日後押 T 時 CI 首驗**
+
+**線況（0803 收工）**：開發線 `ping/v3.5` 本地 领先 13 顆（0801 起 `8c50bb1e`→`265fd6bc`，
+**未推遠端——要不要推等 Eric 一句話**）；出貨線 `release/v3.6` 全程未碰。
+守夜（二輪修正版）掛著等今晚整夜週期，明天讀 `../照片磚_C1產物/vigil_overnight_20260803.json`。
 
 ### 🏁 收工快照（2026-07-31 —「0730 高流量」棒**總收工**：高流量製程組＋C-12＋**T016 全鏈出貨**）
 
