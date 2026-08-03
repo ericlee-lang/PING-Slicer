@@ -63,7 +63,8 @@ async function run(){
     });
     const wall = performance.now()-t0;
     if(!r.ok){ rows.push({K, error:(r.error&&r.error.code)||'?' }); continue; }
-    const tm = r.timings||{};
+    // 二輪 I12：timings 在 diagnostics 底下——首版讀 r.timings＝各段欄位恆 0（有看到卻沒追＝我的錯）
+    const tm = (r.diagnostics&&r.diagnostics.timings)||{};
     rows.push({ K, palette:(r.palette&&r.palette.length)||0,
       quantizeMs:Math.round(tm.quantizeMs||0), meshZipMs:Math.round(tm.meshZipMs||0),
       filterMs:Math.round(tm.filterMs||0), gridMs:Math.round(tm.gridMs||0),

@@ -73,10 +73,12 @@
       postError(jobId, 'internal', (e && e.message) || e);
       return;
     }
-    if (active && active.jobId === jobId) active = null;
+    /* 【二輪 I6】active 保留到傳輸結束才清：一版在這裡就清＝SHA／begin/chunk/end 期間
+       這個 job「不存在」——取消回 existed:false、supersede 記帳也看不見它。 */
     if (inject.jobId === jobId) injectReset();
 
     if (!r.ok) {
+      if (active && active.jobId === jobId) active = null;
       post({ type: P.MSG.RESULT, jobId: r.jobId || jobId, ok: false, error: r.error,
              diagnostics: r.diagnostics || null });
       return;
@@ -89,6 +91,13 @@
        每個案例對應一個宿主端應該回報的錯誤碼，對照表＝tools/ping/phototile_protocol.md §9。 */
     const fault = (m.request && m.request.faultInject) || '';
     const sha = await E.sha256Hex(r.threeMF);
+    /* 【二輪 I6】sha 的 await 是傳輸前唯一的讓步點——取消若在這裡到達（80MB 大檔約秒級），
+       要誠實終結而不是照樣交付「已取消的成功」。 */
+    if (active && active.jobId === jobId && active.cancelled) {
+      active = null;
+      postError(jobId, 'cancelled', '已取消（結果傳輸前）');
+      return;
+    }
     /* result＝先給宿主「這份是什麼」；bytes 走 begin/chunk/end。
        ⚠ 宿主只有在 end 且四項驗證全過後才算 success（協定 §3）。 */
     post({ type: P.MSG.RESULT, jobId: r.jobId, ok: true,
@@ -113,6 +122,8 @@
         case 'no_length':    delete msgs[chunkIdx].length; break;                       // 缺 length 欄位
         case 'end_chunks':   msgs[last].chunks = msgs[last].chunks + 1; break;          // end 自報塊數與 begin 不符
         case 'end_size':     msgs[last].size   = msgs[last].size + 1;   break;          // end 自報大小與 begin 不符
+        case 'no_end_chunks': delete msgs[last].chunks; break;   // 二輪 I14：end 整欄省略（比說謊更容易的繞法）
+        case 'no_end_size':   delete msgs[last].size;   break;   // 二輪 I14
         case 'no_sha':       msgs[0].sha256 = undefined; msgs[last].sha256 = undefined; break;
         case 'foreign_job':  msgs = msgs.map(x => Object.assign({}, x, { jobId: x.jobId + '-foreign' })); break;
         default: post({ type: P.MSG.ERROR, jobId: r.jobId, code: 'protocol_bad_message',
@@ -120,6 +131,7 @@
       }
     }
     for (const msg of msgs) post(msg);
+    if (active && active.jobId === jobId) active = null;   // 二輪 I6：傳輸完才卸任
   }
 
   /* 數值欄位一律過 Number()：宿主端的 JSON writer 可能把數字寫成字串
@@ -134,9 +146,14 @@
       case P.CMD.PING:
         post({ type: P.MSG.PONG, seq: m.seq === undefined ? null : m.seq, busy: !!active });
         return;
-      case P.CMD.CANCEL:
-        post({ type: P.MSG.CANCEL_ACK, jobId: m.jobId, existed: E.cancel(m.jobId) });
+      case P.CMD.CANCEL: {
+        // 二輪 I6：引擎內的 job 由 E.cancel 管；已出引擎、還在 SHA/傳輸窗的 job 用 active.cancelled 接手
+        const inEngine = E.cancel(m.jobId);
+        const inFlight = !!(active && active.jobId === m.jobId);
+        if (inFlight) active.cancelled = true;
+        post({ type: P.MSG.CANCEL_ACK, jobId: m.jobId, existed: inEngine || inFlight });
         return;
+      }
       case P.CMD.IMAGE_BEGIN:
         injectReset();
         inject.jobId = m.jobId; inject.mime = m.mime || 'image/png'; inject.name = m.name || null;

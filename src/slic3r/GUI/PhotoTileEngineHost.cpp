@@ -807,8 +807,12 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
     else if (type == "end") {
         if (!xfer.active) { fail_job(job, "protocol_bad_message", "end 早於 begin。"); return; }
         // end 自報的塊數／大小必須與 begin 一致（Codex #5：原本完全沒檢查）
+        // 【二輪 I14】而且**兩欄必填**：optional 讀取＝整欄省略照樣 success，
+        // 一輪處置表寫「必須一致」其實只擋了「有值且不同」——省略比說謊更容易。
         auto end_chunks = m.get_optional<size_t>("chunks");
         auto end_size   = m.get_optional<size_t>("size");
+        if (!end_chunks) { fail_job(job, "protocol_bad_message", "end 缺 chunks 欄位（必填）。"); return; }
+        if (!end_size)   { fail_job(job, "protocol_bad_message", "end 缺 size 欄位（必填）。");   return; }
         if (end_chunks && *end_chunks != xfer.chunks) {
             fail_job(job, "protocol_chunk_count",
                      "end 宣告塊數與 begin 不符（begin " + std::to_string(xfer.chunks) +

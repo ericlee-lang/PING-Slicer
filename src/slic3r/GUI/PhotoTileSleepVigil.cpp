@@ -87,6 +87,17 @@ double wall_sec()
     using namespace std::chrono;
     return duration_cast<duration<double>>(system_clock::now().time_since_epoch()).count();
 }
+/* 不含睡眠時間的單調鐘（二輪 B5 的關鍵材料）：QueryUnbiasedInterruptTime 在 S3/S4 期間停走。
+   Windows 的 steady_clock＝QPC＝含睡眠，拿它跟牆鐘比會兩邊一起跳、量不到落差。 */
+double unbiased_sec()
+{
+#ifdef _WIN32
+    ULONGLONG t100ns = 0;
+    if (::QueryUnbiasedInterruptTime(&t100ns)) return (double) t100ns / 1e7;
+#endif
+    using namespace std::chrono;
+    return duration_cast<duration<double>>(steady_clock::now().time_since_epoch()).count();
+}
 std::string wall_text()
 {
     return into_u8(wxDateTime::Now().Format("%Y-%m-%d %H:%M:%S"));
@@ -223,6 +234,13 @@ bool arm_wake_timer(int seconds, std::string& detail)
     return true;
 }
 
+/* 【二輪 I9】suspend 失敗後必須拆掉已上膛的喚醒定時器：留著的話，使用者稍後的**真**睡眠
+   會被這顆殘留 RTC 提早叫醒（把別人的夜攪了還查不到兇手）。 */
+void cancel_wake_timer()
+{
+    if (g_wake_timer) ::CancelWaitableTimer(g_wake_timer);
+}
+
 bool suspend_now(std::string& detail)
 {
     typedef BOOLEAN(WINAPI * FnSetSuspendState)(BOOLEAN, BOOLEAN, BOOLEAN);
@@ -254,6 +272,8 @@ public:
         m_autosleep_left = auto_env.empty() ? 0 : ::atoi(auto_env.c_str());
         const std::string autos_env = env_utf8("PING_PHOTOTILE_VIGIL_AUTOSLEEP_SEC");
         m_autosleep_sec  = autos_env.empty() ? DEFAULT_AUTOSLEEP_SEC : ::atoi(autos_env.c_str());
+        // 二輪 I9：秒數 clamp 60..3600——0/負值會讓定時器先於睡眠觸發＝失去喚醒保障
+        m_autosleep_sec  = std::max(60, std::min(3600, m_autosleep_sec));
         const std::string out_env = env_utf8("PING_PHOTOTILE_VIGIL_OUT");
         m_out_path = !out_env.empty() ? out_env
                                       : data_dir() + "/phototile_vigil_report.json";
@@ -272,8 +292,9 @@ public:
 
     void start()
     {
-        m_t0_steady   = steady_ms();
-        m_last_wall   = wall_sec();
+        m_t0_steady     = steady_ms();
+        m_last_wall     = wall_sec();
+        m_last_unbiased = unbiased_sec();
         m_started_at  = wall_text();
         m_image = write_photo_tile_test_image();     // 與閘門①同一張決定性測試圖
         add_event("vigil_start", "產品宿主守夜開始；報告＝" + m_out_path);
@@ -388,7 +409,8 @@ private:
             std::string serr;
             if (!suspend_now(serr)) {
                 m_pending_auto = false;
-                add_event("autosleep_failed", "SetSuspendState 失敗（" + serr + "）⇒ 改為等待自然睡眠");
+                cancel_wake_timer();   // 二輪 I9：定時器已上膛但沒睡成＝必拆，防殘留早叫醒
+                add_event("autosleep_failed", "SetSuspendState 失敗（" + serr + "）⇒ 喚醒定時器已取消、改為等待自然睡眠");
                 m_autosleep_left = 0; write_report();
             }
         }, m_sleep_timer->GetId());
@@ -398,9 +420,17 @@ private:
 
     void heartbeat()
     {
-        const double now_wall = wall_sec();
-        double gap = now_wall - m_last_wall - (HEARTBEAT_MS / 1000.0);
-        m_last_wall = now_wall;
+        /* 【二輪 B5】真正的雙鐘比對：睡眠落差 ＝ 牆鐘走掉的 − 單調鐘走掉的。
+           一版只看「牆鐘 − 5 秒」＝把 NTP 前跳、modal/重載卡死 UI ≥65 秒都記成 natural 睡眠
+           （0803 事故已示範 modal 能餓死佇列 65 秒以上——同機制就能偽造睡眠週期）。
+           S3/S4 期間 QueryUnbiasedInterruptTime（不含睡眠）停走、牆鐘照走 ⇒ 兩鐘差＝真睡眠長度；
+           NTP 跳／UI 卡死時兩鐘同步走 ⇒ 差≈0，不誤判。
+           ⚠ steady_clock 在 Windows＝QPC＝**含**睡眠時間，所以這裡特別用 unbiased 時鐘。 */
+        const double now_wall     = wall_sec();
+        const double now_unbiased = unbiased_sec();
+        double gap = (now_wall - m_last_wall) - (now_unbiased - m_last_unbiased);
+        m_last_wall     = now_wall;
+        m_last_unbiased = now_unbiased;
 
         /* 【僅測試用】PING_PHOTOTILE_VIGIL_SIMULATE_WAKE=n：在守夜開始 20 秒後
            注入 n 次假的睡眠落差。用途＝**在不真的讓機器睡覺的情況下**驗證喚醒之後那段
@@ -415,8 +445,10 @@ private:
             m_simulated_used = true;
         }
 
-        if (gap >= SLEEP_MIN_SEC) {
-            // 一段落差＝一次睡眠。結構上不可能重複計數（不像電源事件會發兩次）。
+        /* 【二輪 B5】守門條件補齊：複跑還沒回來（wake_pending）或 job 進行中不認新落差——
+           一版這兩個守門只掛在模擬分支，真實分支漏了＝理論上可重複計數。 */
+        if (gap >= SLEEP_MIN_SEC && !m_wake_pending && !m_job_in_flight) {
+            // 一段雙鐘落差＝一次睡眠。
             m_last_slept_min = gap / 60.0;
             m_wake_pending   = true;      // 這次喚醒的複跑還沒回來前，不再認第二次
             ++m_sleep_count;
@@ -451,6 +483,7 @@ private:
         if (m_concluded) return;
         m_concluded = true;
         m_beat.Stop();
+        cancel_wake_timer();   // 二輪 I9：收工時拆掉任何仍上膛的 RTC 定時器
         add_event("vigil_end", verdict());
         write_report();
         BOOST_LOG_TRIVIAL(warning) << "PhotoTile 守夜結束：" << verdict() << "（報告 " << m_out_path << "）";
@@ -479,9 +512,13 @@ private:
             return "SIMULATED：喚醒後路徑已驗（" + std::to_string(m_cycles.size()) +
                    " 輪 SHA 全等），但睡眠是**模擬**的 ⇒ 閘門② 仍未通過";
         if ((int) m_cycles.size() >= TARGET_CYCLES) {
-            /* 三個真實週期到手，但**短睡不等於過夜**——Codex #13 的原始指控就是
-               「6.4 分鐘只能算一次 suspend/resume smoke」。自動睡眠拿到的是真 S3，
-               可是每次只有幾分鐘，所以這裡分成兩種說法，不讓短睡冒充過夜。 */
+            /* 【二輪 I13】基準若與閘門①黃金不一致，「每次醒來都一樣」只證明**穩定地錯**——
+               不得當閘門②證據。一版把這欄寫進報告卻沒進 verdict（假綠燈家族）。 */
+            if (!m_baseline_matches_smoke)
+                return "RESUME_STABLE_BUT_GOLDEN_MISMATCH：睡眠喚醒後輸出穩定，"
+                       "但基準本身 ≠ 閘門①黃金 ⇒ **不算閘門②證據**，先查基準為何漂移";
+            /* 【二輪 B5④】命名照證據強度分三級，「過夜」門檻＝單一週期 ≥6 小時：
+               60 分鐘只是「較長的 resume」，叫 PASS 會讓人以為過夜證完了（Codex 直球打中）。 */
             double longest = 0;
             for (const Cycle& c : m_cycles) longest = std::max(longest, c.slept_minutes);
             if (longest < 60.0)
@@ -489,8 +526,13 @@ private:
                        " 個真實睡眠週期 SHA 全等基準，但最長只睡 " + std::to_string((long) longest) +
                        " 分鐘" + (m_autosleep_used ? "（自動觸發）" : "") +
                        " ⇒ **過夜**仍未證明，閘門②維持 PARTIAL";
-            return "PASS：" + std::to_string(TARGET_CYCLES) + " 個真實睡眠週期 SHA 全等基準（最長 " +
-                   std::to_string((long) longest) + " 分鐘）";
+            if (longest < 360.0)
+                return "PASS_RESUME：" + std::to_string(TARGET_CYCLES) +
+                       " 個真實睡眠週期 SHA 全等基準（最長 " + std::to_string((long) longest) +
+                       " 分）＝多次 suspend/resume 已證；**整夜（≥6h 單一週期）另計、尚未達成**";
+            return "PASS_OVERNIGHT：" + std::to_string(TARGET_CYCLES) +
+                   " 個真實睡眠週期 SHA 全等基準，且最長單一週期 " + std::to_string((long) longest) +
+                   " 分（≥6h）＝**過夜**證據成立";
         }
         if (m_cycles.empty())
             /* 「沒睡到」要**自己說出為什麼**。0801 那份報告只寫了「完全沒睡到」，
@@ -597,7 +639,7 @@ private:
     std::vector<Cycle>       m_cycles;
     std::vector<Event>       m_events;
     std::string m_image, m_out_path, m_started_at, m_baseline_sha, m_job_tag, m_fatal;
-    double      m_t0_steady = 0, m_last_wall = 0, m_job_t0 = 0, m_max_hours = DEFAULT_MAX_HOURS;
+    double      m_t0_steady = 0, m_last_wall = 0, m_last_unbiased = 0, m_job_t0 = 0, m_max_hours = DEFAULT_MAX_HOURS;
     double      m_last_slept_min = 0;
     long long   m_baseline_bytes = 0;
     int         m_sleep_count = 0, m_rebuilds = 0, m_simulate_wakes = 0;
