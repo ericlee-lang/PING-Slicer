@@ -765,6 +765,11 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         const int   delay_ms  = delay_env ? ::atoi(delay_env) : 0;
         // PING_PHOTOTILE_SMOKE=limits ⇒ 跑閘門③（OOM／低記憶體），其餘值＝閘門①
         const std::string what = ::getenv("PING_PHOTOTILE_SMOKE");
+        /* 【2026-08-03 事故修】閘門/守夜視窗與正式版**外觀完全無法分辨**（同標題），Eric 不知情
+           在 4GB 記憶體帽的壓測實例上手動切片 → 切片 AV 硬崩跳 modal → CallAfter 佇列被 modal
+           餓死 → 整輪吊死＋數據作廢。根因＝人無法分辨測試機 ⇒ 標題掛牌就是防呆。 */
+        SetTitle(wxString::FromUTF8("⚠ PING Slicer【壓測中・勿操作】PhotoTile ") +
+                 wxString::FromUTF8(what.c_str()) + " gate");
         auto launch = [what]() {
             if (what == "limits")      run_photo_tile_limits_gate();
             else if (what == "live")   run_photo_tile_live_gate();
