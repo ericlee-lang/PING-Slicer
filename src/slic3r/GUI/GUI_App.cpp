@@ -77,6 +77,7 @@
 #include "3DScene.hpp"
 #include "MainFrame.hpp"
 #include "Plater.hpp"
+#include <wx/timer.h>               // C-2 第 3 項：閒置預熱 timer（原本靠傳遞式引入，改成顯式）
 #include "PhotoTileCapability.hpp"
 #include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
 #include "PhotoTileGateJson.hpp"     // C-2 第 2 項：env 快照組字（#14 真 JSON writer——中文機名/反斜線路徑都要正確跳脫）
@@ -1184,6 +1185,10 @@ void GUI_App::post_init()
            }
         }
     }
+    /* C-2 第 3 項 W1：閒置預熱排程。放在 post_init 尾端＝app 該做的都做完了，
+       再等一段閒置才判定點火（判定含「選中的是不是照片磚機」，見 photo_tile_schedule_warmup）。 */
+    photo_tile_schedule_warmup();   // 延遲＝預設 15 秒（可用 PING_PHOTOTILE_WARMUP_DELAY_MS 覆寫，驗證用）
+
     BOOST_LOG_TRIVIAL(info) << "finished post_init";
 //BBS: remove the single instance currently
 #ifdef _WIN32
@@ -5341,6 +5346,12 @@ void GUI_App::open_photo_tile(const wxString& image_path)
         m_photo_tile_owned_temp.clear();
     }
 
+    /* C-2 第 3 項 W3：進工作室＝立即預熱。使用者已經打開照片磚工作室＝比「選中照片磚機」
+       更強的意圖訊號（而且這條路接住「app 一開就拖照片」——W1 的 15 秒還沒到）。
+       不設機型條件：工作室本來就能在非照片磚機上用（上盤時 resolver 會自動切機）。
+       非阻塞：引擎建立全程非同步，頁面照常立刻顯示。 */
+    photo_tile_warmup_now("進入工作室");
+
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
     mainframe->m_webview->ShowPhotoTile(image_path);
@@ -8749,10 +8760,163 @@ void GUI_App::photo_tile_ensure_host()
 void GUI_App::photo_tile_shutdown_host()
 {
     m_photo_tile_active_job.clear();
+    /* C-2 第 3 項：預熱 timer 跟宿主同生共死。先收 timer 再收宿主——否則收攤途中
+       到點的 tick 會把剛拆掉的宿主又建回來（本函式由 MainFrame 關窗與 OnExit 各呼叫
+       一次，中間主迴圈還活著＝timer 真的還會跳）。這裡不是在 Notify() 內，delete 安全。 */
+    m_photo_tile_warmup_fired = true;
+    if (m_photo_tile_warmup_timer) {
+        m_photo_tile_warmup_timer->Stop();
+        delete m_photo_tile_warmup_timer;
+        m_photo_tile_warmup_timer = nullptr;
+    }
     if (!m_photo_tile_host)
         return;
     m_photo_tile_host->shutdown();
     m_photo_tile_host.reset();
+}
+
+// =====================================================================
+// C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A・2026-08-04 落地）
+//
+// 要解的問題（C-1 閘門①實錄，不是臆測）：開 app 後第一次生成要 6,579ms、UI 漂移
+// 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額＝「建 WebView2 環境＋controller
+// ＋導頁」的冷啟動成本撞上 app 自己的初始化。它完全可以在使用者還沒動作的閒置期先付掉，
+// ⇒ 閘門① 的 startup 才有資格轉正（`smoke_gate1_nodelay_20260801.json` 的 productImplication）。
+//
+// 兩個點火點（**刻意只有兩個**）：
+//   W1 閒置預熱＝post_init 尾端排 timer，到點才判「選中的是不是照片磚機」（Eric 裁 A 的條件）。
+//   W3 進工作室＝`open_photo_tile()` 立即點火（使用者已經開了照片磚工作室＝比機型選擇
+//      更強的意圖訊號；也接住「app 一開就拖照片」那條 W1 還沒到點的動線）。
+//   W2（切換機型時預熱）**刻意不做**：它只多賺「切到照片磚機後、還沒進工作室」那段，
+//      而 W3 已經在進工作室當下就點火了；為它去改 preset 切換路徑（多個呼叫點、與別線共用）
+//      不划算。要補的話單獨一刀、單獨驗。
+//
+// 不點火的兩種情況（都要留 log，不可靜默）：
+//   ①閘門／守夜模式（`PING_PHOTOTILE_SMOKE` 有設）——各閘門自己建宿主並量測記憶體與漂移，
+//     多一顆長命宿主會污染數字；黃金基準也維持「閘門路徑零擾動」的保命索。
+//   ②kill switch `PING_PHOTOTILE_NO_WARMUP`——對照組（驗預熱有效必須跑的 A/B）與緊急關閉。
+// =====================================================================
+
+namespace {
+/* 自帶 Notify() 的 timer：預設建構的 wxTimer 不掛 owner、不走事件佇列，到點直接回呼。
+   **刻意不用 `wxTimer(this)`＋Bind**——GUI_App 既有那個 `Bind(wxEVT_TIMER, …)`
+   （on_start_subscribe_again，GUI_App.cpp:2654）沒有 id 過濾，共用 owner 會兩邊互收
+   對方的 tick（對方 handler 會去動 subscribe_counter）。 */
+class PingPhotoTileWarmupTimer : public wxTimer
+{
+public:
+    explicit PingPhotoTileWarmupTimer(std::function<void()> fn) : m_fn(std::move(fn)) {}
+    void Notify() override { if (m_fn) m_fn(); }
+private:
+    std::function<void()> m_fn;
+};
+
+// 預熱被關掉了嗎（回 true 並填 why）
+bool ping_photo_tile_warmup_disabled(std::string& why)
+{
+    if (::getenv("PING_PHOTOTILE_SMOKE") != nullptr)     { why = "閘門/守夜模式"; return true; }
+    if (::getenv("PING_PHOTOTILE_NO_WARMUP") != nullptr) { why = "kill switch PING_PHOTOTILE_NO_WARMUP"; return true; }
+    return false;
+}
+
+/* 延遲取值：預設 15 秒——這不是拍腦袋的數字，是 C-1 閘門①實證過的靜置點
+   （`PING_PHOTOTILE_SMOKE_DELAY_MS=15000` 那輪冷啟動漂移只剩 63ms＝那時 app 已經靜下來）。
+   `PING_PHOTOTILE_WARMUP_DELAY_MS` 可覆寫＝**驗證用**（不必為了看一次預熱等 15 秒）。 */
+int ping_photo_tile_warmup_delay_ms()
+{
+    if (const char* env = ::getenv("PING_PHOTOTILE_WARMUP_DELAY_MS")) {
+        const int v = ::atoi(env);
+        if (v >= 0)
+            return v;
+    }
+    return 15000;
+}
+
+const int PING_PHOTOTILE_WARMUP_DEFER_MS   = 10000;  // 切片中＝延後再問
+const int PING_PHOTOTILE_WARMUP_MAX_DEFERS = 3;      // 有上限＝不無限期空轉（放棄後仍有 W3）
+} // namespace
+
+void GUI_App::photo_tile_schedule_warmup(int delay_ms)
+{
+    if (m_photo_tile_warmup_fired || is_closing())
+        return;
+    if (delay_ms < 0)
+        delay_ms = ping_photo_tile_warmup_delay_ms();      // 預設 15 秒／env 覆寫（宣告處有說明）
+    std::string why;
+    if (ping_photo_tile_warmup_disabled(why)) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：不排程（" << why << "）";
+        m_photo_tile_warmup_fired = true;                 // 這個 app 生命週期內不再問
+        return;
+    }
+    if (!m_photo_tile_warmup_timer) {
+        m_photo_tile_warmup_timer = new PingPhotoTileWarmupTimer([this]() {
+            /* 判斷放在**到點時**而不是排程時：使用者可能在這段時間內換了機型。 */
+            if (m_photo_tile_warmup_fired || is_closing() || mainframe == nullptr)
+                return;
+            /* 切片中就別去搶 CPU／記憶體（引擎樹＝5 個 WebView2 行程）：延後重排。
+               有上限，用完就放棄——放棄不等於沒有預熱，進工作室那條路（W3）仍會點火。 */
+            Plater* p = plater();
+            if (p != nullptr && p->is_background_process_slicing() &&
+                m_photo_tile_warmup_defers < PING_PHOTOTILE_WARMUP_MAX_DEFERS) {
+                ++m_photo_tile_warmup_defers;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：切片中，延後 " << PING_PHOTOTILE_WARMUP_DEFER_MS
+                                        << "ms 再問（第 " << m_photo_tile_warmup_defers << " 次）";
+                /* ⚠ 重排走 CallAfter，**不在 Notify() 內直接 StartOnce**：一次性 timer 的
+                   Stop() 與 Notify() 的先後順序各 wx 版本／平台不一致，在自己的回呼裡重啟
+                   有機會被隨後的 Stop() 吃掉 ⇒ 延後這條路就此靜默死掉（而且不會有人發現，
+                   因為「沒預熱」看起來跟「還沒到點」一模一樣）。丟回事件圈就沒有這個疑慮。 */
+                CallAfter([this]() {
+                    if (m_photo_tile_warmup_fired || is_closing() || !m_photo_tile_warmup_timer)
+                        return;
+                    m_photo_tile_warmup_timer->StartOnce(PING_PHOTOTILE_WARMUP_DEFER_MS);
+                });
+                return;
+            }
+            /* Eric 0802 裁 A 的條件本體：**只有目前選中的機器是照片磚機才預建**。
+               不是照片磚機就不付那份記憶體（判定走 capability 單一來源，不自己比字串）。
+               沒中就不再重排——真的要用時 W3 會即時點火。 */
+            const PhotoTileCapability cap = photo_tile_capability_of_selected_printer();
+            if (!cap.is_photo_tile) {
+                m_photo_tile_warmup_fired = true;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：跳過——目前機型不是照片磚機（preset="
+                                        << cap.preset_name << "）";
+                return;
+            }
+            photo_tile_warmup_now("閒置預熱・選中照片磚機 " + cap.preset_name);
+        });
+    }
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：排程 " << delay_ms << "ms 後判定點火（C-2 第 3 項）";
+    m_photo_tile_warmup_timer->StartOnce(delay_ms);
+}
+
+void GUI_App::photo_tile_warmup_now(const std::string& why)
+{
+    if (is_closing() || mainframe == nullptr)
+        return;
+    std::string disabled_why;
+    if (ping_photo_tile_warmup_disabled(disabled_why)) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：不點火（" << disabled_why << "）";
+        m_photo_tile_warmup_fired = true;
+        return;
+    }
+    if (m_photo_tile_warmup_timer)
+        m_photo_tile_warmup_timer->Stop();        // 已由這條路點火＝排程中那次不用再跑
+    m_photo_tile_warmup_fired = true;
+
+    photo_tile_ensure_host();
+    if (!m_photo_tile_host)
+        return;
+    if (m_photo_tile_host->is_ready()) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：引擎已就緒，無需點火（why=" << why << "）";
+        return;
+    }
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：點火（why=" << why
+                            << "）——第一次生成不必再等引擎冷啟動";
+    /* start() 冪等（狀態機設計約束 D）：Ready／建立中都直接回 true，不會建第二棵引擎樹。
+       同步失敗（runtime 缺、CreateEnv 立刻 FAILED）只是預熱沒成，**不回推頁面錯誤**——
+       使用者根本還沒要求生成，這時候彈原因是噪音；真的按下產生時 generate() 會誠實回報
+       （覆審 I-1 那條路）。宿主自己已把 stage/status 寫進 log，診斷追得到。 */
+    m_photo_tile_host->start();
 }
 
 void GUI_App::photo_tile_page_script(const std::string& js)
