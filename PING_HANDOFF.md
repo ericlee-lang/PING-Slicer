@@ -15,6 +15,67 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### ✅ C-2 第 2 項・第五棒收工（2026-08-04 深夜・牌 c-0804-PT-15）——**原子上盤 guard 接上：「過期即棄」第一次真的棄了一個結果**
+
+**一句話**：一輪 #9 完工（Eric 0801 裁「真正守門點＝C-2 原子上盤入口」）——current-env provider 納入
+host API＋上盤入口原子比對，**產品路徑實證**：生成中真換 preset，遲到的結果被過期即棄（盤面、機型、
+專案全不動，頁面紅字人話＋檔案保留）。黃金 13/13 位元組全等、活體 A–H 全綠。
+
+**✅ 修了什麼（4 檔 +91/-6）**
+- **host**（`PhotoTileEngineHost.hpp/.cpp`）：`set_current_env_provider()`＋公開 `generate()` 包裝在
+  「有 provider 且 env 空」時蓋章（閘門自帶 ENV_A 等常數→不蓋；**不註冊 provider＝請求位元組與 C-1
+  全等＝黃金基準保命索**）。排隊補跑沿用原快照＝新鮮度從使用者按鈕那一刻起算。provider 例外走
+  safe_call、env 留空＝下游 fail-closed。
+- **GUI_App**：`photo_tile_current_env_json()`＝env 唯一來源（**printer preset 名＋project 檔名**，
+  #14 真 JSON writer 組字；蓋章與比對兩端同一支＝同一把尺）；`ensure_host` 註冊 provider；
+  `photo_tile_deliver_3mf` 簽名加 `result_env_json`（**刻意無預設值**——呼叫端必須表態，「忘了帶」
+  正是 #9 破口；nullptr＝舊 export 死路豁免並註記）；**guard 在 CallAfter 內第一步**：
+  `env_is_fresh` 不過 → log 兩份 env → `protocol_stale_env`（§7 既有碼）人話帶 3MF 路徑 → return
+  （比對與切機開檔同一個 UI 回呼＝原子；host 端與 CallAfter 之間隔一次事件佇列、使用者點擊可插隊，
+  所以比對不能放 result handler——這是位置的理由，勿搬）。
+- **為什麼 env 只放這兩樣**：filament／盤面編輯刻意不放——上盤本來就整組切機（線材隨機型預設）；
+  未存檔盤面編輯有既有「儲存變更?」對話框保護（I-2 case b＝使用者親眼決定≠靜默）。欄位少而確定
+  ＝正常沒動的生成不可能被誤判過期（誤殺比漏殺更傷）。
+
+**🔬 驗證（全部本棒實跑）**
+- build `/m:1 /p:CL_MPCount=6` 零錯誤；GUI_App/PhotoTileEngineHost/MainFrame obj 全新編＋
+  118 顆未編者＝與 PT-14 同集合（且本棒改動不動任何跨 TU 佈局：pimpl＋非虛擬方法＋簽名變更由 link 把關）
+- **黃金 13/13**：12 案 `goldenKnown` 逐案 `goldenPackageMatch+goldenEntriesMatch` 精確複驗 **0 不符**
+  ＋slots 反向測；`manifestLoaded=true`、非 BASELINE_CREATED
+- **活體 A–H 九段全 pass**（157s；`D_envSnapshot` pass＝ENV_A/B 常數路徑零擾動實證）
+- **P1 fresh 產品路徑 3 次全過**（貼圖→產生→上盤）：log 三連
+  `env 蓋章`→`3MF 落地`→`env 新鮮，上盤放行（#9 guard）`；**中文機名**（"FD300 同進照片磚 0.4 nozzle"）
+  與**反斜線專案路徑**（`C:\\Users\\...\\PING_photo_tile_*`）都走完 request→engine echo→比對判相等
+- **P2 stale 主案第 1 輪完整命中**（覆審指定驗收法「真的切換 preset」）：41MB 噪聲圖生成中
+  UI 實切 FD300 同進→FD450 Pro → log `結果過期即棄（#9 原子上盤 guard）` 帶兩份 env
+  （echo 緊湊格式 vs jfield 帶空格仍判對＝**按鍵比對非字串比對**實證）→ 標題/盤面/機型全不動、
+  無切機通知、頁面紅字：「產生期間您已切換機器或專案…（檔案保留在 …f7a4-f779-8a16.3mf）」
+  ＋該 3MF 磁碟實查 36.7MB 存在
+- 工具鏈沿用 PT-13（`ui_drive`＋`window_probe`＋剪貼簿 Ctrl+V）；新教訓：**多步 UI 連打每一步都要
+  `-Focus`**（無焦點時 mouse_event 座標會照打但 app 不收）；**視窗被人收起時 GetWindowRect＝-32000 系
+  ＝絕對座標點擊會落到桌面別處**——連打前先驗 rect 合法
+
+**✅ P2 stale 第 2 輪已補完（Eric 裁「繼續」→ 離機哨兵觸發後自動執行）**
+- **雙向都棄**：R1＝FD300 同進照片磚→FD450 Pro；R2＝FD450 Pro→FD300 同進照片磚 0.6
+  （**切到目標機型本身也一樣被棄**＝guard 看「環境變沒變」不是「變到哪」，語意正確）。
+  兩輪皆：log `結果過期即棄` 帶兩份 env／標題盤面機型全不動／頁面紅字帶各自的 3MF 保留路徑
+  （f7a4 36.7MB＋8122 36.7MB 磁碟實查）。
+- 中場插曲（下棒引以為鑑）：R2 第一刀點下拉選項後**面板殘影還在視窗清單**、被我誤判「沒選中」
+  ——log 時序證明其實已 commit（deliver 檢查時 env(now) 已是新機）。**判 UI 動作成敗以 log／
+  狀態為準，彈出視窗的存在不可靠**。
+- 另兩條誠實註記：舊 export 鏈（`phototile_export_end`）＝env 豁免（該協定無 env、頁面發送端已退役）
+  ——是表態不是漏網；`%TEMP%` 3MF 累積（本棒新添被棄的 f7a4/8122 兩顆）＝既有已知小事。
+
+**🧭 下一棒（C-2 剩餘）**：第 3 項閒置預熱（`m_photo_tile_host` 長命成員＋`photo_tile_capability_of(preset)`
+條件都已在）／第 4 項低記憶體韌性殘項／第 5 項大檔 result 段／第 6 項小項。
+**跨線注意**：#52 混色提示線（牌 c-0804-MX-01）在等本棒銷牌後動 GUI_Preview.cpp/PingMixEditor.cpp
+——同 worktree 不同檔，銷牌時已約定 send_message 通知。
+
+**線況**：開發線 `ping/v3.5`＝修碼 `8b9dba12`（4 檔 +91/-6）＋本 handoff 更新 commit，**未推遠端
+（推不推等 Eric，待確認檔已列）**；遠端仍在 `6d52832f`。出貨線 `release/v3.6` 全程未碰；**不押 T**。
+驗證實例已收乾淨（ping-slicer 0 行程、webview2_phototile 0 殘留）；Eric 正式版與 `%APPDATA%` 全程未碰。
+
+---
 ### ✅ C-2 第 1 項・第四棒收工（2026-08-04 晚・牌 c-0804-PT-14）——**覆審 I 級 7 條一刀清空＋全電池重跑全綠**
 
 **一句話**：Eric 裁「一刀改完 7 條、一次 build 驗」——I-1～I-7 全修＋🟡 順手批（slots 探針強化/空值改擋、
