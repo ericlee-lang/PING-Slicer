@@ -55,6 +55,48 @@
    **驗收條件＝實查視窗標題字串含掛牌**（`EnumWindows`＋`GetWindowTextW`，P/Invoke 必須
    `CharSet=Unicode`），不是看 code diff。零 build 擋法只救工作列、救不到 app 自繪 topbar。
 
+**C-2 第 1 項的接線設計（0804 定，動碼前的三個事實）**
+- 現況橋接：頁面→C++＝`window.wx.postMessage`（命令在 `GUI_App.cpp:4759~4864`）；
+  C++→頁面＝`WebViewPanel::RunScript("window.PINGPhotoTile.xxx()")`（`WebViewDialog.cpp:279` 影像分塊注入）。
+- **影像來源是關鍵**：拖放／首頁入口進來的圖 **C++ 有路徑**（`m_pending_photo_tile_image`）；
+  但**頁面內「開啟圖片」與 Ctrl+V 貼上的圖只存在頁面裡、C++ 沒有路徑**——而宿主
+  `PhotoTileEngineRequest.image_path` 要的是路徑。
+- **決定（我的判斷，非 Eric 裁）**：C++ 端持有「目前這張圖」的路徑；頁面內選檔／貼上時
+  **頁面把 bytes 回送 C++ 落成暫存檔**（鏡像既有 export 分塊鏈），生成請求本身**只送參數不送影像**。
+  理由：使用者動線一字不改；影像只傳一次；宿主自己在背景執行緒讀檔＋base64（已實作）。
+  替代案（改用原生檔案對話框拿路徑）動線會變，貼上情境仍無解，故不採。
+- Eric 0804 裁：**A 案就地轉換**；取消後盤上舊磚**留著**；重案中改參數**不自動重跑**。
+  原型＝`../照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html`（A 案就是要照它做的長相）。
+
+**🔴 C-2 開工當天抓到的 C-1 產品缺口（已修一半）：宿主沒把使用者挑的料色送下去**
+- `build_generate_command_impl()` 產生的 generate 請求**沒有 `slots` 欄位** ⇒ engine.js 收到
+  `slots:null` 就走「自動建議配色」。**工作室一旦改走宿主，使用者在畫面上挑的料色會被靜默丟掉。**
+- C-1 為什麼沒抓到：閘門與黃金 12 案全是自動配色案，那條路從來沒帶過 slots（同「沒走到的路＝沒驗過的路」，SOP §14）。
+- ✅ 已補：`PhotoTileEngineRequest::slots_json`＋`build_generate_command_impl` **非空才寫入**
+  ⇒ 不帶 slots 的請求字串與 C-1 逐字相同、**黃金 12 案基準不受影響**（這是刻意的保命索）。
+- ⚠ **尚未編譯、尚未驗**：改完要跑黃金閘門確認 12 案位元組仍全等，再補一案「帶 slots ⇒ 輸出必須不同」的反向測。
+
+**C-2 第 1 項的進度（0804 收工點・下一棒從這裡接）**
+- ✅ 已入版：`GUI_App.hpp` 加**長命宿主成員** `m_photo_tile_host`（同時是第 3 項預熱要掛的擁有者）
+  ＋影像回送緩衝成員＋四支 helper **宣告**；`PhotoTileEngineHost` 的 slots 直通。
+- 🔴 **還沒做（照這個順序做完才編）**：
+  1. `GUI_App.cpp` 檔尾實作四支 helper：`photo_tile_ensure_host()`（建宿主＋掛 progress/result/status
+     三個 handler，回推頁面用 `photo_tile_page_script()`）／`photo_tile_shutdown_host()`（`~GUI_App` 或
+     `OnExit` 呼叫）／`photo_tile_page_script()`（包 `mainframe->m_webview->RunScript`，webview 為空要安靜跳過）／
+     `photo_tile_deliver_3mf()`（把 `phototile_export_end`（`GUI_App.cpp:4813`）那段「寫暫存檔→
+     `ping_resolve_photo_tile_printer` 先切機→`request_open_project`」抽出來共用）。
+  2. 命令分派（接在 `phototile_export_end` 之後）新增五個：`phototile_generate`（讀參數→組
+     `PhotoTileEngineRequest`→`generate()`；**slots 用 ptree 原文轉 JSON 陣列塞 slots_json**）／
+     `phototile_cancel`／`phototile_image_begin|chunk|end`（頁面內選檔與貼上的圖沒有路徑 ⇒ 回送 bytes
+     落成暫存檔存進 `m_photo_tile_source_path`；鏡像 export 鏈的四項驗證：連號／塊數／總長度／上限）。
+  3. `index.html`：A 案進度 UI（照原型）＋`buildRequest()`（頁面狀態→engine 請求，欄位對照見
+     `engine.js:74-127` 的 `normalizeRequest`，註解直接寫著對應的 index.html 行號）＋`btnExport` 改送
+     `phototile_generate`＋接 `window.PINGPhotoTile.jobProgress/jobResult`＋取消鈕送 `phototile_cancel`。
+     **`build3mf()` 那條頁面自建鏈退役**（＝二輪 B1 的解）；非 embedded 的開發用路徑改直接呼叫
+     `engine.js` 的 `generate()`，兩條路同一支引擎。
+  4. 編譯 → **黃金閘門必跑**（動到生成路徑）→ 活體 A–H → 眼驗 A 案動線（含「壓測中勿操作」掛牌回歸＝第 7 項）。
+- ⚠ 現況：**C++ 有宣告未定義的四支 helper**（沒有呼叫端＝編得過），但別把這狀態當完成品押 T。
+
 **明早開工順序（Eric 0803 17:5x 裁「明天再說」＝C-2 今晚不開工）**
 1. 讀 `../照片磚_C1產物/vigil_overnight_20260803.json` 收閘門②（拿到 ≥6h 單一週期＝`PASS_OVERNIGHT`）。
 2. **守夜收掉才解得開 DLL**（掛著就 build 不了，0802 已踩過）⇒ 收完才動 C++。

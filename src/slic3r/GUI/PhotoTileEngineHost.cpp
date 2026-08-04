@@ -891,6 +891,10 @@ std::string build_generate_command_impl(const PhotoTileEngineRequest& req)
         if (req.max_decoded_pixels > 0) { if (!first) r += ","; r += jkn("maxDecodedPixels", (double) req.max_decoded_pixels); }
         r += "}";
     }
+    /* C-2：使用者挑的料色。**只在非空時寫入** ⇒ 不帶 slots 的路徑（C-1 閘門、黃金 12 案）
+       產生的請求字串與 C-1 完全同字，位元組基準不受影響。 */
+    if (!req.slots_json.empty())
+        r += ",\"slots\":" + req.slots_json;
     if (req.want_metadata)
         r += ",\"metadata\":{" + jkv("groupUuid", req.group_uuid) + "," +
              jkb("embedSource", req.embed_source) + "," + jkv("createdBy", "PING-Slicer") + "}";

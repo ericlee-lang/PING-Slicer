@@ -52,6 +52,12 @@ struct PhotoTileEngineRequest
     int         grid_max = 0;        // 0＝引擎預設（3200）
     long long   max_decoded_pixels = 0;
 
+    /* 【C-2 2026-08-04 補】使用者在工作室挑的料色（engine.js 的 `slots`，JSON 陣列原文）。
+       空＝引擎自動建議配色（＝C-1 的行為）。**這是 C-1 的產品缺口**：C-1 的閘門全是自動
+       配色案，宿主從來沒有把使用者選的顏色送下去；工作室一旦改走宿主，不補這欄就會靜默
+       丟掉使用者的配色。刻意做成「非空才寫進請求」＝不帶時位元組與 C-1 全等，黃金 12 案基準不受影響。 */
+    std::string slots_json;
+
     std::string image_path;          // 原圖檔；宿主自行讀取＋base64（背景執行緒）
     bool        want_metadata = true;// 寫入 3MF 的 ping_phototile.json（裁決 6）
     bool        embed_source  = true;

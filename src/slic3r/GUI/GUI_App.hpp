@@ -222,6 +222,8 @@ public:
     }
 };
 
+class PhotoTileEngineHost;   // C-2：照片磚隱形宿主（定義在 PhotoTileEngineHost.hpp，只在 .cpp 引入）
+
 class GUI_App : public wxApp
 {
 public:
@@ -244,6 +246,21 @@ private:
     size_t          m_photo_tile_export_expected_chunks{ 0 };
     size_t          m_photo_tile_export_next_chunk{ 0 };
     bool            m_photo_tile_export_active{ false };
+    /* ── C-2 第 1 項：工作室接隱形宿主（2026-08-04） ─────────────────────────
+       生成從「工作室頁自己建 3MF」改成「頁面只送參數、C++ 驅動 PhotoTileEngineHost」。
+       這個宿主**刻意做成長命的**（不是每次生成 new 一顆）——它同時是 C-2 第 3 項
+       「閒置預熱」要掛的那個擁有者（Eric 0802 裁 A），現在先讓它存在、預熱下一刀再接。
+       ⚠ 生命週期：只在 UI 執行緒建立／拆除；shutdown() 由 GUI_App 結束時呼叫。 */
+    std::unique_ptr<PhotoTileEngineHost> m_photo_tile_host;
+    std::string     m_photo_tile_active_job;      // 進行中的 jobId（空＝閒置）
+    std::string     m_photo_tile_source_path;     // 「目前這張圖」的檔案路徑（宿主自己讀）
+    // 頁面內選檔／貼上的圖沒有路徑 ⇒ 頁面把 bytes 回送，這裡落成暫存檔（見 handoff 接線設計）
+    std::vector<unsigned char> m_photo_tile_image_buffer;
+    size_t          m_photo_tile_image_expected_size{ 0 };
+    size_t          m_photo_tile_image_expected_chunks{ 0 };
+    size_t          m_photo_tile_image_next_chunk{ 0 };
+    bool            m_photo_tile_image_active{ false };
+    std::string     m_photo_tile_image_mime;
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -481,6 +498,13 @@ public:
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            open_photo_tile(const wxString& image_path = wxEmptyString);
+    // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──
+    void            photo_tile_ensure_host();                       // 建立長命宿主（含 runtime 檢測）
+    void            photo_tile_shutdown_host();                     // app 收攤時收乾淨
+    void            photo_tile_page_script(const std::string& js);  // 回推頁面（webview 不在就安靜跳過）
+    // 生成完成後的落地：寫暫存 3MF →（照舊）先切機再開檔。與舊 export_end 走同一條路。
+    void            photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
+                                           const std::string& mode, const std::string& nozzle);
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);
