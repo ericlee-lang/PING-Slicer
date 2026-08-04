@@ -705,11 +705,20 @@ function loadBitmap(bmp, label){
 }
 async function loadFile(f){
   if(!f || !f.type.startsWith('image/')) return;
+  if(f.size > 64*1024*1024){                       // 與 C++ 端 max_image_bytes 同值，前擋給人話
+    document.getElementById('srcStat').textContent='圖片檔案過大（上限 64 MB），請先縮小圖片再試。';
+    return;
+  }
   try{
     loadBitmap(await createImageBitmap(f), f.name||'貼上的圖');
     /* C-2 接線設計（0804）：頁內選檔/貼上的圖 C++ 沒有路徑，而宿主吃檔案路徑
-       ⇒ 原始位元組回送 C++ 落成暫存檔。生成前會 await imageSync＝不會生成到上一張。 */
-    if(slicerBridgeReady()) imageSync=syncImageToHost(f).catch(()=>{});
+       ⇒ 原始位元組回送 C++ 落成暫存檔。生成前會 await imageSync＝不會生成到上一張。
+       失敗不吞（覆審 B-1/I-11）：存原 promise 給生成端 await 判失敗；這裡另掛
+       catch 立即顯示原因（同時免 unhandled rejection）。 */
+    if(slicerBridgeReady()){
+      imageSync=syncImageToHost(f);
+      imageSync.catch(()=>{ document.getElementById('srcStat').textContent='圖片未能傳給引擎，請重新選一次圖片。'; });
+    }
   }
   catch(e){ document.getElementById('srcStat').textContent='這張圖讀不進來，換一張試試'; }
 }
@@ -1107,18 +1116,25 @@ function bytesToBase64(bytes){
   return btoa(binary);
 }
 /* ── C-2 影像回送：頁內選檔/貼上的圖 → C++ 暫存檔（96KB 原始塊＝可被 3 整除、
-      base64 無中段 padding，與舊 export 鏈同法）。C++ 端四項驗證：連號/塊數/總長度/上限。 ── */
+      base64 無中段 padding，與舊 export 鏈同法）。C++ 端四項驗證：連號/塊數/總長度/上限。
+      傳輸 token（覆審 B-1）：連續換圖時 loadFile 只覆寫 imageSync 變數、不會取消已在跑
+      的迴圈 ⇒ 舊迴圈用 token 自行退場，絕不與新傳輸的 begin/chunk 交錯。 ── */
+let imageSyncSeq=0;
 async function syncImageToHost(f){
+  const my=++imageSyncSeq;
   const bytes=new Uint8Array(await f.arrayBuffer());
+  if(my!==imageSyncSeq) return;                    // 等 arrayBuffer 期間已被新圖取代
   if(!bytes.length) return;
   const rawChunkSize=96*1024;
   const chunks=Math.ceil(bytes.length/rawChunkSize);
   sendSlicerMessage('phototile_image_begin',{size:bytes.length,chunks,mime:f.type||'image/png',name:f.name||''});
   for(let i=0;i<chunks;i++){
+    if(my!==imageSyncSeq) return;                  // 被新傳輸取代：讓位，別把塊插進人家的序列
     sendSlicerMessage('phototile_image_chunk',{index:i,
       base64:bytesToBase64(bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize)))});
     await new Promise(r=>setTimeout(r,0));
   }
+  if(my!==imageSyncSeq) return;
   sendSlicerMessage('phototile_image_end',{});
 }
 
@@ -1221,7 +1237,9 @@ document.getElementById('btnExport').onclick=async()=>{
     /* 產品路徑：只送參數（含 slotsJson），影像用 C++ 手上的路徑；進度/結果由宿主回推
        （window.PINGPhotoTile.jobProgress / jobResult / engineStatus）。 */
     genBegin(req.jobId);
-    try{ await imageSync; }catch(e){}
+    /* 影像沒落到 C++ 就誠實失敗（覆審 B-1/I-11）——吞掉會生成到上一張圖 */
+    try{ await imageSync; }
+    catch(e){ genFinishFail('圖片未能傳給引擎，請重新載入圖片再試。'); return; }
     if(!genState||genState.jobId!==req.jobId) return;        // 等影像落地期間被取消
     sendSlicerMessage('phototile_generate',{
       jobId:req.jobId, mode:req.mode,

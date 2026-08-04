@@ -4931,6 +4931,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_active_job    = job_id;
                 m_photo_tile_active_mode   = mode;
                 m_photo_tile_active_nozzle = nozzle;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：generate 分派 job=" << job_id << ", mode=" << mode
+                                        << ", nozzle=" << nozzle << ", source=" << m_photo_tile_source_path;
                 m_photo_tile_host->generate(engine_req);
             }
             else if (command_str.compare("phototile_cancel") == 0) {
@@ -4938,6 +4940,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 /* A 案（Eric 0804 裁）：取消＝頁面當下自行恢復 UI、盤上舊磚不動。這裡清 active
                    ⇒ 這個 job 之後任何遲到的結果（含引擎未就緒期間排隊補跑完的）一律被
                    result handler 丟棄，絕不上盤。 */
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：cancel job=" << job_id
+                                        << "（active=" << m_photo_tile_active_job << "）";
                 if (!job_id.empty() && job_id == m_photo_tile_active_job)
                     m_photo_tile_active_job.clear();
                 if (!job_id.empty() && m_photo_tile_host)
@@ -4957,15 +4961,27 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_image_active = false;
                 m_photo_tile_image_mime.clear();
 
+                /* fail-closed（覆審 B-1）：begin 當下就作廢舊來源——之後不論傳輸失敗、
+                   或送了 begin 就沒下文，generate 都誠實回「沒有可用的影像來源」，絕不
+                   靜默沿用上一張圖（預覽是新圖、生成用舊圖＝與 slots 缺口同形狀）。
+                   舊路徑記進 pending（僅非空時覆寫，防連續 begin 弄丟待清的舊檔），
+                   end 成功換上新檔後才拿它刪舊暫存檔。 */
+                if (!m_photo_tile_source_path.empty())
+                    m_photo_tile_pending_previous = m_photo_tile_source_path;
+                m_photo_tile_source_path.clear();
+
                 if (expected_size == 0 || expected_size > max_image_bytes || expected_chunks == 0 || expected_chunks > 8192) {
                     BOOST_LOG_TRIVIAL(warning) << "Rejected invalid photo tile image upload: size=" << expected_size
                                                << ", chunks=" << expected_chunks;
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片檔案過大（上限 64 MB）或傳輸資料異常，請重新選一次圖片。');");
                 } else {
                     m_photo_tile_image_buffer.reserve(expected_size);
                     m_photo_tile_image_expected_size = expected_size;
                     m_photo_tile_image_expected_chunks = expected_chunks;
                     m_photo_tile_image_mime = root.get<std::string>("data.mime", "image/png");
                     m_photo_tile_image_active = true;
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送開始 size=" << expected_size
+                                            << ", chunks=" << expected_chunks << ", mime=" << m_photo_tile_image_mime;
                 }
             }
             else if (command_str.compare("phototile_image_chunk") == 0) {
@@ -4979,6 +4995,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                                                << m_photo_tile_image_next_chunk << ", got=" << index;
                     m_photo_tile_image_active = false;
                     m_photo_tile_image_buffer.clear();
+                    // 來源已在 begin 作廢＝維持 fail-closed；這裡只補「讓失敗顯性」（覆審 B-1）
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸中斷，請重新選一次圖片。');");
                     return "";
                 }
 
@@ -4989,6 +5007,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk could not be decoded";   // ③總長上限
                     m_photo_tile_image_active = false;
                     m_photo_tile_image_buffer.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸資料異常，請重新選一次圖片。');");
                     return "";
                 }
 
@@ -5002,6 +5021,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     BOOST_LOG_TRIVIAL(warning) << "Photo tile image upload ended before all data arrived";
                     m_photo_tile_image_active = false;
                     m_photo_tile_image_buffer.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸不完整，請重新選一次圖片。');");
                     return "";
                 }
 
@@ -5025,17 +5045,21 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_image_expected_chunks = 0;
                 m_photo_tile_image_next_chunk = 0;
 
-                // 換掉舊的頁內來源暫存檔（只刪我們自己產的；被讀取中刪不掉＝忽略）
-                const std::string previous_path = m_photo_tile_source_path;
+                // 換掉舊的頁內來源暫存檔（只刪我們自己產的；被讀取中刪不掉＝忽略）。
+                // 舊路徑在 begin 時已搬進 pending（source_path 此刻必為空＝fail-closed）。
+                const std::string previous_path = m_photo_tile_pending_previous;
 
                 if (!write_ok) {
-                    /* fail-honest：寫檔失敗就清空來源——保留舊路徑會讓「預覽是新圖、生成用舊圖」
-                       靜默發生；清掉之後 generate 會誠實回「沒有可用的影像來源」。 */
+                    /* fail-honest：寫檔失敗就維持來源為空（begin 已清）——保留舊路徑會讓
+                       「預覽是新圖、生成用舊圖」靜默發生；generate 會誠實回「沒有可用的影像來源」。 */
                     BOOST_LOG_TRIVIAL(warning) << "Unable to write photo tile source image: " << image_path.string();
                     m_photo_tile_source_path.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片暫存檔寫入失敗，請重新選一次圖片。');");
                     return "";
                 }
                 m_photo_tile_source_path = image_path.string();
+                m_photo_tile_pending_previous.clear();
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送落檔 " << m_photo_tile_source_path;
                 if (previous_path != m_photo_tile_source_path &&
                     previous_path.find("PING_photo_tile_src_") != std::string::npos) {
                     try { boost::filesystem::remove(boost::filesystem::path(previous_path)); }
@@ -8605,6 +8629,8 @@ void GUI_App::photo_tile_ensure_host()
         const std::string mode   = m_photo_tile_active_mode;
         const std::string nozzle = m_photo_tile_active_nozzle;
         m_photo_tile_active_job.clear();
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：result 回推 job=" << r.job_id << ", ok=" << r.ok
+                                << (r.ok ? std::string() : ("，error=" + r.error_code));
 
         if (!r.ok) {
             photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
@@ -8672,6 +8698,8 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
     const std::string project_path = output_path.string();
     // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
     const auto target = ping_resolve_photo_tile_printer(mode, nozzle);
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：3MF 落地 " << project_path
+                            << "，目標機型=" << (target.preset_name.empty() ? std::string("(不切機)") : target.preset_name);
     CallAfter([this, project_path, target] {
         if (!target.preset_name.empty()) {
             Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
