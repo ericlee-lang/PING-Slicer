@@ -49,6 +49,7 @@
     "support_interface_top_layers": "1",
     "support_interface_bottom_layers": "1",
     "support_interface_spacing": "0.2",
+    "raft_first_layer_density": "10%",
     "tree_support_wall_count": "0",
     "support_base_pattern": "hollow",
     "enable_prime_tower": "1",
