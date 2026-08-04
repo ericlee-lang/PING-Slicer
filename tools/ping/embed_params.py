@@ -464,15 +464,30 @@ def normalize_unified_values(proc, ff=False):
     proc["support_threshold_angle"] = "35"
     return proc
 
-# ★ 支撐介面一律值（Eric 2026-07-14 裁）：頂部接觸面層數 4、頂部接觸面間距 0.1。
-# 只「收緊不放鬆」：層數 1/2→4；間距比 0.1 鬆（0.2/0.4/0.5/1）→0.1；
-# 比 0.1 更密的既有定稿不動（ABS+SUP 黃金 0.04、3in1 實心 0——是否也收 0.1 待 Eric 另裁）。
-# 範本 emit（ff_extra 3in1/同進、照片磚）不套（範本已驗證不改值原則）；DL1016 不在 repo 自然跳過。
-def normalize_support_interface(proc):
+# ★ 支撐介面值（Eric 2026-08-04 裁，V2.1「密度表示」→Orca「間距表示」換算；蓋 0714「間距一律 0.1」）：
+# 頂部接觸面層數 4（0714 不變）；頂部接觸面間距分家族——
+# ①一般支撐（同料，密度決定好不好拆）＝70% 密度等效口徑連動：Orca 間距＝線與線淨間隙、
+#   密度＝線寬/(間距+線寬)（SupportParameters.hpp:104，同 0722 主體線距 ×9 的推導）
+#   ⇒ 70% 需間距＝口徑×3/7 取兩位（0.25→0.11、0.4→0.17、0.6→0.26＝Eric 截圖錨值、1.0→0.43）。
+#   分子用口徑名目值（FF 微調線寬不入分子，同 0722 家規）。替換集合含單料/同進 V3.0 源值 0.04
+#   與 0714 產物 0.1（Eric 示範正是把同進 0.6 的 0.04 改 0.26）。
+# ②易拆家族（SUP/PVA 專用支撐料，介面密＝表面品質、不影響拆）＝維持既值不動：
+#   PLA+SUP/PVA 0.1（0714 規則照舊）、ABS+SUP 黃金 0.04、3in1 實心 0（承 0714/0722「不蓋」先例）。
+# 支撐首層密度 raft_first_layer_density（支撐貼板首層；與 raft 共用鍵）＝10% 全庫（Eric 0804 裁；
+#   主體類規則全庫套＝同 0722 ×9 先例，含易拆/3in1 範本 30%）；raft 機種（ABS 系/棧板 raft_layers≥1）
+#   ＝raft 首層＝貼床要抓床，維持 100% 不動——呼叫點須在 combo_overrides 之後（raft_layers 已定）。
+# DL1016 不在 repo 自然跳過。
+def normalize_support_interface(proc, nozzle=None, easy_release=False):
     if proc.get("support_interface_top_layers") in ("1", "2"):
         proc["support_interface_top_layers"] = "4"
-    if proc.get("support_interface_spacing") in ("0.2", "0.4", "0.5", "1"):
-        proc["support_interface_spacing"] = "0.1"
+    if easy_release or nozzle is None:
+        if proc.get("support_interface_spacing") in ("0.2", "0.4", "0.5", "1"):
+            proc["support_interface_spacing"] = "0.1"
+    else:
+        if proc.get("support_interface_spacing") in ("0.04", "0.1", "0.2", "0.4", "0.5", "1"):
+            proc["support_interface_spacing"] = "%g" % round(float(nozzle) * 3 / 7, 2)
+    if str(proc.get("raft_layers", "0")) == "0":
+        proc["raft_first_layer_density"] = "10%"
     return proc
 
 # ★ 支撐幾何口徑連動（Eric 2026-07-17 裁；線距 2026-07-22 裁 ×9 新規蓋舊規）：
@@ -759,6 +774,9 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
             normalize_support_geometry(d, m_nz.group(1))  # 樹狀直徑×12(上限10)＋分支距離×6＋主體線距×9（0717/0722/0725，FF 範本同套）
             normalize_support_recipe(d, m_nz.group(1), easy_release=("3in1" in d["name"]))  # FF 同進套普通支撐配方；3in1 易拆跳過
             normalize_tree_support(d)  # 樹狀保守配方＋organic 防呆（2026-07-25）
+            # 介面間距 70% 等效＋首層密度 10%（0804 起 FF 範本同套：同進 0.04/四色 0.1→口徑×3/7、
+            # 首層 100%/30%→10%；3in1 easy_release＝介面實心 0 維持）。0714「範本不套」自此作廢。
+            normalize_support_interface(d, m_nz.group(1), easy_release=("3in1" in d["name"]))
         d["filename_format"] = filename_tpl("3in1" if "3in1" in d["name"] else "同進")  # 檔名新格式（2026-07-23）FF 範本同套
         # ★ 高流量雙生派生點（2026-07-30 Eric 裁）：FF800 同進限定（排除 3in1／FF600），
         #   在全部正規化完成之後複製＝速度/加速度家規先套滿、再被高流量定案值覆蓋
@@ -817,7 +835,9 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
             normalize_support_geometry(d, m_nz_pt.group(1))
             normalize_support_recipe(d, m_nz_pt.group(1))
         normalize_tree_support(d)
-        normalize_support_interface(d)      # 介面 4 層/0.1「只收緊不放鬆」（照片磚現值 0.04 更密＝不動）
+        # 介面間距 70% 等效＋首層密度 10%（0804；照片磚承 0725「支撐參數全部統一」＝0.04/100% 一併換，
+        # enable_support=0＋磚體平貼床＝零功能影響、純消除差異）
+        normalize_support_interface(d, m_nz_pt.group(1) if m_nz_pt else None)
         d["support_threshold_angle"] = "35"  # 與全庫同值（原 30 豁免取消）
         # ★ 支撐開關關掉（Eric 2026-07-25 追裁）：0725 首輪回報「enable_support 其實是 1」＝
         #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
@@ -937,7 +957,9 @@ def main(src_base):
                     normalize_prime_tower(proc)  # 換料塔統一（0708 立；0717 寬 25；0729 錐體30/速60）
                     normalize_wall_accel(proc)   # 內外牆加速度 1500（2026-07-29 Eric 裁）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 主線統一值；FF 四色 jerk 維持 40
-                    normalize_support_interface(proc)  # 支撐介面一律 4 層/間距 0.1（2026-07-14）
+                    # 介面 4 層＋間距 70% 密度等效口徑連動＋首層密度 10%（0804；易拆間距既值不動、
+                    # ABS 系 raft_layers=2 已由 combo_overrides 設定→首層 100% 自然跳過）
+                    normalize_support_interface(proc, nz, easy_release=cb.endswith("+SUP"))
                     normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×12(上限10)＋分支距離口徑×6＋主體線距口徑×9（0717/0722/0725）
                     normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
                     normalize_tree_support(proc)  # 樹狀保守配方＋organic 防呆（2026-07-25）

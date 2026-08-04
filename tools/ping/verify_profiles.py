@@ -197,6 +197,25 @@ for name, (kind, d) in presets.items():
                                    ("support_base_pattern_spacing", _spacing)):
                     if d.get(key) != value:
                         err(f"[support geometry 口徑連動] {name}: {key}={d.get(key)!r}, expected {value!r}")
+                # 頂部接觸面間距（Eric 2026-08-04 裁「70% 密度等效」蓋 0714「一律 0.1」）：
+                # 一般支撐＝口徑×3/7 取兩位（密度＝線寬/(間距+線寬)⇒70%；0.25→0.11/0.4→0.17/
+                # 0.6→0.26＝Eric 截圖錨值/1.0→0.43）；易拆家族既值不動（介面密＝表面品質、不影響拆）：
+                # PLA+SUP/PVA 0.1、ABS+SUP 黃金 0.04、3in1 實心 0（承 0714/0722「不蓋」先例）。
+                if _ctok == COMBO_CAT_EASYPAL:
+                    _sis = "0.04"
+                elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA):
+                    _sis = "0.1"
+                elif "3in1" in name:
+                    _sis = "0"
+                else:
+                    _sis = "%g" % round(nz * 3 / 7, 2)
+                if d.get("support_interface_spacing") != _sis:
+                    err(f"[支撐介面 70% 等效 0804] {name}: support_interface_spacing={d.get('support_interface_spacing')!r}, expected {_sis!r}")
+                # 支撐首層密度（同鍵服務 raft 首層）＝10% 全庫（0804；主體類規則全庫套＝0722 ×9 先例，
+                # 含 3in1 範本 30%→10%）；raft 機種（ABS 系/棧板 raft_layers≥1）＝貼床抓床維持 100%。
+                _rfd = "100%" if str(d.get("raft_layers", "0")) != "0" else "10%"
+                if d.get("raft_first_layer_density") != _rfd:
+                    err(f"[支撐首層密度 0804] {name}: raft_first_layer_density={d.get('raft_first_layer_density')!r}, expected {_rfd!r}")
                 # 普通支撐配方（Eric 2026-07-22 七裁；行為四項同日二裁擴及易拆）：
                 # 類型/獨立層高/樣式/圖案＝全支撐；XY＝一般口徑×1（易拆維持 7/14 各自定稿不查）
                 expected_recipe = [("support_type", "normal(auto)"),
