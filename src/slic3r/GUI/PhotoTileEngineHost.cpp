@@ -489,6 +489,18 @@ PhotoTileEngineHost::Availability PhotoTileEngineHost::check_runtime()
     return a;
 }
 
+namespace {
+/* 覆審 B-2：隱形宿主是無 parent 的 top-level frame，而 wxFrame::ShouldPreventAppExit()
+   預設回 true ⇒ 主視窗關掉後它還把 app 釘在主迴圈裡（OnExit 永遠跑不到、宿主收不了攤、
+   行程與 msedgewebview2 殘留）。比照 wx 自家 log 視窗的作法：宣告自己不擋 app 退出。 */
+class PhotoTileHostFrame : public wxFrame
+{
+public:
+    using wxFrame::wxFrame;
+    bool ShouldPreventAppExit() const override { return false; }
+};
+} // namespace
+
 bool PhotoTileEngineHost::Impl::start_engine()
 {
     // 狀態機（設計約束 D）：任何時刻只有一條建立路徑。Rebuilding 也算建立中，
@@ -509,8 +521,9 @@ bool PhotoTileEngineHost::Impl::start_engine()
     }
     if (!host_frame) {
         // 隱藏宿主視窗：**永不 Show()**。WebView2 controller 需要真 HWND。
-        host_frame = new wxFrame(nullptr, wxID_ANY, "PING PhotoTile Engine", wxDefaultPosition,
-                                 wxSize(1, 1), wxFRAME_TOOL_WINDOW | wxFRAME_NO_TASKBAR);
+        // 用不擋退出的子類（覆審 B-2）——裸 wxFrame 會讓「用過照片磚後關主視窗」行程不結束。
+        host_frame = new PhotoTileHostFrame(nullptr, wxID_ANY, "PING PhotoTile Engine", wxDefaultPosition,
+                                            wxSize(1, 1), wxFRAME_TOOL_WINDOW | wxFRAME_NO_TASKBAR);
     }
     // 保險絲：頁面端已守零計時器紀律，這裡再關掉背景計時器節流（C-0 §3.2 第二道防線）
     auto options = Make<CoreWebView2EnvironmentOptions>();

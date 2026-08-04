@@ -265,6 +265,9 @@ private:
     size_t          m_photo_tile_image_next_chunk{ 0 };
     bool            m_photo_tile_image_active{ false };
     std::string     m_photo_tile_image_mime;
+    // begin 當下無條件作廢 m_photo_tile_source_path（fail-closed，覆審 B-1）；舊路徑暫存
+    // 於此，只供 end 成功換上新檔後刪舊暫存檔用。空＝沒有待清的舊檔。
+    std::string     m_photo_tile_pending_previous;
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif

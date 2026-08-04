@@ -619,6 +619,9 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         // propagate event
 
         wxGetApp().remove_mall_system_dialog();
+        /* 覆審 B-2 修法 B：主迴圈還活著時先拆照片磚隱形宿主（WebView2 controller 的收攤
+           時機才確定；只靠 OnExit 那次已在迴圈停止後）。冪等，OnExit 保留當第二道網。 */
+        wxGetApp().photo_tile_shutdown_host();
         event.Skip();
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": mainframe finished process close_widow event";
     });
