@@ -48,6 +48,7 @@ class wxMenuBar;
 class wxTopLevelWindow;
 class wxDataViewCtrl;
 class wxBookCtrlBase;
+class wxTimer;              // C-2 第 3 項：閒置預熱用（實體是 .cpp 裡自帶 Notify() 的子類）
 // BBS
 class Notebook;
 struct wxLanguageInfo;
@@ -270,6 +271,16 @@ private:
        一顆。刪舊來源只刪記過帳的，**絕不憑檔名長相刪**——substring 比對會誤刪使用者
        留存的真實照片（拖放／開檔進來的真實路徑永遠不寫進這個成員）。空＝沒有待清的。 */
     std::string     m_photo_tile_owned_temp;
+    /* ── C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A） ───────────────────────────
+       C-1 閘門①實錄：「app 一開就拖照片」＝引擎冷啟動撞 app 初始化 ⇒ 首輪 6,579ms、
+       UI 漂移 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額全在「建 WebView2 環境
+       ＋controller＋導頁」那 0.5~5 秒，而它可以在使用者還沒動作時先付掉。
+       ⚠ 這個 timer **刻意不掛 GUI_App 當 owner**：GUI_App 既有的 `Bind(wxEVT_TIMER, …)`
+       （on_start_subscribe_again）沒有 id 過濾，共用 owner 會互相收到對方的 tick
+       （對方 handler 會去動 subscribe_counter）。改用自帶 Notify() 的 wxTimer 子類＝零事件交叉。 */
+    wxTimer*        m_photo_tile_warmup_timer{ nullptr };
+    bool            m_photo_tile_warmup_fired{ false };  // 已點過火（或已判定不點）＝不再排程
+    int             m_photo_tile_warmup_defers{ 0 };     // 因切片中而延後的次數（有上限，見 .cpp）
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -510,6 +521,11 @@ public:
     // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──
     void            photo_tile_ensure_host();                       // 建立長命宿主（含 runtime 檢測）
     void            photo_tile_shutdown_host();                     // app 收攤時收乾淨
+    // ── C-2 第 3 項：閒置預熱（Eric 0802 裁 A）──
+    // schedule＝排一次性 timer（app 初始化完才排，讓引擎冷啟動落在閒置期而非撞 app init）；
+    // now＝真的點火（守門：閘門模式／kill switch／收攤中一律不點）。兩支都冪等。
+    void            photo_tile_schedule_warmup(int delay_ms = -1);  // -1＝預設 15 秒（env 可覆寫）
+    void            photo_tile_warmup_now(const std::string& why);
     void            photo_tile_page_script(const std::string& js);  // 回推頁面（webview 不在就安靜跳過）
     // 生成完成後的落地：寫暫存 3MF →（照舊）先切機再開檔。與舊 export_end 走同一條路。
     // done（覆審 I-2）：上盤是非同步動作＝完成/失敗由它回報——寫檔失敗 deliver_failed、
