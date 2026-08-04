@@ -71,8 +71,9 @@ host API＋上盤入口原子比對，**產品路徑實證**：生成中真換 p
 **跨線注意**：#52 混色提示線（牌 c-0804-MX-01）在等本棒銷牌後動 GUI_Preview.cpp/PingMixEditor.cpp
 ——同 worktree 不同檔，銷牌時已約定 send_message 通知。
 
-**線況**：開發線 `ping/v3.5`＝修碼 `8b9dba12`（4 檔 +91/-6）＋本 handoff 更新 commit，**未推遠端
-（推不推等 Eric，待確認檔已列）**；遠端仍在 `6d52832f`。出貨線 `release/v3.6` 全程未碰；**不押 T**。
+**線況**：開發線 `ping/v3.5`＝修碼 `8b9dba12`＋handoff `66f845e2`，**已推遠端**（Eric 0804 深夜裁「推」；
+`6d52832f..66f845e2`、`ls-remote` 複驗一致；觸發的是輕量 PING verify、非 Build all）。
+出貨線 `release/v3.6` 全程未碰；**不押 T**。
 驗證實例已收乾淨（ping-slicer 0 行程、webview2_phototile 0 殘留）；Eric 正式版與 `%APPDATA%` 全程未碰。
 
 ---
