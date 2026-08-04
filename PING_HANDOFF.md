@@ -48,7 +48,32 @@
 - node 測：協定 **32 過 0 失敗**＋zip fallback **PASS**。
 - 全量重編：**352 顆 obj 全新、0 過期、0 錯誤**，`OrcaSlicer.dll` 118.5MB @ 0804 11:19。
 
-**🔴 完全沒驗的（下一棒的四步驟，順序不可換）**
+**🔴🔴 收工後的對抗性覆審抓到兩條阻斷級——下一棒「先修再驗」，不要直接開始驗證**
+> 全文＝`../照片磚_C2產物/_覆審_C2第1項_未驗證diff_20260804.md`（32 agents／749 tool calls／
+> 42 條通過對抗驗證；含「已覆蓋」清單可省下重審、與「Phase 0 零 build 先做完」的省時路徑）。
+> ⚠ 報告本身**也沒有實機執行確認**，但下面兩條我已親自讀碼核實為真。
+
+- 🔴 **B-1（我這棒寫壞的）影像回送鏈 fail-open ⇒ 換圖失敗會靜默沿用上一張圖生成、還回報成功**。
+  `GUI_App.cpp:4960`（begin 拒收）／`4977`（連號不符）／`4988`（解碼失敗）三條失敗路徑
+  **只寫 log、沒清 `m_photo_tile_source_path`**，而寫檔失敗那條（`5031`）**有**清空並註解了危害
+  ——四條路只補了一條。下游 `4883-4887` 只驗「路徑非空＋檔案存在」（舊暫存檔必定還在）⇒ 必過。
+  **形狀與 C-1 那個 slots 缺口完全相同**（靜默丟掉使用者的東西），諷刺的是同一顆 commit 才剛把 slots 改成 fail-closed。
+  最省的修法＝在 begin 的重置區塊（`4953`）**無條件作廢舊來源**（把舊值先存進新成員 `m_photo_tile_pending_previous`
+  供 `5029` 的刪檔判斷用），比逐條補 clear 更完整（連「送了 begin 就沒下文」也蓋到）；
+  四條分支各補一行 `photo_tile_page_script(...imageError...)`（收件口 `index.html:734` 早就存在）；
+  頁面端 `index.html:1111` 加傳輸 token 防連續換圖競態（`loadFile` 只覆寫 `imageSync` 變數、不取消舊迴圈）。
+- 🔴 **B-2（C-1 遺留、C-2 才會暴露）隱形宿主是無 parent 的 top-level `wxFrame`** ⇒
+  `PhotoTileEngineHost.cpp:512` 的 `new wxFrame(nullptr, …)` 會讓 `ShouldPreventAppExit()` 為真，
+  **用過一次照片磚後關主視窗不會結束行程**、`OnExit()` 跑不到 ⇒ `photo_tile_shutdown_host()` 永遠不執行，
+  行程與 `msedgewebview2.exe` 殘留、再開就是第二份實例吃同一個 data root。
+  修法 A（足以解除阻斷）＝改成 override `ShouldPreventAppExit()` 回 false 的子類（wx 自己對 log 視窗就這樣做）；
+  修法 B（建議併做）＝`MainFrame.cpp` 的 `wxEVT_CLOSE_WINDOW` handler 內、`remove_mall_system_dialog()` 隔壁
+  加一行 `wxGetApp().photo_tile_shutdown_host();`（冪等，OnExit 那支留當第二道網）。
+  ⚠ **不能拿黃金閘門的綠燈當證據**——閘門的 `conclude()` 自己先 shutdown，天生繞過這個 bug；
+  要用正式模式（不設 `PING_PHOTOTILE_SMOKE`）起 app、生成一次、關窗後查行程殘留。
+  ⚠ 這條也表示：**C-1 的「產品宿主」其實從未被產品路徑走過**，只被閘門走過。
+
+**🔴 完全沒驗的（下一棒的四步驟，順序不可換；⚠ 但要先修上面兩條阻斷）**
 1. **app 能不能啟動**——本棒兩次啟動都崩（見下方教訓），修掉漏編後**沒有再測過一次**。先跑這個。
 2. **黃金閘門** `PING_PHOTOTILE_SMOKE=golden`（動了生成路徑＝必跑）：12 案位元組全等＋第 13 案 slots 反向測。
 3. **活體 A–H**＋**embedded 產品路徑**——⚠ **最大未驗區**：本棒驗的全是頁面內的開發路徑，
