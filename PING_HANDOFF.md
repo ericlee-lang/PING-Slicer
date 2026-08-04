@@ -15,6 +15,54 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### ✅ C-2 第 1 項・第四棒收工（2026-08-04 晚・牌 c-0804-PT-14）——**覆審 I 級 7 條一刀清空＋全電池重跑全綠**
+
+**一句話**：Eric 裁「一刀改完 7 條、一次 build 驗」——I-1～I-7 全修＋🟡 順手批（slots 探針強化/空值改擋、
+三份 mime 表 gif/avif、350ms 收尾窗競態、死碼清除等），一次 build 後**黃金 13/13、活體 A–H 八段、
+embedded 產品鏈＋六條專屬探針全綠**。commit `3f7af9ce`（開發線，**未推遠端——推不推等 Eric**）。
+**覆審 `_覆審_C2第1項_未驗證diff_20260804.md` 的 🔴B 級與 🟠I 級至此全數處置完畢。**
+
+**✅ 修了什麼（7 檔 +239/-55；詳細見 commit `3f7af9ce` 訊息）**
+- **I-1**：宿主排隊分支 `start_engine()` 同步失敗補 `fail_active_and_queued`＋GUI_App 呼叫端接回傳值＋頁面 engineStatus 生成中不吞
+- **I-2**：`photo_tile_deliver_3mf` 改帶 `done` 回呼——寫檔失敗 `deliver_failed`（帶路徑）／CallAfter 先擋切片中
+  （`busy_slicing`、不切機不開檔）／成功文案排在 `request_open_project` 之後才推
+- **I-3**：`phototile_home`＋`open_photo_tile` **同步**清 active＋cancel 才切頁（遲到結果不再上盤）
+- **I-4**：新 static `PhotoTileEngineHost::suggest_max_decoded_pixels()`（可用實體記憶體/8/4、夾 8e6–48e6）；**grid_max 不動＝黃金基準不受影響（實證）**
+- **I-5**：C++ `get<double>`＋`lround`、頁面 `Math.round` 兩端一致
+- **I-6**：編碼緒 `enc_running` 計數＋condvar、`shutdown()` 等歸零（5s cap）＋`GetInstance()` 判空雙保險
+- **I-7**：刪暫存改**記帳制** `m_photo_tile_owned_temp`（唯一設值點＝自己寫檔成功；真實路徑永不入帳）；
+  廢除 substring 比對；現役 job 進行中延後不刪；`m_photo_tile_pending_previous` 退役
+
+**🔬 驗證（全部本棒實跑）**
+- build `/m:1 /p:CL_MPCount=6` 零錯誤；關鍵 obj 全新編＋118 顆未編者逐一確認不含 GUI_App.hpp＝**非漏編品**
+- **黃金閘門 13/13**：12 案 pkgMatch/entMatch 全 True（**位元組全等**）＋第 13 案 slots 反向測命中；manifestLoaded=true
+- **活體 A–H 八段全 pass**（ok:true、159s）
+- **embedded 產品鏈重走 4 輪**（貼圖→生成→上盤）＋探針：**I-4**＝解 3MF 實測 `params.limits.maxDecodedPixels=48000000`（帽戴上了）；
+  **I-5**＝UI 打 5.5 顯示 6＋metadata `klevels:6` 兩端一致；slots/palette 與 UI 一字不差；`sourceImage.embedded=true`；
+  **I-3**＝產生後立即返回首頁 → log 三連（`離開頁面，取消現役 job`→引擎 `cancelled`→`丟棄非現役`）＋人在首頁＋盤不換；
+  **I-7**＝第二輪貼圖後第一輪 src 實測已刪（記帳正向）＋上一棒殘留孤兒不誤碰；
+  **I-6/B-2 迴歸 2 輪**＝48Mpx 編碼中關窗 → 6s 行程全退＋log `~GUI_App: exit`＋`webview2_phototile` 行程零殘留
+- 頁面 dev path（localhost 實走）：console 零錯誤＋生成/取消動線＋350ms 收尾窗取消鈕鎖
+- ℹ 本輪「目標機型=(不切機)」＝`already_selected`（_smokedata 選機就停在 FD300 同進照片磚 0.4）＝設計內行為，非 bug
+
+**⚠ 誠實未走過（非阻斷）**
+- I-2 `busy_slicing` 分支：切片 ~11s < UI 鏈＋生成 ~14s，兩輪追擊未命中窗（合成輸入追不上這台機的切片速度）；
+  分支 8 行、與 `request_open_project:5255` 同 API 同語意
+- I-2 `deliver_failed` 分支：需注入磁碟故障才可觸發
+- I-1 同步失敗實機觸發：WebView2Loader.dll 改名會連 mainframe webview（首頁）一起弄死＝測到的是別的東西，
+  故不採覆審那條探針；非同步失敗路的 `fail_active_and_queued` 語意由活體 E–H 覆蓋
+- 🟡 僅剩未動：GoldenGate 第 14 案（產品組合 quad+metadata+slots 探針；本輪 embedded 實測已覆蓋該組合並解 3MF 驗過）
+  ／`%TEMP%` 3MF 累積無人清（deliver 每次一顆）／`makeDemo` 繞過 syncImageToHost（embedded 隱藏＝不可觸發）
+
+**🧭 下一棒（C-2 剩餘範圍，照 handoff 照片磚段七項清單）**：第 2 項原子上盤 guard（env_json 接上——I-2 的 done 回呼
+與 `env:null` 註記已為它鋪路）／第 3 項閒置預熱（`m_photo_tile_host` 長命成員已在）／第 4 項低記憶體韌性殘項／
+第 5 項大檔 result 段／小項。
+
+**線況**：開發線 `ping/v3.5`＝`3f7af9ce`（**未推遠端，推不推等 Eric**；遠端現=`b905fd9f`）。
+ℹ **更正**：下方第三棒段寫「55fb90f5 未推遠端」已過時——SP-05 棒 0804 已依 Eric 令連帶推出（遠端=`b905fd9f`）。
+出貨線 `release/v3.6` 全程未碰。**不押 T**（busy_slicing/deliver_failed 兩分支未實機走過，且 C-2 尚有 2~7 項未做）。
+
+---
 ### ✅ C-2 第 1 項・第三棒收工（2026-08-04・牌 c-0804-PT-13）——**兩條阻斷已修＋embedded 產品鏈首度走通**
 
 **一句話**：覆審抓到的 B-1（換圖失敗靜默沿用舊圖）與 B-2（用過照片磚後關窗行程不結束）**都修好並實證**；
