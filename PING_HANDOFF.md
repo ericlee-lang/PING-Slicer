@@ -88,8 +88,54 @@
   `Process.MainWindowHandle` 還可能打到**照片磚隱形宿主**那個 1×1 top-level ⇒ 關窗請用 Alt+F4。
 - （又踩一次）**含中文的 .ps1 一律存 BOM**，否則 PS5.1 絞碼＝parse error。
 
-**🧭 下一棒（C-2 剩餘）**：第 4 項低記憶體韌性殘項（SEH 探針／4GB 帽下切片 AV 的 app 級議題）／
-第 5 項大檔 result 段漂移移背景／第 6 項小項；另有本棒列的兩條待查（取消排隊窗、閘門收攤崩潰）。
+---
+
+### 🚩 下一棒起跑包（Eric 0805 裁「照建議走：A ＋ 第 5 項，開新 session」）
+
+**做什麼（一次 build 驗兩件，第 6 項搭便車）**
+
+**A. 取消落在「引擎啟動期」被吞掉**（約 10 行，先做——它會讓活體 B 段不再 flaky，
+後面第 5 項的驗證儀器才可信）
+- 位置：[PhotoTileEngineHost.cpp:1128](src/slic3r/GUI/PhotoTileEngineHost.cpp:1128) `Impl::cancel()`
+  ——現在只有 `if (!webview || closing()) return;` ＋轉發 cancel 給引擎頁，**完全沒碰 `queued_request`**。
+- 修法（照抄同檔已驗證過的模式）：`generate()` 在 `stage != Ready` 分支裡，對「被覆寫的排隊 job」
+  已經會發一顆 terminal（[PhotoTileEngineHost.cpp:956-961](src/slic3r/GUI/PhotoTileEngineHost.cpp:956)
+  `error_code="cancelled"` ＋ `deliver(r)`）。cancel 就照同一支：
+  `if (has_queued_request && queued_request.job_id == job_id) { has_queued_request=false;
+  發 cancelled terminal; return; }`（頁面還沒收到這個 job，不必再轉發 cancel）。
+- 為什麼安全：排隊路徑不設 `active_job`／不遞增 epoch（那些都在 Ready 分支），所以清掉排隊項
+  不會動到現役 job 的狀態；而「排隊被覆寫也要有交代」這條規則同檔已經在跑。
+- 驗收：活體閘門 B 段**兩種時序都要過**——①`起跑→ready→取消`（現行綠路）②`起跑→取消→ready`
+  （本次紅路，要看到 terminal `cancelled` 且**引擎不再把那顆跑完**）。②可用
+  `PING_PHOTOTILE_SMOKE=live` 連跑數輪自然撞到，或臨時把 B 段的取消延遲調到 0 逼它必中。
+
+**B. C-2 第 5 項：大檔 result 段的 UI 漂移（~5 秒，80MB 案）**
+- **先定罪、不要先改**（C-1 只標了「嫌疑」）。兩個明確嫌疑點都在 **UI 執行緒**上：
+  ①[PhotoTileEngineHost.cpp:832](src/slic3r/GUI/PhotoTileEngineHost.cpp:832) 每塊 `wxBase64Decode`
+  （在 WebMessageReceived 回呼裡，80MB ÷ 每塊 → 累積成本分散在很多則訊息）
+  ②[PhotoTileEngineHost.cpp:880](src/slic3r/GUI/PhotoTileEngineHost.cpp:880) `end` 時對**整包 80MB**
+  算一次 `sha256_hex`（單一同步大操作＝最像那 5 秒尖峰的兇手）
+- 量法：`PING_PHOTOTILE_SMOKE=limits` 的報告已經有 `uiDriftMaxMs`／`uiDriftMaxMsSteady`／
+  `passDrift`（門檻 1000ms），C-1 那輪 80MB 案就是靠它量到的 ⇒ **改前先跑一輪拿基準**，
+  再各別驗證（先只把 SHA 移背景 → 再看要不要動每塊解碼），一次只改一個變數。
+- 修法方向：沿用同檔 I-6 已驗證過的背景執行緒記帳模式（`enc_running` ＋ condvar ＋ `shutdown()` 等歸零），
+  算完再 `CallAfter` 交付；**別讓例外穿越邊界**（SOP §一）。順帶做「傳輸逐塊 cancel」。
+- 驗收：`limits` 閘門 `passDrift` 由紅轉綠（或 steady 漂移明顯下降並記錄前後值）＋**黃金 13/13 仍位元組全等**
+  （這條動到 result 路徑，黃金必跑）＋活體 A–H 全綠。
+
+**C. 第 6 項小項（搭便車）**：filter 段補量（觸發後延遲 200ms 再 cancel，避段界競態）／
+LiveGate K8 長案時長重標定。
+
+**開工前**：掛新牌（線碼 PT，接 `c-0804-PT-16`）／`Get-PSDrive C`（0805 清完是 20.84GB，安全）／
+build 用 `/m:1 /p:CL_MPCount=6`／閘門一律帶 `--datadir D:\ping-slicer-c1\_smokedata`。
+**紅線同前**：只動開發線 `ping/v3.5`、出貨線不碰、不押 T、驗證實例不碰 Eric 正式版與 `%APPDATA%`。
+
+**還在等 Eric 的兩題（不擋這一棒）**：①閒置預熱記憶體代價 332.5MB（他當初估 200MB）要不要縮條件
+②閘門① 要不要用 warm 模式轉正（建議新 verdict 名 `PASS_WARMED`）。若①改了，動的是本棒的
+`photo_tile_schedule_warmup()` 條件，越早改越省一輪驗證。
+
+**先擱著（Eric 0805 排序）**：第 4 項②「切片在 4GB 帽下 AV 硬崩」＝app 級大工程、與照片磚無關；
+本棒列的「閘門收攤 `0xc0000374`」＝只咬閘門自己、要燒兩次 build 才能定罪。
 
 **線況**：開發線 `ping/v3.5`＝修碼＋工具 `b72f79da`（**未推遠端——推不推等 Eric**）；
 出貨線 `release/v3.6` 全程未碰；**不押 T**。
