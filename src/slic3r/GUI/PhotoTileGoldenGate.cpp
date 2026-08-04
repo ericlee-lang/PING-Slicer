@@ -608,7 +608,8 @@ private:
             if (!manifest_complete_and_green())
                 return "FAIL_BASELINE_NOT_FROZEN：本輪有案未生成或檢查未過（見 cases 逐項），"
                        "**不寫 manifest**——半套基準會讓下一輪的缺案靜默不比對";
-            return "BASELINE_CREATED：12/12 全綠，已凍結輸入圖與 12 案基準（off＋on）；"
+            return "BASELINE_CREATED：13/13 全綠（12 案基準＋1 案 slots 反向測探針），"
+                   "已凍結輸入圖與 12 案基準（off＋on；探針不進 manifest）；"
                    "**建基準不等於通過**，下一次跑才會有比對結果";
         }
         if (m_input_sha != m_manifest_input_sha)

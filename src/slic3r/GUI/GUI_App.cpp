@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <iterator>
 #include <exception>
+#include <cmath>
 #include <cstdlib>
 #include <regex>
 #include <thread>
@@ -4787,11 +4788,25 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 CallAfter([this] { open_photo_tile(); });
             }
             else if (command_str.compare("phototile_home") == 0) {
+                /* 覆審 I-3：離開工作室＝取消現役生成（**同步**清，賽跑窗＝零）。
+                   C-1 時頁面卸載＝生成自然中止；C-2 把工作搬進 C++ 後這個天然保護消失
+                   ——不取消的話，人已在首頁，數秒後結果落盤：被強制彈進 3D 編輯器、
+                   盤被換、機型被切。清了 active ⇒ 遲到結果被 result handler 丟棄。 */
+                if (!m_photo_tile_active_job.empty()) {
+                    const std::string leaving = m_photo_tile_active_job;
+                    m_photo_tile_active_job.clear();
+                    if (m_photo_tile_host)
+                        m_photo_tile_host->cancel(leaving);
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：離開頁面，取消現役 job=" << leaving;
+                }
                 CallAfter([this] {
                     if (mainframe && mainframe->m_webview)
                         mainframe->m_webview->ShowHomepage();
                 });
             }
+            /* ⚠ phototile_export_begin|chunk|end 三支＝頁面自建 3MF 鏈的舊收件口——
+               build3mf 已退役（C-2 第 1 項）＝**現無任何送出端，保留僅為 rollback**。
+               它與下面的 phototile_image_* 鏈幾乎同形：改協定時兩鏈都要看（或屆時直接刪本鏈）。 */
             else if (command_str.compare("phototile_export_begin") == 0) {
                 constexpr size_t max_photo_tile_bytes = 512ULL * 1024ULL * 1024ULL;
                 const size_t expected_size = root.get<size_t>("data.size", 0);
@@ -4885,11 +4900,13 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     fail_to_page(job_id, "bad_image", "沒有可用的影像來源，請重新載入圖片再試。");
                     return "";
                 }
-                /* slots 只驗「非空＋是陣列＋可解析」就原文直通（會被逐字拼進 generate 請求，
+                /* slots 只驗「是陣列＋可解析」就原文直通（會被逐字拼進 generate 請求，
                    壞字串會毀掉整包 JSON）。驗不過＝fail-closed 回錯誤——絕不靜默退回自動配色，
-                   那正是 C-1 被抓到的缺口。 */
+                   那正是 C-1 被抓到的缺口。缺席／空字串也一樣擋（🟡覆審：頁面 buildRequest
+                   一定送 slots，缺席只可能是壞掉的呼叫端——放行＝fail-open 自動配色）。
+                   探針斷言恰一鍵（🟡覆審：`[{…}],"pillar":{…}` 這種夾帶可用重複鍵繞過單次解析）。 */
                 std::string slots_json = root.get<std::string>("data.slotsJson", "");
-                if (!slots_json.empty()) {
+                {
                     bool slots_ok = false;
                     const size_t first_ch = slots_json.find_first_not_of(" \t\r\n");
                     if (first_ch != std::string::npos && slots_json[first_ch] == '[') {
@@ -4897,7 +4914,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                             std::stringstream slots_ss("{\"a\":" + slots_json + "}");
                             pt::ptree probe;
                             pt::read_json(slots_ss, probe);
-                            slots_ok = true;
+                            slots_ok = probe.size() == 1 && probe.count("a") == 1;
                         } catch (...) { slots_ok = false; }
                     }
                     if (!slots_ok) {
@@ -4913,10 +4930,13 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 engine_req.width_mm     = root.get<double>("data.size.widthMm", 100.0);
                 engine_req.height_mm    = root.get<double>("data.size.heightMm", 75.0);
                 engine_req.thick_mm     = root.get<double>("data.size.thickMm", 6.0);
-                engine_req.klevels      = root.get<int>("data.klevels", 8);
+                /* 覆審 I-5：整數欄用 get<double>＋lround——get<int> 收到 "5.5" 會因殘留
+                   ".5" 靜默回退預設值（同一個 5.5，瀏覽器開發路徑做 6 階、這裡做 8 階）。
+                   頁面 handler 也補了 Math.round＝兩端一致。 */
+                engine_req.klevels      = (int) std::lround(root.get<double>("data.klevels", 8.0));
                 engine_req.noise_mm     = root.get<double>("data.noiseMm", 2.0);
                 engine_req.pillar       = root.get<bool>("data.pillar.enabled", true);
-                engine_req.pillar_xy_mm = root.get<int>("data.pillar.xyMm", 25);
+                engine_req.pillar_xy_mm = (int) std::lround(root.get<double>("data.pillar.xyMm", 25.0));
                 engine_req.teeth        = root.get<bool>("data.seam.teeth", false);
                 engine_req.p2a_block    = root.get<bool>("data.seam.p2aBlock", false);
                 engine_req.slots_json   = slots_json;
@@ -4926,6 +4946,13 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 engine_req.want_metadata = true;
                 engine_req.embed_source  = true;
                 engine_req.group_uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+                /* 覆審 I-4：解碼後像素 OOM 帽——C-1 設計的 gate 在唯一產品入口原本沒帶
+                   （limits 全 0＝不設防；48Mpx 相片＋quad 在 4GB 下 engine_crashed 已實測）。
+                   依可用實體記憶體推（宿主 static，夾 8e6～48e6；查不到＝保守 8e6）。
+                   ⚠ 不動 grid_max：0＝引擎預設 3200＝工作室歷史行為，動了會改變輸出
+                   位元組、打到黃金 12 案基準。
+                   env_json 刻意仍空：上盤前環境比對＝C-2 第 2 項（原子上盤 guard）才接。 */
+                engine_req.max_decoded_pixels = PhotoTileEngineHost::suggest_max_decoded_pixels();
 
                 photo_tile_ensure_host();
                 m_photo_tile_active_job    = job_id;
@@ -4933,7 +4960,14 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_active_nozzle = nozzle;
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：generate 分派 job=" << job_id << ", mode=" << mode
                                         << ", nozzle=" << nozzle << ", source=" << m_photo_tile_source_path;
-                m_photo_tile_host->generate(engine_req);
+                /* 覆審 I-1：generate 同步失敗不再丟棄回傳值。多數失敗路（runtime 缺、CreateEnv
+                   立即失敗）已由宿主 fail_active_and_queued → result handler 同步回推頁面並清
+                   active；這裡是最後一道網（Closing 等不經 handler 的 false）——仍持有本 job
+                   才補回推，不會重複。否則進度條無限轉、產生鈕鎖死、原因永遠看不到。 */
+                if (!m_photo_tile_host->generate(engine_req) && m_photo_tile_active_job == job_id) {
+                    m_photo_tile_active_job.clear();
+                    fail_to_page(job_id, "engine_unavailable", "照片磚引擎無法啟動，請重開 PING Slicer 再試。");
+                }
             }
             else if (command_str.compare("phototile_cancel") == 0) {
                 const std::string job_id = root.get<std::string>("data.jobId", "");
@@ -4964,10 +4998,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 /* fail-closed（覆審 B-1）：begin 當下就作廢舊來源——之後不論傳輸失敗、
                    或送了 begin 就沒下文，generate 都誠實回「沒有可用的影像來源」，絕不
                    靜默沿用上一張圖（預覽是新圖、生成用舊圖＝與 slots 缺口同形狀）。
-                   舊路徑記進 pending（僅非空時覆寫，防連續 begin 弄丟待清的舊檔），
-                   end 成功換上新檔後才拿它刪舊暫存檔。 */
-                if (!m_photo_tile_source_path.empty())
-                    m_photo_tile_pending_previous = m_photo_tile_source_path;
+                   舊暫存檔的清理與作廢無關：走 m_photo_tile_owned_temp 記帳（覆審 I-7）。 */
                 m_photo_tile_source_path.clear();
 
                 if (expected_size == 0 || expected_size > max_image_bytes || expected_chunks == 0 || expected_chunks > 8192) {
@@ -5026,10 +5057,13 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 }
 
                 // 副檔名跟著 mime：宿主注入時會再從路徑副檔名推回 mime（PhotoTileEngineHost 背景讀檔）
+                // 🟡覆審：補 gif/avif（頁面收 image/*；缺列會落成 .png、metadata 的 mime 記錯）
                 std::string ext = "png";
                 if (m_photo_tile_image_mime == "image/jpeg" || m_photo_tile_image_mime == "image/jpg") ext = "jpg";
                 else if (m_photo_tile_image_mime == "image/webp") ext = "webp";
                 else if (m_photo_tile_image_mime == "image/bmp")  ext = "bmp";
+                else if (m_photo_tile_image_mime == "image/gif")  ext = "gif";
+                else if (m_photo_tile_image_mime == "image/avif") ext = "avif";
 
                 const boost::filesystem::path image_path = boost::filesystem::temp_directory_path() /
                     boost::filesystem::unique_path("PING_photo_tile_src_%%%%-%%%%-%%%%." + ext);
@@ -5045,10 +5079,6 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_image_expected_chunks = 0;
                 m_photo_tile_image_next_chunk = 0;
 
-                // 換掉舊的頁內來源暫存檔（只刪我們自己產的；被讀取中刪不掉＝忽略）。
-                // 舊路徑在 begin 時已搬進 pending（source_path 此刻必為空＝fail-closed）。
-                const std::string previous_path = m_photo_tile_pending_previous;
-
                 if (!write_ok) {
                     /* fail-honest：寫檔失敗就維持來源為空（begin 已清）——保留舊路徑會讓
                        「預覽是新圖、生成用舊圖」靜默發生；generate 會誠實回「沒有可用的影像來源」。 */
@@ -5057,13 +5087,22 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片暫存檔寫入失敗，請重新選一次圖片。');");
                     return "";
                 }
+                /* 覆審 I-7：刪舊來源＝記帳制——只刪 m_photo_tile_owned_temp 記過帳的那顆
+                   （唯一設值點＝自己寫暫存成功這一刻），**絕不憑檔名長相刪**：舊版 substring
+                   比對整條路徑，使用者留存的真實照片（如 D:\照片\PING_photo_tile_src_0001.png）
+                   會被連帶刪掉、不進資源回收筒。拖放／開檔的真實路徑永不入帳＝不可能被刪。
+                   現役 job 可能還在讀舊檔（冷啟動排隊窗，🟡覆審）＝那就不刪、留給 %TEMP%（寧漏勿誤）。 */
+                const std::string previous_owned = m_photo_tile_owned_temp;
                 m_photo_tile_source_path = image_path.string();
-                m_photo_tile_pending_previous.clear();
+                m_photo_tile_owned_temp  = image_path.string();
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送落檔 " << m_photo_tile_source_path;
-                if (previous_path != m_photo_tile_source_path &&
-                    previous_path.find("PING_photo_tile_src_") != std::string::npos) {
-                    try { boost::filesystem::remove(boost::filesystem::path(previous_path)); }
-                    catch (...) {}
+                if (!previous_owned.empty() && previous_owned != m_photo_tile_source_path) {
+                    if (m_photo_tile_active_job.empty()) {
+                        try { boost::filesystem::remove(boost::filesystem::path(previous_owned)); }
+                        catch (...) {}
+                    } else {
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：現役 job 進行中，延後不刪舊暫存 " << previous_owned;
+                    }
                 }
             }
             else if (command_str.compare("get_recent_projects") == 0) {
@@ -5275,10 +5314,28 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     if (!mainframe || !mainframe->m_webview)
         return;
 
+    /* 覆審 I-3（配套）：進工作室（含拖圖直入）＝任何現役生成作廢——同 phototile_home，
+       遲到的結果不得上盤。 */
+    if (!m_photo_tile_active_job.empty()) {
+        const std::string leaving = m_photo_tile_active_job;
+        m_photo_tile_active_job.clear();
+        if (m_photo_tile_host)
+            m_photo_tile_host->cancel(leaving);
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：重新進入，取消現役 job=" << leaving;
+    }
+
     /* C-2 接線設計（0804）：C++ 端持有「目前這張圖」的路徑。有路徑的入口（拖放/開檔）
        記在這裡；頁內選檔/貼上由 phototile_image_begin|chunk|end 落暫存檔後更新。
        空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
     m_photo_tile_source_path = image_path.IsEmpty() ? std::string() : into_u8(image_path);
+
+    /* 覆審 I-7（記帳制順手清，🟡「覆蓋不刪」）：來源已改指別處＝記帳那顆暫存檔沒人用了。
+       只刪自己記過帳的；上面剛清掉 active（真實路徑永不入帳＝這裡刪不到使用者的檔）。 */
+    if (!m_photo_tile_owned_temp.empty() && m_photo_tile_owned_temp != m_photo_tile_source_path) {
+        try { boost::filesystem::remove(boost::filesystem::path(m_photo_tile_owned_temp)); }
+        catch (...) {}
+        m_photo_tile_owned_temp.clear();
+    }
 
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
@@ -8587,9 +8644,10 @@ void GUI_App::photo_tile_ensure_host()
     if (m_photo_tile_host)
         return;
 
-    /* runtime 檢測：缺 WebView2 也照樣建宿主——generate 會走宿主的誠實失敗路
-       （engine_unavailable → result handler → 頁面顯示原因）。這裡先推一則狀態，
-       讓頁面在按下生成前就能顯示「引擎不可用」的原因。 */
+    /* runtime 檢測：缺 WebView2 也照樣建宿主——generate 排隊後 start_engine 同步失敗
+       會走 fail_active_and_queued（覆審 I-1 才補上；先前這句註解描述的失敗路其實只存在
+       非 Windows stub）＝誠實回 engine_unavailable → result handler → 頁面顯示原因。
+       這裡的狀態推播是輔助：頁面 engineStatus 在生成中也會顯示原因（I-1 頁面半邊）。 */
     const PhotoTileEngineHost::Availability avail = PhotoTileEngineHost::check_runtime();
     if (!avail.available)
         photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.engineStatus && "
@@ -8640,9 +8698,6 @@ void GUI_App::photo_tile_ensure_host()
             return;
         }
 
-        // 成功：先讓 3MF 落地上盤（寫暫存→切機→開檔），再回推頁面收進度 UI
-        photo_tile_deliver_3mf(r.three_mf, mode, nozzle);
-
         // 成功文案素材（零件數等）從引擎 result 訊息撈；撈不到就 0，頁面自動用簡版文案
         int  parts = 0, extruders = 0;
         bool pillar = false;
@@ -8654,12 +8709,29 @@ void GUI_App::photo_tile_ensure_host()
             extruders = t.get<int>("stats.extruders", 0);
             pillar    = t.get<bool>("stats.pillar", false);
         } catch (...) {}
-        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
-            "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(r.job_id) +
-            "\",ok:true,wallMs:" + std::to_string(r.wall_ms) +
-            ",parts:" + std::to_string(parts) +
-            ",extruders:" + std::to_string(extruders) +
-            ",pillar:" + (pillar ? "true" : "false") + "});");
+
+        /* 覆審 I-2：上盤是非同步動作（CallAfter＋切片中可能拒載）——「✓ 已產生並載入
+           列印板」只准在上盤動作真的執行後說；寫檔失敗／切片中拒載誠實回錯誤，
+           不再有「頁面說成功、盤上停在上一顆磚」。 */
+        const std::string job_id  = r.job_id;
+        const int         wall_ms = r.wall_ms;
+        photo_tile_deliver_3mf(r.three_mf, mode, nozzle,
+            [this, job_id, wall_ms, parts, extruders, pillar](bool ok, const std::string& err_code,
+                                                              const std::string& err_msg) {
+                if (!ok) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                        "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job_id) +
+                        "\",ok:false,errorCode:\"" + ping_js_escape(err_code) +
+                        "\",errorMessage:\"" + ping_js_escape(err_msg) + "\"});");
+                    return;
+                }
+                photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                    "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job_id) +
+                    "\",ok:true,wallMs:" + std::to_string(wall_ms) +
+                    ",parts:" + std::to_string(parts) +
+                    ",extruders:" + std::to_string(extruders) +
+                    ",pillar:" + (pillar ? "true" : "false") + "});");
+            });
     });
 }
 
@@ -8682,7 +8754,9 @@ void GUI_App::photo_tile_page_script(const std::string& js)
 }
 
 void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
-                                     const std::string& mode, const std::string& nozzle)
+                                     const std::string& mode, const std::string& nozzle,
+                                     std::function<void(bool ok, const std::string& err_code,
+                                                        const std::string& err_msg)> done)
 {
     const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
         boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
@@ -8691,7 +8765,12 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
         output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     output.close();
     if (!output.good() || bytes.empty()) {
+        // 覆審 I-2：TEMP 滿／唯讀／防毒鎖檔不再靜默——回報 deliver_failed，盤上停在
+        // 上一顆磚是「已知失敗」不是「假成功」。
         BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+        if (done)
+            done(false, "deliver_failed",
+                 "產生結果無法寫入暫存檔（" + output_path.string() + "），請檢查磁碟空間與權限後再試。");
         return;
     }
 
@@ -8700,7 +8779,18 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
     const auto target = ping_resolve_photo_tile_printer(mode, nozzle);
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：3MF 落地 " << project_path
                             << "，目標機型=" << (target.preset_name.empty() ? std::string("(不切機)") : target.preset_name);
-    CallAfter([this, project_path, target] {
+    CallAfter([this, project_path, target, done] {
+        /* 覆審 I-2：切片中 request_open_project 會拒載，但機型若先切就已被污染
+           （「跳提示、機型被切、盤上沒磚、頁面說成功」）⇒ 這裡整組擋下：不切機、
+           不開檔、誠實回報並附 3MF 路徑（檔案留著、不是孤兒）。 */
+        if (plater() != nullptr && plater()->is_background_process_slicing()) {
+            BOOST_LOG_TRIVIAL(warning) << "PhotoTile 工作室：切片進行中，暫不載入 " << project_path;
+            if (done)
+                done(false, "busy_slicing",
+                     "切片進行中，暫時無法載入照片磚。請等切片完成後再按一次產生（已生成的檔案在 " +
+                     project_path + "）。");
+            return;
+        }
         if (!target.preset_name.empty()) {
             Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
             if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
@@ -8717,6 +8807,10 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                 "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
         }
         request_open_project(project_path);
+        // 覆審 I-2：成功回推排在上盤動作之後。未存變更提示按取消（case b）這層攔不到
+        // ——那是使用者親眼看著對話框做的決定，不算靜默失敗。
+        if (done)
+            done(true, std::string(), std::string());
     });
 }
 

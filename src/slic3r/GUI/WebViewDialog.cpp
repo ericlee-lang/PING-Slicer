@@ -318,6 +318,8 @@ void WebViewPanel::SendPendingPhotoTileImage()
     if (extension == "jpg" || extension == "jpeg") mime = "image/jpeg";
     else if (extension == "webp") mime = "image/webp";
     else if (extension == "bmp") mime = "image/bmp";
+    else if (extension == "gif") mime = "image/gif";     // 🟡覆審：三份 mime 表同步
+    else if (extension == "avif") mime = "image/avif";   //（GUI_App 落檔表／宿主讀檔表）
 
     pt::ptree metadata;
     metadata.put("name", into_u8(wxFileName(image_path).GetFullName()));

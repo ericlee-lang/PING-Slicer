@@ -130,6 +130,12 @@ public:
 
     static Availability check_runtime();
 
+    /* 覆審 I-4：產品路徑的解碼後像素 OOM 帽建議值——依可用實體記憶體推
+       （可用 /8 份同時活著 /4 bytes-per-px），夾 8e6～48e6；查不到＝保守 8e6。
+       C-1 實測：48Mpx＋quad 在 4GB Job Object 下 engine_crashed；帶帽對照案誠實回
+       image_too_large。放這裡（而非 GUI_App）＝winapi 只留在已含 Windows 標頭的檔。 */
+    static long long suggest_max_decoded_pixels();
+
     bool start();
     void shutdown();
     bool is_ready() const;

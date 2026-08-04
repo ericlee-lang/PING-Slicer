@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdio>
 #include <deque>
+#include <mutex>
 #include <sstream>
 #include <thread>
 
@@ -212,6 +214,13 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
     std::string        active_job;        // 目前唯一有效的 job
     bool               busy = false;
     int                rebuild_count = 0;
+
+    /* 覆審 I-6：detached 編碼緒的收攤同步——shutdown() 等它們歸零（上限 5s），
+       否則它在 app 收攤後解參考 wxTheApp（本檔 31 處 CallAfter 只有編碼緒這處在背景
+       執行緒）。⚠ supersede 情境可能同時兩條編碼緒在飛＝必須計數器、不能存單一 thread。 */
+    std::mutex              enc_mutex;
+    std::condition_variable enc_cv;
+    int                     enc_running = 0;
 
     struct Transfer {
         bool        active = false;
@@ -415,6 +424,7 @@ bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& req)
     return false;
 }
 void PhotoTileEngineHost::cancel(const std::string&) {}
+long long PhotoTileEngineHost::suggest_max_decoded_pixels() { return 8000000LL; }   // 引擎本來就不可用＝保守值即可
 
 #else
 // ===================== Windows：WebView2 隱形宿主 =====================
@@ -487,6 +497,22 @@ PhotoTileEngineHost::Availability PhotoTileEngineHost::check_runtime()
     a.runtime_version = wide_to_utf8(version);
     ::CoTaskMemFree(version);
     return a;
+}
+
+/* 覆審 I-4：解碼後像素帽建議值（規格見 .hpp 宣告處）。可用實體記憶體 /8/4：
+   同時活著的份數約 8（工作室頁自己的全解析度 bitmap＋引擎頁 decode＋canvas 各層），
+   RGBA 每像素 4 bytes。GlobalMemoryStatusEx 失敗＝罕見，保守 8e6（C-1 帶帽對照案
+   實測 261–633ms 誠實回 image_too_large＝護欄本身已驗證，缺的只是產品路徑沒帶值）。 */
+long long PhotoTileEngineHost::suggest_max_decoded_pixels()
+{
+    long long px = 8000000LL;
+    MEMORYSTATUSEX ms;
+    ms.dwLength = sizeof(ms);
+    if (::GlobalMemoryStatusEx(&ms)) {
+        const long long by_mem = (long long) (ms.ullAvailPhys / 8ULL / 4ULL);
+        px = (std::max)(8000000LL, (std::min)(48000000LL, by_mem));
+    }
+    return px;
 }
 
 namespace {
@@ -933,7 +959,16 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
         }
         queued_request     = req;
         has_queued_request = true;
-        return start_engine();
+        /* 覆審 I-1：start_engine 的**同步**失敗路（runtime 缺、loader 缺介面、CreateEnv
+           呼叫立即 FAILED、Closing）原本只 status() 就 return false ⇒ 剛排進來的 job
+           永遠沒有 terminal、頁面進度條無限轉、產生鈕鎖死。非同步失敗路（env/controller
+           回呼、ready 逾時、REBUILD_CAP）本來就走 fail_active_and_queued——這裡把同步路
+           補齊，兩邊同一種收場。 */
+        if (!start_engine()) {
+            fail_active_and_queued("engine_unavailable", "照片磚引擎無法啟動。");
+            return false;
+        }
+        return true;
     }
     /* supersede（Codex #8）：舊 job **必須拿到 terminal 結果**。
        原本只送 cancel 給引擎頁、等頁面回 cancelled——但那個回應的 jobId 已經不是
@@ -963,7 +998,20 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
     PhotoTileEngineRequest req_copy = req;
     std::weak_ptr<Impl> w = shared_from_this();
 
+    { std::lock_guard<std::mutex> lk(enc_mutex); ++enc_running; }   // 覆審 I-6：進場記帳
     std::thread([w, path, job_id, req_copy, my_epoch]() {
+        /* 覆審 I-6：退場記帳（RAII＝正常/例外/提早 return 都會扣）——shutdown() 等歸零。
+           w 鎖不到＝宿主已亡＝沒人在等，安靜略過。 */
+        struct EncExit {
+            std::weak_ptr<Impl> w;
+            ~EncExit()
+            {
+                if (auto impl = w.lock()) {
+                    { std::lock_guard<std::mutex> lk(impl->enc_mutex); --impl->enc_running; }
+                    impl->enc_cv.notify_all();
+                }
+            }
+        } enc_exit{ w };
         std::string error;
         std::deque<std::string> queue;
         double encode_ms = 0;
@@ -993,6 +1041,8 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
                 if (ext == "jpg" || ext == "jpeg") mime = "image/jpeg";
                 else if (ext == "webp")            mime = "image/webp";
                 else if (ext == "bmp")             mime = "image/bmp";
+                else if (ext == "gif")             mime = "image/gif";   // 🟡覆審：與 GUI_App
+                else if (ext == "avif")            mime = "image/avif";  // 落檔表對稱
 
                 const size_t chunks = (b64.size() + INJECT_CHUNK_CHARS - 1) / INJECT_CHUNK_CHARS;
                 queue.push_back("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "imageBegin") + "," +
@@ -1015,7 +1065,12 @@ bool PhotoTileEngineHost::Impl::generate(const PhotoTileEngineRequest& req)
         }
 
         // 回 UI 執行緒：weak 鎖不到（宿主已死）就安靜退場；epoch 對不上＝這個 job 已過期
-        wxTheApp->CallAfter([w, job_id, my_epoch, error, queue, encode_ms]() mutable {
+        // 覆審 I-6 止血半邊：app 收攤中 wxTheApp 可能已是 nullptr——本檔 31 處 CallAfter
+        // 只有這一處在背景執行緒，不能無條件解參考（真修＝shutdown 等 enc_running 歸零）。
+        wxAppConsole* enc_app = wxAppConsole::GetInstance();
+        if (!enc_app)
+            return;
+        enc_app->CallAfter([w, job_id, my_epoch, error, queue, encode_ms]() mutable {
             auto impl = w.lock();
             if (!impl || impl->closing()) return;
             Impl::safe_call("影像注入回主緒", [&] {
@@ -1079,6 +1134,13 @@ void PhotoTileEngineHost::Impl::shutdown()
     // 先標 Closing：所有晚到的回呼（COM／thread／CallAfter／timer）看到就安靜退場，
     // 不會再碰任何已拆掉的東西（設計約束 A）。
     set_stage(Stage::Closing);
+    /* 覆審 I-6 真修：等 detached 編碼緒退場（上限 5s；正常 0～1s 級——64MB 讀檔＋base64）。
+       不等的話它會在 app 收攤後解參考 wxTheApp（GUI_Init 收尾 delete wxTheApp＋SetInstance(NULL)）。
+       逾時（網路碟斷線等）就放行拆下去——編碼緒內的 GetInstance() 判空是第二道網。 */
+    {
+        std::unique_lock<std::mutex> lk(enc_mutex);
+        enc_cv.wait_for(lk, std::chrono::seconds(5), [this] { return enc_running == 0; });
+    }
     busy = false;
     has_queued_request = false;
     inject_queue.clear();
