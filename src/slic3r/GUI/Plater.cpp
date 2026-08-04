@@ -10697,8 +10697,10 @@ void Plater::priv::set_project_name(const wxString& project_name)
     if (!m_project_name.IsEmpty())
         wxGetApp().mainframe->update_title_colour_after_set_title();
 #else
+    // C-2 第 7 項：frame 由 MainFrame::SetTitle override 帶掛牌；app 自繪 topbar 走不到
+    // OS 標題路徑，呼叫點套同一支前綴（單一來源 ping_gate_title_prefix，一般模式＝空字串）。
     wxGetApp().mainframe->SetTitle(m_project_name + " - PING Slicer");
-    wxGetApp().mainframe->topbar()->SetTitle(m_project_name);
+    wxGetApp().mainframe->topbar()->SetTitle(MainFrame::ping_gate_title_prefix() + m_project_name);
 #endif
 }
 
@@ -10718,8 +10720,9 @@ void Plater::priv::update_title_dirty_status()
     wxGetApp().mainframe->update_title_colour_after_set_title();
 #else
     wxGetApp().mainframe->SetTitle(title);
-    wxGetApp().mainframe->topbar()->SetTitle(title);
-#endif    
+    // C-2 第 7 項：dirty 星號更新也是覆寫路徑之一，topbar 同樣要帶掛牌前綴
+    wxGetApp().mainframe->topbar()->SetTitle(MainFrame::ping_gate_title_prefix() + title);
+#endif
 }
 
 void Plater::priv::set_project_filename(const wxString& filename)

@@ -767,9 +767,11 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         const std::string what = ::getenv("PING_PHOTOTILE_SMOKE");
         /* 【2026-08-03 事故修】閘門/守夜視窗與正式版**外觀完全無法分辨**（同標題），Eric 不知情
            在 4GB 記憶體帽的壓測實例上手動切片 → 切片 AV 硬崩跳 modal → CallAfter 佇列被 modal
-           餓死 → 整輪吊死＋數據作廢。根因＝人無法分辨測試機 ⇒ 標題掛牌就是防呆。 */
-        SetTitle(wxString::FromUTF8("⚠ PING Slicer【壓測中・勿操作】PhotoTile ") +
-                 wxString::FromUTF8(what.c_str()) + " gate");
+           餓死 → 整輪吊死＋數據作廢。根因＝人無法分辨測試機 ⇒ 標題掛牌就是防呆。
+           【C-2 第 7 項真修】只在這裡 SetTitle 一次擋不住——之後 Plater 的 set_project_name()/
+           update_title_dirty_status() 會把 frame＋topbar 都覆寫回專案名（0803 守夜實查＝「未命名」）。
+           掛牌本體改由 SetTitle override 強制前綴（單一來源 ping_gate_title_prefix），這裡只放內容。 */
+        SetTitle(wxString::FromUTF8("PING Slicer PhotoTile ") + wxString::FromUTF8(what.c_str()) + " gate");
         auto launch = [what]() {
             if (what == "limits")      run_photo_tile_limits_gate();
             else if (what == "live")   run_photo_tile_live_gate();
@@ -786,6 +788,25 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
             CallAfter(launch);
         }
     }
+}
+
+/* C-2 第 7 項：閘門/守夜掛牌的單一來源（宣告處有完整說明）。
+   一般模式（沒設 PING_PHOTOTILE_SMOKE）回空字串＝行為與現行完全相同。 */
+wxString MainFrame::ping_gate_title_prefix()
+{
+    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr)
+        return wxString();
+    return wxString::FromUTF8("⚠【壓測中・勿操作】");
+}
+
+void MainFrame::SetTitle(const wxString& title)
+{
+    // 閘門模式：所有改標題路徑（含 Plater 專案名覆寫、dirty 星號更新）強制帶掛牌。
+    const wxString prefix = ping_gate_title_prefix();
+    if (!prefix.empty() && !title.StartsWith(prefix))
+        wxFrame::SetTitle(prefix + title);
+    else
+        wxFrame::SetTitle(title);
 }
 
 void MainFrame::bind_diff_dialog()

@@ -15,6 +15,72 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🔴 C-2 第 1 項・第二棒收工（2026-08-04・牌 c-0804-PT-12）——**碼全落、編譯乾淨、但產品路徑一步未驗**
+
+**一句話**：0804 收工點列的四步驟，①②③（C++ 四支 helper＋五命令／第 7 項掛牌真修／index.html A 案改造）
+**全部落碼並乾淨編譯完成**；④驗證**一項都沒跑**——`app 從未成功啟動過一次`。下一棒第一件事＝驗證，不是寫碼。
+
+**✅ 本棒完成（皆已入版，見下方 commit）**
+1. `GUI_App.cpp` 檔尾四支 helper 全部實作：`photo_tile_ensure_host()`（建長命宿主＋掛
+   progress/result/status 三 handler）／`photo_tile_shutdown_host()`（`OnExit` 呼叫）／
+   `photo_tile_page_script()`（包 `mainframe->m_webview->RunScript`，webview 為空安靜跳過）／
+   `photo_tile_deliver_3mf()`（寫暫存→`ping_resolve_photo_tile_printer` 先切機→`request_open_project`；
+   **舊 `phototile_export_end` 已改接同一支**＝新舊兩條路共用同一個上盤實作）。
+2. 命令分派新增五個：`phototile_generate`（讀參數→組 `PhotoTileEngineRequest`→`generate()`）／
+   `phototile_cancel`／`phototile_image_begin|chunk|end`（頁內選檔與貼上的圖回送 bytes 落暫存檔，
+   鏡像 export 鏈四項驗證：連號／塊數／總長度／上限）。
+3. **slots 是 fail-closed 的**：格式驗不過 ⇒ 回 `bad_request` 給頁面，**絕不靜默退回自動配色**
+   （那正是 C-1 缺口的形狀）。產品路徑 `want_metadata=true`＋`group_uuid` 用 boost uuid 產生。
+4. **第 7 項掛牌真修**：收斂成單一來源 `MainFrame::ping_gate_title_prefix()`（一般模式回空字串＝零影響）
+   ＋`MainFrame::SetTitle()` override 攔截所有改標題路徑＋`Plater.cpp` 兩個 topbar 呼叫點套同一支。
+5. `index.html`：A 案進度 UI（照 Eric 裁的原型）＋`buildRequest()`＋`syncImageToHost()`；
+   **`build3mf()` 自建鏈整段退役**（刪 CRC32/makeZip/build3mf/`__buildExport` 共 11,421 字元
+   ＋`send3mfToSlicer` 與舊 onclick 2,101 字元）；非 embedded 開發路徑改直接呼叫 `engine.js`。
+   ⇒ 二輪 B1（工作室字串上限）自然解；`phototile_golden_runner.html` 因此**失效並已標記退役**。
+6. 黃金閘門加**第 13 案＝slots 反向測探針**（`slots_probe`）：帶固定 slots 生成，斷言整包 SHA
+   **必須不等於** dual-default(off)。不進 manifest ⇒ 舊 12 鍵基準續用。
+7. 新工具 `tools/ping/window_probe.ps1`（實查視窗標題＋`PrintWindow` 離焦截圖）——**已自測有效**。
+
+**🔬 已驗證的（誠實範圍）**
+- 瀏覽器實走**開發路徑**（`http://localhost:8791`，非 embedded）：生成→7 階段進度→走到底收合→
+  「✓ 已輸出下載：6 個色階零件＋洗料柱、耗時 6.0 秒」；取消→UI 立即恢復＋FBK-26 文案、
+  遲到結果不覆寫；console 零錯誤。**quad/dual 皆走過**。
+- node 測：協定 **32 過 0 失敗**＋zip fallback **PASS**。
+- 全量重編：**352 顆 obj 全新、0 過期、0 錯誤**，`OrcaSlicer.dll` 118.5MB @ 0804 11:19。
+
+**🔴 完全沒驗的（下一棒的四步驟，順序不可換）**
+1. **app 能不能啟動**——本棒兩次啟動都崩（見下方教訓），修掉漏編後**沒有再測過一次**。先跑這個。
+2. **黃金閘門** `PING_PHOTOTILE_SMOKE=golden`（動了生成路徑＝必跑）：12 案位元組全等＋第 13 案 slots 反向測。
+3. **活體 A–H**＋**embedded 產品路徑**——⚠ **最大未驗區**：本棒驗的全是頁面內的開發路徑，
+   `window.wx.postMessage` → C++ 五命令 → 宿主 → 回推頁面**這條真正的產品鏈一次都沒跑過**。
+   影像回送（`phototile_image_*`）、slots 直通、jobProgress/jobResult 回推全部只有靜態推理。
+4. **第 7 項掛牌實查**：起 gate 模式實例，用 `window_probe.ps1 -TargetPid <pid> -Capture shot.png`
+   確認標題含「⚠【壓測中・勿操作】」**且 topbar 那條也帶前綴**（SOP §17 已標 ⬜ 待驗）。
+
+**⚠️ 本棒最貴的教訓（已沉澱 SOP §11，下一棒 build 前必讀）**
+- **「綠燈的漏編品」**：`-m` 全平行編譯爆 PCH 記憶體（C3859/C1076）後會弄髒 MSBuild tracker，
+  之後降平行度重跑會 **exit 0 但只重編十幾顆**——352 顆 obj 有 337 顆還是舊的，
+  舊佈局讀新 `GUI_App.hpp` 成員位移 ⇒ app 啟動即 `0xc0000005`。**我把它誤判成程式碼 bug 繞了一圈**。
+  判法＝比對 obj 與 header 的 mtime；修法＝刪 `<lib>.dir\Release` 強制全重編。
+- **C3859 的真因是 commit 耗盡，不是硬碟滿也不是 code 問題**；commit 上限被 C 槽空間綁住
+  （分頁檔要有空間才長得大）。**build 前先看 `Get-PSDrive C`，低於 15~20GB 先清再 build**。
+  本機安全平行度＝`-- /m:1 /p:CL_MPCount=6`（⚠ PowerShell 會把裸的 `-m:4` 拆成 `-m: 4`，要加引號）。
+- **兩次崩潰的錯誤碼不同**（先前 handoff 誤記為都是 AV）：10:50:05 `0xc0000005`（OrcaSlicer.dll）、
+  10:55:10 **`0xc0000374` 堆積毀損**（ntdll.dll）。兩顆 dump 各 7.6MB 留在
+  `%LOCALAPPDATA%\CrashDumps\ping-slicer.exe.{54408,40812}.dmp`，**若新 DLL 仍崩就丟 WinDbg**
+  （若不崩＝證實漏編假說，dump 可刪）。
+
+**🖥 機器狀態（會影響下一棒 build，務必先看）**
+0804 收工時 C 槽只剩 **5.37GB**（一度到 3.71GB）。已鑑識：**與本專案無關**——251GB 裡約 248GB 是既有佔用
+（`C:\Users` 130.6／`C:\Windows` 37.5／`hiberfil.sys` 25.5／Program Files 29.7），今天全機新增僅約 0.4GB。
+唯一與 build 相關的是**分頁檔被撐大**（系統記錄 10:42:16 Application Popup ID 26，180 天內唯一一筆），
+編譯結束後已從 23GB 自行縮到 21.31GB。**可回收清單與指令已交 Eric，尚未執行**（見收工 HTML 總結）。
+⚠ **下一棒 build 前先確認 C 槽空間**，否則會重演 C3859。
+
+**線況**：開發線 `ping/v3.5` 本棒 commit 見下；**未推遠端**（沿用等 Eric 慣例）。出貨線 `release/v3.6` 全程未碰。
+**不得押 T**（產品路徑一步未驗）。牌 `c-0804-PT-12` 已銷，下一棒掛 `c-0804-PT-13`（或隔日新號）。
+
+---
 ### ✅ 照片磚 C-1 結案（Eric 2026-08-03 裁「標 PASS 開 C-2」）——C-2 起跑包在此
 
 **一句話**：C-1（協定＋生成）PASS——隱形宿主驅動產品引擎產出照片磚 3MF，Codex 兩輪對抗審查

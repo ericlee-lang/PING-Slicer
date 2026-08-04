@@ -77,6 +77,11 @@
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 #include "PhotoTileCapability.hpp"
+#include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include "GLCanvas3D.hpp"
 #include "EncodedFilament.hpp"
 #include "GeneratedConfig.hpp"
@@ -2698,6 +2703,9 @@ bool GUI_App::OnInit()
 
 int GUI_App::OnExit()
 {
+    // C-2：照片磚隱形宿主先收乾淨（先標 Closing，晚到的 COM/thread/CallAfter 回呼安靜退場）
+    photo_tile_shutdown_host();
+
     stop_sync_user_preset();
 
     if (m_device_manager) {
@@ -4695,6 +4703,28 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
     return out;
 }
 
+/* C-2：回推工作室頁的 JS 字串跳脫（值會被拼進 RunScript 的單行腳本）。
+   UTF-8 位元組原樣保留；'<' 也跳脫＝保守擋 </script> 類序列。 */
+static std::string ping_js_escape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (const char ch : s) {
+        const unsigned char c = (unsigned char) ch;
+        switch (c) {
+        case '"':  out += "\\\"";  break;
+        case '\\': out += "\\\\";  break;
+        case '\n': out += "\\n";   break;
+        case '\r': out += "\\r";   break;
+        case '<':  out += "\\x3c"; break;
+        default:
+            if (c < 0x20) { char buf[8]; ::snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
+            else          out += ch;
+        }
+    }
+    return out;
+}
+
 std::string GUI_App::handle_web_request(std::string cmd)
 {
     try {
@@ -4820,47 +4850,197 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
-                    boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
-                boost::nowide::ofstream output(output_path.string(), std::ios::binary);
-                output.write(reinterpret_cast<const char*>(m_photo_tile_export_buffer.data()),
-                             static_cast<std::streamsize>(m_photo_tile_export_buffer.size()));
-                output.close();
-
-                const bool write_ok = output.good();
+                std::vector<unsigned char> three_mf;
+                three_mf.swap(m_photo_tile_export_buffer);
                 m_photo_tile_export_active = false;
-                m_photo_tile_export_buffer.clear();
                 m_photo_tile_export_expected_size = 0;
                 m_photo_tile_export_expected_chunks = 0;
                 m_photo_tile_export_next_chunk = 0;
 
-                if (!write_ok) {
-                    BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+                // 寫暫存→先切機→開檔＝與宿主生成鏈共用同一支（C-2 抽出；行為與 C-1 逐字同）
+                photo_tile_deliver_3mf(three_mf, root.get<std::string>("data.mode", ""),
+                                       root.get<std::string>("data.nozzle", ""));
+            }
+            /* ── C-2 第 1 項：工作室 → 隱形宿主的生成鏈（2026-08-04）──────────────
+               頁面只送參數（含使用者挑的料色 slotsJson＝C-1 缺口的正主），影像一律用
+               C++ 手上的檔案路徑：拖放/首頁入口＝open_photo_tile 記下；頁內選檔/貼上＝
+               phototile_image_begin|chunk|end 回送位元組落成暫存檔。進度/結果由宿主
+               handler 回推頁面（photo_tile_ensure_host 掛的三支）。 */
+            else if (command_str.compare("phototile_generate") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const std::string mode   = root.get<std::string>("data.mode", "");
+                const std::string nozzle = root.get<std::string>("data.nozzle", "");
+                // 失敗一律用 jobResult 回推頁面（與宿主結果同一條通道），不靜默。
+                const auto fail_to_page = [this](const std::string& job, const std::string& code, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                        "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job) + "\",ok:false,errorCode:\"" +
+                        ping_js_escape(code) + "\",errorMessage:\"" + ping_js_escape(msg) + "\"});");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_generate 缺 jobId，忽略";
+                    return "";
+                }
+                if (m_photo_tile_source_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_source_path))) {
+                    fail_to_page(job_id, "bad_image", "沒有可用的影像來源，請重新載入圖片再試。");
+                    return "";
+                }
+                /* slots 只驗「非空＋是陣列＋可解析」就原文直通（會被逐字拼進 generate 請求，
+                   壞字串會毀掉整包 JSON）。驗不過＝fail-closed 回錯誤——絕不靜默退回自動配色，
+                   那正是 C-1 被抓到的缺口。 */
+                std::string slots_json = root.get<std::string>("data.slotsJson", "");
+                if (!slots_json.empty()) {
+                    bool slots_ok = false;
+                    const size_t first_ch = slots_json.find_first_not_of(" \t\r\n");
+                    if (first_ch != std::string::npos && slots_json[first_ch] == '[') {
+                        try {
+                            std::stringstream slots_ss("{\"a\":" + slots_json + "}");
+                            pt::ptree probe;
+                            pt::read_json(slots_ss, probe);
+                            slots_ok = true;
+                        } catch (...) { slots_ok = false; }
+                    }
+                    if (!slots_ok) {
+                        fail_to_page(job_id, "bad_request", "料色資料（slots）格式錯誤，請重試或重開工作室。");
+                        return "";
+                    }
+                }
+
+                PhotoTileEngineRequest engine_req;
+                engine_req.job_id     = job_id;
+                engine_req.mode       = mode;
+                try { engine_req.nozzle = std::stod(nozzle); } catch (...) { engine_req.nozzle = 0.0; }
+                engine_req.width_mm     = root.get<double>("data.size.widthMm", 100.0);
+                engine_req.height_mm    = root.get<double>("data.size.heightMm", 75.0);
+                engine_req.thick_mm     = root.get<double>("data.size.thickMm", 6.0);
+                engine_req.klevels      = root.get<int>("data.klevels", 8);
+                engine_req.noise_mm     = root.get<double>("data.noiseMm", 2.0);
+                engine_req.pillar       = root.get<bool>("data.pillar.enabled", true);
+                engine_req.pillar_xy_mm = root.get<int>("data.pillar.xyMm", 25);
+                engine_req.teeth        = root.get<bool>("data.seam.teeth", false);
+                engine_req.p2a_block    = root.get<bool>("data.seam.p2aBlock", false);
+                engine_req.slots_json   = slots_json;
+                engine_req.image_path   = m_photo_tile_source_path;
+                // 產品路徑＝metadata on（裁決 6：ping_phototile.json＋內嵌原圖）。
+                // 黃金 12 案自組請求、自帶 off ⇒ 基準不受影響。
+                engine_req.want_metadata = true;
+                engine_req.embed_source  = true;
+                engine_req.group_uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+
+                photo_tile_ensure_host();
+                m_photo_tile_active_job    = job_id;
+                m_photo_tile_active_mode   = mode;
+                m_photo_tile_active_nozzle = nozzle;
+                m_photo_tile_host->generate(engine_req);
+            }
+            else if (command_str.compare("phototile_cancel") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                /* A 案（Eric 0804 裁）：取消＝頁面當下自行恢復 UI、盤上舊磚不動。這裡清 active
+                   ⇒ 這個 job 之後任何遲到的結果（含引擎未就緒期間排隊補跑完的）一律被
+                   result handler 丟棄，絕不上盤。 */
+                if (!job_id.empty() && job_id == m_photo_tile_active_job)
+                    m_photo_tile_active_job.clear();
+                if (!job_id.empty() && m_photo_tile_host)
+                    m_photo_tile_host->cancel(job_id);
+            }
+            /* 頁內「開啟圖片」與 Ctrl+V 的圖只存在頁面裡（C++ 沒有路徑），而宿主吃檔案路徑
+               ⇒ 頁面回送原始位元組、這裡落成暫存檔（鏡像 export 鏈的四項驗證：連號/塊數/總長度/上限）。 */
+            else if (command_str.compare("phototile_image_begin") == 0) {
+                constexpr size_t max_image_bytes = 64ULL * 1024ULL * 1024ULL;   // 與宿主 MAX_IMAGE_BYTES、拖放路同值
+                const size_t expected_size   = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+
+                m_photo_tile_image_buffer.clear();
+                m_photo_tile_image_expected_size = 0;
+                m_photo_tile_image_expected_chunks = 0;
+                m_photo_tile_image_next_chunk = 0;
+                m_photo_tile_image_active = false;
+                m_photo_tile_image_mime.clear();
+
+                if (expected_size == 0 || expected_size > max_image_bytes || expected_chunks == 0 || expected_chunks > 8192) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected invalid photo tile image upload: size=" << expected_size
+                                               << ", chunks=" << expected_chunks;
+                } else {
+                    m_photo_tile_image_buffer.reserve(expected_size);
+                    m_photo_tile_image_expected_size = expected_size;
+                    m_photo_tile_image_expected_chunks = expected_chunks;
+                    m_photo_tile_image_mime = root.get<std::string>("data.mime", "image/png");
+                    m_photo_tile_image_active = true;
+                }
+            }
+            else if (command_str.compare("phototile_image_chunk") == 0) {
+                if (!m_photo_tile_image_active)
+                    return "";
+
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.base64", "");
+                if (index != m_photo_tile_image_next_chunk || encoded.empty()) {              // ①連號
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk out of sequence: expected="
+                                               << m_photo_tile_image_next_chunk << ", got=" << index;
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
                     return "";
                 }
 
-                const std::string project_path = output_path.string();
-                // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
-                const auto target = ping_resolve_photo_tile_printer(root.get<std::string>("data.mode", ""),
-                                                                    root.get<std::string>("data.nozzle", ""));
-                CallAfter([this, project_path, target] {
-                    if (!target.preset_name.empty()) {
-                        Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
-                        if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
-                            plater() != nullptr)
-                            plater()->get_notification_manager()->push_notification(
-                                NotificationType::CustomNotification,
-                                NotificationManager::NotificationLevel::RegularNotificationLevel,
-                                std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
-                    } else if (target.known_mode && !target.already_selected && plater() != nullptr) {
-                        // 唯一已知情境＝雙料×1.0 口徑（FD 家族無 1.0 機）：不硬切、提醒手選
-                        plater()->get_notification_manager()->push_notification(
-                            NotificationType::CustomNotification,
-                            NotificationManager::NotificationLevel::WarningNotificationLevel,
-                            "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
-                    }
-                    request_open_project(project_path);
-                });
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto decode_result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(decode_result.first);
+                if (decoded.empty() || m_photo_tile_image_buffer.size() + decoded.size() > m_photo_tile_image_expected_size) {
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk could not be decoded";   // ③總長上限
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
+                    return "";
+                }
+
+                m_photo_tile_image_buffer.insert(m_photo_tile_image_buffer.end(), decoded.begin(), decoded.end());
+                ++m_photo_tile_image_next_chunk;
+            }
+            else if (command_str.compare("phototile_image_end") == 0) {
+                if (!m_photo_tile_image_active ||
+                    m_photo_tile_image_next_chunk != m_photo_tile_image_expected_chunks ||     // ②塊數
+                    m_photo_tile_image_buffer.size() != m_photo_tile_image_expected_size) {    // ③總長度
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image upload ended before all data arrived";
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
+                    return "";
+                }
+
+                // 副檔名跟著 mime：宿主注入時會再從路徑副檔名推回 mime（PhotoTileEngineHost 背景讀檔）
+                std::string ext = "png";
+                if (m_photo_tile_image_mime == "image/jpeg" || m_photo_tile_image_mime == "image/jpg") ext = "jpg";
+                else if (m_photo_tile_image_mime == "image/webp") ext = "webp";
+                else if (m_photo_tile_image_mime == "image/bmp")  ext = "bmp";
+
+                const boost::filesystem::path image_path = boost::filesystem::temp_directory_path() /
+                    boost::filesystem::unique_path("PING_photo_tile_src_%%%%-%%%%-%%%%." + ext);
+                boost::nowide::ofstream output(image_path.string(), std::ios::binary);
+                output.write(reinterpret_cast<const char*>(m_photo_tile_image_buffer.data()),
+                             static_cast<std::streamsize>(m_photo_tile_image_buffer.size()));
+                output.close();
+                const bool write_ok = output.good();
+
+                m_photo_tile_image_active = false;
+                m_photo_tile_image_buffer.clear();
+                m_photo_tile_image_expected_size = 0;
+                m_photo_tile_image_expected_chunks = 0;
+                m_photo_tile_image_next_chunk = 0;
+
+                // 換掉舊的頁內來源暫存檔（只刪我們自己產的；被讀取中刪不掉＝忽略）
+                const std::string previous_path = m_photo_tile_source_path;
+
+                if (!write_ok) {
+                    /* fail-honest：寫檔失敗就清空來源——保留舊路徑會讓「預覽是新圖、生成用舊圖」
+                       靜默發生；清掉之後 generate 會誠實回「沒有可用的影像來源」。 */
+                    BOOST_LOG_TRIVIAL(warning) << "Unable to write photo tile source image: " << image_path.string();
+                    m_photo_tile_source_path.clear();
+                    return "";
+                }
+                m_photo_tile_source_path = image_path.string();
+                if (previous_path != m_photo_tile_source_path &&
+                    previous_path.find("PING_photo_tile_src_") != std::string::npos) {
+                    try { boost::filesystem::remove(boost::filesystem::path(previous_path)); }
+                    catch (...) {}
+                }
             }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
@@ -5070,6 +5250,11 @@ void GUI_App::open_photo_tile(const wxString& image_path)
 {
     if (!mainframe || !mainframe->m_webview)
         return;
+
+    /* C-2 接線設計（0804）：C++ 端持有「目前這張圖」的路徑。有路徑的入口（拖放/開檔）
+       記在這裡；頁內選檔/貼上由 phototile_image_begin|chunk|end 落暫存檔後更新。
+       空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
+    m_photo_tile_source_path = image_path.IsEmpty() ? std::string() : into_u8(image_path);
 
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
@@ -8365,6 +8550,147 @@ bool is_support_filament(int extruder_id, bool strict_check)
     if (support_option == nullptr) return false;
     return support_option->get_at(0);
 };
+
+// =====================================================================
+// C-2 第 1 項：工作室 → 隱形宿主（PhotoTileEngineHost）的接線（2026-08-04）
+// 頁面（resources/web/phototile/index.html）只送參數；影像來源、生成、進度、
+// 交付全在 C++。這四支＝這條鏈的全部接點；宣告在 GUI_App.hpp。
+// 執行緒：宿主 handler 一律在 UI 執行緒回呼（COM 回呼／CallAfter），這裡不需再 marshal。
+// =====================================================================
+
+void GUI_App::photo_tile_ensure_host()
+{
+    if (m_photo_tile_host)
+        return;
+
+    /* runtime 檢測：缺 WebView2 也照樣建宿主——generate 會走宿主的誠實失敗路
+       （engine_unavailable → result handler → 頁面顯示原因）。這裡先推一則狀態，
+       讓頁面在按下生成前就能顯示「引擎不可用」的原因。 */
+    const PhotoTileEngineHost::Availability avail = PhotoTileEngineHost::check_runtime();
+    if (!avail.available)
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.engineStatus && "
+            "window.PINGPhotoTile.engineStatus({status:\"unavailable\",detail:\"") +
+            ping_js_escape(avail.reason) + "\"});");
+
+    m_photo_tile_host.reset(new PhotoTileEngineHost());
+
+    m_photo_tile_host->set_progress_handler([this](const std::string& job_id, const std::string& stage,
+                                                   const std::string& stage_label, double pct) {
+        if (job_id != m_photo_tile_active_job)
+            return;                                   // 舊 job 殘響：不回推
+        char pct_buf[32];
+        ::snprintf(pct_buf, sizeof(pct_buf), "%.4f", pct);
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobProgress && "
+            "window.PINGPhotoTile.jobProgress({jobId:\"") + ping_js_escape(job_id) +
+            "\",stage:\"" + ping_js_escape(stage) +
+            "\",stageLabel:\"" + ping_js_escape(stage_label) +
+            "\",pct:" + pct_buf + "});");
+    });
+
+    m_photo_tile_host->set_status_handler([this](const std::string& status, const std::string& detail) {
+        // 頁面拿來顯示 pct 還是 0 的階段說明（引擎啟動中/重建中/不可用）
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.engineStatus && "
+            "window.PINGPhotoTile.engineStatus({status:\"") + ping_js_escape(status) +
+            "\",detail:\"" + ping_js_escape(detail) + "\"});");
+    });
+
+    m_photo_tile_host->set_result_handler([this](const PhotoTileEngineResult& r) {
+        if (r.job_id != m_photo_tile_active_job) {
+            /* 取消後遲到的結果／被 supersede 的舊 job／引擎未就緒期間排隊補跑完的：
+               一律丟棄（A 案：取消當下頁面已自行恢復、盤上舊磚不動）。 */
+            BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：丟棄非現役 job 的結果 " << r.job_id
+                                    << "（active=" << m_photo_tile_active_job << "）";
+            return;
+        }
+        const std::string mode   = m_photo_tile_active_mode;
+        const std::string nozzle = m_photo_tile_active_nozzle;
+        m_photo_tile_active_job.clear();
+
+        if (!r.ok) {
+            photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(r.job_id) +
+                "\",ok:false,errorCode:\"" + ping_js_escape(r.error_code) +
+                "\",errorMessage:\"" + ping_js_escape(r.error_message) + "\"});");
+            return;
+        }
+
+        // 成功：先讓 3MF 落地上盤（寫暫存→切機→開檔），再回推頁面收進度 UI
+        photo_tile_deliver_3mf(r.three_mf, mode, nozzle);
+
+        // 成功文案素材（零件數等）從引擎 result 訊息撈；撈不到就 0，頁面自動用簡版文案
+        int  parts = 0, extruders = 0;
+        bool pillar = false;
+        try {
+            std::stringstream result_ss(r.result_json);
+            pt::ptree t;
+            pt::read_json(result_ss, t);
+            parts     = t.get<int>("stats.parts", 0);
+            extruders = t.get<int>("stats.extruders", 0);
+            pillar    = t.get<bool>("stats.pillar", false);
+        } catch (...) {}
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+            "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(r.job_id) +
+            "\",ok:true,wallMs:" + std::to_string(r.wall_ms) +
+            ",parts:" + std::to_string(parts) +
+            ",extruders:" + std::to_string(extruders) +
+            ",pillar:" + (pillar ? "true" : "false") + "});");
+    });
+}
+
+void GUI_App::photo_tile_shutdown_host()
+{
+    m_photo_tile_active_job.clear();
+    if (!m_photo_tile_host)
+        return;
+    m_photo_tile_host->shutdown();
+    m_photo_tile_host.reset();
+}
+
+void GUI_App::photo_tile_page_script(const std::string& js)
+{
+    /* webview 不在（app 收攤中、GUI 重建中）＝安靜跳過；每段腳本自帶
+       `window.PINGPhotoTile &&` 守門＝使用者已離開工作室頁時落在別頁也只是 no-op。 */
+    if (!mainframe || !mainframe->m_webview)
+        return;
+    mainframe->m_webview->RunScript(from_u8(js));
+}
+
+void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
+                                     const std::string& mode, const std::string& nozzle)
+{
+    const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
+        boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
+    boost::nowide::ofstream output(output_path.string(), std::ios::binary);
+    if (!bytes.empty())
+        output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    output.close();
+    if (!output.good() || bytes.empty()) {
+        BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+        return;
+    }
+
+    const std::string project_path = output_path.string();
+    // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
+    const auto target = ping_resolve_photo_tile_printer(mode, nozzle);
+    CallAfter([this, project_path, target] {
+        if (!target.preset_name.empty()) {
+            Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
+            if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
+                plater() != nullptr)
+                plater()->get_notification_manager()->push_notification(
+                    NotificationType::CustomNotification,
+                    NotificationManager::NotificationLevel::RegularNotificationLevel,
+                    std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
+        } else if (target.known_mode && !target.already_selected && plater() != nullptr) {
+            // 唯一已知情境＝雙料×1.0 口徑（FD 家族無 1.0 機）：不硬切、提醒手選
+            plater()->get_notification_manager()->push_notification(
+                NotificationType::CustomNotification,
+                NotificationManager::NotificationLevel::WarningNotificationLevel,
+                "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
+        }
+        request_open_project(project_path);
+    });
+}
 
 } // GUI
 } //Slic3r

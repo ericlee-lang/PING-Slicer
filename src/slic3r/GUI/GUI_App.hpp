@@ -252,7 +252,11 @@ private:
        「閒置預熱」要掛的那個擁有者（Eric 0802 裁 A），現在先讓它存在、預熱下一刀再接。
        ⚠ 生命週期：只在 UI 執行緒建立／拆除；shutdown() 由 GUI_App 結束時呼叫。 */
     std::unique_ptr<PhotoTileEngineHost> m_photo_tile_host;
-    std::string     m_photo_tile_active_job;      // 進行中的 jobId（空＝閒置）
+    std::string     m_photo_tile_active_job;      // 進行中的 jobId（空＝閒置；取消時清空⇒遲到的結果一律丟）
+    // generate 當下記住 mode/nozzle：result 交付時 photo_tile_deliver_3mf 切機要用。
+    // nozzle 存字串形態（"0.4"/"0.6"/"1.0"）＝與 printer_variant 比對同格式，避免 1.0→"1" 的格式化陷阱。
+    std::string     m_photo_tile_active_mode;
+    std::string     m_photo_tile_active_nozzle;
     std::string     m_photo_tile_source_path;     // 「目前這張圖」的檔案路徑（宿主自己讀）
     // 頁面內選檔／貼上的圖沒有路徑 ⇒ 頁面把 bytes 回送，這裡落成暫存檔（見 handoff 接線設計）
     std::vector<unsigned char> m_photo_tile_image_buffer;
