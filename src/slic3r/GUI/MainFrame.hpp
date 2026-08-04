@@ -266,6 +266,13 @@ public:
     void update_filament_tab_ui();
 
     void        update_title();
+    /* C-2 第 7 項（0803 事故防呆真修）：閘門/守夜模式（設了 PING_PHOTOTILE_SMOKE）的視窗掛牌。
+       C-1 只在建構時 SetTitle 一次，之後 Plater 的 set_project_name()/update_title_dirty_status()
+       會把 frame 與 topbar 都覆寫回專案名 ⇒ 壓測視窗與正式版無法分辨（0803 下午實查）。
+       單一來源＝ping_gate_title_prefix()：frame 側由 SetTitle override 全路徑攔截、
+       topbar 側由兩個呼叫點（Plater.cpp）套同一支。驗收＝實查視窗標題字串，不是看 code。 */
+    static wxString ping_gate_title_prefix();
+    void        SetTitle(const wxString& title) override;
     void        set_max_recent_count(int max);
 
     void        show_publish_button(bool show);

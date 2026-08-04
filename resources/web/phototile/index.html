@@ -20,6 +20,16 @@
        padding:6px 14px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600;}
   .btn:hover{border-color:var(--black);}
   .btn.primary{background:var(--orange); border-color:var(--orange); color:#fff;}
+  .btn.ghost{border-color:#ccc; padding:6px 12px; font-size:13px;}
+  .btn.ghost:hover{border-color:var(--black);}
+  /* C-2 A 案（Eric 0804 裁「就地轉換」）：生成中按鈕原位變進度＋取消，零版面位移 */
+  .inline-prog{display:flex; align-items:center; gap:12px; border:1px solid #ddd;
+               border-radius:7px; padding:8px 10px 8px 14px; background:#fff; flex:1; min-width:260px;}
+  .inline-prog .txt{flex:1; min-width:0;}
+  .inline-prog .stage{font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .inline-prog .meta{font-size:12px; color:#888; margin-top:2px;}
+  .inline-prog .bar{height:5px; background:var(--gray); border-radius:3px; overflow:hidden; margin-top:6px;}
+  .inline-prog .bar>i{display:block; height:100%; background:var(--orange); width:0; transition:width .18s linear;}
   .seg{display:inline-flex; border:1px solid #bbb; border-radius:6px; overflow:hidden;}
   .seg button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:14px; font-weight:700; color:#666;}
   .seg button.on{background:var(--black); color:#fff;}
@@ -124,6 +134,15 @@
       <div class="row" style="margin-top:10px">
         <button class="btn" id="btnSuggest">依這張圖建議配色與換層</button>
         <button class="btn primary" id="btnExport" style="display:none">輸出 3MF（多零件模型）</button>
+        <!-- C-2 A 案：生成中「就地轉換」成進度＋取消（原型＝照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html） -->
+        <div class="inline-prog" id="genProg" style="display:none">
+          <div class="txt">
+            <div class="stage" id="genStage">準備中…</div>
+            <div class="bar"><i id="genBar"></i></div>
+            <div class="meta" id="genMeta">已 0.0 秒</div>
+          </div>
+          <button class="btn ghost" id="btnGenCancel" type="button">取消</button>
+        </div>
       </div>
       <div class="row" id="exportStat" style="display:none; font-size:12.5px; color:#777"></div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
@@ -199,6 +218,9 @@
 
 <script src="mesh_union.js?v=20260720b"></script>
 <script src="size_ratio.js?v=20260720b"></script>
+<!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
+<script src="engine_protocol.js?v=20260804"></script>
+<script src="engine.js?v=20260804"></script>
 <script>
 "use strict";
 const startupQuery=new URLSearchParams(location.search);
@@ -683,7 +705,12 @@ function loadBitmap(bmp, label){
 }
 async function loadFile(f){
   if(!f || !f.type.startsWith('image/')) return;
-  try{ loadBitmap(await createImageBitmap(f), f.name||'貼上的圖'); }
+  try{
+    loadBitmap(await createImageBitmap(f), f.name||'貼上的圖');
+    /* C-2 接線設計（0804）：頁內選檔/貼上的圖 C++ 沒有路徑，而宿主吃檔案路徑
+       ⇒ 原始位元組回送 C++ 落成暫存檔。生成前會 await imageSync＝不會生成到上一張。 */
+    if(slicerBridgeReady()) imageSync=syncImageToHost(f).catch(()=>{});
+  }
   catch(e){ document.getElementById('srcStat').textContent='這張圖讀不進來，換一張試試'; }
 }
 
@@ -704,7 +731,26 @@ window.PINGPhotoTile={
     }catch(e){ this.imageError('這張圖讀不進來，請按「開啟圖片」重試。'); }
     finally{ nativeImageMeta=null; nativeImageChunks=[]; }
   },
-  imageError(message){ document.getElementById('srcStat').textContent=message; }
+  imageError(message){ document.getElementById('srcStat').textContent=message; },
+  /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
+  jobProgress(p){
+    if(!genState||!p||p.jobId!==genState.jobId) return;      // 舊 job 殘響：不理
+    genState.pct=Math.max(0,Math.min(1,+p.pct||0));
+    if(p.stageLabel) genState.stageLabel=p.stageLabel;
+    genState.stageIdx=GEN_STAGE_INDEX[p.stage]||genState.stageIdx;
+    genPaint();
+  },
+  jobResult(r){
+    if(!genState||!r||r.jobId!==genState.jobId) return;      // 取消後遲到的結果：不理（A 案）
+    if(r.ok) genFinishOk(r);
+    else if(r.errorCode==='cancelled'||r.errorCode==='superseded') genTeardown();  // 取消當下 UI 已恢復
+    else genFinishFail(r.errorMessage);
+  },
+  engineStatus(s){
+    lastEngineStatus=s||null;
+    if(s&&s.status==='unavailable'&&!genState)
+      genStatline('warn','照片磚引擎不可用：'+(s.detail||''));
+  }
 };
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault(); dz.classList.add('drag');});
@@ -965,7 +1011,9 @@ function syncOrientUI(){
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
   document.getElementById('p2aRow').style.display=v?'':'none';      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
-  document.getElementById('btnExport').style.display=v?'':'none';   // 3MF 輸出＝垂直模式限定
+  // 3MF 輸出＝垂直模式限定；生成中按鈕讓位給進度（A 案就地轉換），切模式不打架
+  document.getElementById('btnExport').style.display=(v&&!(genState&&genState.shown))?'':'none';
+  document.getElementById('genProg').style.display=(v&&genState&&genState.shown)?'flex':'none';
   if(!v) document.getElementById('exportStat').style.display='none';
   if(!img) updateNoiseStat(null);
   updateSizeInfo();
@@ -1039,223 +1087,13 @@ document.getElementById('viewSeg').addEventListener('click',e=>{
 let tq=null;
 function queue(){ clearTimeout(tq); tq=setTimeout(simulate,60); }
 
-/* ================= 3MF 輸出（垂直多零件，v1.7）=================
-   Eric 定的工作流：照片變厚→按顏色分區塊→每區塊＝獨立零件往後延伸→每零件一個混色比例。
-   輸出＝Orca 專案格式 3MF：3dmodel.model（每零件一個 mesh＋components 組回單一物件）
-   ＋ Metadata/model_settings.config（每 part 帶 extruder=零件編號，名稱帶 #RRGGBB 預覽色
-     → PingSlicer 開檔自動縮成實際槽數、套色並檢查指派完整性）
-   ＋ Metadata/ping_palette.txt（零件↔M6052/M6051 配比表，後處理與人讀用）。 */
+/* ================= 生成（C-2：走隱形宿主；頁面自建 3MF 鏈退役）=================
+   v1.7 的頁面自建鏈（CRC32/makeZip/build3mf/__buildExport）已整段退役（二輪 B1 的解）：
+   生成一律走 PhotoTileEngine——embedded＝C++ 宿主驅動隱形引擎頁（本頁只送參數、收進度/結果）、
+   非 embedded（瀏覽器開發）＝直接呼叫 engine.js 的 generate()。兩條路同一支引擎；
+   演算法正本＝engine.js（C-1 逐行搬自本頁 v1.7），位元組基準＝C++ 黃金閘門 12 案。
+   lastExport 仍由 simulate 系列維護（預覽同步用；生成請求不再讀它）。 */
 let lastExport=null;
-const CRC_TABLE=(()=>{ const t=new Uint32Array(256);
-  for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[i]=c; }
-  return t; })();
-function crc32(u8){ let c=0xFFFFFFFF;
-  for(let i=0;i<u8.length;i++) c=CRC_TABLE[(c^u8[i])&0xFF]^(c>>>8);
-  return (c^0xFFFFFFFF)>>>0; }
-async function deflateRaw(u8){
-  if(typeof CompressionStream==='undefined') return null;
-  const cs=new CompressionStream('deflate-raw');
-  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(cs)).arrayBuffer());
-}
-async function makeZip(entries){
-  const enc=new TextEncoder(); const chunks=[]; const central=[]; let offset=0;
-  for(const e of entries){
-    const nameB=enc.encode(e.name);
-    const data= typeof e.data==='string' ? enc.encode(e.data) : e.data;
-    const crc=crc32(data);
-    let comp=await deflateRaw(data), method=8;
-    if(!comp || comp.length>=data.length){ comp=data; method=0; }
-    const lh=new DataView(new ArrayBuffer(30));
-    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true);
-    lh.setUint16(8,method,true);
-    lh.setUint32(14,crc,true); lh.setUint32(18,comp.length,true); lh.setUint32(22,data.length,true);
-    lh.setUint16(26,nameB.length,true);
-    chunks.push(new Uint8Array(lh.buffer),nameB,comp);
-    central.push({nameB,crc,clen:comp.length,rlen:data.length,method,offset});
-    offset+=30+nameB.length+comp.length;
-  }
-  const cdStart=offset;
-  for(const c of central){
-    const ch=new DataView(new ArrayBuffer(46));
-    ch.setUint32(0,0x02014b50,true); ch.setUint16(4,20,true); ch.setUint16(6,20,true);
-    ch.setUint16(10,c.method,true);
-    ch.setUint32(16,c.crc,true); ch.setUint32(20,c.clen,true); ch.setUint32(24,c.rlen,true);
-    ch.setUint16(28,c.nameB.length,true);
-    ch.setUint32(42,c.offset,true);
-    chunks.push(new Uint8Array(ch.buffer),c.nameB);
-    offset+=46+c.nameB.length;
-  }
-  const eo=new DataView(new ArrayBuffer(22));
-  eo.setUint32(0,0x06054b50,true);
-  eo.setUint16(8,central.length,true); eo.setUint16(10,central.length,true);
-  eo.setUint32(12,offset-cdStart,true); eo.setUint32(16,cdStart,true);
-  chunks.push(new Uint8Array(eo.buffer));
-  return new Blob(chunks,{type:'model/3mf'});
-}
-function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-async function build3mf(){
-  if(!img || !lastExport) return null;
-  const {labels,palette,mode,noiseMm=0,noiseStats=null}=lastExport;
-  const w=img.w,h=img.h;
-  if(!window.PhotoTileMesh) throw new Error('連通網格模組未載入，請重新整理頁面');
-  /* 1) 預覽階段已依畫面上的 mm 門檻完成灰階平滑與小色塊濾除；匯出直接複製同一份標籤，
-     避免 3MF 再做隱藏濾波而與使用者看到的預覽不同。 */
-  let L=new Uint8Array(labels);
-  /* 1.5) 交錯齒邊界（v2.1，Eric 定 A案）：奇數像素列把「垂直邊界」往右咬 1 像素——
-     層內左右零件交界的長直溝（外牆內縮的幾何本質）被打碎成單列錯位短縫（視覺 dithering）
-     ＋相鄰零件互相咬合。只動垂直邊界：水平邊界沒有內縮溝、做齒反而會產生
-     1px 孤島與換料爆炸。齒寬=1像素≈1線寬；換料次數/零件數不變。
-     （interlocking_beam 在此幾何會炸引擎、彩繪路線分區牆一樣有溝＋16色上限——皆已否決） */
-  let teethFlips=0;
-  if(params.teeth && params.orient==='vertical'){
-    const O=new Uint8Array(L);
-    for(let y=1;y<h;y+=2)
-      for(let x=1;x<w;x++)
-        if(L[y*w+x-1]!==L[y*w+x]){ O[y*w+x]=L[y*w+x-1]; teethFlips++; }
-    L=O;
-  }
-  window.__teethStats=teethFlips;
-  /* 2) 四向連通分析＋同色外殼網格。
-     每一個連通色塊只保留外表面，移除舊版每個矩形各自封盒造成的內牆、重疊面與碎路徑。 */
-  const sx=params.width/w, sz=params.height/h, T=params.thick;
-  const collected=PhotoTileMesh.collectParts(L,w,h,palette.length);
-  const parts=collected.parts;
-  let totalTiles=0,totalVertices=0,totalTriangles=0;
-  const TRI=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,6,2],[3,7,6],[0,7,3],[0,4,7],[1,2,6],[1,6,5]];
-  const f=v=>Math.round(v*1000)/1000;
-  const objXml=[]; const cfgParts=[]; const palLines=[];
-  const meshStats=[];
-  /* V 溝已移除（Eric 2026-07-29 裁「尖點拿掉、目前沒有作用」）：0720 引入的交界內埋 V 溝
-     （1.2×0.6mm）實測縫未被可靠吸進溝——只在垂直穩定段開溝、非逐層＝效果不成立。
-     改回平面交界（溝參數傳 null＝走 notchOn=false 原始碼路）；縫定位交給端面
-     paint_seam 標記＋切片器接縫設定（後續方案見縫線位置控制研究）。 */
-  parts.forEach((part,pi)=>{
-    const mesh=PhotoTileMesh.buildLabelMesh(L,w,h,part.k,part.runs,sx,sz,T,null);
-    const V=mesh.vertices.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`);
-    /* 接縫藏磚體內（Eric 2026-07-20 裁「做」）：X 端面（零件交界／磚側邊窄面）標
-       paint_seam="4"（TriangleSelector 葉節點 enforcer 的 nibble 編碼）→ SeamPlacer
-       把每圈縫拉到端面，正反面乾淨、雙面可用。縫擠在交界的實印效果待工程端印驗。 */
-    const VX=mesh.vertices;
-    /* P2A 加碼（Eric 2026-07-29「最左外側的縫也收進內部」）：磚外側兩窄面（x≈0／x≈寬）
-       在 P2A 開啟時不標 enforcer（中性）→ 邊緣零件的縫被內部交界的 Enforced 型別優先吸走；
-       全寬單色層（無內部交界）時，中性側面仍是唯一非 blocked 去處＝fallback 不會跑去正背面。 */
-    const OUTER_TOL=Math.max(0.01,sx/2);
-    const F=mesh.triangles.map(t=>{
-      const x0=VX[t[0]][0];
-      if(Math.abs(x0-VX[t[1]][0])<1e-9 && Math.abs(x0-VX[t[2]][0])<1e-9){
-        if(params.p2aBlock && (x0<OUTER_TOL || x0>params.width-OUTER_TOL))
-          return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`;
-        return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}" paint_seam="4"/>`;
-      }
-      /* P2A（Eric 2026-07-29 裁 C 批原型）：y 等值面＝正/背面 → 塗 blocker。
-         nibble "8"＝BLOCKER(2)<<2（TriangleSelector.cpp:1773 非分割碼 state=code>>2）；
-         blocker 判定在 enforcer 之後＝蓋得掉膨脹進正背面的假 Enforced（SeamPlacer.cpp:507）。 */
-      const y0=VX[t[0]][1];
-      const blk=(params.p2aBlock && Math.abs(y0-VX[t[1]][1])<1e-9 && Math.abs(y0-VX[t[2]][1])<1e-9) ? ' paint_seam="8"' : '';
-      return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${blk}/>`;
-    });
-    totalTiles+=mesh.tiles; totalVertices+=V.length; totalTriangles+=F.length;
-    meshStats.push({label:part.k,components:mesh.components,tiles:mesh.tiles,vertices:V.length,triangles:F.length});
-    const oid=pi+1;
-    objXml.push(`<object id="${oid}" type="model"><mesh><vertices>${V.join('')}</vertices><triangles>${F.join('')}</triangles></mesh></object>`);
-    const pal=palette[part.k];
-    const previewColor=rgbHex(...pal.rgb).toUpperCase();
-    const name = mode==='quad'
-      ? `零件色${pi+1} ${previewColor} A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
-      : `零件色${pi+1} ${previewColor} S${Math.round((1-pal.t)*100)/100}`;
-    cfgParts.push(
-      `    <part id="${oid}" subtype="normal_part">\n`+
-      `      <metadata key="name" value="${xmlEsc(name)}"/>\n`+
-      `      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n`+
-      `      <metadata key="extruder" value="${pi+1}"/>\n`+
-      `    </part>`);
-    palLines.push( mode==='quad'
-      ? `extruder ${pi+1} color ${previewColor} = M6052 A${pal.w[0]} B${pal.w[1]} C${pal.w[2]} D${pal.w[3]}`
-      : `extruder ${pi+1} color ${previewColor} = M6051 S${Math.round((1-pal.t)*100)/100}`);
-  });
-  window.__meshStats={parts:meshStats,totalComponents:collected.components,totalRuns:collected.totalRuns,totalTiles,totalVertices,totalTriangles};
-  /* 3.5) 洗料柱（v1.9 加入、v2.0 改固定 XY——Eric 定：取代換料塔）：獨立方柱零件、
-     25×4（雙料 S0.5）全料同出，每層都會被印到一次 → 四支料每層都動、不空燒。
-     只設 XY（預設 25mm 方柱、100% 填充）；層高歸切片器管、原型不碰＝不會 Double。
-     擺在磚右側 15mm；extruder = 零件數+1（調色盤上限已讓 1 支）。 */
-  let pillarOid=0;
-  if(params.pillar){
-    const side=pillarSide(), gap=15;
-    pillarOid=parts.length+1;
-    const X0=f(params.width+gap), X1=f(params.width+gap+side);
-    const Y0=f(params.thick/2-side/2), Y1=f(params.thick/2+side/2);
-    const Z0=0, Z1=f(params.height);
-    const pv=[[X0,Y0,Z0],[X1,Y0,Z0],[X1,Y1,Z0],[X0,Y1,Z0],[X0,Y0,Z1],[X1,Y0,Z1],[X1,Y1,Z1],[X0,Y1,Z1]];
-    const V=pv.map(v=>`<vertex x="${v[0]}" y="${v[1]}" z="${v[2]}"/>`).join('');
-    const F=TRI.map(t=>`<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`).join('');
-    objXml.push(`<object id="${pillarOid}" type="model"><mesh><vertices>${V}</vertices><triangles>${F}</triangles></mesh></object>`);
-    const sourceLin=slots.slice(0,mode==='quad'?4:2).map(s=>hexLin(s.color));
-    const pillarLin=[0,1,2].map(ch=>sourceLin.reduce((sum,c)=>sum+c[ch],0)/sourceLin.length);
-    const pillarColor=rgbHex(...pillarLin.map(l2s)).toUpperCase();
-    const pname = mode==='quad' ? `洗料柱 ${pillarColor} A25 B25 C25 D25` : `洗料柱 ${pillarColor} S0.5`;
-    cfgParts.push(
-      `    <part id="${pillarOid}" subtype="normal_part">\n`+
-      `      <metadata key="name" value="${xmlEsc(pname)}"/>\n`+
-      `      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n`+
-      `      <metadata key="extruder" value="${pillarOid}"/>\n`+
-      `      <metadata key="sparse_infill_density" value="100%"/>\n`+
-      `    </part>`);
-    palLines.push( mode==='quad'
-      ? `extruder ${pillarOid} color ${pillarColor} = M6052 A25 B25 C25 D25（洗料柱 ${side}×${side}mm 實心方柱）`
-      : `extruder ${pillarOid} color ${pillarColor} = M6051 S0.5（洗料柱 ${side}×${side}mm 實心方柱）`);
-  }
-  const MID=1000;
-  const nObjs=parts.length+(pillarOid?1:0);
-  const comps=Array.from({length:nObjs},(_,i)=>`<component objectid="${i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
-  const model=
-`<?xml version="1.0" encoding="UTF-8"?>
-<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
- <metadata name="Application">PING-PhotoTile-Prototype</metadata>
- <resources>
-${objXml.map(o=>'  '+o).join('\n')}
-  <object id="${MID}" type="model"><components>${comps}</components></object>
- </resources>
- <build><item objectid="${MID}" transform="1 0 0 0 1 0 0 0 1 ${f(-params.width/2)} ${f(-params.thick/2)} 0" printable="1"/></build>
-</model>`;
-  const cfg=
-`<?xml version="1.0" encoding="UTF-8"?>
-<config>
-  <object id="${MID}">
-    <metadata key="name" value="${xmlEsc('照片磚')}"/>
-${cfgParts.join('\n')}
-  </object>
-</config>`;
-  const rels=`<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
- <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
-</Relationships>`;
-  const types=`<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
- <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
- <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
- <Default Extension="config" ContentType="text/xml"/>
- <Default Extension="txt" ContentType="text/plain"/>
-</Types>`;
-  const palTxt=
-`PING 照片磚 垂直多零件 配比表（${mode==='quad'?'四料 M6052':'雙料 M6051'}）
-尺寸 ${params.width}x${params.height}x${params.thick} mm｜零件數 ${parts.length}${pillarOid?'＋洗料柱1':''}｜連通區 ${collected.components}｜網格片 ${totalTiles}｜三角形 ${totalTriangles}
-口徑 ${params.nozzle} mm（水平最小色塊寬 ≥ ${(2*params.nozzle).toFixed(1)} mm，窄條已併入鄰色）
-接縫：端面 paint_seam 標記（交界／側邊窄面）——縫拉往零件交界；接縫位置請用「對齊」（V 溝已於 2026-07-29 移除）；P2A 正背面禁縫=${params.p2aBlock?'開':'關'}
-雜訊濾除 ${noiseMm>0?`尺寸 ≤ ${noiseMm.toFixed(1)} mm，已平滑／合併 ${noiseStats?noiseStats.changedPixels:0} 格，移除 ${noiseStats?noiseStats.removedComponents:0} 個小色塊（不留空洞）`:'關閉'}
-${palLines.join('\n')}`;
-  const blob=await makeZip([
-    {name:'[Content_Types].xml', data:types},
-    {name:'_rels/.rels', data:rels},
-    {name:'3D/3dmodel.model', data:model},
-    {name:'Metadata/model_settings.config', data:cfg},
-    {name:'Metadata/ping_palette.txt', data:palTxt},
-  ]);
-  return {blob, parts:parts.length, components:collected.components, tiles:totalTiles,
-          vertices:totalVertices, triangles:totalTriangles, pillar:!!pillarOid, extruders:nObjs,
-          noiseRemoved:noiseStats?noiseStats.removedComponents:0,
-          noiseChanged:noiseStats?noiseStats.changedPixels:0, noiseMm};
-}
-window.__buildExport=build3mf;   // 自動化測試鉤子
 function slicerBridgeReady(){
   return embeddedMode && window.wx && typeof window.wx.postMessage==='function';
 }
@@ -1268,50 +1106,151 @@ function bytesToBase64(bytes){
     binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
   return btoa(binary);
 }
-async function send3mfToSlicer(r,st){
-  const bytes=new Uint8Array(await r.blob.arrayBuffer());
-  const rawChunkSize=96*1024;                    // 可被 3 整除，不會在中段產生 base64 padding
+/* ── C-2 影像回送：頁內選檔/貼上的圖 → C++ 暫存檔（96KB 原始塊＝可被 3 整除、
+      base64 無中段 padding，與舊 export 鏈同法）。C++ 端四項驗證：連號/塊數/總長度/上限。 ── */
+async function syncImageToHost(f){
+  const bytes=new Uint8Array(await f.arrayBuffer());
+  if(!bytes.length) return;
+  const rawChunkSize=96*1024;
   const chunks=Math.ceil(bytes.length/rawChunkSize);
-  sendSlicerMessage('phototile_export_begin',{
-    name:'照片磚_連通網格版.3mf',size:bytes.length,chunks
-  });
+  sendSlicerMessage('phototile_image_begin',{size:bytes.length,chunks,mime:f.type||'image/png',name:f.name||''});
   for(let i=0;i<chunks;i++){
-    const raw=bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize));
-    sendSlicerMessage('phototile_export_chunk',{index:i,base64:bytesToBase64(raw)});
-    st.textContent=`正在送入列印板… ${i+1}/${chunks}`;
-    await new Promise(resolve=>setTimeout(resolve,0));
+    sendSlicerMessage('phototile_image_chunk',{index:i,
+      base64:bytesToBase64(bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize)))});
+    await new Promise(r=>setTimeout(r,0));
   }
-  /* mode/nozzle＝供 C++ 在載入前自動切對應「同進照片磚」機（Eric 2026-07-29 裁 A 案）：
-     dual→FD 家族、quad→FF 家族，口徑對 printer_variant；值與 3MF 配方同源（lastExport／params）。 */
-  sendSlicerMessage('phototile_export_end',{name:'照片磚_連通網格版.3mf',
-    mode:(lastExport&&lastExport.mode)||'',
-    nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
+  sendSlicerMessage('phototile_image_end',{});
 }
-document.getElementById('btnExport').onclick=async()=>{
+
+/* ── C-2 生成狀態機＋A 案進度 UI（Eric 0804 裁：就地轉換／取消留舊磚／改參數不自動重跑）──
+   FBK-29：1 秒內完成整段進度 UI 不出現（門檻值待實機驗收——引擎穩態單輪 0.8~1.3s 剛好卡線上）。
+   FBK-02/05：完成先補到 100% 再收。FBK-26：取消文案明說回到哪。 */
+const GEN_STAGE_INDEX={decode:1,grid:2,suggest:3,quantize:4,filter:5,metric:6,mesh:7};
+const GEN_SHOW_DELAY_MS=1000;
+let genState=null;                 // {jobId,t0,shown,pct,stageLabel,stageIdx,delayTimer,tickTimer}
+let genSeq=0;
+let imageSync=Promise.resolve();   // 頁內圖 → C++ 暫存檔的落地狀態；generate 前必 await
+let lastEngineStatus=null;
+
+function genShowProgress(on){
+  if(genState) genState.shown=on;
+  const vertical=params.orient==='vertical';
+  document.getElementById('btnExport').style.display=(vertical&&!on)?'':'none';
+  document.getElementById('genProg').style.display=(vertical&&on)?'flex':'none';
+}
+function genPaint(){
+  if(!genState||!genState.shown) return;
+  const e=(performance.now()-genState.t0)/1000;
+  document.getElementById('genStage').textContent=genState.stageLabel;
+  document.getElementById('genBar').style.width=(genState.pct*100).toFixed(1)+'%';
+  document.getElementById('genMeta').textContent = genState.stageIdx>0
+    ? `第 ${genState.stageIdx} / 7 階段・已 ${e.toFixed(1)} 秒`
+    : `已 ${e.toFixed(1)} 秒`+((lastEngineStatus&&(lastEngineStatus.status==='starting'||lastEngineStatus.status==='rebuilding'))?'・引擎啟動中…':'');
+}
+function genStatline(cls,text){
   const st=document.getElementById('exportStat');
-  st.style.display=''; st.textContent='產生中…';
-  const button=document.getElementById('btnExport'); button.disabled=true;
-  try{
-    clearTimeout(tq); simulate();                  // 先套用畫面上最新的濾除門檻
-    const r=await build3mf();
-    if(!r){ st.textContent='請先載入圖片'; return; }
-    if(slicerBridgeReady()){
-      await send3mfToSlicer(r,st);
-      st.textContent='3MF 已產生，正在載入列印板…';
-    }else{
+  if(!text){ st.style.display='none'; st.textContent=''; return; }
+  st.style.display='';
+  st.style.color = cls==='ok' ? '#2E7D32' : cls==='warn' ? 'var(--orange)' : '#777';
+  st.textContent=text;
+}
+function genTeardown(){
+  if(!genState) return;
+  clearTimeout(genState.delayTimer); clearInterval(genState.tickTimer);
+  const wasShown=genState.shown;
+  genState=null;
+  if(wasShown) genShowProgress(false);
+}
+function genBegin(jobId){
+  genTeardown();
+  genStatline('','');
+  genState={jobId,t0:performance.now(),shown:false,pct:0,stageLabel:'準備中…',stageIdx:0,delayTimer:null,tickTimer:null};
+  genState.delayTimer=setTimeout(()=>{ if(genState&&genState.jobId===jobId){ genShowProgress(true); genPaint(); } },GEN_SHOW_DELAY_MS);
+  genState.tickTimer=setInterval(genPaint,100);
+}
+function genFinishOk(r){
+  const wallSec=(((r&&r.wallMs)||0)/1000).toFixed(1);
+  const detail=(r&&r.parts)?`${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、`:'';
+  const text=(r&&r.downloaded)
+    ? `✓ 已輸出下載：${detail}耗時 ${wallSec} 秒。`
+    : `✓ 已產生並載入列印板：${detail}耗時 ${wallSec} 秒。`;
+  if(genState&&genState.shown){
+    genState.pct=1; genPaint();                              // FBK-02/05：先走到底再收
+    clearTimeout(genState.delayTimer); clearInterval(genState.tickTimer);
+    setTimeout(()=>{ genState=null; genShowProgress(false); genStatline('ok',text); },350);
+  }else{
+    genTeardown(); genStatline('ok',text);
+  }
+}
+function genFinishFail(msg){
+  genTeardown();
+  genStatline('warn',`產生失敗：${msg||'請重試'}`);
+}
+function genCancelClick(){
+  if(!genState) return;
+  const jobId=genState.jobId;
+  genTeardown();                                             // A 案：取消當下 UI 立即恢復
+  genStatline('warn','已取消。設定與預覽維持原狀、未上盤；盤上原有的磚不受影響。');
+  if(slicerBridgeReady()) sendSlicerMessage('phototile_cancel',{jobId});
+  else if(window.PhotoTileEngine) PhotoTileEngine.cancel(jobId);
+}
+
+/* 頁面狀態 → 引擎請求（欄位對照 engine.js normalizeRequest）。slots＝使用者實際看到的配色，
+   一定送＝生成與預覽同源；不送＝引擎自動配色——那正是 C-1 被抓到的缺口（使用者挑的料色被靜默丟掉）。 */
+function buildRequest(){
+  return {
+    jobId:'studio-'+(++genSeq)+'-'+Date.now().toString(36),
+    mode: slotCount===4?'quad':'dual',
+    nozzle: params.nozzle,
+    size:{widthMm:params.width, heightMm:params.height, thickMm:params.thick},
+    klevels: params.klevels,
+    noiseMm: params.noiseMm,
+    pillar:{enabled:params.pillar, xyMm:params.pillarXY},
+    seam:{teeth:params.teeth, p2aBlock:params.p2aBlock},
+    slots: slots.slice(0,slotCount).map(s=>({...s}))
+  };
+}
+
+document.getElementById('btnGenCancel').onclick=genCancelClick;
+document.getElementById('btnExport').onclick=async()=>{
+  if(genState) return;
+  if(!img){ genStatline('warn','請先載入圖片'); return; }
+  clearTimeout(tq); simulate();                    // 同舊行為：先套畫面上最新參數再生成
+  const req=buildRequest();
+  if(slicerBridgeReady()){
+    /* 產品路徑：只送參數（含 slotsJson），影像用 C++ 手上的路徑；進度/結果由宿主回推
+       （window.PINGPhotoTile.jobProgress / jobResult / engineStatus）。 */
+    genBegin(req.jobId);
+    try{ await imageSync; }catch(e){}
+    if(!genState||genState.jobId!==req.jobId) return;        // 等影像落地期間被取消
+    sendSlicerMessage('phototile_generate',{
+      jobId:req.jobId, mode:req.mode,
+      nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):'',
+      size:req.size, klevels:req.klevels, noiseMm:req.noiseMm,
+      pillar:req.pillar, seam:req.seam,
+      slotsJson:JSON.stringify(req.slots)
+    });
+  }else{
+    // 開發路徑（瀏覽器直開）：同一支引擎直接呼叫、產物下載——與產品共用 engine.js（B1 的解）
+    if(!window.PhotoTileEngine){ genStatline('warn','引擎模組未載入，請重新整理頁面'); return; }
+    req.image=srcBitmap;                                     // 引擎不會 close 呼叫端的 bitmap
+    genBegin(req.jobId);
+    try{
+      const r=await PhotoTileEngine.generate(req,{onProgress:p=>window.PINGPhotoTile.jobProgress(p)});
+      if(!genState||genState.jobId!==req.jobId) return;      // 已取消：引擎回什麼都不理
+      if(!r.ok){
+        if(r.error&&r.error.code==='cancelled') genTeardown();
+        else genFinishFail(r.error?r.error.message:'請重試');
+        return;
+      }
       const a=document.createElement('a');
       a.href=URL.createObjectURL(r.blob);
-      a.download='照片磚_連通網格版.3mf';
+      a.download=r.fileName||'照片磚_連通網格版.3mf';
       a.click();
-      st.textContent=`已輸出：${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、${r.components} 個連通區、`+
-        `${r.triangles} 個三角形、${(r.blob.size/1024).toFixed(0)} KB。`+
-        `雜訊門檻 ${r.noiseMm.toFixed(1)} mm，已平滑／合併 ${r.noiseChanged} 格、移除 ${r.noiseRemoved} 個小色塊（不留空洞）。`+
-        `PingSlicer 開檔後會只保留 ${r.extruders} 個對應線材槽、自動套用預覽色，`+
-        `並檢查每個零件的配方與槽號是否完整；曲線建議使用 0.1 mm 層高切片。`;
-    }
-  }catch(e){
-    st.textContent=`產生失敗：${e && e.message ? e.message : '請重試'}`;
-  }finally{ button.disabled=false; }
+      genFinishOk({wallMs:(r.diagnostics&&r.diagnostics.timings&&r.diagnostics.timings.totalMs)||0,
+                   parts:r.stats&&r.stats.parts, pillar:r.stats&&r.stats.pillar, downloaded:true});
+    }catch(e){ if(genState&&genState.jobId===req.jobId) genFinishFail(e&&e.message); }
+  }
 };
 
 /* ================= 啟動：直接給結果 ================= */

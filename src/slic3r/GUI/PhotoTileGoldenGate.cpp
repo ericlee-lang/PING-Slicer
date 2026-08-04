@@ -270,6 +270,11 @@ struct GoldenJob
 {
     size_t case_index = 0;
     bool   metadata   = false;
+    /* 【C-2 slots 反向測】探針案＝dual-default 同參數＋固定 slots，不進基準 manifest、
+       不與基準比對；斷言＝生成成功且整包 SHA ≠ dual-default(off)。
+       為什麼要有：C-1 的 12 案全是自動配色案，「slots 直通」那條路從來沒被走過——
+       不帶 slots 的請求字串與 C-1 全等（保命索），帶了就**必須**改變輸出，否則＝直通沒生效。 */
+    bool   slots_probe = false;
 
     // 產出與判定
     bool        generated = false;
@@ -311,6 +316,12 @@ public:
             m_jobs.push_back({ i, false });
             m_jobs.push_back({ i, true  });
         }
+        // 第 13 案＝slots 反向測探針（排最後＝dual-default(off) 的 SHA 必已到手）
+        GoldenJob probe;
+        probe.case_index  = 0;      // 借 dual-default 的參數
+        probe.metadata    = false;
+        probe.slots_probe = true;
+        m_jobs.push_back(probe);
     }
     ~GoldenRun() override = default;
 
@@ -401,7 +412,7 @@ private:
         const GoldenCase&  c = m_cases[j.case_index];
 
         PhotoTileEngineRequest req;
-        req.job_id     = "golden-" + c.label + (j.metadata ? "-meta" : "");
+        req.job_id     = "golden-" + c.label + (j.metadata ? "-meta" : "") + (j.slots_probe ? "-slots-probe" : "");
         req.mode       = c.mode;   req.nozzle = 0.4;
         req.width_mm   = 100.0;    req.height_mm = 75.0;  req.thick_mm = 6.0;
         req.klevels    = 8;        req.noise_mm  = c.noise_mm;
@@ -410,6 +421,8 @@ private:
         req.image_path = m_input_path;
         req.want_metadata = j.metadata;
         req.embed_source  = j.metadata;     // metadata 關的那輪不得夾帶任何額外 entry
+        if (j.slots_probe)                  // 紅/黑＝與自動配色（白＋主色）必不同的固定配色
+            req.slots_json = "[{\"color\":\"#c0392b\"},{\"color\":\"#1a1a1a\"}]";
         m_job_t0 = gg_now_ms();
         BOOST_LOG_TRIVIAL(warning) << "PhotoTile 黃金閘門 " << req.job_id << " 起跑";
         m_host->generate(req);
@@ -432,7 +445,7 @@ private:
         j.sha_package = r.sha256;
         j.bytes       = (long long) r.three_mf.size();
 
-        const std::string base = c.label + (j.metadata ? "_meta" : "");
+        const std::string base = c.label + (j.metadata ? "_meta" : "") + (j.slots_probe ? "_slots_probe" : "");
         const std::string out  = m_out_dir + "/" + base + ".3mf";
         if (!write_bytes(out, r.three_mf)) {
             j.error_message = "寫檔失敗：" + out;
@@ -465,6 +478,22 @@ private:
             j.chinese_path_error = std::string("中文路徑處理丟例外：") + e.what();
         }
         if (!j.chinese_path_ok) m_all_ok = false;
+
+        /* 【C-2】slots 反向測探針：不進基準、不比基準——只斷言「帶 slots ⇒ 輸出必異」。
+           與 dual-default(off) 位元組相同＝slots 直通沒生效（C-1 缺口的回歸線）。 */
+        if (j.slots_probe) {
+            if (m_dual_default_off_sha.empty()) {
+                j.entry_diffs.push_back("slots 反向測：拿不到 dual-default(off) 的整包 SHA，無從比較");
+                m_all_ok = false;
+            } else if (j.sha_package == m_dual_default_off_sha) {
+                j.entry_diffs.push_back("slots 反向測失敗：帶 slots 的輸出與 dual-default(off) 位元組相同＝slots 直通沒有生效");
+                m_all_ok = false;
+            }
+            next();
+            return;
+        }
+        if (!j.metadata && c.label == "dual-default")
+            m_dual_default_off_sha = j.sha_package;   // 探針排最後＝此值必已就位
 
         // ⑤ 與黃金比對【二輪 B3：off 與 on **全部 12 案**都比整包 SHA＋entry 全集；
         //    先前只凍 off、on 只驗增量，verdict 卻宣稱 12 案全相符＝過度宣稱】
@@ -548,6 +577,7 @@ private:
           << "  " << jstr("cases") << ": {\n";
         bool first = true;
         for (const GoldenJob& job : m_jobs) {
+            if (job.slots_probe) continue;   // 探針不進基準：舊 12 鍵 manifest 繼續有效
             const std::string key = m_cases[job.case_index].label + (job.metadata ? "_meta" : "");
             if (!first) j << ",\n";
             first = false;
@@ -585,6 +615,7 @@ private:
             return "FAIL：輸入圖與基準不同（基準 " + m_manifest_input_sha.substr(0, 12) +
                    "…／本次 " + m_input_sha.substr(0, 12) + "…）⇒ 其餘比對全部無意義";
         return m_all_ok ? "PASS：12 案（六案 × metadata off／on）**逐案對凍結基準**整包 SHA＋entry 全集相符；"
+                          "slots 反向測（帶 slots ⇒ 輸出必異）通過；"
                           "真 importer／save-reopen（含語意 digest）／中文路徑全部通過"
                         : "FAIL：見 cases 內逐項";
     }
@@ -612,6 +643,7 @@ private:
             const GoldenCase& c   = m_cases[job.case_index];
             j << "    { " << jfield("label", c.label)
               << ", " << jfield("metadata", job.metadata)
+              << ", " << jfield("slotsProbe", job.slots_probe)
               << ", " << jfield("generated", job.generated)
               << ", " << jfield("errorCode", job.error_code)
               << ", " << jfield("errorMessage", job.error_message)
@@ -676,6 +708,7 @@ private:
     std::map<std::string, std::map<std::string, std::string>> m_off_entries;
     std::string m_dir, m_out_dir, m_cn_dir, m_manifest_path, m_report_path;
     std::string m_input_path, m_input_sha, m_manifest_input_sha, m_fatal;
+    std::string m_dual_default_off_sha;    // slots 反向測的比較對象（dual-default off 整包 SHA）
     long long   m_input_bytes = 0;
     size_t      m_index = 0;
     double      m_t0 = 0, m_job_t0 = 0;
