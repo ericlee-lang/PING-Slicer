@@ -15,7 +15,64 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
-### 🔴 C-2 第 1 項・第二棒收工（2026-08-04・牌 c-0804-PT-12）——**碼全落、編譯乾淨、但產品路徑一步未驗**
+### ✅ C-2 第 1 項・第三棒收工（2026-08-04・牌 c-0804-PT-13）——**兩條阻斷已修＋embedded 產品鏈首度走通**
+
+**一句話**：覆審抓到的 B-1（換圖失敗靜默沿用舊圖）與 B-2（用過照片磚後關窗行程不結束）**都修好並實證**；
+第二棒欠的④驗證**全部跑完**，`window.wx.postMessage → C++ 五命令 → 宿主 → 回推頁面`這條產品鏈
+**C-1 至今第一次真的被走過**。commit `55fb90f5`（開發線 ping/v3.5，未推遠端）。
+
+**✅ 修了什麼**
+1. **B-1**：`image_begin` 重置區**無條件作廢** `m_photo_tile_source_path`（比逐條補 clear 更完整——
+   連「送了 begin 就沒下文」也蓋到）；舊路徑改存 `m_photo_tile_pending_previous`（僅非空時覆寫），
+   只供 end 成功後刪舊暫存檔。五條失敗路徑全部補 `PINGPhotoTile.imageError` 回推。
+   頁面端：`syncImageToHost` 加傳輸 token（三處檢查）防連續換圖競態、`loadFile` 前擋 64MB 給人話、
+   `imageSync` 失敗不再被吞（生成端誠實失敗）。
+2. **B-2**：`PhotoTileHostFrame` 子類 override `ShouldPreventAppExit()=false`（比照 wx log 視窗）
+   ＋`MainFrame` 關窗 handler 加 `photo_tile_shutdown_host()`（主迴圈還活著時收攤；OnExit 留第二道網）。
+3. **觀察面（I-10）**：五命令＋result＋3MF 落地補 `BOOST_LOG info`（進度回推不 log 防洪水）。
+   ⚠ 要看到 info 需把 datadir 的 `PINGSlicer.conf` 的 `log_severity_level` 設 `info`（本棒已設 `_smokedata`）。
+4. **文件（I-8/I-9）**：repo `CLAUDE.md`／`AGENTS.md` 的「一律 `-- -m` 全平行」改成 `/m:1 /p:CL_MPCount=6`
+   ＋build 前 `Get-PSDrive C`；本檔閘門指令補 exe 絕對路徑＋`--datadir`＋BASELINE_CREATED 警語；SOP §11:122 標已取代。
+
+**🔬 驗證（全部本棒實跑，證據可回溯）**
+- **編譯**：安全平行度、零 C3859/C1076、零錯誤；`GUI_App/MainFrame/PhotoTileEngineHost` 的 obj 皆為本輪新編＝**不是漏編品**
+  （前一棒的兩顆 crash dump 因此判定為漏編品所致，已刪）。
+- **黃金閘門**：`13/13 jobs`、`manifestLoaded=true`、`manifestPath` 指 `_smokedata`、**12 案位元組全等**
+  ＋第 13 案 slots 反向測；`%APPDATA%` 零污染。
+- **活體 A–H**：八段全 `pass=true`（含殺 renderer 重建 F／連殺風暴 G／REBUILD_CAP 保險絲 H）。閘門①`PASS_STEADY`（同 C-1）。
+- **embedded 產品鏈六判準**：①影像落檔 ✅ ②七階段進度**真的動**（實拍到「色階量化・第 4/7 階段」）✅
+  ③3MF 自動上盤且**先切機**（FD300 同進照片磚 0.4）✅ ④3MF 內 `slots`＋`palette` 與 UI 挑的料色**一字不差** ✅
+  ⑥取消 UI 復原、遲到結果被丟、盤上舊磚不動（**2 輪**）✅｜⑤壞格式 slots ⚠ **產品路徑不可自然觸發**
+  （頁面永遠送合法陣列），改由黃金第 13 案＋活體 E 段（10 案 fault injection）覆蓋——**誠實登錄，不算走過**。
+- **B-1 探針**：換圖後生成**用新圖**（紅→藍→紅，解 3MF 比對內嵌原圖像素，2 輪）；64MB 圖被頁面前擋
+  （人話＋預覽不換＋log 零 begin）；「begin 到了 276 塊、end 沒到」時 **C++ 零落檔**＝來源保持空。
+- **B-2 探針**：關窗前 5~6 個 `webview2_phototile` 行程活著 → 關窗後**行程與 webview 全退**、log 出現
+  `~GUI_App: exit`（＝OnExit 真的跑到），**2 輪**皆過；對照組（沒進工作室就關窗）也乾淨。
+- **第 7 項掛牌實查**：標題＝`⚠【壓測中・勿操作】未命名`，**載入專案後**＝`⚠【壓測中・勿操作】PING_photo_tile_…`
+  ⇒ Plater topbar 路徑也套到（SOP §17 可從 ⬜ 改 ✅）。截圖在 session 產物。
+
+**🟠 覆審剩下沒修的（下一棒的清單，皆非阻斷）**
+- **I-4（建議優先）**：產品路徑沒帶 `maxDecodedPixels` ⇒ 解碼後像素 OOM gate 在唯一產品入口失效。
+  **本棒實測坐實**：生成出來的 3MF 內 `params.limits = {gridMax:3200, maxDecodedPixels:0}`。
+  修法見覆審 I-4（依可用實體記憶體帶入；⚠ 不要動 `grid_max`，會打到黃金基準）。
+- I-1（引擎不可用時排隊 job 不終結）／I-2（上盤前就回報成功）／I-3（離開工作室不算取消）／
+  I-5（klevels 小數靜默回退）／I-6（detached 編碼緒解參考 wxTheApp）／I-7（暫存檔 substring 比對可能刪使用者檔）
+  ／🟡 次要一批：全部**原封未動**，覆審全文仍是正本。
+- **本棒新增的已知小事**：`%TEMP%` 會累積 `PING_photo_tile_*.3mf`（每次生成一顆、無人清），與覆審「暫存檔殘留」同源。
+
+**🧰 新工具（下一棒直接用，省一輪重新發明）**
+- `tools/ping/ui_drive.ps1`：DPI-aware 點擊／打字／按鍵，配 `window_probe.ps1` 截圖＝**AI 自己走 UI 的閉環**。
+  ⚠ 兩條實戰教訓：①**PowerShell 5.1 讀無 BOM 的 UTF-8 腳本會把中文絞成亂碼 ⇒ 腳本必須存成 UTF-8 with BOM**
+  ②**產品頁的「開啟圖片」native 檔案對話框由 WebView2 的 utility 行程託管、極難用合成輸入穩定驅動**
+  （Enter 會被自動完成吃掉、焦點會彈回頁面按鈕又開一個對話框）⇒ **走剪貼簿 Ctrl+V**（頁面 `paste` handler
+  → `loadFile` → `syncImageToHost` 是同一條鏈），本棒所有影像測試都靠它。
+- log 搜尋要用 ASCII 關鍵字（`PhotoTile`）：log 是 UTF-8，PS 預設編碼讀中文會找不到（`Select-String -Encoding UTF8` 才行）。
+
+**線況**：開發線 `ping/v3.5` = `55fb90f5`（**未推遠端**——0804 Eric 已裁把 PT 的 WIP 推上去一次，本棒新 commit 推不推請 Eric 定）。
+出貨線 `release/v3.6` 全程未碰。**不押 T**（產品鏈首驗雖全綠，但覆審 I 級一條未修）。
+
+---
+### 🔴 C-2 第 1 項・第二棒收工（2026-08-04・牌 c-0804-PT-12）——**碼全落、編譯乾淨、但產品路徑一步未驗**（已由第三棒接手處置）
 
 **一句話**：0804 收工點列的四步驟，①②③（C++ 四支 helper＋五命令／第 7 項掛牌真修／index.html A 案改造）
 **全部落碼並乾淨編譯完成**；④驗證**一項都沒跑**——`app 從未成功啟動過一次`。下一棒第一件事＝驗證，不是寫碼。
@@ -75,7 +132,14 @@
 
 **🔴 完全沒驗的（下一棒的四步驟，順序不可換；⚠ 但要先修上面兩條阻斷）**
 1. **app 能不能啟動**——本棒兩次啟動都崩（見下方教訓），修掉漏編後**沒有再測過一次**。先跑這個。
-2. **黃金閘門** `PING_PHOTOTILE_SMOKE=golden`（動了生成路徑＝必跑）：12 案位元組全等＋第 13 案 slots 反向測。
+2. **黃金閘門**（動了生成路徑＝必跑）：12 案位元組全等＋第 13 案 slots 反向測。完整指令（可直接貼）：
+   ```powershell
+   $env:PING_PHOTOTILE_SMOKE="golden"
+   & "D:\ping-slicer-c1\build\src\Release\ping-slicer.exe" --datadir "D:\ping-slicer-c1\_smokedata"
+   ```
+   ⚠ **`--datadir` 不帶＝落 `%APPDATA%\PingSlicer`（那裡沒有基準）＝走 BASELINE_CREATED＝這輪等於沒驗**；
+   看到 `BASELINE_CREATED` 或報告 `manifestLoaded:false` 就是跑錯 datadir，不是通過。判定看
+   `D:\ping-slicer-c1\_smokedata\phototile_golden_report.json` 三欄：`manifestLoaded=true`＋`manifestPath` 指向 `_smokedata`＋`verdict` 以「PASS」開頭。
 3. **活體 A–H**＋**embedded 產品路徑**——⚠ **最大未驗區**：本棒驗的全是頁面內的開發路徑，
    `window.wx.postMessage` → C++ 五命令 → 宿主 → 回推頁面**這條真正的產品鏈一次都沒跑過**。
    影像回送（`phototile_image_*`）、slots 直通、jobProgress/jobResult 回推全部只有靜態推理。
@@ -198,7 +262,10 @@
 
 **工具與紀律（C-1 留下的、C-2 直接用）**
 - 黃金閘門：`PING_PHOTOTILE_SMOKE=golden`（12 案基準比對；**動生成路徑後必跑**；fail-closed）
-- 其餘模式：`1|limits|live|vigil|cancellat`（`--datadir D:\ping-slicer-c1\_smokedata` 隔離）
+  ——**golden 也必帶 `--datadir D:\ping-slicer-c1\_smokedata`**（基準在那裡；不帶＝BASELINE_CREATED 假過。
+  ⚠ 不可用 `PING_PHOTOTILE_GOLDEN_DIR` 代替：它只改基準夾、報告仍寫死 data_dir()，會分裂兩地）
+- 其餘模式：`1|limits|live|vigil|cancellat`（同樣 `--datadir D:\ping-slicer-c1\_smokedata` 隔離）
+- exe＝`D:\ping-slicer-c1\build\src\Release\ping-slicer.exe`（ASCII junction 路徑，勿用中文原路徑）
 - 守夜/閘門視窗自帶「壓測中勿操作」標題（0803 事故防呆）；jobmem 模式 `PING_PHOTOTILE_LIMITS_JOBMEM_MB`
 - node 測：`tools/ping/phototile_zip_fallback_test.js`＋`phototile_protocol_test.js`（32 案）
 - K 上限＝8（Eric 0802 裁 B；engine clamp＋UI 同值）；K sweep 工具 `tools/ping/phototile_k_sweep.html`
