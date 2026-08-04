@@ -79,6 +79,7 @@
 #include "Plater.hpp"
 #include "PhotoTileCapability.hpp"
 #include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
+#include "PhotoTileGateJson.hpp"     // C-2 第 2 項：env 快照組字（#14 真 JSON writer——中文機名/反斜線路徑都要正確跳脫）
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -4872,9 +4873,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 m_photo_tile_export_expected_chunks = 0;
                 m_photo_tile_export_next_chunk = 0;
 
-                // 寫暫存→先切機→開檔＝與宿主生成鏈共用同一支（C-2 抽出；行為與 C-1 逐字同）
+                // 寫暫存→先切機→開檔＝與宿主生成鏈共用同一支（C-2 抽出；行為與 C-1 逐字同）。
+                // env＝nullptr：此鏈協定沒有 env（頁面自建 3MF 直送、使用者同步操作、無「遲到」
+                // 問題；發送端 build3mf 已於 C-2 第 1 項退役）＝#9 guard 豁免，不是漏網。
                 photo_tile_deliver_3mf(three_mf, root.get<std::string>("data.mode", ""),
-                                       root.get<std::string>("data.nozzle", ""));
+                                       root.get<std::string>("data.nozzle", ""), nullptr);
             }
             /* ── C-2 第 1 項：工作室 → 隱形宿主的生成鏈（2026-08-04）──────────────
                頁面只送參數（含使用者挑的料色 slotsJson＝C-1 缺口的正主），影像一律用
@@ -4951,7 +4954,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                    依可用實體記憶體推（宿主 static，夾 8e6～48e6；查不到＝保守 8e6）。
                    ⚠ 不動 grid_max：0＝引擎預設 3200＝工作室歷史行為，動了會改變輸出
                    位元組、打到黃金 12 案基準。
-                   env_json 刻意仍空：上盤前環境比對＝C-2 第 2 項（原子上盤 guard）才接。 */
+                   env_json 這裡不填＝交給宿主 generate() 蓋章（C-2 第 2 項已接：
+                   ensure_host 註冊的 current-env provider；上盤前 env_is_fresh 比對、過期即棄）。 */
                 engine_req.max_decoded_pixels = PhotoTileEngineHost::suggest_max_decoded_pixels();
 
                 photo_tile_ensure_host();
@@ -8656,6 +8660,11 @@ void GUI_App::photo_tile_ensure_host()
 
     m_photo_tile_host.reset(new PhotoTileEngineHost());
 
+    /* 【C-2 第 2 項・一輪 #9】env 蓋章來源：納入 host API ⇒ 每個 generate 自動帶
+       「使用者按下產生那一刻」的環境快照，呼叫端忘不掉；上盤入口用同一支函式
+       取「此刻」再比對＝同一把尺。 */
+    m_photo_tile_host->set_current_env_provider([this]() { return photo_tile_current_env_json(); });
+
     m_photo_tile_host->set_progress_handler([this](const std::string& job_id, const std::string& stage,
                                                    const std::string& stage_label, double pct) {
         if (job_id != m_photo_tile_active_job)
@@ -8715,7 +8724,9 @@ void GUI_App::photo_tile_ensure_host()
            不再有「頁面說成功、盤上停在上一顆磚」。 */
         const std::string job_id  = r.job_id;
         const int         wall_ms = r.wall_ms;
-        photo_tile_deliver_3mf(r.three_mf, mode, nozzle,
+        /* env＝引擎原封回傳的請求快照（#9 guard 用）；deliver 內同步取值複製，
+           不會留住這個指標。echo 掉了＝空字串＝guard fail-closed 誠實棄。 */
+        photo_tile_deliver_3mf(r.three_mf, mode, nozzle, &r.env_json,
             [this, job_id, wall_ms, parts, extruders, pillar](bool ok, const std::string& err_code,
                                                               const std::string& err_msg) {
                 if (!ok) {
@@ -8753,11 +8764,32 @@ void GUI_App::photo_tile_page_script(const std::string& js)
     mainframe->m_webview->RunScript(from_u8(js));
 }
 
+std::string GUI_App::photo_tile_current_env_json()
+{
+    /* 【C-2 第 2 項・一輪 #9】「此刻」的環境快照：只放覆審點名、會讓遲到結果變質的
+       兩樣——使用者選中的印表機 preset 與目前專案檔。生成期間使用者切機／開別的專案，
+       遲到的結果就不准再強行切機＋蓋盤。
+       刻意不放線材／盤面編輯狀態：上盤本來就整組切機（製程線材隨機型預設）；
+       未存檔的盤面編輯在 request_open_project 有既有「儲存變更？」對話框保護
+       （I-2 case b 判例＝使用者親眼決定，不算靜默）。欄位少而確定＝正常沒動的
+       生成不可能被誤判成過期（誤殺比漏殺更傷這條動線）。
+       取不到（收攤中）＝回空 ⇒ 蓋章端 log 提示、上盤端 fail-closed。 */
+    if (!preset_bundle || plater() == nullptr)
+        return std::string();
+    return "{" + jfield("printer", preset_bundle->printers.get_selected_preset_name()) +
+           "," + jfield("project", into_u8(plater()->get_project_filename())) + "}";
+}
+
 void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                                      const std::string& mode, const std::string& nozzle,
+                                     const std::string* result_env_json,
                                      std::function<void(bool ok, const std::string& err_code,
                                                         const std::string& err_msg)> done)
 {
+    /* 【C-2 第 2 項】env 紀律只適用引擎路徑（request 蓋章→引擎原封回傳）；指標當場
+       取值複製＝不留呼叫端的參考跨越 CallAfter。null＝舊 export 鏈豁免（見 .hpp）。 */
+    const bool        enforce_env = result_env_json != nullptr;
+    const std::string result_env  = enforce_env ? *result_env_json : std::string();
     const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
         boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
     boost::nowide::ofstream output(output_path.string(), std::ios::binary);
@@ -8779,7 +8811,27 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
     const auto target = ping_resolve_photo_tile_printer(mode, nozzle);
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：3MF 落地 " << project_path
                             << "，目標機型=" << (target.preset_name.empty() ? std::string("(不切機)") : target.preset_name);
-    CallAfter([this, project_path, target, done] {
+    CallAfter([this, project_path, target, done, enforce_env, result_env] {
+        /* 【原子上盤 guard・#9 的真正守門點（Eric 0801 裁）】比對與「切機＋開檔」在
+           同一個 UI 事件回呼內一氣呵成＝原子：比完到動手之間插不進任何使用者事件
+           （host 端結果交付與這裡之間隔著一次事件佇列，使用者點擊可能排在前面——
+           所以比對必須放這裡、不能放 result handler）。fail-closed：env 缺失＝視為
+           過期（「缺快照＝不得預設放行」既有規則）。放在 busy_slicing 之前：過期的
+           結果連「等等再載」都不該建議。 */
+        if (enforce_env) {
+            const std::string env_now = photo_tile_current_env_json();
+            if (!PhotoTileEngineHost::env_is_fresh(result_env, env_now)) {
+                BOOST_LOG_TRIVIAL(warning) << "PhotoTile 工作室：結果過期即棄（#9 原子上盤 guard）"
+                                           << " env(request)=" << (result_env.empty() ? "(空)" : result_env)
+                                           << " env(now)="     << (env_now.empty()    ? "(空)" : env_now);
+                if (done)
+                    done(false, "protocol_stale_env",
+                         "產生期間您已切換機器或專案，為避免蓋掉目前的工作，這片照片磚沒有自動載入"
+                         "（檔案保留在 " + project_path + "）。請回到照片磚頁再產生一次。");
+                return;
+            }
+            BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：env 新鮮，上盤放行（#9 guard）env=" << env_now;
+        }
         /* 覆審 I-2：切片中 request_open_project 會拒載，但機型若先切就已被污染
            （「跳提示、機型被切、盤上沒磚、頁面說成功」）⇒ 這裡整組擋下：不切機、
            不開檔、誠實回報並附 3MF 路徑（檔案留著、不是孤兒）。 */

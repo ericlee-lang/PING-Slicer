@@ -148,6 +148,15 @@ public:
     void set_result_handler(ResultFn fn);
     void set_status_handler(StatusFn fn);
 
+    /* 【C-2 第 2 項・一輪 #9】current-env provider：回傳「此刻」的環境快照 JSON
+       （產品端＝選中的印表機 preset 名＋專案檔名）。設定後 generate() 會在
+       req.env_json 為空時自動蓋章 ⇒ 呼叫端忘不掉（覆審 #9 建議修法：納入 host API，
+       stale 成功不可能離開 guard）；上盤入口再用 env_is_fresh 比對、過期即棄。
+       閘門／煙測不註冊 ⇒ 請求位元組與 C-1 全等，黃金 12 案基準不受影響。
+       只會在 UI 執行緒被呼叫（generate 與上盤入口都在 UI 執行緒）。 */
+    using EnvProviderFn = std::function<std::string()>;
+    void set_current_env_provider(EnvProviderFn fn);
+
     // 環境快照比對（鏡像 engine_protocol.js 的 envEqual）：不相等＝結果丟棄。
     // 比對規則：按鍵查找（不看順序）＋數值容忍，但鍵數不同仍判過期。
     static bool env_is_fresh(const std::string& result_env_json, const std::string& current_env_json);
