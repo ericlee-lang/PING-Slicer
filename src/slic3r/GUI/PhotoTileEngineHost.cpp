@@ -207,6 +207,7 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
     PhotoTileEngineHost::ProgressFn on_progress;
     PhotoTileEngineHost::ResultFn   on_result;
     PhotoTileEngineHost::StatusFn   on_status;
+    PhotoTileEngineHost::EnvProviderFn current_env_provider;   // 空＝不蓋章（閘門／煙測路徑）
 
     // ---- job epoch（設計約束 C）----
     bool               test_break_engine_url = false;   // 僅測試用（閘門 H：驗 REBUILD_CAP）
@@ -354,6 +355,7 @@ PhotoTileEngineHost::~PhotoTileEngineHost() { shutdown(); }
 void PhotoTileEngineHost::set_progress_handler(ProgressFn fn) { p->on_progress = std::move(fn); }
 void PhotoTileEngineHost::set_result_handler(ResultFn fn)     { p->on_result   = std::move(fn); }
 void PhotoTileEngineHost::set_status_handler(StatusFn fn)     { p->on_status   = std::move(fn); }
+void PhotoTileEngineHost::set_current_env_provider(EnvProviderFn fn) { p->current_env_provider = std::move(fn); }
 bool PhotoTileEngineHost::is_ready() const                    { return p->stage == Impl::Stage::Ready; }
 bool PhotoTileEngineHost::is_busy() const                     { return p->busy; }
 void PhotoTileEngineHost::test_break_engine_url(bool on) { p->test_break_engine_url = on; }
@@ -1157,7 +1159,21 @@ void PhotoTileEngineHost::Impl::shutdown()
 
 bool PhotoTileEngineHost::start()                                  { return p->start_engine(); }
 void PhotoTileEngineHost::shutdown()                               { if (p) p->shutdown(); }
-bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& r){ return p->generate(r); }
+bool PhotoTileEngineHost::generate(const PhotoTileEngineRequest& r)
+{
+    /* 【C-2 第 2 項・一輪 #9】env 蓋章：有 provider 且呼叫端沒自帶 env（閘門自帶
+       ENV_A 等測試常數）才蓋。取樣點＝使用者按「產生」的這一刻；引擎未就緒的
+       排隊補跑沿用原快照＝新鮮度從使用者意圖起算，不重取。provider 丟例外＝
+       env 留空＝上盤 guard fail-closed 誠實棄（缺快照＝視為過期），例外不得穿出。 */
+    if (p->current_env_provider && r.env_json.empty()) {
+        PhotoTileEngineRequest stamped = r;
+        Impl::safe_call("current-env provider", [&] { stamped.env_json = p->current_env_provider(); });
+        BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost：env 蓋章 job=" << stamped.job_id
+                                << " env=" << (stamped.env_json.empty() ? "(空＝provider 失敗，將 fail-closed)" : stamped.env_json);
+        return p->generate(stamped);
+    }
+    return p->generate(r);
+}
 void PhotoTileEngineHost::cancel(const std::string& job_id)        { p->cancel(job_id); }
 
 #endif // _WIN32

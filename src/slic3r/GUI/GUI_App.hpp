@@ -514,10 +514,18 @@ public:
     // 生成完成後的落地：寫暫存 3MF →（照舊）先切機再開檔。與舊 export_end 走同一條路。
     // done（覆審 I-2）：上盤是非同步動作＝完成/失敗由它回報——寫檔失敗 deliver_failed、
     // 切片中拒載 busy_slicing、真的執行了才 ok。空＝呼叫端不關心（舊 export 鏈）。
+    // result_env_json（C-2 第 2 項・一輪 #9 原子上盤 guard）：非 null＝engine 路徑，上盤前
+    // 與「此刻」env 比對、過期即棄（fail-closed：echo 掉了也棄）；null＝該鏈無 env 協定
+    // （舊 export 鏈，使用者同步操作）。**刻意不給預設值**：每個呼叫端必須表態，
+    // 「忘了帶」正是 #9 點名的破口。
     void            photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                                            const std::string& mode, const std::string& nozzle,
+                                           const std::string* result_env_json,
                                            std::function<void(bool ok, const std::string& err_code,
                                                               const std::string& err_msg)> done = nullptr);
+    // 【C-2 第 2 項】「此刻」的環境快照 JSON（printer preset 名＋專案檔名）；
+    // 蓋章（host provider）與上盤 guard 兩端共用同一支＝同一把尺。
+    std::string     photo_tile_current_env_json();
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);
