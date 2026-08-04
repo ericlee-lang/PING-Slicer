@@ -15,6 +15,98 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### ✅ A ＋ C-2 第 5／6 項・第七棒收工（2026-08-05 早・牌 c-0805-PT-17）——**取消不再被吞；第 5 項「定罪」定出前提不成立**
+
+**一句話**：A 修完（排隊期的取消終於算數，活體 B 段從 flaky 變成可指定時序的雙路驗證）；
+**第 5 項照「先定罪、不要先改」跑完，結論是原本的罪名不成立**——大檔 result 段量到的是
+**2.1 秒累積佔用**不是 5 秒漂移，而被點名的頭號嫌疑 SHA 只佔 13%。黃金 13/13 位元組全等。
+
+**✅ A：取消落在「引擎啟動期」被吞掉（commit `cf4bd983`）**
+- `Impl::cancel()` 原本 `if (!webview || closing()) return;` ＋轉發給引擎頁，**完全沒碰
+  `queued_request`** ⇒ 排隊中按取消＝空放。改成照同檔 `generate()` 對「被覆寫的排隊 job」
+  已在跑的規則（:956-961）：清排隊項＋自己發 `cancelled` terminal，不再轉發。
+- **安全性論證**：排隊路徑不設 `active_job`、不遞增 epoch（都在 Ready 分支）⇒ 動不到現役 job。
+  另實查 `start_engine()` 開頭 `if (stage==Ready || building()) return true;`＝
+  「cancel→deliver→閘門 on_result→generate」這條**新出現的重入鏈**不會造成第二次建環境。
+- **產品端行為不變**：`phototile_cancel` 先清 `m_photo_tile_active_job` ⇒ 這顆 terminal 一樣被
+  result handler 丟棄（實查 GUI_App.cpp:8700）。省下的是**白做一輪運算**。
+
+**🔬 B：C-2 第 5 項＝先定罪 → 前提不成立，本棒不動 result 路徑（要不要動請 Eric 裁）**
+- **新儀器**（只在 `smoke_on` 累計，產品路徑零成本）：閘門③ 每案多八個欄位
+  `xferUiTotalMs／xferWallMs／xferParseTotalMs／chunkDecodeTotalMs／endShaMs／endTotalMs／xferMsgs／xferJsonBytes`。
+  **為什麼非加不可**：`uiDriftMaxMs` 與 `message_handle_max_ms` 都是「最久的**一次**」，
+  量不到「816 則小訊息把 UI 執行緒佔滿 2.5 秒」——這種形狀下 max 型指標會回報「沒事」。
+- **80MB 案實測**（`peak-48Mpx-x-fullgrid-quad`，79,959,087 bytes／70.4s）：
+
+  | 項目 | 數值 | 佔 xferUiTotal |
+  |---|---|---|
+  | JSON 剖析（ptree） | **1,082 ms** | **50.8%** |
+  | base64 解碼 | 747 ms | 35.0% |
+  | 整包 sha256 | 278 ms | 13.0% |
+  | **xferUiTotal** | **2,132 ms** | — |
+  | xferWall（同段牆鐘） | 2,521 ms | 佔用率 **84.6%** |
+  | 訊息則數／JSON 文字量 | 816 則／101.7 MB | 單則剖析最久 2.58ms |
+
+- **三條結論**：
+  1. **「漂移 ~5 秒」是冷啟動窗、不是 result 段**。本輪 cold **3,732ms**／steady **372ms**、
+     `passDrift` **true**——而且 0803 那輪就已經是 `passDrift:true`／steady 360ms。
+     ⇒ 起跑包寫的驗收標準「`passDrift` 由紅轉綠」**做不到，因為它從來沒紅過**。
+     冷啟動那段正是 PT-16 閒置預熱已經接手的領域。
+  2. **頭號嫌疑 SHA 反而最小（13%）**，只是它是唯一的**單一大塊**（278ms 連續），
+     所以在 max 型指標上最顯眼——這正是「先定罪」要防的那種誤判。
+  3. **真正的大宗是「3MF 位元組以 base64 塞在 JSON 裡送」的剖析成本**（51%）。
+     80MB 的 3MF ⇒ 101.7MB 的 JSON 文字全部餵給 boost ptree。要動它＝動傳輸協定。
+- **本棒為何不改**（依 Eric「補丁 vs 基建看用戶感知的時間差、撐得住就別大動」）：
+  最壞案（48Mpx×full grid＝刻意的包絡案）也只是 70 秒工作的**最後 2.5 秒 UI 變鈍**、
+  單次最久卡頓 278ms（門檻 1000ms）；一般重案（10.6MB）整段只花 **291ms**。
+  動 result 路徑＝動黃金位元組基準的風險區，不值得為未定稿的需求先開刀。
+- 🟡 **交 Eric 裁的三個選項**（越下面越貴）：
+  ① **不動**（建議）——把第 5 項結案為「前提已證偽」，儀器留著當迴歸網。
+  ② **只殺 278ms 那塊**：把整包 SHA 改成「隨每塊 append 增量 hash 已組好的 buffer」
+     （~20 行、免執行緒、免協定變更、digest 與現行完全相同，仍是驗「組出來的那份」）
+     ⇒ `uiDriftMaxMsThisCase` 預估 340→~62ms。**只買到指標好看，使用者幾乎無感。**
+  ③ **動 51% 那塊**＝改傳輸協定（binary channel／不走 JSON），黃金基準要重壓，另案評估。
+
+**✅ C：第 6 項小項（兩件都做了，而且都改到了真數字）**
+- **段界競態**：觸發事件的語意是「**上一段**剛結束」，此刻引擎未必已走進要量的大段
+  ⇒ 立刻送 cancel 會落在前一段的 tick yield 尾巴被秒回。改成觸發後**延遲 200ms** 再送
+  （`PING_PHOTOTILE_CANCELLAT_DELAY_MS` 可覆寫，0＝還原舊行為當對照組）。
+  **實證**：`grid` 探針 **1ms → 2,695ms**（1ms 對一個公認的同步大段本來就自相矛盾）；
+  `filter` **39ms**／`mesh` **663ms** 首次量到（舊報告 `final:false`、這兩支從沒跑完）。
+  另拆 `cancelSent`／`cancelDispatched`——job 若在 200ms 窗內自己結束，舊寫法會拿**上一支
+  探針**留下的 `m_cancel_at` 算出一個看起來很正常的假數字。
+- **LiveGate 長案 K48→K8**：引擎 clamp 早已是 2..8，填 48 只會被夾成 8 ⇒ 註解與請求值一直
+  在描述一個沒發生的實驗（閘門③與取消延遲量測 0802/0803 已改，**本檔是最後一處**）。
+  報告新增 `_longJob` 區塊寫實際請求值。
+- **B 段時序可指定**：`PING_PHOTOTILE_LIVE_CANCEL_DELAY_MS`，報告新增
+  `cancelDelayMs`／`cancelWhileQueued` ⇒ 以後看報告就知道這輪驗的是哪一條路。
+
+**🔬 驗證（全部本棒實跑）**
+- **build 零錯誤**（3.5 分鐘）＋**非漏編品證明**：`PhotoTileEngineHost.hpp` 的依賴閉包＝
+  **8 個 TU**（`GUI_App.cpp`＋7 支 `PhotoTile*.cpp`；`GUI_App.hpp` 只**前置宣告**、不 include），
+  build log 編的正好是這 8 個、各只有**一份** obj、全部新於 header mtime。
+- **活體 A–H 兩輪全綠**（都 `ok=true why=done`）：
+  ①`delay=0` ⇒ `cancelWhileQueued=true`、`cancelled` @ **310ms**（就是原本會被吞掉那條，
+  PT-16 紅輪是 `ok=true ms=27700`）②`delay=12000` ⇒ `cancelWhileQueued=false`、
+  送出後 **12ms** 收到 `cancelled`（原本就綠那條無迴歸）。
+- **黃金 13/13**：12 案 `goldenPackageMatch`＋`goldenEntriesMatch` 全 True、**0 不符**；
+  slots 反向測過；`manifestLoaded=true`。
+- **閘門③** `ok=true why=done` 六案如常、`passDrift=true`；**取消延遲量測** `final=true ok=true`、四探針首次全數量到。
+- **環境**：只動開發線；出貨線未碰；**不押 T**；閘門一律 `--datadir D:\ping-slicer-c1\_smokedata`；
+  Eric 正式版與 `%APPDATA%` 全程未碰（`PINGSlicer.conf` 時間戳仍 **08-04 17:11**，早於本棒 06:45）；
+  驗證實例零殘留（`ping-slicer`／`webview2_phototile` 皆 0）。
+
+**🟠 承接自 PT-16、本棒未動的兩題（仍等 Eric）**
+①閒置預熱記憶體代價實測 332.5MB（他當初估 200MB）要不要縮條件
+②閘門① 要不要用 warm 模式轉正（建議新 verdict 名 `PASS_WARMED`，不與 `PASS` 混用）
+
+**🚩 下一棒建議**（Eric 未裁前不要自己選）
+- 先等第 5 項的三選一裁決（①不動／②增量 SHA／③改協定）。
+- 其餘未辦：第 4 項②「切片在 4GB 帽下 AV 硬崩」＝app 級大工程；
+  「閘門收攤 `0xc0000374`」＝只咬閘門自己、要燒兩次 build 做 A/B 才能定罪。
+- **線況**：開發線 `ping/v3.5`＝`cf4bd983`（**未推遠端——推不推等 Eric**，PT-16 起即如此）。
+
+---
 ### ✅ C-2 第 3 項・第六棒收工（2026-08-05 凌晨・牌 c-0804-PT-16）——**閒置預熱落地：使用者還沒動作，引擎已經就緒**
 
 **一句話**：Eric 0802 裁 A 的「閒置預熱」接上產品——選中照片磚機時 app 靜下來就先把引擎點好，
@@ -90,7 +182,12 @@
 
 ---
 
-### 🚩 下一棒起跑包（Eric 0805 裁「照建議走：A ＋ 第 5 項，開新 session」）
+### ✅【已執行完畢・見頂部第七棒】下一棒起跑包（Eric 0805 裁「照建議走：A ＋ 第 5 項，開新 session」）
+
+> 🔴 **本段留作歷史對照，勿再照做。** 由 c-0805-PT-17 執行完畢（commit `cf4bd983`）。
+> **其中 B 段的前提與驗收標準已被實測推翻**：「大檔 result 段的 UI 漂移 ~5 秒」實為冷啟動窗，
+> result 段實測只佔 2.1 秒累積、`passDrift` 從頭到尾都是 `true`（所以「由紅轉綠」做不到）；
+> 被點名的 SHA 只佔 13%，真正大宗是 JSON 剖析 51%。詳見頂部第七棒段。
 
 **做什麼（一次 build 驗兩件，第 6 項搭便車）**
 
