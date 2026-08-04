@@ -485,8 +485,6 @@ function simulateVerticalQuad(){
             : [(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0];
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
   }
-  lastExport={labels:labArr, palette, mode:'quad', noiseMm:params.noiseMm,
-    noiseStats:window.__noiseStats};                 // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——換料 B/C/D 的顏色試試（例如補圖中缺的色系）';
@@ -540,8 +538,6 @@ function simulateVertical(){
     const dl=img.lab[p*3]-lv.lab[0], da=img.lab[p*3+1]-lv.lab[1], db=img.lab[p*3+2]-lv.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
   }
-  lastExport={labels:labArr, palette:levels, mode:'dual', noiseMm:params.noiseMm,
-    noiseStats:window.__noiseStats};                         // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   document.getElementById('metric').innerHTML =
@@ -752,12 +748,17 @@ window.PINGPhotoTile={
   jobResult(r){
     if(!genState||!r||r.jobId!==genState.jobId) return;      // 取消後遲到的結果：不理（A 案）
     if(r.ok) genFinishOk(r);
-    else if(r.errorCode==='cancelled'||r.errorCode==='superseded') genTeardown();  // 取消當下 UI 已恢復
+    else if(r.errorCode==='cancelled'||r.errorCode==='superseded'){
+      /* 走得到這裡＝**非使用者取消**（使用者取消當下 genState 已被 genCancelClick 清掉、
+         上面第一行就 return）——引擎重啟／作業被取代。🟡覆審：靜默收 UI 看起來像「按了沒反應」。 */
+      genTeardown();
+      genStatline('warn','生成已中止（引擎重新啟動或作業被取代），請再按一次「產生」。');
+    }
     else genFinishFail(r.errorMessage);
   },
   engineStatus(s){
     lastEngineStatus=s||null;
-    if(s&&s.status==='unavailable'&&!genState)
+    if(s&&s.status==='unavailable')          // 覆審 I-1 頁面半邊：生成中也要顯示原因，別吞掉唯一線索
       genStatline('warn','照片磚引擎不可用：'+(s.detail||''));
   }
 };
@@ -1027,7 +1028,6 @@ function syncOrientUI(){
   if(!img) updateNoiseStat(null);
   updateSizeInfo();
 }
-function pillarSide(){ return params.pillarXY; }
 function updateSizeInfo(){
   const el=document.getElementById('sizeInfo');
   if(el){
@@ -1050,7 +1050,9 @@ document.getElementById('orientSeg').addEventListener('click',e=>{
   if(img) suggest(); else simulate();
 });
 document.getElementById('levelsIn').onchange=e=>{
-  params.klevels=Math.max(2,Math.min(8,+e.target.value||8));   // 上限 8＝Eric 2026-08-02 裁 B
+  // 上限 8＝Eric 2026-08-02 裁 B；Math.round＝覆審 I-5：5.5 不 round 會存成小數，
+  // C++ 端 get<int> 靜默回退預設 8 階（開發路徑卻做 6 階＝兩條路不同結果）
+  params.klevels=Math.max(2,Math.min(8,Math.round(+e.target.value)||8));
   e.target.value=params.klevels; queue();
 };
 document.getElementById('nozzleSel').onchange=e=>{
@@ -1084,7 +1086,8 @@ document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; 
 document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); if(img) suggest(); };
 document.getElementById('pillarXY').onchange=e=>{
-  params.pillarXY=Math.max(5,Math.min(60,+e.target.value||25)); e.target.value=params.pillarXY;
+  params.pillarXY=Math.max(5,Math.min(60,Math.round(+e.target.value)||25));   // round＝覆審 I-5（同 klevels）
+  e.target.value=params.pillarXY;
   updateSizeInfo();
 };
 document.getElementById('viewSeg').addEventListener('click',e=>{
@@ -1101,8 +1104,7 @@ function queue(){ clearTimeout(tq); tq=setTimeout(simulate,60); }
    生成一律走 PhotoTileEngine——embedded＝C++ 宿主驅動隱形引擎頁（本頁只送參數、收進度/結果）、
    非 embedded（瀏覽器開發）＝直接呼叫 engine.js 的 generate()。兩條路同一支引擎；
    演算法正本＝engine.js（C-1 逐行搬自本頁 v1.7），位元組基準＝C++ 黃金閘門 12 案。
-   lastExport 仍由 simulate 系列維護（預覽同步用；生成請求不再讀它）。 */
-let lastExport=null;
+   （lastExport 已隨 build3mf 退役刪除——🟡覆審：唯一讀者沒了還長期佔整張 labels 記憶體。） */
 function slicerBridgeReady(){
   return embeddedMode && window.wx && typeof window.wx.postMessage==='function';
 }
@@ -1173,6 +1175,7 @@ function genStatline(cls,text){
 function genTeardown(){
   if(!genState) return;
   clearTimeout(genState.delayTimer); clearInterval(genState.tickTimer);
+  clearTimeout(genState.finishTimer);                        // 🟡覆審：收尾 timer 一併清，不留孤兒
   const wasShown=genState.shown;
   genState=null;
   if(wasShown) genShowProgress(false);
@@ -1180,7 +1183,9 @@ function genTeardown(){
 function genBegin(jobId){
   genTeardown();
   genStatline('','');
-  genState={jobId,t0:performance.now(),shown:false,pct:0,stageLabel:'準備中…',stageIdx:0,delayTimer:null,tickTimer:null};
+  document.getElementById('btnGenCancel').disabled=false;
+  genState={jobId,t0:performance.now(),shown:false,pct:0,stageLabel:'準備中…',stageIdx:0,
+            delayTimer:null,tickTimer:null,finishTimer:null,done:false};
   genState.delayTimer=setTimeout(()=>{ if(genState&&genState.jobId===jobId){ genShowProgress(true); genPaint(); } },GEN_SHOW_DELAY_MS);
   genState.tickTimer=setInterval(genPaint,100);
 }
@@ -1191,9 +1196,17 @@ function genFinishOk(r){
     ? `✓ 已輸出下載：${detail}耗時 ${wallSec} 秒。`
     : `✓ 已產生並載入列印板：${detail}耗時 ${wallSec} 秒。`;
   if(genState&&genState.shown){
+    /* 🟡覆審：350ms 收尾窗內取消鈕仍可按＝閃現「已取消…未上盤」再被成功文案蓋掉（兩句都錯）。
+       done 旗標＋鈕 disabled 擋住；timer 存進 genState（genTeardown 會清）＋身分守衛防蓋到下一輪。 */
+    genState.done=true;
+    document.getElementById('btnGenCancel').disabled=true;
     genState.pct=1; genPaint();                              // FBK-02/05：先走到底再收
     clearTimeout(genState.delayTimer); clearInterval(genState.tickTimer);
-    setTimeout(()=>{ genState=null; genShowProgress(false); genStatline('ok',text); },350);
+    const st=genState;
+    st.finishTimer=setTimeout(()=>{
+      if(genState!==st) return;                              // 已被別人收走（理論上不會，防衛性）
+      genState=null; genShowProgress(false); genStatline('ok',text);
+    },350);
   }else{
     genTeardown(); genStatline('ok',text);
   }
@@ -1203,7 +1216,7 @@ function genFinishFail(msg){
   genStatline('warn',`產生失敗：${msg||'請重試'}`);
 }
 function genCancelClick(){
-  if(!genState) return;
+  if(!genState||genState.done) return;   // done＝成功已定、350ms 收尾中（🟡覆審：此時取消是謊言）
   const jobId=genState.jobId;
   genTeardown();                                             // A 案：取消當下 UI 立即恢復
   genStatline('warn','已取消。設定與預覽維持原狀、未上盤；盤上原有的磚不受影響。');

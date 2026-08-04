@@ -1,6 +1,7 @@
 #ifndef slic3r_GUI_App_hpp_
 #define slic3r_GUI_App_hpp_
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -265,9 +266,10 @@ private:
     size_t          m_photo_tile_image_next_chunk{ 0 };
     bool            m_photo_tile_image_active{ false };
     std::string     m_photo_tile_image_mime;
-    // begin 當下無條件作廢 m_photo_tile_source_path（fail-closed，覆審 B-1）；舊路徑暫存
-    // 於此，只供 end 成功換上新檔後刪舊暫存檔用。空＝沒有待清的舊檔。
-    std::string     m_photo_tile_pending_previous;
+    /* 暫存檔記帳（覆審 I-7）：只在「自己寫暫存檔成功」那一刻設值＝我們擁有、可刪的唯一
+       一顆。刪舊來源只刪記過帳的，**絕不憑檔名長相刪**——substring 比對會誤刪使用者
+       留存的真實照片（拖放／開檔進來的真實路徑永遠不寫進這個成員）。空＝沒有待清的。 */
+    std::string     m_photo_tile_owned_temp;
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -510,8 +512,12 @@ public:
     void            photo_tile_shutdown_host();                     // app 收攤時收乾淨
     void            photo_tile_page_script(const std::string& js);  // 回推頁面（webview 不在就安靜跳過）
     // 生成完成後的落地：寫暫存 3MF →（照舊）先切機再開檔。與舊 export_end 走同一條路。
+    // done（覆審 I-2）：上盤是非同步動作＝完成/失敗由它回報——寫檔失敗 deliver_failed、
+    // 切片中拒載 busy_slicing、真的執行了才 ok。空＝呼叫端不關心（舊 export 鏈）。
     void            photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
-                                           const std::string& mode, const std::string& nozzle);
+                                           const std::string& mode, const std::string& nozzle,
+                                           std::function<void(bool ok, const std::string& err_code,
+                                                              const std::string& err_msg)> done = nullptr);
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);
