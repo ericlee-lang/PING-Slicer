@@ -429,6 +429,9 @@ private:
     {
         LimitsCase& c = m_cases[m_index];
         const double ms = lg_now_ms() - m_case_t0;
+        /* C-2 第 5 項：宿主在 deliver 之前已把傳輸段的帳結清（見 PhotoTileEngineHost.cpp
+           end 分支），所以這裡讀到的就是**本案**的數字。 */
+        const PhotoTileEngineSmokeStats& st = m_host->smoke_stats();
         c.peak_main_mb  = m_peak_main_kb.load() / 1024.0;
         c.peak_wv_mb    = m_peak_wv_kb.load() / 1024.0;
         c.peak_total_mb = m_peak_total_kb.load() / 1024.0;   // 二輪 I11：同刻總和峰值（判讀以此為準）
@@ -477,7 +480,22 @@ private:
           << ", " << jfield("peakTotalMB", c.peak_total_mb)
           << ", " << jfield("_peakNote", "peakTotalMB＝同一筆取樣的 main+wv 總和峰值（二輪 I11；main/wv 分項峰值可能在不同時刻）")
           << ", " << jfield("webViewProcs", c.peak_wv_procs)
-          << ", " << jfield("uiDriftMaxMsThisCase", (long) m_drift_max_case) << " }";
+          << ", " << jfield("uiDriftMaxMsThisCase", (long) m_drift_max_case)
+          /* 【C-2 第 5 項・定罪儀器】uiDrift 系列量的是「最久的一次」，量不到「833 則小訊息
+             把 UI 執行緒佔滿好幾秒」。這六個數字把 result 傳輸段拆開：總佔用／逐塊解碼／
+             整包 SHA／end 整則／牆鐘／則數——哪一項大就是哪一項的罪，不必再靠推理。 */
+          << ", " << jfield("xferUiTotalMs",     (long) st.xfer_ui_total_ms)
+          << ", " << jfield("xferWallMs",        (long) st.xfer_wall_ms)
+          << ", " << jfield("xferMsgs",          st.xfer_msgs)
+          << ", " << jfield("xferJsonBytes",     st.xfer_json_bytes)
+          << ", " << jfield("xferParseTotalMs",  (long) st.xfer_parse_total_ms)
+          << ", " << jfield("xferParseMaxMs",    st.xfer_parse_max_ms)
+          << ", " << jfield("chunkDecodeTotalMs", (long) st.chunk_decode_total_ms)
+          << ", " << jfield("chunkDecodeMaxMs",  st.chunk_decode_max_ms)
+          << ", " << jfield("endShaMs",          (long) st.end_sha_ms)
+          << ", " << jfield("endTotalMs",        (long) st.end_total_ms)
+          << ", " << jfield("_xferNote", "xferUiTotalMs＝begin+chunk+end 佔用 UI 執行緒的總和"
+                                         "（對照 xferWallMs＝同段牆鐘，比值即佔用率）") << " }";
         m_rows.push_back(o.str());
         write_report(false, "in_progress");
         breadcrumb("[case] 結束 " + c.label + " ok=" + (r.ok ? "1" : "0") + " err=" + r.error_code);

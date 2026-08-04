@@ -108,6 +108,22 @@ struct PhotoTileEngineSmokeStats
     double inject_dispatch_max_ms = 0;
     double message_handle_max_ms = 0;
     int    chunks_received = 0;
+
+    /* 【C-2 第 5 項・定罪儀器】result 傳輸段在 UI 執行緒上的**累積**佔用。
+       為什麼要另外量：既有的 uiDriftMaxMs／message_handle_max_ms 都是「最久的**一次**」，
+       但 80MB＝96KB×833 塊＝833 則訊息，使用者感覺到的那幾秒是**總和**不是單則
+       ——最大單則只有幾 ms 的情況下，總和照樣可以是好幾秒，而 max 型指標會回報「沒事」。
+       兩種數字都要，缺一就會把「833 次小卡」誤讀成健康。全部只在 smoke_on 時累計。 */
+    double xfer_ui_total_ms      = 0;   // begin+chunk+end 三型訊息的 UI 執行緒耗時總和
+    double xfer_parse_total_ms   = 0;   //   其中 JSON 剖析（ptree）的總和——payload 就塞在 JSON 裡
+    double xfer_parse_max_ms     = 0;   //   單則剖析最久
+    long long xfer_json_bytes    = 0;   //   剖析過的 JSON 文字總長（配 parse_total 算 MB/s）
+    double chunk_decode_total_ms = 0;   //   其中 wxBase64Decode 的總和
+    double chunk_decode_max_ms   = 0;   //   單塊解碼最久
+    double end_sha_ms            = 0;   // end 對整包算一次 sha256 的耗時（單一大操作嫌疑）
+    double end_total_ms          = 0;   // end 整則訊息的耗時（含 sha＋deliver）
+    double xfer_wall_ms          = 0;   // begin→end 的牆鐘時間（配 xfer_ui_total_ms 算佔用率）
+    int    xfer_msgs             = 0;   // 傳輸段訊息則數（begin+chunk+end）
 };
 
 class PhotoTileEngineHost

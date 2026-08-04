@@ -37,6 +37,7 @@
 #include "libslic3r/Utils.hpp"
 
 #include <chrono>
+#include <cstdlib>          // getenv／atoi（取消延遲的 env 覆寫）
 #include <map>
 #include <memory>
 #include <set>
@@ -170,7 +171,17 @@ public:
         if (!m_host->start()) { finish("host_start_failed"); return; }
         m_phase = "cancel";
         start_long_job("live-cancel");
-        schedule([this]() { cancel_now(); }, 4000);   // 跑 4 秒後下取消
+        /* 【0805 A】取消延遲可覆寫＝B 段兩種時序都能**指定**、不再靠冷啟動快慢擲骰子。
+           固定 4000ms 時，引擎冷啟動 3.5〜10.6s 的抖動決定了取消落在 ready 前還是後
+           ——同一份碼會忽紅忽綠（PT-16 兩輪實錄），未來真的迴歸也會被這層雜訊遮住。
+           `PING_PHOTOTILE_LIVE_CANCEL_DELAY_MS=0` ⇒ 必落在引擎啟動期（排隊中取消）；
+           設大值（如 20000）⇒ 必落在 ready 之後（現役 job 取消）。預設維持 4000。 */
+        const char* cd = ::getenv("PING_PHOTOTILE_LIVE_CANCEL_DELAY_MS");
+        m_cancel_delay_ms = cd ? ::atoi(cd) : 4000;
+        if (m_cancel_delay_ms < 0) m_cancel_delay_ms = 0;
+        m_log.push_back("[case] 取消延遲＝" + std::to_string(m_cancel_delay_ms) + "ms" +
+                        std::string(cd ? "（env 指定）" : "（預設）"));
+        schedule([this]() { cancel_now(); }, m_cancel_delay_ms);
     }
 
 private:
@@ -230,13 +241,17 @@ private:
         req.pillar = false; req.teeth = false; req.p2a_block = false;
         return req;
     }
-    // 長案（quad K48／400mm）＝有足夠時間可取消／被 supersede／被殺
+    /* 長案（quad K8／400mm）＝有足夠時間可取消／被 supersede／被殺。
+       【C-2 第 6 項・K8 重標定】原本填 48。Eric 2026-08-02 裁 B 之後引擎 clamp 成 2..8，
+       48 只會被夾成 8 ⇒ 註解與請求值一直在說一個沒發生的實驗（閘門③與取消延遲量測都已
+       在 0802/0803 改成誠實填 8，本檔是最後一處）。填 8＝報告寫的就是它真正跑的東西；
+       長案實際時長改由 longJobMs 量出來寫進報告，好判斷 B/C 段那些觀察窗還夠不夠。 */
     void start_long_job(const std::string& job_id, bool page_supersede = false)
     {
         PhotoTileEngineRequest req = base_request(job_id);
         req.mode     = "quad";  req.nozzle = 0.4;
         req.width_mm = 400.0;   req.height_mm = 400.0; req.thick_mm = 6.0;
-        req.klevels  = 48;      req.noise_mm  = 0.0;
+        req.klevels  = 8;       req.noise_mm  = 0.0;
         req.test_page_supersede = page_supersede;
         m_job_t0 = lv_now_ms();
         m_current_job = job_id;
@@ -288,7 +303,11 @@ private:
     void cancel_now()
     {
         m_cancel_sent_ms = lv_now_ms() - m_job_t0;
-        m_log.push_back("[case] 下取消 " + m_current_job);
+        // 取消當下引擎就緒了沒＝決定走「排隊中取消」還是「現役 job 取消」，是本段的判準之一
+        m_cancel_while_queued = (m_status_seen["ready"] == 0);
+        m_log.push_back("[case] 下取消 " + m_current_job +
+                        (m_cancel_while_queued ? "（引擎尚未就緒＝排隊中取消）"
+                                               : "（引擎已就緒＝現役 job 取消）"));
         m_host->cancel(m_current_job);
     }
 
@@ -626,6 +645,12 @@ private:
         j << "{\n"
           << "  " << jfield("_note", "照片磚 C-1 活體實測二版：capability／取消／supersede×2／環境快照／故障注入／重建／連殺風暴／保險絲") << ",\n"
           << "  " << jfield("ok", pass_all) << ", " << jfield("why", why) << ",\n"
+          /* 【C-2 第 6 項・K8 重標定】長案的實際請求值寫進報告（同閘門③／取消延遲量測的做法）。
+             0802 之前填 K48 但引擎 clamp 2..8 ⇒ 舊報告的「長案」其實一直都是 K8，
+             所有觀察窗（取消 4s／故障 12s／取消 pass 門檻 30s）都要對著這個長度重判。 */
+          << "  " << jstr("_longJob") << ": { " << jfield("mode", "quad") << ", " << jfield("klevels", 8)
+          << ", " << jfield("sizeMm", 400.0)
+          << ", " << jfield("note", "0802 前碼上填 48、引擎夾成 8＝報告與實驗不符；本版起誠實填 8") << " },\n"
 
           << "  " << jstr("A_capability") << ": { " << jfield("pass", m_cap_pass)
           << ", " << jfield("photoTilePrinters", m_cap_photo)
@@ -638,7 +663,12 @@ private:
           << "  " << jstr("B_cancel") << ": { " << jfield("pass", m_cancel_pass)
           << ", " << jfield("errorCode", m_cancel_code)
           << ", " << jfield("cancelSentAtMs", (long) m_cancel_sent_ms)
-          << ", " << jfield("endedAtMs", (long) m_cancel_ms) << " },\n"
+          << ", " << jfield("endedAtMs", (long) m_cancel_ms)
+          << ", " << jfield("cancelDelayMs", (long) m_cancel_delay_ms)
+          << ", " << jfield("cancelWhileQueued", m_cancel_while_queued)
+          << ", " << jfield("_timingNote", "cancelWhileQueued=true＝取消落在引擎啟動期（job 還在排隊）"
+                                           "＝0805 A 修的那條；false＝取消落在現役 job（原本就綠的那條）。"
+                                           "兩條都要驗，用 PING_PHOTOTILE_LIVE_CANCEL_DELAY_MS 指定") << " },\n"
 
           << "  " << jstr("C1_supersede_host") << ": { " << jfield("pass", m_supersede_pass)
           << ", " << jfield("oldTerminals", m_c1_old_terminals)
@@ -753,6 +783,10 @@ private:
     bool m_cap_pass = false;
     // B
     bool m_cancel_pass = false;
+    /* 【0805 A】B 段的**時序**要寫進報告：同一個 pass 有兩種完全不同的路徑
+       （排隊中取消 vs 現役 job 取消），不記下來就分不出這輪到底驗了哪一條。 */
+    int  m_cancel_delay_ms     = 4000;
+    bool m_cancel_while_queued = false;
     // C1
     bool m_supersede_pass = false, m_c1_quarantine_clean = false;
     int  m_c1_old_terminals = 0, m_c1_new_terminals = 0, m_quarantine_old_terminals = 0;

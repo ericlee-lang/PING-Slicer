@@ -237,6 +237,7 @@ struct PhotoTileEngineHost::Impl : public std::enable_shared_from_this<PhotoTile
     bool                      has_queued_request = false;
 
     PhotoTileEngineSmokeStats smoke;
+    double xfer_wall_t0 = 0;                 // C-2 第 5 項：begin 的牆鐘起點（算 UI 佔用率用）
     bool                      smoke_on = false;
     double                    last_heartbeat_ms = 0;
     std::vector<double>       heartbeat_drifts;
@@ -749,6 +750,10 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
     const double t0 = now_ms();
     pt::ptree m;
     if (!json_from_string(json, m)) return;
+    /* C-2 第 5 項：剖析成本單獨記帳。3MF 的位元組是 base64 塞在 JSON 訊息**裡面**送過來的
+       ⇒ 每一則 chunk 都要 ptree 剖一份 ~128KB 的文字，成本與總位元組成正比、與塊數大小無關。
+       不分開量的話，「剖析慢」和「解碼慢」在報告上長得一模一樣。 */
+    const double parse_ms = smoke_on ? (now_ms() - t0) : 0.0;
     const int         v    = m.get<int>("v", 0);
     const std::string type = m.get<std::string>("type", "");
     const std::string job  = m.get<std::string>("jobId", "");
@@ -804,6 +809,14 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
         pending_valid = true;
     }
     else if (type == "begin") {
+        if (smoke_on) {          // C-2 第 5 項：傳輸段記帳逐次歸零＝報告上一案一份數字，不會互相沾染
+            smoke.xfer_ui_total_ms = smoke.chunk_decode_total_ms = smoke.chunk_decode_max_ms = 0;
+            smoke.xfer_parse_total_ms = smoke.xfer_parse_max_ms = 0;
+            smoke.end_sha_ms = smoke.end_total_ms = smoke.xfer_wall_ms = 0;
+            smoke.xfer_json_bytes = 0;
+            smoke.xfer_msgs  = 0;
+            xfer_wall_t0     = now_ms();
+        }
         xfer = Transfer();
         xfer.active = true;
         xfer.job_id = job;
@@ -829,7 +842,13 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
             fail_job(job, "protocol_length_mismatch", "分塊缺少 length 欄位，無法驗收。");
             return;
         }
+        const double dec_t0 = smoke_on ? now_ms() : 0.0;
         const wxMemoryBuffer buf = wxBase64Decode(m.get<std::string>("base64", ""));
+        if (smoke_on) {                                                // C-2 第 5 項：解碼單獨記帳
+            const double dec = now_ms() - dec_t0;
+            smoke.chunk_decode_total_ms += dec;
+            smoke.chunk_decode_max_ms = (std::max)(smoke.chunk_decode_max_ms, dec);
+        }
         if (buf.GetDataLen() != *declared_opt) {                       // ③長度
             fail_job(job, "protocol_length_mismatch",
                      "分塊長度不符（宣告 " + std::to_string(*declared_opt) +
@@ -876,8 +895,10 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
                      "總長度不符（宣告 " + std::to_string(xfer.size) + "、實得 " + std::to_string(xfer.bytes.size()) + "）。");
             return;
         }
-        const std::string expect = m.get<std::string>("sha256", xfer.sha256);
-        const std::string got    = sha256_hex(xfer.bytes.data(), xfer.bytes.size());
+        const std::string expect  = m.get<std::string>("sha256", xfer.sha256);
+        const double      sha_t0  = smoke_on ? now_ms() : 0.0;
+        const std::string got     = sha256_hex(xfer.bytes.data(), xfer.bytes.size());
+        if (smoke_on) smoke.end_sha_ms = now_ms() - sha_t0;   // C-2 第 5 項：單一大操作嫌疑，單獨記帳
         if (expect.empty()) {                                          // ④SHA-256：不得有空門
             fail_job(job, "protocol_sha_mismatch", "引擎未提供 SHA-256，無法驗收，已丟棄整份 3MF。");
             return;
@@ -898,6 +919,19 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
         pending_valid = false;
         busy = false;
         active_job.clear();
+        /* deliver() 會**同步**呼叫閘門的 on_result 去讀 smoke_stats ⇒ 傳輸段的帳必須先結，
+           不然閘門讀到的是上一案的殘值（報告會靜默對錯人）。end 這則在這裡入帳，
+           begin/chunk 兩型走函式尾端那段——兩邊互斥，不會重複計。 */
+        if (smoke_on) {
+            const double el = now_ms() - t0;
+            smoke.end_total_ms         = el;
+            smoke.xfer_ui_total_ms    += el;
+            smoke.xfer_parse_total_ms += parse_ms;
+            smoke.xfer_parse_max_ms    = (std::max)(smoke.xfer_parse_max_ms, parse_ms);
+            smoke.xfer_json_bytes     += (long long) json.size();
+            ++smoke.xfer_msgs;
+            smoke.xfer_wall_ms         = now_ms() - xfer_wall_t0;
+        }
         deliver(r);
     }
     else if (type == "superseded") {
@@ -912,8 +946,18 @@ void PhotoTileEngineHost::Impl::handle_message_inner(const std::string& json)
         status("imageAck", "影像注入完成（" + std::to_string(m.get<size_t>("chars", 0)) + " 字元）。");
     }
 
-    if (smoke_on)
-        smoke.message_handle_max_ms = (std::max)(smoke.message_handle_max_ms, now_ms() - t0);
+    if (smoke_on) {
+        const double el = now_ms() - t0;
+        smoke.message_handle_max_ms = (std::max)(smoke.message_handle_max_ms, el);
+        // end 已在自己的分支裡結過帳（deliver 之前），這裡只收 begin/chunk
+        if (type == "begin" || type == "chunk") {
+            smoke.xfer_ui_total_ms    += el;
+            smoke.xfer_parse_total_ms += parse_ms;
+            smoke.xfer_parse_max_ms    = (std::max)(smoke.xfer_parse_max_ms, parse_ms);
+            smoke.xfer_json_bytes     += (long long) json.size();
+            ++smoke.xfer_msgs;
+        }
+    }
 }
 
 std::string build_generate_command_impl(const PhotoTileEngineRequest& req)
@@ -1127,7 +1171,25 @@ void PhotoTileEngineHost::Impl::pump_inject_queue()
 
 void PhotoTileEngineHost::Impl::cancel(const std::string& job_id)
 {
-    if (!webview || closing()) return;
+    if (closing()) return;
+    /* 【0805 A】引擎啟動期下的取消不得被吞掉。job 還排在 queued_request 裡時，引擎頁
+       根本還沒收到它，把 cancel 轉發過去等於空放 ⇒ 就緒後那顆照跑完、呼叫端等到的是
+       一顆「成功」（PT-16 活體兩輪實錄：紅輪＝起跑→下取消→ready→ok=true ms=27700／
+       綠輪＝起跑→ready→下取消→cancelled ms=4939，差別只是引擎冷啟動快不快＝flaky）。
+       照同檔 generate() 對「被覆寫的排隊 job」已經在跑的規則（:956-961）：清掉排隊項、
+       自己發一顆 cancelled terminal。**安全性**：排隊路徑不設 active_job、不遞增 epoch
+       （那些都在 Ready 分支），所以清掉排隊項動不到現役 job 的任何狀態。 */
+    if (has_queued_request && queued_request.job_id == job_id) {
+        has_queued_request = false;
+        BOOST_LOG_TRIVIAL(info) << "PhotoTileEngineHost：取消排隊中的 job=" << job_id
+                                << "（引擎尚未就緒，不轉發給引擎頁）";
+        PhotoTileEngineResult r;
+        r.ok = false; r.job_id = job_id; r.error_code = "cancelled";
+        r.error_message = "作業已取消（引擎尚未就緒）。";
+        deliver(r);
+        return;                       // 頁面從沒收到這個 job，不必再轉發 cancel
+    }
+    if (!webview) return;
     send_json("{" + jkn("v", PROTOCOL_VERSION) + "," + jkv("cmd", "cancel") + "," + jkv("jobId", job_id) + "}");
 }
 

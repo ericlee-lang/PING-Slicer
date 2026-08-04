@@ -34,6 +34,7 @@
 #include "libslic3r/Utils.hpp"
 
 #include <chrono>
+#include <cstdlib>          // getenv／atoi（段界延遲的 env 覆寫）
 #include <memory>
 #include <sstream>
 #include <string>
@@ -62,6 +63,10 @@ struct Probe
     double      trigger_end_pct = 0; // 該段結束時的**累計** pct（見下）
     // 結果
     bool   done = false, cancelled_ok = false, cancel_sent = false;
+    /* 【C-2 第 6 項】cancel_sent＝「觸發點到了、已排定要取消」；cancel_dispatched＝「200ms
+       延遲窗過了、真的送出去了」。兩者要分開：job 若在延遲窗內就自己結束，latencyMs 會拿到
+       一個上一支探針留下的 m_cancel_at ⇒ 算出一個**看起來很正常的假數字**。 */
+    bool   cancel_dispatched = false;
     double trigger_at_ms = 0;  // job 起跑到觸發點
     double latency_ms = 0;     // cancel → terminal
     std::string terminal_code;
@@ -95,6 +100,25 @@ public:
         m_host->set_status_handler([this](const std::string& s, const std::string& d) {
             if (s == "unavailable") { m_fatal = "引擎不可用：" + d; conclude(); }
         });
+
+        /* 【C-2 第 6 項】段界競態的延遲送出器。**只建一次、只 Bind 一次**（有別於本檔
+           m_guard/m_gap 每次 reset 都再 Bind 一次的舊寫法——wxTimer 用 wxID_ANY 拿到的 id
+           在物件銷毀後可能被重用，屆時舊的 lambda 也會跟著被叫到）。 */
+        const char* dly = ::getenv("PING_PHOTOTILE_CANCELLAT_DELAY_MS");
+        m_trigger_delay_ms = dly ? ::atoi(dly) : 200;
+        if (m_trigger_delay_ms < 0) m_trigger_delay_ms = 0;
+        m_delay.reset(new wxTimer(this));
+        Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+            if (m_delay) m_delay->Stop();
+            if (m_index >= m_probes.size() || m_delay_job.empty()) return;
+            if (m_delay_job != m_current_job) return;      // 案子已換＝這顆遲到的取消不算數
+            if (m_probes[m_index].done) return;            // 延遲窗內就結束了＝不再補送
+            m_probes[m_index].cancel_dispatched = true;
+            m_cancel_at = cl_now_ms();
+            m_host->cancel(m_delay_job);
+            BOOST_LOG_TRIVIAL(warning) << "PhotoTile 取消延遲探針 " << m_probes[m_index].name
+                                       << "：延遲 " << m_trigger_delay_ms << "ms 後送出 cancel";
+        }, m_delay->GetId());
     }
     ~CancelLatRun() override = default;
 
@@ -151,13 +175,19 @@ private:
         if (p.cancel_sent || p.done) return;
         // 段末事件＝stage 相符且累計 pct 到段末值（pct 被引擎 toFixed(4)，容差 1e-4）
         if (stage == p.trigger_stage && pct + 1e-4 >= p.trigger_end_pct) {
-            p.cancel_sent   = true;
+            p.cancel_sent   = true;                 // 標在「決定要取消」的當下＝不會重複觸發
             p.trigger_at_ms = cl_now_ms() - m_job_t0;
-            m_cancel_at     = cl_now_ms();
-            m_host->cancel(job);
+            /* 【C-2 第 6 項】段界競態：觸發事件的語意是「**上一段**剛結束」，此刻引擎未必
+               已經走進我們要量的那個同步大段。立刻送 cancel 有機會落在前一段還有 tick yield
+               的尾巴上被秒回 ⇒ 量到的不是大段長度而是接近 0（0803 首輪 grid 探針 latencyMs=1
+               正是這個形狀，而 grid 是公認的同步大段＝數字自相矛盾）。
+               延遲一小段再送，確保 cancel 落在目標大段**裡面**；latencyMs 從實際送出算起，
+               不含這段延遲，所以語意仍是「按下取消後要等多久」。 */
+            m_delay_job = job;
+            m_delay->StartOnce(m_trigger_delay_ms);
             BOOST_LOG_TRIVIAL(warning) << "PhotoTile 取消延遲探針 " << p.name << "：觸發段 "
                                        << stage << " 完成（job 第 " << (long) p.trigger_at_ms
-                                       << "ms），cancel 已送";
+                                       << "ms），將於 " << m_trigger_delay_ms << "ms 後送 cancel";
         }
     }
 
@@ -168,9 +198,14 @@ private:
         if (p.done) return;
         p.done          = true;
         p.terminal_code = r.ok ? "success" : r.error_code;
-        if (p.cancel_sent) {
+        if (m_delay) m_delay->Stop();                 // 還沒到點的延遲送出器：這案結束了就收掉
+        if (p.cancel_dispatched) {
             p.latency_ms   = cl_now_ms() - m_cancel_at;
             p.cancelled_ok = (!r.ok && r.error_code == "cancelled");
+        } else if (p.cancel_sent) {
+            /* 觸發到了、但 job 在 200ms 延遲窗內就自己結束 ⇒ cancel 沒真的送出去。
+               同樣是量測失效，要跟「觸發段沒出現」分開講，否則下一棒看不出是哪一種。 */
+            p.terminal_code += "（觸發後、延遲窗內即結束，cancel 未送出）";
         } else {
             /* cancel 根本沒送出去＝觸發段的 progress 沒等到（例如整個 job 比預期早結束）。
                這是量測失效，不是產品失效——誠實記下，別讓它偽裝成「延遲 0ms」。 */
@@ -208,6 +243,10 @@ private:
           << "  " << jfield("_case", "quad 400mm K=8（產品上限；二輪 I12 起報告寫實際請求值） gridMax=3200") << ",\n"
           << "  " << jfield("requestedK", 8) << ",\n"
           << "  " << jfield("_meaning", "latencyMs＝使用者按取消後實際要等的時間＝該同步大段的不可中斷長度") << ",\n"
+          << "  " << jfield("triggerDelayMs", m_trigger_delay_ms) << ",\n"
+          << "  " << jfield("_delayNote", "C-2 第 6 項：觸發（上一段結束）後等這麼久才送 cancel，"
+                                          "確保落在目標大段裡面；latencyMs 不含這段延遲。"
+                                          "PING_PHOTOTILE_CANCELLAT_DELAY_MS 可覆寫（0＝還原舊行為當對照組）") << ",\n"
           << "  " << jfield("totalMs", (long) (cl_now_ms() - m_t0)) << ",\n"
           << "  " << jstr("probes") << ": [\n";
         for (size_t i = 0; i < m_probes.size(); ++i) {
@@ -216,6 +255,7 @@ private:
               << ", " << jfield("triggerStage", p.trigger_stage)
               << ", " << jfield("done", p.done)
               << ", " << jfield("cancelSent", p.cancel_sent)
+              << ", " << jfield("cancelDispatched", p.cancel_dispatched)
               << ", " << jfield("triggerAtMsIntoJob", (long) p.trigger_at_ms)
               << ", " << jfield("latencyMs", (long) p.latency_ms)
               << ", " << jfield("cancelledOk", p.cancelled_ok)
@@ -244,8 +284,9 @@ private:
 
     std::unique_ptr<PhotoTileEngineHost> m_host;
     std::vector<Probe>       m_probes;
-    std::unique_ptr<wxTimer> m_guard, m_gap;
-    std::string m_image, m_current_job, m_fatal;
+    std::unique_ptr<wxTimer> m_guard, m_gap, m_delay;
+    std::string m_image, m_current_job, m_fatal, m_delay_job;
+    int         m_trigger_delay_ms = 200;      // C-2 第 6 項：段界競態緩衝
     size_t      m_index = 0;
     double      m_t0 = 0, m_job_t0 = 0, m_cancel_at = 0;
     bool        m_all_ok = true, m_concluded = false;
