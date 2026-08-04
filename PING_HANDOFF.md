@@ -15,6 +15,88 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### ✅ C-2 第 3 項・第六棒收工（2026-08-05 凌晨・牌 c-0804-PT-16）——**閒置預熱落地：使用者還沒動作，引擎已經就緒**
+
+**一句話**：Eric 0802 裁 A 的「閒置預熱」接上產品——選中照片磚機時 app 靜下來就先把引擎點好，
+**產品路徑實測「零使用者動作 ⇒ 引擎 537ms 就緒」**；冷啟動那 0.5~5 秒從此不落在使用者的第一次生成上。
+黃金 13/13 兩輪位元組全等（閘門模式一律不預熱＝基準零擾動的機制證據）。
+
+**✅ 做了什麼（2 檔 +180，commit `b72f79da`）**
+- **W1 閒置預熱**：`photo_tile_schedule_warmup()` 掛在 `post_init` 尾端，排一次性 timer
+  （預設 **15 秒**＝C-1 閘門①實證過的靜置點；`PING_PHOTOTILE_WARMUP_DELAY_MS` 可覆寫＝驗證用）。
+  **判斷放在到點時**（使用者可能中途換機型）：切片中→`CallAfter` 重排（10s×最多 3 次，用完放棄）／
+  不是照片磚機→跳過且不再重排（判定走 `photo_tile_capability_of_selected_printer()` 單一來源）。
+- **W3 進工作室即時預熱**：`open_photo_tile()` 立即點火——使用者已經開了工作室＝比機型選擇更強的
+  意圖訊號，也接住「app 一開就拖照片」那條 W1 還沒到點的動線。不設機型條件（工作室本來就能在
+  非照片磚機上用，上盤時 resolver 會自動切機）。
+- **W2（切機型時預熱）刻意不做**：只多賺「切到照片磚機、但還沒進工作室」那一段，而 W3 已在
+  進工作室當下點火；為它去改 preset 切換路徑（多個呼叫點、與別線共用）不划算。要補＝單獨一刀單獨驗。
+- **兩道不點火的門**（都留 log、不靜默）：①閘門/守夜模式（`PING_PHOTOTILE_SMOKE`）②kill switch
+  `PING_PHOTOTILE_NO_WARMUP`（對照組與緊急關閉）。
+- ⚠ 三個實作陷阱（後人別踩，commit 訊息有完整版）：timer **不掛 GUI_App 當 owner**（既有
+  `Bind(wxEVT_TIMER)` 沒 id 過濾會互收 tick）／延後重排走 `CallAfter`（一次性 timer 在自己的
+  `Notify()` 內 `StartOnce` 可能被隨後的 `Stop()` 吃掉＝**靜默死**，而「沒預熱」和「還沒到點」長得一樣）／
+  `shutdown_host` 先收 timer 再拆宿主。
+
+**🔬 驗證（全部本棒實跑）**
+- **非漏編品證明**：242 個 `GUI_App.hpp` 依賴 TU（含遞移）→ 235 顆重編／1 顆整檔 `#ifdef __linux__`
+  （`DesktopIntegrationDialog`）／6 顆不在 build 內；全樹只有**一份** `GUI_App.obj`；PCH 不含 `GUI_App.hpp`
+- **黃金閘門兩輪 PASS**：12 案 `goldenPackageMatch+goldenEntriesMatch` 全 True（**位元組全等、0 不符**）
+  ＋slots 反向測命中；`manifestLoaded=true`、`%APPDATA%` 零污染
+- **P1 預熱（產品路徑・3 輪一致）**：`預熱：排程 5000ms` → 準時 `預熱：點火（why=閒置預熱・選中
+  照片磚機 FD300 同進照片磚 0.6 nozzle）` → `PhotoTileEngineHost [ready]`，**引擎 537ms 就緒、
+  全程使用者零動作**（報告＝`_smokedata/warmup_probe_warm.json`）
+- **閒置代價實測（誠實回報）**：引擎樹 **6 顆行程／332.5MB／閒置 CPU 0.04–0.26%**
+  ——⚠ Eric 0802 裁示時的估計是「約 200MB」，**實測高出約 60%**（要不要因此調整，見待裁）
+- **P2 對照組**（kill switch）：log `不排程（kill switch PING_PHOTOTILE_NO_WARMUP）`、全程 0 顆引擎行程
+- **P3 非照片磚機**：切成 **FF600 同進 0.6 nozzle（是同進混色機、但不是照片磚機）** ⇒
+  log `跳過——目前機型不是照片磚機（preset=FF600 同進 0.6 nozzle）`、0 顆行程
+  ＝**證明判定不是只比對「同進」**
+- **P4 閘門模式不預熱**：log 實見 `不排程（閘門/守夜模式）`＝黃金基準零擾動的機制證據（不是只靠推理）
+- **活體 A–H 第二輪 `ok:true` 全綠**（第一輪 B 段紅，真因見下方待查①，非本刀）
+- **B-2 迴歸**：產品路徑 Alt+F4 關窗 → `received close_widow`→`finished`→`~GUI_App: exit`，
+  引擎行程零殘留
+
+**🟠 本棒抓到、但沒修的兩件（都有證據，交下一棒／Eric 裁）**
+1. **取消落在「引擎啟動期」會被吞掉（C-1 遺留、非本刀）**：`PhotoTileEngineHost::Impl::cancel()`
+   只把 cancel 轉發給引擎頁（`if (!webview) return;`），**完全沒碰 `queued_request`** ⇒ job 還在排隊時
+   下取消＝無效，引擎就緒後那顆照跑完並回報成功。實證（活體兩輪的 log 順序）：
+   紅輪＝`起跑→下取消→ready→ok=true ms=27700`／綠輪＝`起跑→ready→下取消→cancelled ms=4939`。
+   **產品影響＝白做一輪運算**（`phototile_cancel` 已先清 `m_photo_tile_active_job`，遲到結果會被丟棄、
+   **不會誤上盤**）＋**讓活體 B 段變 flaky**（會遮住未來真的迴歸）。修法建議：`cancel()` 內若
+   `has_queued_request && queued_request.job_id == job_id` ⇒ 清掉並 `deliver` 一顆 `cancelled` terminal。
+   ℹ 有趣的互動：**預熱本身會讓這個窗口在產品上變罕見**（引擎通常在使用者按得下去之前就就緒了）。
+2. **閘門收攤堆積毀損 `0xc0000374`（2/2 可重現，但只在閘門路徑）**：黃金閘門在**報告寫完、
+   `close_widow` 處理完之後**崩在 ntdll。**產品路徑關窗完全乾淨**（同一顆 DLL、同一晚實測 ×2）
+   ⇒ 影響面＝閘門自己的收攤路徑（`conclude()` 從回呼裡 `mainframe->Close(true)`），不影響使用者、
+   也不影響閘門結論（報告先落地）。錯誤碼史：08-01×2／08-02×1／08-04 10:55×1 **早於本刀**，
+   但 PT-15 21:47 那輪閘門收得乾淨 ⇒ **不能宣稱與本 build 無關**。下一棒要查＝
+   `git stash` 後重 build 做 A/B，或先在收攤路徑補 log 定位（現在 `GCodeViewer::reset` 到
+   `Printer agent cache cleared` 之間整段沒有 log，位置只能靠夾擠）。
+
+**🟡 gate ① 的 `PASS_STEADY` 本棒不動（要 Eric 裁才動）**：閘門量的是**它自己那顆冷啟動宿主**，
+產品預熱它看不到；直接把 verdict 改綠＝偷換判準（Codex 一輪 #6 點名過的老毛病）。
+建議做法：閘門加 `PING_PHOTOTILE_SMOKE_WARM=1`（先把宿主點到 Ready 再開始量測），verdict 用
+**新名字 `PASS_WARMED`**、絕不與 `PASS` 混用，報告同時記 `warmupMs`。**這是改判準＝Eric 拍板。**
+
+**🧰 新工具＋兩條已進 SOP §18 的教訓**
+- `tools/ping/phototile_warmup_probe.ps1`：正式模式起 app、**使用者零動作**觀察預熱；量引擎出現時間／
+  行程數／記憶體／閒置 CPU；Alt+F4 關窗兼 B-2 迴歸；自帶「人在不在」閘門與**自身注入記帳**。
+- **`keybd_event`／`SendInput` 會更新 `GetLastInputInfo`**（SOP §18 原本只記了游標/前景/PrintWindow
+  不會更新）⇒ AI 自己的 Alt+F4 會把離機哨兵歸零、**也會污染別條線的哨兵**；工具要自己記帳扣除。
+- **`PostMessage(WM_CLOSE)` 關不掉這支 app**（log 連 `received close_widow` 都沒有）；
+  `Process.MainWindowHandle` 還可能打到**照片磚隱形宿主**那個 1×1 top-level ⇒ 關窗請用 Alt+F4。
+- （又踩一次）**含中文的 .ps1 一律存 BOM**，否則 PS5.1 絞碼＝parse error。
+
+**🧭 下一棒（C-2 剩餘）**：第 4 項低記憶體韌性殘項（SEH 探針／4GB 帽下切片 AV 的 app 級議題）／
+第 5 項大檔 result 段漂移移背景／第 6 項小項；另有本棒列的兩條待查（取消排隊窗、閘門收攤崩潰）。
+
+**線況**：開發線 `ping/v3.5`＝修碼＋工具 `b72f79da`（**未推遠端——推不推等 Eric**）；
+出貨線 `release/v3.6` 全程未碰；**不押 T**。
+驗證用實例全部收乾淨（`ping-slicer` 0 行程、`webview2_phototile` 0 殘留）；
+Eric 正式版與 `%APPDATA%` 全程未碰；測試 datadir 的機型已還原成 `FD300 同進照片磚 0.6 nozzle`。
+
+---
 ### ✅ C-2 第 2 項・第五棒收工（2026-08-04 深夜・牌 c-0804-PT-15）——**原子上盤 guard 接上：「過期即棄」第一次真的棄了一個結果**
 
 **一句話**：一輪 #9 完工（Eric 0801 裁「真正守門點＝C-2 原子上盤入口」）——current-env provider 納入
