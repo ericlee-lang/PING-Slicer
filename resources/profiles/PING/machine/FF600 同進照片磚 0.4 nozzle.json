@@ -1,0 +1,378 @@
+{
+    "adaptive_bed_mesh_margin": "0",
+    "auxiliary_fan": "0",
+    "bbl_use_printhost": "0",
+    "bed_custom_model": "",
+    "bed_custom_texture": "",
+    "bed_exclude_area": [
+        "0x0"
+    ],
+    "bed_mesh_max": "99999,99999",
+    "bed_mesh_min": "-99999,-99999",
+    "bed_mesh_probe_distance": "50,50",
+    "before_layer_change_gcode": ";BEFORE_LAYER_CHANGE\n;LAYER:[layer_num]\nG92 E0",
+    "best_object_pos": "0,0",
+    "change_extrusion_role_gcode": "",
+    "change_filament_gcode": "",
+    "cooling_tube_length": "0",
+    "cooling_tube_retraction": "0",
+    "default_filament_colors": [
+        "#808080"
+    ],
+    "default_filament_profile": [
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭",
+        "PING PLA - 四料高流量噴頭"
+    ],
+    "default_print_profile": "0.25mm @FF600 同進照片磚 (0.4)",
+    "deretraction_speed": [
+        "20",
+        "20"
+    ],
+    "disable_m73": "0",
+    "emit_machine_limits_to_gcode": "1",
+    "enable_filament_ramming": "0",
+    "enable_long_retraction_when_cut": "0",
+    "extra_loading_move": "0",
+    "extruder_clearance_height_to_lid": "100",
+    "extruder_clearance_height_to_rod": "40",
+    "extruder_clearance_radius": "40",
+    "extruder_colour": [
+        "#000000"
+    ],
+    "extruder_offset": [
+        "0x0",
+        "0x0"
+    ],
+    "fan_kickstart": "0",
+    "fan_speedup_overhangs": "0",
+    "fan_speedup_time": "0",
+    "filament_colors": [
+        "#808080"
+    ],
+    "gcode_flavor": "klipper",
+    "head_wrap_detect_zone": [],
+    "high_current_on_filament_swap": "0",
+    "host_type": "octoprint",
+    "layer_change_gcode": "",
+    "long_retractions_when_cut": [
+        "0"
+    ],
+    "machine_end_gcode": "G91\nG1 Z10 F3000\nG90\nM104 S0\nM140 S0\nG28 X0 Y0\nM84",
+    "machine_load_filament_time": "0",
+    "machine_max_acceleration_e": [
+        "5000",
+        "5000"
+    ],
+    "machine_max_acceleration_extruding": [
+        "1500",
+        "1500"
+    ],
+    "machine_max_acceleration_retracting": [
+        "1500",
+        "1500"
+    ],
+    "machine_max_acceleration_travel": [
+        "1500",
+        "1500"
+    ],
+    "machine_max_acceleration_x": [
+        "1500",
+        "1500"
+    ],
+    "machine_max_acceleration_y": [
+        "1500",
+        "1500"
+    ],
+    "machine_max_acceleration_z": [
+        "500",
+        "200"
+    ],
+    "machine_max_jerk_e": [
+        "2.5",
+        "2.5"
+    ],
+    "machine_max_jerk_x": [
+        "56",
+        "56"
+    ],
+    "machine_max_jerk_y": [
+        "56",
+        "56"
+    ],
+    "machine_max_jerk_z": [
+        "0.2",
+        "0.4"
+    ],
+    "machine_max_speed_e": [
+        "30",
+        "120"
+    ],
+    "machine_max_speed_x": [
+        "200",
+        "200"
+    ],
+    "machine_max_speed_y": [
+        "200",
+        "200"
+    ],
+    "machine_max_speed_z": [
+        "20",
+        "12"
+    ],
+    "machine_min_extruding_rate": [
+        "0",
+        "0"
+    ],
+    "machine_min_travel_rate": [
+        "0",
+        "0"
+    ],
+    "machine_pause_gcode": "PAUSE",
+    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nM6052 A25 B25 C25 D25\nG0 F8000 X-100 Y-280 Z0.25\nG92 E0\nG1 F800 X100 Y-280 E60\nG92 E0\nG0 F800 X100 Y-278 Z0.25\nG92 E0\nG1 F800 X-100 Y-278 E60\nG1 Z1 E59\nG92 E0\n",
+    "machine_tool_change_time": "0",
+    "machine_unload_filament_time": "0",
+    "manual_filament_change": "0",
+    "max_layer_height": [
+        "0.3",
+        "0.3"
+    ],
+    "min_layer_height": [
+        "0.1",
+        "0.1"
+    ],
+    "nozzle_diameter": [
+        "0.4"
+    ],
+    "nozzle_height": "2.5",
+    "nozzle_hrc": "0",
+    "nozzle_type": "brass",
+    "nozzle_volume": "0",
+    "parking_pos_retraction": "0",
+    "pellet_modded_printer": "0",
+    "preferred_orientation": "0",
+    "printable_area": [
+        "298.858x26.1467",
+        "295.442x52.0945",
+        "289.778x77.6457",
+        "281.908x102.606",
+        "271.892x126.785",
+        "259.808x150",
+        "245.746x172.073",
+        "229.813x192.836",
+        "212.132x212.132",
+        "192.836x229.813",
+        "172.073x245.746",
+        "150x259.808",
+        "126.785x271.892",
+        "102.606x281.908",
+        "77.6457x289.778",
+        "52.0945x295.442",
+        "26.1467x298.858",
+        "0x300",
+        "-26.1467x298.858",
+        "-52.0945x295.442",
+        "-77.6457x289.778",
+        "-102.606x281.908",
+        "-126.785x271.892",
+        "-150x259.808",
+        "-172.073x245.746",
+        "-192.836x229.813",
+        "-212.132x212.132",
+        "-229.813x192.836",
+        "-245.746x172.073",
+        "-259.808x150",
+        "-271.892x126.785",
+        "-281.908x102.606",
+        "-289.778x77.6457",
+        "-295.442x52.0945",
+        "-298.858x26.1467",
+        "-300x0",
+        "-298.858x-26.1467",
+        "-295.442x-52.0945",
+        "-289.778x-77.6457",
+        "-281.908x-102.606",
+        "-271.892x-126.785",
+        "-259.808x-150",
+        "-245.746x-172.073",
+        "-229.813x-192.836",
+        "-212.132x-212.132",
+        "-192.836x-229.813",
+        "-172.073x-245.746",
+        "-150x-259.808",
+        "-126.785x-271.892",
+        "-102.606x-281.908",
+        "-77.6457x-289.778",
+        "-52.0945x-295.442",
+        "-26.1467x-298.858",
+        "-0x-300",
+        "26.1467x-298.858",
+        "52.0945x-295.442",
+        "77.6457x-289.778",
+        "102.606x-281.908",
+        "126.785x-271.892",
+        "150x-259.808",
+        "172.073x-245.746",
+        "192.836x-229.813",
+        "212.132x-212.132",
+        "229.813x-192.836",
+        "245.746x-172.073",
+        "259.808x-150",
+        "271.892x-126.785",
+        "281.908x-102.606",
+        "289.778x-77.6457",
+        "295.442x-52.0945",
+        "298.858x-26.1467",
+        "300x-0"
+    ],
+    "printable_height": "580",
+    "printer_model": "FF600 同進照片磚",
+    "printer_notes": "",
+    "printer_structure": "undefine",
+    "printer_technology": "FFF",
+    "printer_variant": "0.4",
+    "printhost_authorization_type": "key",
+    "printhost_ssl_ignore_revoke": "0",
+    "printing_by_object_gcode": "",
+    "purge_in_prime_tower": "1",
+    "retract_before_wipe": [
+        "70%",
+        "70%"
+    ],
+    "retract_length_toolchange": [
+        "0",
+        "0"
+    ],
+    "retract_lift_above": [
+        "0"
+    ],
+    "retract_lift_below": [
+        "0"
+    ],
+    "retract_lift_enforce": [
+        "All Surfaces"
+    ],
+    "retract_restart_extra": [
+        "0"
+    ],
+    "retract_restart_extra_toolchange": [
+        "0"
+    ],
+    "retract_when_changing_layer": [
+        "0",
+        "0"
+    ],
+    "retraction_distances_when_cut": [
+        "18"
+    ],
+    "retraction_length": [
+        "0",
+        "0"
+    ],
+    "retraction_minimum_travel": [
+        "1",
+        "1"
+    ],
+    "retraction_speed": [
+        "20",
+        "20"
+    ],
+    "scan_first_layer": "0",
+    "silent_mode": "0",
+    "single_extruder_multi_material": "1",
+    "support_air_filtration": "1",
+    "support_chamber_temp_control": "1",
+    "support_multi_bed_types": "0",
+    "template_custom_gcode": "",
+    "thumbnails": "48x48/PNG,300x300/PNG",
+    "thumbnails_format": "PNG",
+    "time_cost": "100",
+    "time_lapse_gcode": "",
+    "travel_slope": [
+        "3"
+    ],
+    "upward_compatible_machine": [],
+    "use_firmware_retraction": "0",
+    "use_relative_e_distances": "1",
+    "wipe": [
+        "0"
+    ],
+    "wipe_distance": [
+        "1"
+    ],
+    "z_hop": [
+        "0"
+    ],
+    "z_hop_types": [
+        "Normal Lift",
+        "Normal Lift"
+    ],
+    "z_offset": "0",
+    "type": "machine",
+    "name": "FF600 同進照片磚 0.4 nozzle",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGM900",
+    "alias": "FF600 同進照片磚"
+}

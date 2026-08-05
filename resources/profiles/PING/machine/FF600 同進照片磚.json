@@ -1,0 +1,12 @@
+{
+    "type": "machine_model",
+    "name": "FF600 同進照片磚",
+    "model_id": "PING_FF600_tongjin_phototile",
+    "nozzle_diameter": "0.4;0.6;1.0",
+    "machine_tech": "FFF",
+    "family": "",
+    "bed_model": "PING_FD600_buildplate_model.stl",
+    "bed_texture": "ping_buildplate_texture.png",
+    "hotend_model": "",
+    "default_materials": "PING PLA - 四料高流量噴頭"
+}
