@@ -345,29 +345,70 @@ function suggestSlots(img, mode){
       main=clusters.reduce((a,b)=>a.lab[0]<b.lab[0]?a:b);
     return [ {color:'#f2f0eb', td:6, start:1}, {color:lab2hex(main.lab), td:2, start:1} ];
   }
-  /* 四料：色相家族（index.html:812-831）＋白底＋前三大家族深色代表（:873-878） */
+  /* 四料：白底＋三支從分群直接取的彩色。
+     【2026-08-05 建議配色核心規格・Eric 裁「白＋不得複製充數」】
+     舊法＝色相家族（index.html:812-831）→ 取前三大家族的 deep（最深那顆），不足三族就
+       `while(top.length<3) top.push(top[top.length-1]);`
+     兩個缺陷，都有實測（quad／400×400mm／格點 3200²／0.125mm 格）：
+       ①**複製充數**：人物照通常只有「膚色」「消色」兩族 ⇒ 第 3、4 槽吐出逐字元相同的 hex
+         （#2e231c ×2）＝四料當三料用，色數只有 19、整張灰。
+       ②**永遠取 deep**＝四支全擠在暗端，中間調毫無代表。
+     手動換成「白＋中間膚色＋深棕＋近黑」（互異且有中間調）⇒ 色數 36、ΔE 6.789→6.251，
+     效益是調 K（8→14 只換到 0.044）的約 12 倍。
+     新法＝直接在**分群層**做最遠點取樣（farthest-point）：
+       種子＝權重最大的群（沿用原 w＝n×(1+彩度/25)，保留「偏好有彩度」的既有取向）；
+       之後每次挑「離已選集合最遠」的群，距離用 Lab 歐氏＝與量化端指派同一把尺
+       （engine.js 的最近鄰與 avgDeltaE 都是 Lab 歐氏，規格的尺與量化的尺必須同一把）。
+     一招解兩病：不同的群天生不會給出同一個顏色；最遠點會自動把中間調納進來。
+     ⚠ **分散是最佳化目標，不是閘門**（Eric 0805 追加澄清）——本函式不設「任兩支必須差多少」
+       的硬門檻，使用者要刻意選兩支相近色（例如同色系漸層）照樣可以。本規格只約束
+       「我們主動建議時給的初值」，不約束使用者。 */
   let pool=clusters.filter(c=>c.lab[0]<86);
   if(!pool.length) pool=clusters;
-  const fams=[];
-  for(const c of pool){
-    const ch=Math.hypot(c.lab[1],c.lab[2]);
-    const hue=Math.atan2(c.lab[2],c.lab[1]);
-    let f=null;
-    if(ch>=8){
-      for(const q of fams){ if(q.ch<8)continue;
-        let dh=Math.abs(hue-q.hue); if(dh>Math.PI)dh=2*Math.PI-dh;
-        if(dh<0.7){f=q;break;} }
-    }else f=fams.find(q=>q.ch<8)||null;
-    const w=c.n*(1+ch/25);
-    if(f){ f.w+=w; if(c.lab[0]<f.deep.lab[0])f.deep=c;
-           f.sumL+=c.lab[0]*c.n; f.sumN+=c.n; }
-    else fams.push({hue,ch,w,deep:c,sumL:c.lab[0]*c.n,sumN:c.n});
+  const picks=[];
+  if(pool.length){
+    let seed=pool[0], sw=-1;
+    for(const c of pool){
+      const w=c.n*(1+Math.hypot(c.lab[1],c.lab[2])/25);
+      if(w>sw){ sw=w; seed=c; }
+    }
+    picks.push(seed);
+    while(picks.length<3 && picks.length<pool.length){
+      let best=null, bd=-1;
+      for(const c of pool){
+        if(picks.indexOf(c)>=0) continue;
+        let md=1e9;
+        for(const p of picks){
+          const d=Math.hypot(c.lab[0]-p.lab[0], c.lab[1]-p.lab[1], c.lab[2]-p.lab[2]);
+          if(d<md) md=d;
+        }
+        if(md>bd){ bd=md; best=c; }
+      }
+      if(!best) break;
+      picks.push(best);
+    }
   }
-  fams.sort((a,b)=>b.w-a.w);
-  const top=fams.slice(0,3);
-  while(top.length<3) top.push(top[top.length-1]);
+  /* 群數不足三（極單調的圖）：**不複製**——沿用色相、把亮度推到還沒被佔用的一側，
+     產生一支真的不一樣的補色。這是誠實的退化（該支確實不是從圖上萃取的），不是拿同一支充數。 */
+  const labs=picks.map(c=>c.lab.slice());
+  while(labs.length<3){
+    const base=labs.length ? labs[labs.length-1] : [50,0,0];
+    const used=labs.length ? labs.map(l=>l[0]) : [50];
+    const L=(Math.max.apply(null,used)<50) ? Math.min(85, Math.max.apply(null,used)+28)
+                                           : Math.max(12, Math.min.apply(null,used)-28);
+    labs.push([L, base[1], base[2]]);
+  }
   const slots=[{color:'#f2f0eb', td:6, start:1}];
-  for(let i=0;i<3;i++) slots.push({color:lab2hex(top[Math.min(i,top.length-1)].deep.lab), td:2, start:1});
+  for(let i=0;i<3;i++) slots.push({color:lab2hex(labs[i]), td:2, start:1});
+  /* 最後一道保險：不論如何都不得吐出兩支逐字元相同的 hex（不同的 Lab 也可能捨入到同一個
+     hex）。真撞到就把亮度再推開，最多試 8 次（有界，避免病態圖造成無窮迴圈）。 */
+  for(let i=1;i<slots.length;i++){
+    let guard=0;
+    while(guard++<8 && slots.slice(1,i).some(function(s){ return s.color===slots[i].color; })){
+      labs[i-1][0]=Math.max(8, Math.min(92, labs[i-1][0] + (labs[i-1][0]>50 ? -9 : 9)));
+      slots[i].color=lab2hex(labs[i-1]);
+    }
+  }
   return slots;
 }
 

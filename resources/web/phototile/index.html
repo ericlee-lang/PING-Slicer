@@ -465,12 +465,17 @@ function simulateVerticalQuad(){
     `${palette.length} 色（6 條色階線 × ${K} 階＝${cands.length} 候選${dropped?`，超上限併掉 ${dropped}`:''}）`;
   const lines=[];
   lines.push(`模型拆分：照片變厚→按顏色分 ${palette.length} 種色塊零件（各自往後延伸），每零件一個混色比例`);
-  lines.push('調色盤＝兩兩色階線（白↔B/C/D＋B↔C/B↔D/C↔D），每格同時最多 2 支料在混');
-  lines.push('換色過渡藏在磚體後方（厚度＝清料空間）；A=料A(白/E1)…D=料D');
+  /* 【0805 規格 §2.2】這份清單是要拿去給現場換料的，**不可以寫死「白」**——
+     使用者可以把料A 改成任何顏色（規格明訂不阻擋），原本每一行都印「白N％」，
+     他換掉 A 之後現場會照著換錯料。改成印 A/B/C/D 並在抬頭列出各槽的實際色碼。 */
+  lines.push('調色盤＝兩兩色階線（A↔B/C/D＋B↔C/B↔D/C↔D），每格同時最多 2 支料在混');
+  lines.push('換色過渡藏在磚體後方（厚度＝清料空間）');
+  lines.push('本次料色：' + ['A','B','C','D'].map((k,i)=>
+    `${k}=${(slots[i]&&slots[i].color)||'—'}${i===0?'（機上 E1）':''}`).join('｜'));
   palette.forEach((p,i)=>{
     const r=p.w;
     const pct = usageF? `（畫面佔 ${(usageF[i]/n*100).toFixed(1)}％）` : '';
-    lines.push(`零件色 ${i+1}：白${r[0]}％｜B${r[1]}％｜C${r[2]}％｜D${r[3]}％（M6052 A${r[0]} B${r[1]} C${r[2]} D${r[3]}）${pct}`);
+    lines.push(`零件色 ${i+1}：A${r[0]}％｜B${r[1]}％｜C${r[2]}％｜D${r[3]}％（M6052 A${r[0]} B${r[1]} C${r[2]} D${r[3]}）${pct}`);
   });
   document.getElementById('swapList').textContent=lines.join('\n');
   if(!img) return;
@@ -656,7 +661,10 @@ function applySizeChange(changed, rawValue, rebuild=true){
     params.height=roundMm(clampSizeMm(rawValue,params.height,SIZE_MIN_MM,SIZE_MAX_MM),1);
   }
   syncSizeInputs();
-  if(rebuild && img){ buildGrid(); suggest(); }
+  /* 【0805 規格 §2.2】改尺寸只重建格點＋重算，**不重新建議配色**——實體尺寸跟顏色無關，
+     原本這裡呼叫 suggest() 會把使用者調好的料色整組洗掉。
+     還原路徑不需另建：btnSuggest（「依這張圖建議配色與換層」）本來就是。 */
+  if(rebuild && img){ buildGrid(); simulate(); }
   else updateSizeInfo();
 }
 /* 由系統依實體尺寸自動採 0.1 mm 高精度取樣；這是 3MF 幾何實作細節，不要求使用者判斷。
@@ -927,9 +935,60 @@ function suggest(){
        帶 TD 與帶長連動**（帶內剛好疊到 ≈95% 飽和，同雙料公式）→ 每帶整段都是
        該色系淺→深的有效漸層；家族上下順序枚舉 6 種、取整圖色差最小，帶界再微調 --- */
     if(params.orient==='vertical'){
-      /* 垂直四料建議：料A=白（調亮度）＋前三大色相家族的深色代表當 B/C/D（混搭原料） */
+      /* 垂直四料建議：料A=白（調亮度）＋三支從**分群層**最遠點取樣的彩色。
+         【2026-08-05 建議配色核心規格・Eric 裁「白＋不得複製充數」】
+         舊法用上面的 `top`（前三大色相家族的 deep），有兩個實測過的缺陷：
+           ①家族不足三個時 `while(top.length<slotCount-1) top.push(top[top.length-1])`
+             會**複製最後一族** ⇒ 兩支料吐出逐字元相同的 hex（四料當三料用）；
+           ②永遠取家族的 deep（最深那顆）⇒ 四支全擠暗端、中間調無代表。
+         實測（quad／400mm／格點 3200²）：舊法色數 19、ΔE 6.789；改最遠點後
+         色數 34、ΔE 5.634（且自動挑出 L*68 的中間膚色），比人工手挑的 6.251 還好。
+         ⚠ 分散是最佳化目標、**不是閘門**——不設「任兩支必須差多少」的門檻，
+           使用者要刻意選兩支相近色照樣可以；本規格只約束「我們主動建議的初值」。
+         ⚠ 上面的 fams/top 仍保留給**平躺**分支用（平躺為研究線、行為維持原狀不動）。
+         ⚠ 本段與 engine.js suggestSlots() 的四料分支必須同步——兩份實作的統一另案處理。 */
       slots[0]={color:'#f2f0eb', td:6, start:1};
-      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(top[Math.min(i,top.length-1)].deep.lab), td:2, start:1};
+      const picks=[];
+      if(pool.length){
+        let seed=pool[0], sw=-1;
+        for(const c of pool){
+          const w=c.n*(1+Math.hypot(c.lab[1],c.lab[2])/25);   // 沿用原權重式（偏好有彩度）
+          if(w>sw){ sw=w; seed=c; }
+        }
+        picks.push(seed);
+        while(picks.length<3 && picks.length<pool.length){
+          let best=null, bd=-1;
+          for(const c of pool){
+            if(picks.indexOf(c)>=0) continue;
+            let md=1e9;
+            for(const p of picks){
+              const d=Math.hypot(c.lab[0]-p.lab[0], c.lab[1]-p.lab[1], c.lab[2]-p.lab[2]);
+              if(d<md) md=d;
+            }
+            if(md>bd){ bd=md; best=c; }
+          }
+          if(!best) break;
+          picks.push(best);
+        }
+      }
+      /* 群數不足三：**不複製**——沿用色相、把亮度推到還沒被佔用的一側，產生真的不一樣的補色。 */
+      const labs=picks.map(c=>c.lab.slice());
+      while(labs.length<3){
+        const base=labs.length ? labs[labs.length-1] : [50,0,0];
+        const used=labs.length ? labs.map(l=>l[0]) : [50];
+        const L=(Math.max.apply(null,used)<50) ? Math.min(85, Math.max.apply(null,used)+28)
+                                               : Math.max(12, Math.min.apply(null,used)-28);
+        labs.push([L, base[1], base[2]]);
+      }
+      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(labs[i]), td:2, start:1};
+      /* 最後一道：不得吐出兩支逐字元相同的 hex（不同 Lab 也可能捨入到同一個 hex）。 */
+      for(let i=1;i<=3;i++){
+        let guard=0;
+        while(guard++<8 && slots.slice(1,i).some(function(s){ return s.color===slots[i].color; })){
+          labs[i-1][0]=Math.max(8, Math.min(92, labs[i-1][0] + (labs[i-1][0]>50 ? -9 : 9)));
+          slots[i].color=lab2hex(labs[i-1]);
+        }
+      }
       renderSlots(); simulate();
       return;
     }
@@ -1006,7 +1065,9 @@ document.getElementById('modeSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
   slotCount=+e.target.dataset.n;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
-  renderSlots(); if(img) suggest(); else simulate();
+  /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
+     切換不需要靠 suggest() 生槽位，原本這樣做只是順手把使用者的配色洗掉。 */
+  renderSlots(); simulate();
 });
 function syncOrientUI(){
   const v=params.orient==='vertical';
@@ -1047,7 +1108,8 @@ document.getElementById('orientSeg').addEventListener('click',e=>{
   params.orient=e.target.dataset.o;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
   syncOrientUI(); renderSlots();
-  if(img) suggest(); else simulate();
+  /* 【0805 規格 §2.2】切平躺/垂直不重新建議——同上，只重算不覆寫使用者的料色。 */
+  simulate();
 });
 document.getElementById('levelsIn').onchange=e=>{
   // 上限 8＝Eric 2026-08-02 裁 B；Math.round＝覆審 I-5：5.5 不 round 會存成小數，
@@ -1084,7 +1146,9 @@ noiseIn.onchange=e=>{
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
 document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
-document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); if(img) suggest(); };
+/* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64，engine.js MAXP），
+   原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
+document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
 document.getElementById('pillarXY').onchange=e=>{
   params.pillarXY=Math.max(5,Math.min(60,Math.round(+e.target.value)||25));   // round＝覆審 I-5（同 klevels）
   e.target.value=params.pillarXY;
