@@ -75,13 +75,10 @@
 				<div class="MenuDesc">3mf</div>
 			</div>
 		</div>
-		<div class="MenuItem" onClick="OnClickPhotoMixer()">
-			<div class="MenuIcon"><img src="img/i4.png"></div>
-			<div>
-				<div class="TextS1">雙料照片</div>
-				<div class="MenuDesc">照片轉灰階混色 G-code</div>
-			</div>
-		</div>
+		<!-- 「雙料照片」入口 2026-08-07 依 Eric 裁示收起（他問「雙料照片是以前的功能嗎」→ 是）。
+		     出處：a11ee870（2026-07-02）一次性 MVP，1 顆 commit、生下來沒再動過；
+		     現行開發線是「照片磚」（29 顆 commit、活到 0805）。兩張卡片並排會讓人不知道該點哪個。
+		     ⚠ 只收入口，photo-mixer 網頁與 OnClickPhotoMixer() 都留著——要復原就把這段註解拆掉。 -->
 		<div class="MenuItem" onClick="OnClickPhotoTile()">
 			<div class="MenuIcon"><img src="img/photo_tile.svg"></div>
 			<div>
