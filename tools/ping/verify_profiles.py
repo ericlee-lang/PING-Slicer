@@ -547,10 +547,12 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
         if vmodel not in model_names:
             err(f"[Classic 變體 model missing] {vmodel}")
         else:
-            # 0728 Eric 裁「Classic 變體預設跟」：變體 model default_materials＝Classic 210
-            _vdm = presets[vmodel][1].get("default_materials")
-            if _vdm != "PING PLA - Classic 210":
-                err(f"[Classic 變體 model 預設 Classic 210 0728] {vmodel}: {_vdm!r}")
+            # 0728 Eric 裁「Classic 變體預設跟」：變體 model 的可勾清單須含 Classic 210。
+            # ⓘ 0807 全族補齊後 default_materials 不再只有一支（Eric 裁 Classic 同辦），
+            #    故由「等於」放寬為「必須含」；首位仍是 Classic 210＝預設意旨保留。
+            _vdm = [x for x in (presets[vmodel][1].get("default_materials") or "").split(";") if x]
+            if not _vdm or _vdm[0] != "PING PLA - Classic 210":
+                err(f"[Classic 變體 model 首選 Classic 210 0728·0807 調整] {vmodel}: {_vdm!r}")
         for nz in nzs:
             mname = f"{vmodel} {nz} nozzle"
             entry = presets.get(mname)
@@ -722,8 +724,56 @@ for _mn, (_mk, _md) in presets.items():
         _dmt = (_md.get("default_materials", "") or "").split(";")
         if "PING PLA" in _dmt:
             err(f"[default_materials 舊名未改 0728] {_mn}")
-        if _mn == "FD300 同進照片磚" and ("PING PLA - 220" in _dmt or "PING PLA - 210" not in _dmt):
-            err(f"[照片磚 model 預設 210 0728v2] {_mn}: {_md.get('default_materials')!r}")
+        # ⓘ 0807 全族補齊後，default_materials＝「可勾清單」而非「預設是誰」：照片磚同時看得到
+        #    210 與 220 是正常的。「預設指誰」的把關已在上面 machine 分支的 default_filament_profile。
+        #    本條只保留 0728 意旨：照片磚機的可勾清單必須含 PLA - 210。
+        if _mn == "FD300 同進照片磚" and "PING PLA - 210" not in _dmt:
+            err(f"[照片磚 model 可勾含 210 0728v2·0807 調整] {_mn}: {_md.get('default_materials')!r}")
+
+# ★ 預勾線材全族補齊護欄（Eric 2026-08-07 裁）——對應 embed_params.py 的
+#   apply_default_materials() post-pass。三條斷言：
+#   ① 死名：default_materials 每一項都必須是 bundle 內實際存在的線材 preset
+#      （0725 ABS 整併後 PING ABS - 250／PING PolyABS 在 FD/FP 清單裡躺了兩週沒人發現，
+#        C++ find_preset 找不到就靜默跳過＝壞得無聲）。
+#   ② 漏勾：每台機型必須涵蓋「所有與它相容的 PING 線材」——這是 0807 裁定的本體
+#      （起因＝PING PVA／TPE - 210／SupTPE 曾 0/41 台預勾，客戶端得自己去勾才看得到自家料）。
+#   ③ Classic 隔離：前代 Marlin 專用線材不得外溢到 Fast 機（Classic 4 支沒設
+#      compatible_printers，純靠相容性推導會外溢）。機型判定照 SOP §9 前綴，沒有機器叫「Classic」。
+_CLASSIC_MODEL_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
+_ping_fils = {n: (d.get("compatible_printers") if isinstance(d.get("compatible_printers"), list)
+                  and d.get("compatible_printers") else None)
+              for n, (k, d) in presets.items()
+              if k == "filament" and n.startswith("PING ") and d.get("instantiation") == "true"}
+_model_variants = {}
+for _n, (_k, _d) in presets.items():
+    if _k == "machine" and _d.get("instantiation") == "true" and _d.get("printer_model"):
+        _model_variants.setdefault(_d["printer_model"], set()).add(_n)
+_chk_fast = _chk_classic = 0
+for _mn, (_mk, _md) in presets.items():
+    if _mk != "machine_model":
+        continue
+    _vs = _model_variants.get(_mn)
+    if not _vs:
+        err(f"[機型無任何 machine preset] {_mn}")
+        continue
+    _is_classic = bool(_CLASSIC_MODEL_RE.match(_mn))
+    _chk_classic += _is_classic
+    _chk_fast += (not _is_classic)
+    _have = [x for x in (_md.get("default_materials", "") or "").split(";") if x]
+    _dead = [x for x in _have if x not in _ping_fils]
+    if _dead:
+        err(f"[default_materials 死名 0807] {_mn}: {'、'.join(_dead)} 不在 bundle 線材清單內")
+    _want = {n for n, cp in _ping_fils.items()
+             if (cp is None or (set(cp) & _vs)) and (_is_classic or "Classic" not in n)}
+    _missing = sorted(_want - set(_have))
+    if _missing:
+        err(f"[預勾漏勾 0807] {_mn}: 相容卻沒進 default_materials — {'、'.join(_missing)}")
+    _spill = sorted(x for x in _have if "Classic" in x and not _is_classic)
+    if _spill:
+        err(f"[Classic 線材外溢 Fast 機 0807] {_mn}: {'、'.join(_spill)}")
+# SOP §9 通則：照名字分類的斷言跑完要對數量，對不上＝分類規則錯了、不是資料錯了
+if _chk_fast + _chk_classic != len([1 for _k, _ in presets.values() if _k == "machine_model"]):
+    err(f"[預勾護欄分類漏台 0807] Fast {_chk_fast}＋Classic {_chk_classic} 未涵蓋全部機型")
 
 # 🔴 型別護欄（0725 T004 事故）：`renamed_from` 必須是**字串**，寫成 JSON 陣列會讓
 # PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array → nlohmann 丟
