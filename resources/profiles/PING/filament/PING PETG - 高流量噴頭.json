@@ -52,7 +52,7 @@
         "0.2"
     ],
     "slow_down_for_layer_cooling": [
-        "1"
+        "0"
     ],
     "slow_down_layer_time": [
         "10"

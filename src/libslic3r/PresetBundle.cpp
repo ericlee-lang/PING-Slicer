@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <set>
 #include <fstream>
+#include <map>
 #include <unordered_set>
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/clamp.hpp>
@@ -1762,29 +1763,26 @@ void PresetBundle::load_installed_filaments(AppConfig &config)
         // Compatibility with the PrusaSlicer 2.1.1 and older, where the filament profiles were not installable yet.
         // Find all filament profiles, which are compatible with installed printers, and act as if these filament profiles
         // were installed.
+        // 標記區：key＝vendor id、value＝bundle 版本；走 AppConfig 泛型 section 存取路徑。
+        static const std::string SECTION_FILAMENT_DEFAULTS_APPLIED = "filament_defaults_applied";
+        std::map<std::string, std::string> defaults_applied_now;
         std::unordered_set<const Preset*> compatible_filaments;
         for (const Preset &printer : printers)
             if (printer.is_visible && printer.printer_technology() == ptFFF && printer.vendor && (!printer.vendor->models.empty())) {
-                bool add_default_materials = true;
-                if (config.has_section(AppConfig::SECTION_FILAMENTS))
-                {
-                    const std::map<std::string, std::string>& installed_filament = config.get_section(AppConfig::SECTION_FILAMENTS);
-                    for (auto filament_iter : installed_filament)
-                    {
-                        Preset* filament = filaments.find_preset(filament_iter.first, false, true);
-                        if (filament && is_compatible_with_printer(PresetWithVendorProfile(*filament, filament->vendor), PresetWithVendorProfile(printer, printer.vendor)))
-                        {
-
-                            //already has compatible filament
-                            add_default_materials = false;
-                            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": printer %1% vendor %2% already has default filament %3%")%printer.name %printer.vendor %filament_iter.first;
-                            break;
-                        }
-                    }
-                }
-
-                if (!add_default_materials)
+                // ★ PING 升級補勾（Eric 2026-08-07 裁）
+                // 原邏輯：該機只要「已有任一相容線材被勾」就整段 early-out、不補 default_materials。
+                // 後果＝**既有客戶升級後永遠拿不到新加進 default_materials 的線材**
+                //（0717 客戶問題記錄「V3.6 選機不帶高流量線材」根因之一）。
+                // 改法＝「**每個 vendor bundle 版本只補一次**」：新裝→補（同舊行為）／
+                // 版號變大→再補一次／同版本重開→不補（使用者手動取消勾選的線材不會復活）。
+                // 補齊只加不減，不動使用者已勾的項目。
+                if (config.get(SECTION_FILAMENT_DEFAULTS_APPLIED, printer.vendor->id)
+                    == printer.vendor->config_version.to_string()) {
+                    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": vendor %1% bundle already applied, skip")%printer.vendor->id;
                     continue;
+                }
+                // 標記延到迴圈結束後才寫——同 vendor 多台機，迴圈內就寫會讓第二台起被上面擋掉。
+                defaults_applied_now[printer.vendor->id] = printer.vendor->config_version.to_string();
 
                 const VendorProfile::PrinterModel *printer_model = PresetUtils::system_printer_model(printer);
                 if (!printer_model) {
@@ -1807,6 +1805,11 @@ void PresetBundle::load_installed_filaments(AppConfig &config)
         for (const auto &filament: compatible_filaments) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": set filament %1% to visible by default")%filament->name;
             config.set(AppConfig::SECTION_FILAMENTS, filament->name, "true");
+        }
+        // 記下「這個 vendor 的這個 bundle 版本已補過」——同版本重開不再補。
+        for (const auto &kv : defaults_applied_now) {
+            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": mark vendor %1% defaults applied for bundle %2%")%kv.first %kv.second;
+            config.set(SECTION_FILAMENT_DEFAULTS_APPLIED, kv.first, kv.second);
         }
     //}
 
