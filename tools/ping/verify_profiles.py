@@ -296,9 +296,12 @@ for name, (kind, d) in presets.items():
                            else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
-            # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒
-            if d.get("slow_down_for_layer_cooling") != ["1"]:
-                err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
+            # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁）＋
+            # 🔴 冷卻降速一律**關**（Eric 2026-08-07 裁，翻 0718 自己那條「一律開」）
+            #    原話：「經過實測…它是在特殊情況下才需要進行勾選，因此大部分情況下都要取消」
+            #    ⇒ 實測為據的翻案，不是迴歸；引擎預設 true 故必須每支明寫 0 才擋得住。
+            if d.get("slow_down_for_layer_cooling") != ["0"]:
+                err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
             # 線材回抽統一（Eric 2026-07-23 三裁）：四項＋額外回填流量律＋長度收斂
@@ -495,8 +498,53 @@ for _mn, (_mk, _md) in presets.items():
         _dmt = (_md.get("default_materials", "") or "").split(";")
         if "PING PLA" in _dmt:
             err(f"[default_materials 舊名未改 0728] {_mn}")
-        if _mn == "FD300 同進照片磚" and ("PING PLA - 220" in _dmt or "PING PLA - 210" not in _dmt):
-            err(f"[照片磚 model 預設 210 0728v2] {_mn}: {_md.get('default_materials')!r}")
+        # 0807 全族補齊後，default_materials＝「可勾清單」而非「預設是誰」：照片磚同時看得到
+        # 210 與 220 是正常的。「預設指誰」的把關已在上面 machine 分支的 default_filament_profile。
+        # 本條只保留 0728 意旨：照片磚機的可勾清單必須含 PLA - 210。
+        if _mn == "FD300 同進照片磚" and "PING PLA - 210" not in _dmt:
+            err(f"[照片磚 model 可勾含 210 0728v2·0807 調整] {_mn}: {_md.get('default_materials')!r}")
+
+# ★ 預勾線材全族補齊護欄（Eric 2026-08-07 裁）——對應 embed_params.py 的
+#   apply_default_materials() post-pass。三條斷言：
+#   ① 死名：default_materials 每一項都必須是 bundle 內實際存在的線材 preset
+#   ② 漏勾：每台機型必須涵蓋「所有與它相容且同族群的 PING 線材」
+#   ③ 族群雙向隔離：Classic 線材不進 Fast 機、Fast 線材不進 Classic 機
+_CLASSIC_MODEL_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
+_ping_fils = {n: (d.get("compatible_printers") if isinstance(d.get("compatible_printers"), list)
+                  and d.get("compatible_printers") else None)
+              for n, (k, d) in presets.items()
+              if k == "filament" and n.startswith("PING ") and d.get("instantiation") == "true"}
+_model_variants = {}
+for _n, (_k, _d) in presets.items():
+    if _k == "machine" and _d.get("instantiation") == "true" and _d.get("printer_model"):
+        _model_variants.setdefault(_d["printer_model"], set()).add(_n)
+_chk_fast = _chk_classic = 0
+for _mn, (_mk, _md) in presets.items():
+    if _mk != "machine_model":
+        continue
+    _vs = _model_variants.get(_mn)
+    if not _vs:
+        err(f"[機型無任何 machine preset] {_mn}")
+        continue
+    _is_classic = bool(_CLASSIC_MODEL_RE.match(_mn))
+    _chk_classic += _is_classic
+    _chk_fast += (not _is_classic)
+    _have = [x for x in (_md.get("default_materials", "") or "").split(";") if x]
+    _dead = [x for x in _have if x not in _ping_fils]
+    if _dead:
+        err(f"[default_materials 死名 0807] {_mn}: {'、'.join(_dead)} 不在 bundle 線材清單內")
+    _want = {n for n, cp in _ping_fils.items()
+             if (cp is None or (set(cp) & _vs)) and (("Classic" in n) == _is_classic)}
+    _missing = sorted(_want - set(_have))
+    if _missing:
+        err(f"[預勾漏勾 0807] {_mn}: 相容卻沒進 default_materials — {'、'.join(_missing)}")
+    _spill = sorted(x for x in _have if ("Classic" in x) != _is_classic)
+    if _spill:
+        _dir = "Fast 線材外溢前代機" if _is_classic else "Classic 線材外溢 Fast 機"
+        err(f"[族群隔離破口 0807·{_dir}] {_mn}: {'、'.join(_spill)}")
+# SOP §9 通則：照名字分類的斷言跑完要對數量
+if _chk_fast + _chk_classic != len([1 for _k, _ in presets.values() if _k == "machine_model"]):
+    err(f"[預勾護欄分類漏台 0807] Fast {_chk_fast}＋Classic {_chk_classic} 未涵蓋全部機型")
 
 # 🔴 型別護欄（0725 T004 事故）：`renamed_from` 必須是**字串**，寫成 JSON 陣列會讓
 # PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array → nlohmann 丟

@@ -220,8 +220,11 @@ EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
     # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
     return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
-DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING ABS - 250;PING PLA - 210;"
-                        "PING PolyABS;PING SupABS;PING PETG;PING ABS;PING PA-CF;"
+# ⓘ 2026-08-07 起本常數只是「種子值」——最終 default_materials 由 4d-2 的
+#   apply_default_materials() post-pass 全族重算（Eric 0807 裁）。死名 PING ABS - 250／
+#   PING PolyABS（0725 ABS 整併已移除）在此一併清掉，post-pass 也會再擋一次。
+DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
+                        "PING SupABS;PING PETG;PING ABS;PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
@@ -885,6 +888,78 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
           % (len(PHOTOTILE_MACHINES), len(pt_models), len(PHOTOTILE_PROCS)))
     return gm, gp, pt_models
 
+# ---------- 3z. 預勾線材（default_materials）post-pass ----------
+# ★ Eric 2026-08-07 裁「全族補齊」：每台機型的 default_materials ＝「所有與它相容的 PING 線材」。
+#   起因＝Eric 實地發現設定精靈只預勾 12 支，`PING PVA`／`PING TPE - 210`／`PING SupTPE`
+#   是 0/41 台預勾——客戶端一定得自己去勾才看得到我們自家的料。
+#
+# 為什麼做成 post-pass、而不是各處補字串：預勾清單原本散在多條 emit 路徑＋base 範本硬寫，
+# 正是 SOP_參數入版紀律 §4「產生器規則函式掃不到的來源」的教科書案例。收斂成單一 post-pass 後
+# 規則只有一處，日後新增線材／新增機型自動涵蓋，且順手剔除 filament_list 已無的死名。
+#
+# 族群雙向隔離（Eric 0807 二裁）：Classic 前代機只預勾 Classic 線材、Fast 機只預勾非 Classic。
+# 機型判定照 SOP §9 前綴（沒有任何機器叫「Classic」）；線材判定＝名字含「Classic」。
+# ⓘ 開發線目前無 Classic 前代機，本規則等同「Fast 機取全部非 Classic 線材」；
+#   程式碼照移，日後開發線納入 Classic 即自動生效。
+CLASSIC_MODEL_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
+
+def _is_classic_model(name):
+    return bool(CLASSIC_MODEL_RE.match(name))
+
+def apply_default_materials(pj):
+    """依「線材 compatible_printers × 機型」重算每台 machine_model 的 default_materials。"""
+    def _load(sub):
+        p = os.path.join(PINGDIR, sub)
+        return json.load(io.open(p, encoding="utf-8")) if os.path.isfile(p) else None
+
+    fil_compat = {}
+    for e in pj["filament_list"]:
+        if not e["name"].startswith("PING "):
+            continue
+        d = _load(e["sub_path"])
+        if not d or d.get("instantiation") != "true":
+            continue
+        cp = d.get("compatible_printers")
+        fil_compat[e["name"]] = set(cp) if isinstance(cp, list) and cp else None
+    order = list(fil_compat)
+
+    variants = {}
+    for e in pj["machine_list"]:
+        d = _load(e["sub_path"])
+        if d and d.get("instantiation") == "true" and d.get("printer_model"):
+            variants.setdefault(d["printer_model"], set()).add(e["name"])
+
+    changed = added = dropped = n_classic = n_fast = 0
+    for e in pj["machine_model_list"]:
+        p = os.path.join(PINGDIR, e["sub_path"])
+        d = json.load(io.open(p, encoding="utf-8"))
+        model = d["name"]
+        vs = variants.get(model)
+        if not vs:
+            print("  ⚠ 預勾 post-pass：機型 %s 找不到任何 machine preset，跳過" % model)
+            continue
+        classic_model = _is_classic_model(model)
+        n_classic += classic_model
+        n_fast += (not classic_model)
+        want = [n for n in order
+                if (fil_compat[n] is None or (fil_compat[n] & vs))
+                and (("Classic" in n) == classic_model)]
+        old = [x for x in (d.get("default_materials") or "").split(";") if x]
+        keep = [x for x in old if x in want]
+        new = keep + [x for x in want if x not in keep]
+        dropped += len(old) - len(keep)
+        added += len(want) - len(keep)
+        if new != old:
+            d["default_materials"] = ";".join(new)
+            jdump(p, d)
+            changed += 1
+    # SOP §4 對帳：數量對不上＝有掃不到的來源，不是四捨五入
+    print("  預勾線材全族補齊：%d/%d 台機型更新（Fast %d 台／Classic %d 台；"
+          "新增 %d 項、剔除死名或不相容 %d 項）"
+          % (changed, len(pj["machine_model_list"]), n_fast, n_classic, added, dropped))
+    return changed
+
+
 # ---------- 4. 主流程 ----------
 def main(src_base):
     # 4a. 清掉舊 machine/process（保留 fdm 基底）
@@ -1407,20 +1482,28 @@ def main(src_base):
     if mm_set:
         print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、FF 200/1500/56）" % mm_set)
 
-    # 4b-5. ★ 冷卻降速統一（Eric 2026-07-18 裁「擴及所有材料」）：
-    # slow_down_for_layer_cooling 一律開＋slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
-    #（原預設 5 與 FF 7/基底 2~8 特調一併統一）。
+    # 4b-5. ★ 冷卻降速統一：slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
+    #（Eric 2026-07-18 裁「擴及所有材料」，原預設 5 與 FF 7/基底 2~8 特調一併統一）。
+    #
+    # 🔴 **slow_down_for_layer_cooling 1 → 0（Eric 2026-08-07 裁・翻 0718 自己那條）**
+    # 原話：「經過實測，所有材料的這個選項請取消打勾。它是在特殊情況下才需要進行勾選，
+    #        因此大部分情況下都要取消。」
+    # ⇒ ground truth＝實機實測，**不是疏漏、是有依據的翻案**；下一棒看到 0 不要「修正」回 1。
+    # 引擎預設是 true（PrintConfig.cpp set_default_value true），所以必須每支明寫 0 才擋得住。
+    # ⚠ `slow_down_layer_time` 維持 10 不動——那顆同時驅動「最大風扇速度臨界值」的風扇轉速插值。
+    CD_SLOWDOWN = ["0"]      # ← 要翻回開啟只改這一行
     cd_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        if fd.get("slow_down_for_layer_cooling") == ["1"] and fd.get("slow_down_layer_time") == ["10"]:
+        if fd.get("slow_down_for_layer_cooling") == CD_SLOWDOWN and fd.get("slow_down_layer_time") == ["10"]:
             continue
-        fd["slow_down_for_layer_cooling"] = ["1"]
+        fd["slow_down_for_layer_cooling"] = list(CD_SLOWDOWN)
         fd["slow_down_layer_time"] = ["10"]
         jdump(fp_path, fd)
         cd_set += 1
     if cd_set:
-        print("  冷卻降速統一（開＋10 秒）：改 %d 支" % cd_set)
+        print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
+              % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
 
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
@@ -1524,6 +1607,11 @@ def main(src_base):
         for f in glob.glob(os.path.join(PINGDIR, "filament", "*@FF*.json")):
             os.remove(f)
     json.dump(pj, io.open(pj_path,"w",encoding="utf-8"), ensure_ascii=False, indent=4)
+
+    # 4d-2. 預勾線材全族補齊（Eric 2026-08-07 裁）——必須排在 PING.json 重建**之後**，
+    #        因為要吃最終的 filament_list／machine_list。PING.json 本身不含
+    #        default_materials，故不需回寫。
+    apply_default_materials(pj)
 
     # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
     # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
