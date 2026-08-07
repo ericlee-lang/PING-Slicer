@@ -45,12 +45,19 @@ FF_EXTRA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "ff_
 #（2026-07-08 轉角 C 缺口定案）。機名含「同進」＝gcode 後處理閘門零改碼認得。
 # 順序寫死＝重現 %APPDATA% 建置時的 setting_id（PINGM066-070／PINGP111-115）。
 PHOTOTILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "phototile")
+# FF600 同進照片磚（Eric 2026-08-05 令「四料沒有機器可以試，請幫我建一下」）＝
+# 照 SOP_加機型 §2 由 FF800 同進照片磚派生，FF600 專屬值（圓床多邊形／可印高度 580／
+# 預擠線 Y／床模型 FD600）全部取自 FF600 同進的實檔，產法見 tools/ping/build_ff600_phototile.py。
 PHOTOTILE_MACHINES = ["FF800 同進照片磚 0.6 nozzle", "FF800 同進照片磚 0.4 nozzle",
                       "FF800 同進照片磚 1.0 nozzle", "FD300 同進照片磚 0.4 nozzle",
-                      "FD300 同進照片磚 0.6 nozzle"]
+                      "FD300 同進照片磚 0.6 nozzle",
+                      "FF600 同進照片磚 0.4 nozzle", "FF600 同進照片磚 0.6 nozzle",
+                      "FF600 同進照片磚 1.0 nozzle"]
 PHOTOTILE_PROCS = ["0.35mm @FF800 同進照片磚 (0.6)", "0.25mm @FF800 同進照片磚 (0.4)",
                    "0.45mm @FF800 同進照片磚 (1.0)", "0.2mm @FD300 同進照片磚 (0.4)",
-                   "0.3mm @FD300 同進照片磚 (0.6)"]
+                   "0.3mm @FD300 同進照片磚 (0.6)",
+                   "0.25mm @FF600 同進照片磚 (0.4)", "0.35mm @FF600 同進照片磚 (0.6)",
+                   "0.45mm @FF600 同進照片磚 (1.0)"]
 
 # ---------- 1. OrcaSlicer 權威 key 分類 ----------
 _src = open(PRESET_CPP, encoding="utf-8", errors="ignore").read()
@@ -864,12 +871,25 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
             jdump(os.path.join(PINGDIR, "machine", "%s.json" % d["name"]), d)
             mm_list.append({"name": d["name"], "sub_path": "machine/%s.json" % d["name"]})
             pt_models.append(d["name"])
+    """【2026-08-05 保留號段】照片磚排在配號序列前段，後面還有棧板雙生／PLA+PVA／高流量三批。
+       **在這裡多插一支，後面每一支的 PINGP/PINGM 都會往後推**——加 FF600 三支時實測把 verify 的
+       id baseline 打紅 18 條（0.125~0.5mm 易拆(Z0)水溶全家族整齊 +3）。那份 baseline 的用途正是
+       「證明改名沒有移動既有 setting_id」，**不該為了加一台新機去鬆綁它**。
+       解法：後來新增的照片磚機型從**保留號段**取號（PINGM/PINGP 900 起），不動共用計數器
+       ⇒ 既有 id 一個都不變、baseline 不用重錄。代價＝號碼不連續，換取既有 preset 身分穩定。
+       日後再加照片磚機型比照辦理。"""
+    _pt_res_m = _pt_res_p = 900
+    def _is_reserved(nm):
+        return nm.startswith("FF600 同進照片磚") or "@FF600 同進照片磚" in nm
     for name in PHOTOTILE_MACHINES:
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
         rename_ff_filament_refs(d)   # 照片磚 64 槽高流量引用改新名（2026-07-12）
         if name.startswith("FD300 同進照片磚"):   # FD300 硬體同款門 → 預擠同套左側弧線
             apply_fd300_prime_arc("FD300 同進", d)
-        d["setting_id"] = "PINGM%03d" % gm; gm += 1
+        if _is_reserved(name):
+            d["setting_id"] = "PINGM%03d" % _pt_res_m; _pt_res_m += 1
+        else:
+            d["setting_id"] = "PINGM%03d" % gm; gm += 1
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), d)
         mac_list.append({"name": name, "sub_path": "machine/%s.json" % name})
     for name in PHOTOTILE_PROCS:
@@ -906,7 +926,11 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   **產生器規則函式掃不到的來源要各自處理**，改全庫規則後務必回頭數數量對不對。
         d["filename_format"] = filename_tpl("照片磚")
         # ⚠ 支撐以外的正式製程統一值仍「不套」照片磚：維持 back＋seam_gap0、travel 3000。
-        d["setting_id"] = "PINGP%03d" % gp; gp += 1
+        # 保留號段（見本函式 PHOTOTILE_MACHINES 迴圈前的說明）：後加的照片磚製程不動共用計數器
+        if _is_reserved(name):
+            d["setting_id"] = "PINGP%03d" % _pt_res_p; _pt_res_p += 1
+        else:
+            d["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % name), d)
         proc_list.append({"name": name, "sub_path": "process/%s.json" % name})
     for fn in os.listdir(os.path.join(PHOTOTILE, "cover")):
