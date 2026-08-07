@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.93",
+    "version": "01.00.00.94",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1159,6 +1159,34 @@
         {
             "name": "PING SupPLA(3in1)",
             "sub_path": "filament/PING SupPLA(3in1).json"
+        },
+        {
+            "name": "PING ABS - Classic",
+            "sub_path": "filament/PING ABS - Classic.json"
+        },
+        {
+            "name": "PING SupABS - Classic",
+            "sub_path": "filament/PING SupABS - Classic.json"
+        },
+        {
+            "name": "PING PETG - Classic",
+            "sub_path": "filament/PING PETG - Classic.json"
+        },
+        {
+            "name": "PING PA-CF - Classic",
+            "sub_path": "filament/PING PA-CF - Classic.json"
+        },
+        {
+            "name": "PING PVA - Classic",
+            "sub_path": "filament/PING PVA - Classic.json"
+        },
+        {
+            "name": "PING TPE - Classic 210",
+            "sub_path": "filament/PING TPE - Classic 210.json"
+        },
+        {
+            "name": "PING SupTPE - Classic",
+            "sub_path": "filament/PING SupTPE - Classic.json"
         }
     ],
     "machine_list": [

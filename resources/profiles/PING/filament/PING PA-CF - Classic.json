@@ -1,0 +1,64 @@
+{
+    "type": "filament",
+    "name": "PING PA-CF - Classic",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILCLASSICPACF",
+    "filament_id": "PINGFILCLASSICPACF",
+    "inherits": "fdm_filament_pa",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "PA"
+    ],
+    "nozzle_temperature": [
+        "255"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "255"
+    ],
+    "hot_plate_temp": [
+        "70"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "70"
+    ],
+    "cool_plate_temp": [
+        "70"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "70"
+    ],
+    "fan_max_speed": [
+        "30"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "30"
+    ],
+    "filament_start_gcode": [
+        "; Classic Marlin filament - machine retraction only\n"
+    ],
+    "slow_down_for_layer_cooling": [
+        "0"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
+    ],
+    "alias": "PING PA-CF - Classic",
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
+    ]
+}
