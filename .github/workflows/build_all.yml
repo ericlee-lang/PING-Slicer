@@ -98,6 +98,12 @@ jobs:
     runs-on: ${{ vars.SELF_HOSTED && 'orca-lnx-server' || 'ubuntu-24.04' }}
     needs: build_linux
     if: ${{ !cancelled() && success() }}
+    # Least-privilege: declaring any scope sets every unlisted scope to none,
+    # so contents/actions must be listed too (checkout + delete-artifact need them).
+    permissions:
+      contents: read   # actions/checkout
+      checks: write    # publish-unit-test-result-action creates the check run
+      actions: write   # geekyeggo/delete-artifact removes the test artifact
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -129,8 +135,11 @@ jobs:
         with:
           name: unit-test-logs
           path: build/tests/**/*.log
+      # Best-effort: a read-only token (e.g. fork PRs) can't write the check, so
+      # don't let a publish failure fail the run. The test step gates correctness.
       - name: Publish Test Results
         if: always()
+        continue-on-error: true
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: "ctest_results.xml"
