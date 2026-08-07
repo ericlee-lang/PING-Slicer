@@ -1,0 +1,76 @@
+{
+    "type": "filament",
+    "name": "PING ABS - Classic",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILCLASSICABS",
+    "filament_id": "PINGFILCLASSICABS",
+    "inherits": "fdm_filament_abs",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "ABS"
+    ],
+    "nozzle_temperature": [
+        "250"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "250"
+    ],
+    "hot_plate_temp": [
+        "100"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "100"
+    ],
+    "cool_plate_temp": [
+        "100"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "100"
+    ],
+    "fan_max_speed": [
+        "30"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "30"
+    ],
+    "filament_start_gcode": [
+        "; Classic Marlin filament - machine retraction only\n"
+    ],
+    "slow_down_for_layer_cooling": [
+        "0"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "filament_flow_ratio": [
+        "0.98"
+    ],
+    "filament_max_volumetric_speed": [
+        "30"
+    ],
+    "pressure_advance": [
+        "0"
+    ],
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "filament_cost": [
+        "850"
+    ],
+    "filament_density": [
+        "1.04"
+    ],
+    "default_filament_colour": [
+        "#EA4E16"
+    ],
+    "alias": "PING ABS - Classic"
+}

@@ -943,6 +943,14 @@ CLASSIC_PLA_210 = "PING PLA - Classic 210"
 CLASSIC_PLA_220 = "PING PLA - Classic 220"
 CLASSIC_SUP_PLA = "PING SupPLA - Classic"
 CLASSIC_EDU_PLA = "PING PLA - EDU Classic"
+# ★ Classic 全套（Eric 2026-08-07 裁「全套跟 Fast 對齊」）——命名沿用既有「PING <材料> - Classic」型
+CLASSIC_ABS     = "PING ABS - Classic"
+CLASSIC_SUP_ABS = "PING SupABS - Classic"
+CLASSIC_PETG    = "PING PETG - Classic"
+CLASSIC_PACF    = "PING PA-CF - Classic"
+CLASSIC_PVA     = "PING PVA - Classic"
+CLASSIC_TPE_210 = "PING TPE - Classic 210"   # 帶溫度尾碼＝與 PLA - Classic 210 命名一致
+CLASSIC_SUP_TPE = "PING SupTPE - Classic"
 
 def _fill_array(d, key, value):
     """保留 Orca 來源 preset 的槽位數，只替換每槽值。"""
@@ -993,6 +1001,20 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         _classic_filament("PING PLA - 220", CLASSIC_PLA_220, "PINGFILCLASSIC220", 220, 60),
         _classic_filament("PING SupPLA",    CLASSIC_SUP_PLA, "PINGFILCLASSICSUP", 220, 60, True),
         _classic_filament(BASE_PLA_NEW,     CLASSIC_EDU_PLA, "PINGFILCLASSICEDU", 210, 0),
+        # ★ Classic 全套跟 Fast 對齊（Eric 2026-08-07 裁，兩問兩答：①材料「全套跟 Fast 對齊」
+        #   ②「改成只預勾 Classic 料」）。起因＝0807 早上「Classic 也全族補齊」把 Fast 13 支預勾給
+        #   前代機，但 **Fast 線材的 filament_start_gcode 帶 Klipper 專用 SET_RETRACTION**，
+        #   前代赤兔／Marlin 板不認；Eric 追加事實：「**赤兔不能吃韌體回抽**」。
+        #   解法＝各材料開 Classic 版，由本工廠自動：pop 掉所有 filament_retract*／wipe／z_hop
+        #   （⇒ 回抽全部由 Classic machine preset 控制，材料層不覆蓋）、start gcode 換成不帶
+        #   Klipper 指令的註解行、PA 全關。溫度／床溫**照母檔實值**不另訂（＝「跟 Fast 對齊」）。
+        _classic_filament("PING ABS",       CLASSIC_ABS,     "PINGFILCLASSICABS",    250, 100),
+        _classic_filament("PING SupABS",    CLASSIC_SUP_ABS, "PINGFILCLASSICSUPABS", 250, 100, True),
+        _classic_filament("PING PETG",      CLASSIC_PETG,    "PINGFILCLASSICPETG",   235, 75),
+        _classic_filament("PING PA-CF",     CLASSIC_PACF,    "PINGFILCLASSICPACF",   255, 70),
+        _classic_filament("PING PVA",       CLASSIC_PVA,     "PINGFILCLASSICPVA",    210, 60, True),
+        _classic_filament("PING TPE - 210", CLASSIC_TPE_210, "PINGFILCLASSICTPE",    210, 60),
+        _classic_filament("PING SupTPE",    CLASSIC_SUP_TPE, "PINGFILCLASSICSUPTPE", 210, 60, True),
     ]
     classic_fil_list = []
     for d in classic_filaments:
@@ -1252,16 +1274,20 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
 # filament_list 已無的死名（0725 ABS 整併留下的 `PING ABS - 250`／`PING PolyABS`）。
 #
 # 兩條族群規則：
-#  (a) **Classic 線材只進 Classic 前代機**——4 支 Classic 線材沒設 compatible_printers（＝不限機型），
-#      純靠相容性推導會把前代 Marlin 專用料外溢到 Fast 25 台（現況沒外溢，本 post-pass 不得製造）。
-#      機型判定照 SOP §9：前代機＝機型名前綴 `EDU|DUAL|PING 2|PING 3`，沒有任何機器叫「Classic」。
-#  (b) 其餘 PING 線材一律依各自的 compatible_printers（3in1 支綁 3in1 機、四料高流量支綁 FF 非 3in1）。
+#  (a) **族群雙向隔離**（Eric 2026-08-07 二裁「改成只預勾 Classic 料」）：
+#      Classic 前代機 → **只**預勾 Classic 版線材；Fast 機 → **只**預勾非 Classic 線材。
+#      機型判定照 SOP §9：前代機＝機型名前綴 `EDU|DUAL|PING 2|PING 3`，沒有任何機器叫「Classic」；
+#      線材判定＝名字含「Classic」。⚠ Classic 線材沒設 compatible_printers（＝不限機型），
+#      光靠相容性推導兩邊都會互相外溢，所以這條隔離是必要的、不是保險。
+#  (b) 其餘依各自的 compatible_printers（3in1 支綁 3in1 機、四料高流量支綁 FF 非 3in1）。
 #
-# ⚠ 已知代價（Eric 看過實證後重申照做＝有意識取捨、非疏漏，下一棒勿當缺口回補）：
-#   Fast 線線材的 filament_start_gcode 帶 Klipper 專用 `SET_RETRACTION`，Classic（赤兔/Marlin）
-#   線材則明寫 "machine retraction only" 刻意不帶。全族補齊後前代機也預勾得到 Fast 料，
-#   客戶選到就會把 SET_RETRACTION 送給 Marlin 板（韌體不認、回抽覆蓋靜默失效，
-#   與 0729「Classic 出檔鐵律」精神相衝）。正解＝另開不帶該指令的 Classic 版線材，本批不做。
+# 📌 演進軌跡（同一天兩裁，別誤讀成反覆）：
+#   0807 早上 Eric 裁「Classic 也全族補齊」＝前代機連 Fast 13 支一起預勾；當時我已具實證告知
+#   「Fast 線材 filament_start_gcode 帶 Klipper 專用 SET_RETRACTION、Classic 線材刻意不帶」，
+#   Eric 看過後重申照做，登錄為有意識取捨。0807 稍晚 Eric 改採**正解**：
+#   「Classic 版線材全套跟 Fast 對齊（+7 支）」＋「前代機改成只預勾 Classic 料」，
+#   並補充事實「**赤兔不能吃韌體回抽**」。⇒ 前代機現在有自己的完整 11 支，
+#   且 filament_retract* 全由 _classic_filament() pop 掉、回抽只由 Classic machine preset 控制。
 CLASSIC_MODEL_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
 
 def _is_classic_model(name):
@@ -1307,7 +1333,7 @@ def apply_default_materials(pj):
         n_fast += (not classic_model)
         want = [n for n in order
                 if (fil_compat[n] is None or (fil_compat[n] & vs))          # (b) 相容性
-                and (classic_model or "Classic" not in n)]                  # (a) Classic 線材隔離
+                and (("Classic" in n) == classic_model)]                    # (a) 族群雙向隔離
         old = [x for x in (d.get("default_materials") or "").split(";") if x]
         keep = [x for x in old if x in want]                                # 保序＝最小 diff
         new = keep + [x for x in want if x not in keep]

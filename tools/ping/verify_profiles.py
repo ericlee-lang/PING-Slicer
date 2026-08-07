@@ -580,8 +580,13 @@ for model, nzs in CLASSIC_VARIANT_NOZZLES.items():
                 err(f"[Classic 變體 no-T 0729] {mname}: machine_start_gcode 帶 T")
             if d.get("change_filament_gcode", ""):
                 err(f"[Classic 變體 change_filament 應空 0729] {mname}")
+# Classic 全套 11 支（Eric 2026-08-07 裁「全套跟 Fast 對齊」：原 4 支 ＋ 新 7 支）。
+# 下面逐支斷言：PA 全關（Marlin 無 PA）＋ start gcode 不得帶 Klipper 的 SET_RETRACTION。
 classic_filaments = ("PING PLA - Classic 210", "PING PLA - Classic 220",
-                     "PING SupPLA - Classic", "PING PLA - EDU Classic")
+                     "PING SupPLA - Classic", "PING PLA - EDU Classic",
+                     "PING ABS - Classic", "PING SupABS - Classic", "PING PETG - Classic",
+                     "PING PA-CF - Classic", "PING PVA - Classic",
+                     "PING TPE - Classic 210", "PING SupTPE - Classic")
 for name in classic_filaments:
     entry = presets.get(name)
     if not entry or entry[0] != "filament":
@@ -592,6 +597,13 @@ for name in classic_filaments:
         err(f"[Classic pressure advance] {name}: {d.get('enable_pressure_advance')!r}")
     if "SET_RETRACTION" in "\n".join(d.get("filament_start_gcode", []) or []):
         err(f"[Classic Klipper command] {name}: filament_start_gcode")
+    # 🔴 赤兔不能吃韌體回抽（Eric 2026-08-07 補充的事實）：Classic 線材**不得**在材料層覆蓋回抽，
+    #    一律由 Classic machine preset 控制（_classic_filament() 會 pop 掉這些鍵）。
+    _leak = sorted(k for k in d if k.startswith("filament_retract")
+                   or k in ("filament_wipe", "filament_wipe_distance",
+                            "filament_z_hop", "filament_z_hop_types"))
+    if _leak:
+        err(f"[Classic 材料層回抽覆蓋 0807] {name}: 不得帶 {'、'.join(_leak)}（赤兔無韌體回抽，一律吃機器層）")
 edu = presets.get("PING PLA - EDU Classic")
 if edu and any(edu[1].get(key) != ["0"] for key in
                ("hot_plate_temp", "hot_plate_temp_initial_layer", "cool_plate_temp", "cool_plate_temp_initial_layer")):
@@ -766,14 +778,16 @@ for _mn, (_mk, _md) in presets.items():
     _dead = [x for x in _have if x not in _ping_fils]
     if _dead:
         err(f"[default_materials 死名 0807] {_mn}: {'、'.join(_dead)} 不在 bundle 線材清單內")
+    # 族群雙向隔離（Eric 0807 二裁）：Classic 機只預勾 Classic 料、Fast 機只預勾非 Classic 料
     _want = {n for n, cp in _ping_fils.items()
-             if (cp is None or (set(cp) & _vs)) and (_is_classic or "Classic" not in n)}
+             if (cp is None or (set(cp) & _vs)) and (("Classic" in n) == _is_classic)}
     _missing = sorted(_want - set(_have))
     if _missing:
         err(f"[預勾漏勾 0807] {_mn}: 相容卻沒進 default_materials — {'、'.join(_missing)}")
-    _spill = sorted(x for x in _have if "Classic" in x and not _is_classic)
+    _spill = sorted(x for x in _have if ("Classic" in x) != _is_classic)
     if _spill:
-        err(f"[Classic 線材外溢 Fast 機 0807] {_mn}: {'、'.join(_spill)}")
+        _dir = "Fast 線材外溢前代機" if _is_classic else "Classic 線材外溢 Fast 機"
+        err(f"[族群隔離破口 0807·{_dir}] {_mn}: {'、'.join(_spill)}")
 # SOP §9 通則：照名字分類的斷言跑完要對數量，對不上＝分類規則錯了、不是資料錯了
 if _chk_fast + _chk_classic != len([1 for _k, _ in presets.values() if _k == "machine_model"]):
     err(f"[預勾護欄分類漏台 0807] Fast {_chk_fast}＋Classic {_chk_classic} 未涵蓋全部機型")

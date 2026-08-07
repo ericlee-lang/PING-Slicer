@@ -1,0 +1,88 @@
+{
+    "type": "filament",
+    "name": "PING SupABS - Classic",
+    "from": "system",
+    "instantiation": "true",
+    "setting_id": "PINGFILCLASSICSUPABS",
+    "filament_id": "PINGFILCLASSICSUPABS",
+    "inherits": "fdm_filament_abs",
+    "filament_vendor": [
+        "PING"
+    ],
+    "filament_type": [
+        "ABS"
+    ],
+    "nozzle_temperature": [
+        "250"
+    ],
+    "nozzle_temperature_initial_layer": [
+        "250"
+    ],
+    "filament_density": [
+        "1.04"
+    ],
+    "temperature_vitrification": [
+        "110"
+    ],
+    "nozzle_temperature_range_low": [
+        "240"
+    ],
+    "nozzle_temperature_range_high": [
+        "270"
+    ],
+    "filament_shrink": [
+        "99.7%"
+    ],
+    "filament_flow_ratio": [
+        "0.98"
+    ],
+    "filament_max_volumetric_speed": [
+        "30"
+    ],
+    "hot_plate_temp": [
+        "100"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "100"
+    ],
+    "cool_plate_temp": [
+        "100"
+    ],
+    "cool_plate_temp_initial_layer": [
+        "100"
+    ],
+    "fan_max_speed": [
+        "30"
+    ],
+    "fan_min_speed": [
+        "30"
+    ],
+    "filament_is_support": [
+        "1"
+    ],
+    "filament_minimal_purge_on_wipe_tower": [
+        "30"
+    ],
+    "filament_start_gcode": [
+        "; Classic Marlin filament - machine retraction only\n"
+    ],
+    "slow_down_for_layer_cooling": [
+        "0"
+    ],
+    "slow_down_layer_time": [
+        "10"
+    ],
+    "overhang_fan_threshold": [
+        "25%"
+    ],
+    "default_filament_colour": [
+        "#D3D3D3"
+    ],
+    "enable_pressure_advance": [
+        "0"
+    ],
+    "pressure_advance": [
+        "0"
+    ],
+    "alias": "PING SupABS - Classic"
+}
