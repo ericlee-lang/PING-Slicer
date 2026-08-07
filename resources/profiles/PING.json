@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.92",
+    "version": "01.00.00.93",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -87,6 +87,10 @@
         {
             "name": "FF600 3in1",
             "sub_path": "machine/FF600 3in1.json"
+        },
+        {
+            "name": "FF600 同進照片磚",
+            "sub_path": "machine/FF600 同進照片磚.json"
         },
         {
             "name": "FF800",
@@ -1023,6 +1027,18 @@
             "sub_path": "process/0.3mm @FD300 同進照片磚 (0.6).json"
         },
         {
+            "name": "0.25mm @FF600 同進照片磚 (0.4)",
+            "sub_path": "process/0.25mm @FF600 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.35mm @FF600 同進照片磚 (0.6)",
+            "sub_path": "process/0.35mm @FF600 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.45mm @FF600 同進照片磚 (1.0)",
+            "sub_path": "process/0.45mm @FF600 同進照片磚 (1.0).json"
+        },
+        {
             "name": "0.2mm 高流量 @FF800 同進 (0.4)",
             "sub_path": "process/0.2mm 高流量 @FF800 同進 (0.4).json"
         },
@@ -1577,6 +1593,18 @@
         {
             "name": "FD300 同進照片磚 0.6 nozzle",
             "sub_path": "machine/FD300 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FF600 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FF600 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FF600 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FF600 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FF600 同進照片磚 1.0 nozzle.json"
         }
     ]
 }
