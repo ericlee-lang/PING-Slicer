@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <set>          // ping_install_photo_tile_printers()：機型去重（不賭傳遞包含）
 #include <exception>
 #include <cstdlib>
 #include <regex>
@@ -4693,6 +4694,65 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
     return out;
 }
 
+// ---- PING 照片磚：進工作室時自動安裝照片磚機型（Eric 2026-08-07 需求）----
+// 起因：ping_resolve_photo_tile_printer() 只在**已安裝**的機型裡找；使用者若沒在設定精靈
+// 勾過同進照片磚機，匯出到最後才會跳「找不到對應口徑的同進照片磚機型，請手動選擇」
+// ——那是**做完整張圖之後**才告訴他缺東西，最該擋的時機是進門的時候。
+//
+// 安裝＝AppConfig::set_variant(vendor, model, variant, true) → PresetBundle::load_installed_printers()
+// 讓 Preset::is_visible 生效（與設定精靈同一條路徑，不是另闢蹊徑）。
+//
+// 【取值範圍的判斷，交代清楚】Eric 的原話是「四色→FF800＋FF600、雙色→FD300」。
+// 但**進門的當下還不知道使用者要做雙料還是四料**（mode 是在工作室裡面選的，匯出時才回傳）。
+// 因此這裡裝的是「printer_model 含『同進照片磚』」的**全部**機型＝恰好是 FD300／FF600／FF800
+// 三家族的聯集，涵蓋他列的兩種情形。mode→機型的對應仍由既有的 ping_resolve_photo_tile_printer()
+// 在匯出時負責，本函式只保證「候選機一定存在」。
+// ⚠ 若日後 Eric 要求嚴格依 mode 只裝該用的那幾台，掛勾點要改到工作室回報 mode 的時機，
+//   不是這裡；屆時把本函式加一個 family 參數即可（比對邏輯與 resolve 共用同一套）。
+//
+// 不寫死機名（同 resolve 的取向）＝日後再加照片磚機型自動吃到。
+// 回傳「新裝了幾個口徑變體」與「涵蓋幾個機型」——兩個數字不一樣（一個機型有多個口徑），
+// 報給使用者看的訊息必須講對，不能拿變體數當機型數。
+struct PingPhotoTileInstallResult
+{
+    int variants = 0;   // 新裝的口徑變體數（FD300×2＋FF600×3＋FF800×3 全新裝＝8）
+    int models   = 0;   // 涵蓋的機型數（＝3）
+};
+
+static PingPhotoTileInstallResult ping_install_photo_tile_printers()
+{
+    PingPhotoTileInstallResult out;
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    AppConfig*    config = wxGetApp().app_config;
+    if (bundle == nullptr || config == nullptr)
+        return out;
+
+    std::set<std::string> touched_models;
+    for (const Preset& preset : bundle->printers) {
+        if (!preset.is_system || preset.vendor == nullptr)
+            continue;
+        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
+        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
+        if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
+            continue;
+        if (pm->value.find("同進照片磚") == std::string::npos)
+            continue;
+        if (config->get_variant(preset.vendor->id, pm->value, pv->value))
+            continue;   // 已安裝＝不動（使用者自己取消勾選的情形也不強制裝回，只補從沒裝過的）
+        config->set_variant(preset.vendor->id, pm->value, pv->value, true);
+        ++out.variants;
+        touched_models.insert(pm->value);
+    }
+    out.models = int(touched_models.size());
+
+    if (out.variants > 0) {
+        // 只在真的有新增時才落盤與重算可見性——沒事不要動使用者的 conf。
+        bundle->load_installed_printers(*config);
+        config->save();
+    }
+    return out;
+}
+
 std::string GUI_App::handle_web_request(std::string cmd)
 {
     try {
@@ -5068,6 +5128,26 @@ void GUI_App::open_photo_tile(const wxString& image_path)
 {
     if (!mainframe || !mainframe->m_webview)
         return;
+
+    // 進門就先把照片磚機型補裝好（Eric 2026-08-07）——不要等到匯出才說「找不到機型」。
+    // 掛在 open_photo_tile() 而不是某個 web 指令：首頁入口與「拖圖片進來」兩條路都走這裡。
+    const PingPhotoTileInstallResult installed = ping_install_photo_tile_printers();
+    if (installed.variants > 0) {
+        BOOST_LOG_TRIVIAL(info) << "Photo tile: auto-installed " << installed.variants
+                                << " printer variant(s) across " << installed.models << " model(s)";
+        // 系統代替使用者做了事就要說（否則他會發現印表機清單莫名多出幾台，不知道哪來的）
+        if (Tab* printer_tab = get_tab(Preset::TYPE_PRINTER))
+            printer_tab->update_tab_ui();
+        if (plater() != nullptr) {
+            plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
+            plater()->get_notification_manager()->push_notification(
+                NotificationType::CustomNotification,
+                NotificationManager::NotificationLevel::RegularNotificationLevel,
+                std::string("照片磚：已自動加入 ") + std::to_string(installed.models) +
+                    " 種同進照片磚機型（共 " + std::to_string(installed.variants) +
+                    " 個口徑）到你的印表機清單——照片磚需要它們才切得了片。");
+        }
+    }
 
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
