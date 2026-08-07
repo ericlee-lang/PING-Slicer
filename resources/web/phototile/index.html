@@ -879,9 +879,60 @@ function suggest(){
        帶 TD 與帶長連動**（帶內剛好疊到 ≈95% 飽和，同雙料公式）→ 每帶整段都是
        該色系淺→深的有效漸層；家族上下順序枚舉 6 種、取整圖色差最小，帶界再微調 --- */
     if(params.orient==='vertical'){
-      /* 垂直四料建議：料A=白（調亮度）＋前三大色相家族的深色代表當 B/C/D（混搭原料） */
+      /* 垂直四料建議：料A=白（調亮度）＋三支從**分群層**最遠點取樣的彩色。
+         【2026-08-05 建議配色核心規格・Eric 裁「白＋不得複製充數」】
+         舊法用上面的 `top`（前三大色相家族的 deep），有兩個實測過的缺陷：
+           ①家族不足三個時 `while(top.length<slotCount-1) top.push(top[top.length-1])`
+             會**複製最後一族** ⇒ 兩支料吐出逐字元相同的 hex（四料當三料用）；
+           ②永遠取家族的 deep（最深那顆）⇒ 四支全擠暗端、中間調無代表。
+         實測（quad／400mm／格點 3200²）：舊法色數 19、ΔE 6.789；改最遠點後
+         色數 34、ΔE 5.634（且自動挑出 L*68 的中間膚色），比人工手挑的 6.251 還好。
+         ⚠ 分散是最佳化目標、**不是閘門**——不設「任兩支必須差多少」的門檻，
+           使用者要刻意選兩支相近色照樣可以；本規格只約束「我們主動建議的初值」。
+         ⚠ 上面的 fams/top 仍保留給**平躺**分支用（平躺為研究線、行為維持原狀不動）。
+         ⚠ 本段與 engine.js suggestSlots() 的四料分支必須同步——兩份實作的統一另案處理。 */
       slots[0]={color:'#f2f0eb', td:6, start:1};
-      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(top[Math.min(i,top.length-1)].deep.lab), td:2, start:1};
+      const picks=[];
+      if(pool.length){
+        let seed=pool[0], sw=-1;
+        for(const c of pool){
+          const w=c.n*(1+Math.hypot(c.lab[1],c.lab[2])/25);   // 沿用原權重式（偏好有彩度）
+          if(w>sw){ sw=w; seed=c; }
+        }
+        picks.push(seed);
+        while(picks.length<3 && picks.length<pool.length){
+          let best=null, bd=-1;
+          for(const c of pool){
+            if(picks.indexOf(c)>=0) continue;
+            let md=1e9;
+            for(const p of picks){
+              const d=Math.hypot(c.lab[0]-p.lab[0], c.lab[1]-p.lab[1], c.lab[2]-p.lab[2]);
+              if(d<md) md=d;
+            }
+            if(md>bd){ bd=md; best=c; }
+          }
+          if(!best) break;
+          picks.push(best);
+        }
+      }
+      /* 群數不足三：**不複製**——沿用色相、把亮度推到還沒被佔用的一側，產生真的不一樣的補色。 */
+      const labs=picks.map(c=>c.lab.slice());
+      while(labs.length<3){
+        const base=labs.length ? labs[labs.length-1] : [50,0,0];
+        const used=labs.length ? labs.map(l=>l[0]) : [50];
+        const L=(Math.max.apply(null,used)<50) ? Math.min(85, Math.max.apply(null,used)+28)
+                                               : Math.max(12, Math.min.apply(null,used)-28);
+        labs.push([L, base[1], base[2]]);
+      }
+      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(labs[i]), td:2, start:1};
+      /* 最後一道：不得吐出兩支逐字元相同的 hex（不同 Lab 也可能捨入到同一個 hex）。 */
+      for(let i=1;i<=3;i++){
+        let guard=0;
+        while(guard++<8 && slots.slice(1,i).some(function(s){ return s.color===slots[i].color; })){
+          labs[i-1][0]=Math.max(8, Math.min(92, labs[i-1][0] + (labs[i-1][0]>50 ? -9 : 9)));
+          slots[i].color=lab2hex(labs[i-1]);
+        }
+      }
       renderSlots(); simulate();
       return;
     }
