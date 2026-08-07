@@ -1841,20 +1841,29 @@ def main(src_base):
     if mm_set:
         print("  機器動力學=Klipper實值：改 %d 台（FD/FP 400/5000/7、FF 200/1500/56）" % mm_set)
 
-    # 4b-5. ★ 冷卻降速統一（Eric 2026-07-18 裁「擴及所有材料」）：
-    # slow_down_for_layer_cooling 一律開＋slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
-    #（原預設 5 與 FF 7/基底 2~8 特調一併統一）。
+    # 4b-5. ★ 冷卻降速統一：slow_down_layer_time（最大風扇臨界·每層列印時間）一律 10 秒
+    #（Eric 2026-07-18 裁「擴及所有材料」，原預設 5 與 FF 7/基底 2~8 特調一併統一）。
+    #
+    # 🔴 **slow_down_for_layer_cooling 1 → 0（Eric 2026-08-07 裁・翻 0718 自己那條）**
+    # 原話：「經過實測，所有材料的這個選項請取消打勾。它是在特殊情況下才需要進行勾選，
+    #        因此大部分情況下都要取消。」
+    # ⇒ ground truth＝實機實測，**不是疏漏、是有依據的翻案**；下一棒看到 0 不要「修正」回 1。
+    # 引擎預設是 true（PrintConfig.cpp:1709 set_default_value true），所以必須每支明寫 0 才擋得住。
+    # ⚠ `slow_down_layer_time` 維持 10 不動——那顆同時驅動「最大風扇速度臨界值」的風扇轉速插值，
+    #    不是只驅動降速；Eric 只指名取消勾選那一格。
+    CD_SLOWDOWN = ["0"]      # ← 要翻回開啟只改這一行
     cd_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        if fd.get("slow_down_for_layer_cooling") == ["1"] and fd.get("slow_down_layer_time") == ["10"]:
+        if fd.get("slow_down_for_layer_cooling") == CD_SLOWDOWN and fd.get("slow_down_layer_time") == ["10"]:
             continue
-        fd["slow_down_for_layer_cooling"] = ["1"]
+        fd["slow_down_for_layer_cooling"] = list(CD_SLOWDOWN)
         fd["slow_down_layer_time"] = ["10"]
         jdump(fp_path, fd)
         cd_set += 1
     if cd_set:
-        print("  冷卻降速統一（開＋10 秒）：改 %d 支" % cd_set)
+        print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
+              % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
 
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
