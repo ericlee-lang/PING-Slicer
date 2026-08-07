@@ -443,12 +443,17 @@ function simulateVerticalQuad(){
     `${palette.length} 色（6 條色階線 × ${K} 階＝${cands.length} 候選${dropped?`，超上限併掉 ${dropped}`:''}）`;
   const lines=[];
   lines.push(`模型拆分：照片變厚→按顏色分 ${palette.length} 種色塊零件（各自往後延伸），每零件一個混色比例`);
-  lines.push('調色盤＝兩兩色階線（白↔B/C/D＋B↔C/B↔D/C↔D），每格同時最多 2 支料在混');
-  lines.push('換色過渡藏在磚體後方（厚度＝清料空間）；A=料A(白/E1)…D=料D');
+  /* 【0805 規格 §2.2】這份清單是要拿去給現場換料的，**不可以寫死「白」**——
+     使用者可以把料A 改成任何顏色（規格明訂不阻擋），原本每一行都印「白N％」，
+     他換掉 A 之後現場會照著換錯料。改成印 A/B/C/D 並在抬頭列出各槽的實際色碼。 */
+  lines.push('調色盤＝兩兩色階線（A↔B/C/D＋B↔C/B↔D/C↔D），每格同時最多 2 支料在混');
+  lines.push('換色過渡藏在磚體後方（厚度＝清料空間）');
+  lines.push('本次料色：' + ['A','B','C','D'].map((k,i)=>
+    `${k}=${(slots[i]&&slots[i].color)||'—'}${i===0?'（機上 E1）':''}`).join('｜'));
   palette.forEach((p,i)=>{
     const r=p.w;
     const pct = usageF? `（畫面佔 ${(usageF[i]/n*100).toFixed(1)}％）` : '';
-    lines.push(`零件色 ${i+1}：白${r[0]}％｜B${r[1]}％｜C${r[2]}％｜D${r[3]}％（M6052 A${r[0]} B${r[1]} C${r[2]} D${r[3]}）${pct}`);
+    lines.push(`零件色 ${i+1}：A${r[0]}％｜B${r[1]}％｜C${r[2]}％｜D${r[3]}％（M6052 A${r[0]} B${r[1]} C${r[2]} D${r[3]}）${pct}`);
   });
   document.getElementById('swapList').textContent=lines.join('\n');
   if(!img) return;
@@ -638,7 +643,10 @@ function applySizeChange(changed, rawValue, rebuild=true){
     params.height=roundMm(clampSizeMm(rawValue,params.height,SIZE_MIN_MM,SIZE_MAX_MM),1);
   }
   syncSizeInputs();
-  if(rebuild && img){ buildGrid(); suggest(); }
+  /* 【0805 規格 §2.2】改尺寸只重建格點＋重算，**不重新建議配色**——實體尺寸跟顏色無關，
+     原本這裡呼叫 suggest() 會把使用者調好的料色整組洗掉。
+     還原路徑不需另建：btnSuggest（「依這張圖建議配色與換層」）本來就是。 */
+  if(rebuild && img){ buildGrid(); simulate(); }
   else updateSizeInfo();
 }
 /* 由系統依實體尺寸自動採 0.1 mm 高精度取樣；這是 3MF 幾何實作細節，不要求使用者判斷。
@@ -950,7 +958,9 @@ document.getElementById('modeSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
   slotCount=+e.target.dataset.n;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
-  renderSlots(); if(img) suggest(); else simulate();
+  /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
+     切換不需要靠 suggest() 生槽位，原本這樣做只是順手把使用者的配色洗掉。 */
+  renderSlots(); simulate();
 });
 function syncOrientUI(){
   const v=params.orient==='vertical';
@@ -990,7 +1000,8 @@ document.getElementById('orientSeg').addEventListener('click',e=>{
   params.orient=e.target.dataset.o;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
   syncOrientUI(); renderSlots();
-  if(img) suggest(); else simulate();
+  /* 【0805 規格 §2.2】切平躺/垂直不重新建議——同上，只重算不覆寫使用者的料色。 */
+  simulate();
 });
 document.getElementById('levelsIn').onchange=e=>{
   params.klevels=Math.max(2,Math.min(48,+e.target.value||8));
@@ -1025,7 +1036,9 @@ noiseIn.onchange=e=>{
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
 document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
-document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); if(img) suggest(); };
+/* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64），
+   原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
+document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
 document.getElementById('pillarXY').onchange=e=>{
   params.pillarXY=Math.max(5,Math.min(60,+e.target.value||25)); e.target.value=params.pillarXY;
   updateSizeInfo();
