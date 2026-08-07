@@ -448,9 +448,12 @@ for name, (kind, d) in presets.items():
                            else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
-            # 檢查 11（Eric 2026-07-18 裁「擴及所有材料」）：冷卻降速一律開＋降速層時間 10 秒
-            if d.get("slow_down_for_layer_cooling") != ["1"]:
-                err(f"[冷卻降速未開] {name}: {d.get('slow_down_for_layer_cooling')!r}")
+            # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁「擴及所有材料」）＋
+            # 🔴 冷卻降速一律**關**（Eric 2026-08-07 裁，翻 0718 自己那條「一律開」）
+            #    原話：「經過實測…它是在特殊情況下才需要進行勾選，因此大部分情況下都要取消」
+            #    ⇒ 實測為據的翻案，不是迴歸；引擎預設 true 故必須每支明寫 0 才擋得住。
+            if d.get("slow_down_for_layer_cooling") != ["0"]:
+                err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
             # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
