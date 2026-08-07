@@ -45,4 +45,4 @@ if (WIN32)
     endif()
 endif()
 
-catch_discover_tests(${_TEST_NAME}_tests)
+orcaslicer_discover_tests(${_TEST_NAME}_tests)
