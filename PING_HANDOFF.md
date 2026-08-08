@@ -17,6 +17,25 @@
 ## 0. 立即接續（現況 + 待辦）
 
 ---
+### 🔧 CI 長期紅燈已修＋Flatpak 關閉（2026-08-08・CI 線收工，牌 `c-0807-CI-01~04`）
+
+> ⚠️ **本段推翻了坑 #10 的舊觀念**（「紅 X 不用看」）。接手前務必先讀改寫後的坑 #10 與新增的坑 #22。
+
+- **🔴 在途工作交棒（下一棒第一件事）**：Eric 令推兩線，出貨線已發車 **run `31242874968`** @ `5678384a`（0808 05:58 UTC 起跑，約 1~1.5h）。**收工當下 build 仍 in_progress**（四平台 Build OrcaSlicer 執行中；Flatpak 已如預期顯示 **skipped** ✅）。**接手就查結果**：`gh run view 31242874968`。
+- **判讀方式**（跟過去三輪完全不同，別套舊經驗）：
+  | 看到 | 意思 |
+  |---|---|
+  | Flatpak 兩 job 消失/skipped | ✅ 預期內，改為僅 `workflow_dispatch` |
+  | Unit Tests 綠 | ✅ 400+ 顆測試真跑且全過 |
+  | Unit Tests 紅 | ⚠️ **進步不是退步**——測試真的在跑了，抓到既有問題；逐條分辨 PING vs 上游 |
+  | build_windows 紅 | 🔴 出貨路徑掛了，最優先 |
+- **兩個根因（皆非 PING 客製造成）**：①**零測試假綠**＝五個測試目錄 `catch_discover_tests()` 沒帶 `ADD_TAGS_AS_LABELS`（bundled Catch2 3.11.0 要帶了才把 tag 轉 CTest label）⇒ 無 label ⇒ `-L` 比不到 ⇒ 假綠。上游已於 `fe0eafc0`（2026-06-14, PR #14175「Fix Unit Tests CI job that silently ran zero tests」）修好，本 fork 基於 2.3.2 未併。②**403 染紅**＝repo `default_workflow_permissions=read` ＋ `build_all.yml` 無 `permissions:` ⇒ `POST /check-runs` 403 ⇒ publish action 拋例外 ⇒ job failure。
+- **Flatpak 失敗原因（這條才是 PING 造成的）**：`resources/images/OrcaSlicer.svg` 是 523.6×136.4 的 PING 橫式商標（commit `b762903f`「去金魚logo」引入），flatpak export 要求正方形 ⇒ `Expected a square icon but got: 524x136`。**Eric 0808 裁「先關掉，但保留隨時開機」** ⇒ 改為僅 `workflow_dispatch`，`scripts/flatpak/` 與 icon 全部保留，上游原條件完整寫在該 job 註解裡，要開回去複製貼上即可。省下每次 build **約 2.6 小時**（實測 x86_64 96 分／aarch64 60 分，x86_64 原本是全 run 最久的 job）。
+- **commit**：出貨線 `9b661748`（Unit Tests，8 檔 +22/-6）＋`5678384a`（Flatpak）；開發線 `908bb3b4`＋`5a56003e`（`cherry-pick -x`，兩線這 8 檔內容已驗完全一致）。兩線皆已 push。
+- **⚠️ 尚未驗證的部分（誠實分區）**：CI 改動只做過靜態驗證（`Catch.cmake:162` 確認支援 `ADD_TAGS_AS_LABELS`／`bash -n`／YAML 解析）。**「測試真的跑起來會不會過」尚未有結果**——就等這顆 build。
+- **🔜 後續待辦**：①判讀 build 結果 ②Unit Tests 若紅，逐條分類（PING 改動造成 vs 上游既有）並決定修或標 `[NotWorking]` ③Flatpak 若哪天要出 Linux 版，**先修方形 icon 再開回去**，且要有心理準備不只 icon 一項（關閉期間會 bit rot）。
+
+---
 ### 🏁 V3.6 正式維護版已完成（2026-07-16～17）
 - **二進位權威**：`release/v3.6` commit `52a4b935`；GitHub Actions run `29427421714`。Windows installer／portable、Linux、macOS x86／arm／Universal 的產品 build 均成功；整體紅燈仍只來自既知 Flatpak×2＋Unit Tests，不能當成 Windows 產品失敗。
 - **版本／參數包**：程式 `3.6.0`，內建 `PING.json` v51；正式線功能實作 commit `8470db1e`，Windows 深色提示框編譯補丁 `52a4b935`。
@@ -478,7 +497,13 @@
    - **PING 解法（已 patch，已 build 驗證）**：L7104 後加 `else if (ptFFF)`——SEMM 機若 `default_filament_profile` 數 > 目前線材數則 `set_num_filaments(default_filament_profile數)`，只增不減。FD→2槽 / FF→4槽 / FP→1槽。
    - **FD300 同進（2 進 1 出）= nozzle_diameter `['0.4']`（1 元素）+ SEMM=1 + 空 `change_filament_gcode`**，與 V3.0 可用版一致；混料靠 Start G-code 的 `M6050 S0.5`（硬體層），切片端維持 1 卷。（先前「nozzle=[nz]*feeds 才有 2 槽」的假設已作廢。）
 
-10. **`build` 顯示 failure 常常只是 `Unit Tests` 那個 job 掛**（既有問題），**各平台編譯其實 success、安裝檔有產出**。去看各 job，別被紅 X 嚇到。
+10. 🆕 **【2026-08-08 起本條已作廢——照舊觀念會害你漏看真失敗】** ~~`build` 顯示 failure 常常只是 `Unit Tests` 那個 job 掛（既有問題），各平台編譯其實 success。去看各 job，別被紅 X 嚇到。~~
+    - **舊觀念為何危險**：那個「既有紅燈」的真相是 **Unit Tests 根本沒跑任何測試**（`-L "Http|PlaceholderParser"` 比不到任何 label ⇒ `No tests were found!!!` ⇒ ctest 回 0 ⇒ step 假綠），而 job 變紅是**另一回事**（發布 action 403）。把「總表恆紅」當常態養成了「紅 X 不用看」的習慣＝真的 Windows build 掛掉時會被當成又是舊紅燈。
+    - **現在的規則**（commit `9b661748`＋`5678384a`，兩線皆已同步）：Flatpak 改為僅手動觸發 ⇒ **不該再出現在總表**；Unit Tests 會真的跑 400+ 顆測試。**紅 X 從此有意義，要逐 job 看**：
+      - `Flatpak` 出現在總表 → 有人把 `if:` 改回去了
+      - `Unit Tests` 紅 → **測試真的失敗**（不是假綠了）——本 fork 自 2.3.2 分岔後的 PING 改動首次受檢，屬「找到既有問題」，逐條看是 PING 造成還是上游本來就有
+      - `build_windows` 紅 → 🔴 出貨路徑掛了，最優先
+    - 根因與上游對照見坑 #22。
 
 11. **wizard 卡片封面 = `resources/profiles/PING/<機型名>_cover.png`**（fallback `resources/web/image/printer/`），`WebGuideDialog.cpp:1291`。**用機型名解析，不是 JSON 欄位**——機型改名要同步改封面檔名，否則卡片空白。封面上的「PING」是真實產品照（機身印的），要修圖才能改。
 
@@ -509,6 +534,14 @@
 20. **splash per-pixel 去背（layered window）機制 + 風險**：白底來源是 `MakeBitmap()` 用 `*wxWHITE` 填滿 700×450 畫布，再疊**去背的** `splash_logo.png`(透明處透出白)。修法（`134bab83`，**僅 MSW・未經 build 驗證**）：新增 `GUI/SplashLayered.cpp/.hpp`（Win32 `UpdateLayeredWindow` + premultiplied BGRA；`windows.h` 用 `wx/msw/wrapwin.h` **隔離在獨立 TU**，否則 `DrawText` 等巨集會汙染 GUI_App.cpp）；`SplashScreen` 加 `render_layered()`（wxGraphicsContext 在透明圖上重合成 logo+版本字+載入字）+ `SetText`/建構子 MSW 分支；CMakeLists 列入新檔。⚠ **runtime 風險**：wxGraphicsContext→bitmap 的 alpha 是否正確、premultiply 是否雙重、layered 視窗序列——build 後若 splash 不對（黑/全透/邊緣暗）多半是這幾點，需微調。非 MSW 維持原白底（編譯安全）。
 
 ---
+
+22. 🆕 **【CI 診斷五條・2026-08-08 CI 線】** 查 GitHub Actions 紅燈時省下數小時的做法：
+    - ✅ **失敗的 step 不一定是出問題的 step。** Unit Tests 掛在最後的 `Publish Test Results`，但真正的病在更前面：`Unpackage and Run Unit Tests` 顯示 **success 卻跑了 0 顆測試**。**先逐 step 拉狀態**（`gh api repos/{owner}/{repo}/actions/jobs/<id>` 看 `.steps[]`），別只看 job 層的紅 X。
+    - ✅ **綠燈不等於有做事。** ctest 找不到測試時預設**回傳 0**，只印一行 `No tests were found!!!` 就當成功。判斷一個測試 job 是否真的有效，看**測試數量**不看顏色（JUnit 檔只有 175 bytes＝空的就是沒跑）。上游後來加 `--no-tests=error` 就是為了堵這個。
+    - ✅ **查 fork 的問題，先查上游修過沒。** `gh api "repos/OrcaSlicer/OrcaSlicer/commits?path=<檔案>"` 一次就找到 `fe0eafc0`「Fix Unit Tests CI job that silently ran zero tests」——本 fork 基於 2.3.2，很多「我們的怪問題」其實是**上游已修但沒併進來**。這招比自己從頭推理快得多。
+    - ✅ **移植上游 commit 要逐 hunk、不可照抄 diff。** 上游 `fe0eafc0` 另補了兩顆 `OrcaCloudServiceAgent` 測試的 `[NotWorking]`，**本 fork 沒有那兩顆**（上游後來新增的功能）；照抄會失敗。移植前先比對「這 8 個檔在兩線之間本來分岔多少」（本次實查為零，才敢直接 `cherry-pick`）。
+    - ⬜ **待驗**：job 層一旦宣告 `permissions:`，**未列出的 scope 會全部變 `none`**（GitHub 明文規則）。所以只寫 `checks: write` 會讓 `contents` 歸零 → checkout 直接掛。本次已一併列 `contents: read`＋`actions: write`（checkout／delete-artifact 需要），**但尚未經實跑驗證**——run `31242874968` 出結果就知道。
+    - 📌 **fork 的 `GITHUB_TOKEN` 預設是唯讀**（✅ 實查 `gh api repos/{owner}/{repo}/actions/permissions/workflow` ⇒ `default_workflow_permissions: "read"`）。任何要寫 check-run／留言／推 tag 的 action 都會 403 `Resource not accessible by integration`。修法二選一：改 repo 全域開關（影響所有 workflow），或在該 job 精準宣告（本次選這個——**PING-Slicer 是本帳號唯一 PUBLIC 的 repo**，最小權限優先）。
 
 ## 3. ✅ 正確的客製化流程
 
