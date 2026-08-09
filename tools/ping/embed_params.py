@@ -1505,6 +1505,73 @@ def main(src_base):
         print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
               % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
 
+    # 4b-6. ★ 支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；純參數、零 C++）
+    #
+    # 做成 **post-pass**（掃 process/*.json 全量）而不是塞進各 normalize_*：製程有 4+ 條 emit 路徑
+    #（主迴圈／ff_extra 範本／照片磚範本／棧板雙生／高流量組／Classic 複製），規則函式掃不到的
+    # 來源要各自處理＝規則會漂（0807 預勾線材 post-pass 同理由）。單一規則點 ⇒ 日後新增機型自動涵蓋。
+    #
+    # ① 首層擴展 raft_first_layer_expansion 3 → 0
+    #    Eric 原話：「支撐的首層擴展這邊要設定為 0，它的效果是最好的」＝實印判斷。
+    #    ⚠ **這顆鍵同時管「支撐首層」與「棧板(筏)首層」**（引擎 tooltip：「擴展筏和支撐的首層
+    #      可以改善和熱床的黏附」，PrintConfig.cpp:4691）⇒ 分家族處理：
+    #        raft_layers == 0（支撐用途）→ **0**
+    #        raft_layers >= 1（棧板／ABS raft 機種）→ **保留 3**
+    #      後者是 Eric 0809 明裁「棧板保留 3、其餘歸 0」，與 0804 對兄弟鍵 raft_first_layer_density
+    #      的處置同型（raft 靠貼床，外擴是它吃飯的本事）。**下一棒看到棧板是 3 不要「順手統一」。**
+    #
+    # ② 支撐線寬 support_line_width ＝ 口徑查表「窄一階」
+    #    🔴 **本批推翻舊規**：ping-slicer core-rules.md 原訂 `support_line_width = line_width（＝口徑）`，
+    #       改版前全庫 218 支 100% 遵守 ⇒ 這不是修 bug，是 Eric 0809 有意識的規則變更（窄支撐好拆）。
+    #    Eric 指定三格：0.4→0.35／0.6→0.5／1.0→0.8（原話「用一個好記的數字」）。
+    #    0.25→0.2、0.2→0.15 為同規律外推（比例 0.8／0.75），**尚未經實印**，回饋後可改本表一處。
+    #    查表鍵一律用**口徑名目值**：FF 高流量線寬＝1.02×口徑（0.41/0.62/1.02），照 0722 支撐線距 ×9
+    #    的家規「FF 微調不入分子」，一律歸回 0.4/0.6/1.0。
+    #    照片磚製程 enable_support=0（根本不開支撐）＝跟著改無副作用，維持全庫一致好稽核。
+    SUP_LW_BY_NOZZLE = {"0.2": "0.15", "0.25": "0.2", "0.4": "0.35", "0.6": "0.5", "1": "0.8"}
+    PALLET_RAFT_FIRST_LAYER_EXPANSION = "3"   # ← 棧板保留值；要一起歸 0 只改這一行
+    SUPPORT_RAFT_FIRST_LAYER_EXPANSION = "0"  # ← 支撐值（Eric 0809 實印判斷）
+
+    def _nominal_nozzle(lw):
+        """線寬 → 口徑名目值（FF 高流量 +2% 也歸回原口徑）；認不出回 None。"""
+        try:
+            v = float(lw)
+        except (TypeError, ValueError):
+            return None
+        for _n in ("0.2", "0.25", "0.4", "0.6", "1"):
+            if abs(v - float(_n)) <= 0.03:   # 1.02 對 1.0 差 0.02；0.2 對 0.25 差 0.05＝不會誤配
+                return _n
+        return None
+
+    exp_set = lw_set = lw_unknown = 0
+    for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
+        pdj = json.load(io.open(pp_path, encoding="utf-8"))
+        touched = False
+        if "raft_first_layer_expansion" in pdj:
+            want_exp = (PALLET_RAFT_FIRST_LAYER_EXPANSION
+                        if str(pdj.get("raft_layers", "0")) != "0"
+                        else SUPPORT_RAFT_FIRST_LAYER_EXPANSION)
+            if pdj["raft_first_layer_expansion"] != want_exp:
+                pdj["raft_first_layer_expansion"] = want_exp
+                touched = True
+                exp_set += 1
+        if "support_line_width" in pdj:
+            _nz_nom = _nominal_nozzle(pdj.get("line_width"))
+            if _nz_nom is None:
+                lw_unknown += 1
+                print("  ⚠ 支撐線寬 post-pass：%s 的 line_width=%r 認不出口徑，跳過"
+                      % (os.path.basename(pp_path), pdj.get("line_width")))
+            else:
+                want_lw = SUP_LW_BY_NOZZLE[_nz_nom]
+                if pdj["support_line_width"] != want_lw:
+                    pdj["support_line_width"] = want_lw
+                    touched = True
+                    lw_set += 1
+        if touched:
+            jdump(pp_path, pdj)
+    if exp_set or lw_set or lw_unknown:
+        print("  支撐首層擴展→0（棧板留 %s）：改 %d 支｜支撐線寬窄一階：改 %d 支｜口徑認不出：%d 支"
+              % (PALLET_RAFT_FIRST_LAYER_EXPANSION, exp_set, lw_set, lw_unknown))
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
