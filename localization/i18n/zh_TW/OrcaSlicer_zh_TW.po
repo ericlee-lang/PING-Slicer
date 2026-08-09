@@ -11443,7 +11443,7 @@ msgstr "當壁序列為外內或內外內時，精確牆壁選項將被忽略。
 msgid ""
 "Filament shrinkage will not be used because filament shrinkage for the used "
 "filaments does not match."
-msgstr "線材收縮補償將被停用，因為所使用的線材之間的收縮率差異過大。"
+msgstr "線材收縮補償將被停用，因為所使用的線材收縮率不一致。"
 
 msgid "Generating skirt & brim"
 msgstr "正在產生 Skirt 和 Brim"
