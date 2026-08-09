@@ -992,6 +992,23 @@ else:
         err("[跨層護欄] Classic DUAL 的 M6050 舊格式分支不在 BackgroundSlicingProcess.cpp "
             "⇒ Classic 同進逐層混色會插 M6051（前代韌體不認）")
 
+# ★ 檢查 13：線材收縮補償全庫一致（Eric 2026-08-09 裁 A；產生器 4b-5b 的硬閘門）
+#   引擎規則（Print.cpp:3623）：所有用到的料 filament_shrink / _z 必須完全相同，
+#   否則整個補償停用並跳「線材收縮補償將被停用」警告。全庫同值就永遠不會踩到。
+#   ⚠ 未寫該鍵者＝吃引擎預設 100%，與明寫 100% 等價、不算違規。
+_shrink_vals = {}
+for _name, (_kind, _d) in presets.items():
+    if _kind != "filament":
+        continue
+    for _k in ("filament_shrink", "filament_shrinkage_compensation_z"):
+        if _k in _d:
+            _shrink_vals.setdefault(_k, {}).setdefault(str(_d[_k]), []).append(_name)
+for _k, _groups in _shrink_vals.items():
+    _bad = {v: names for v, names in _groups.items() if v not in ("['100%']", "['100']")}
+    for _v, _names in _bad.items():
+        err(f"[收縮補償一致性] {_k}={_v} 的線材 {len(_names)} 支（例：{_names[0]}）"
+            f"——與全庫 100% 不一致 ⇒ 多料列印時引擎會整個停用補償並跳警告")
+
 # ★ 檢查 12：支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；產生器 4b-6 post-pass 的硬閘門）
 #   ①raft_first_layer_expansion：raft_layers==0（支撐用途）＝0；raft_layers>=1（棧板/raft）＝3
 #     ——同一顆鍵管兩件事，分家族是刻意的，不是漏改（Eric 0809 明裁「棧板保留 3、其餘歸 0」）。
