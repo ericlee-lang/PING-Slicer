@@ -1505,6 +1505,36 @@ def main(src_base):
         print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
               % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
 
+    # 4b-5b. ★ 線材收縮補償全庫一致＝100%（Eric 2026-08-09 裁 A；回報中心「線材收縮補償將被停用」單）
+    #
+    # 🔴 引擎規則（`Print.cpp:3623 has_same_shrinkage_compensations`）：**所有用到的料，
+    #    `filament_shrink`(XY) 與 `filament_shrinkage_compensation_z` 必須完全相同**，
+    #    只要有任一支不同 ⇒ `shrinkage_compensation()` 直接回 Ones() ＝**整個補償停用**並跳警告。
+    #    ⚠ 英文原文是 "does not match"（不一致），**沒有門檻**；中文翻譯「差異過大」是誤導
+    #      （會讓人以為差一點沒關係）——翻譯修正另案（要動 .po ＋ build）。
+    #
+    # 真因：全庫 34 支線材裡只有 `PING SupABS` 與 `PING SupABS - Classic` 明寫 99.7%，其餘全 100%
+    #（或未寫＝吃引擎預設 100%）⇒ **只要用到 ABS+SupABS 組合就必跳警告**，而那 0.3% 因為被停用
+    #  **從來沒有生效過**。99.7% 由 6/11 參數端交付帶入（commit efb7eb22），本鍵原本產生器沒管。
+    #
+    # ⇒ 統一為 100%：警告消失，**列印行為零改變**（本來就沒在補償）。
+    # 日後若真要做收縮補償，**必須整組同時設同一個值**（同一次列印會用到的所有料），否則等於沒設。
+    SHRINK_UNIFORM = "100%"      # ← 要真的開補償時改這裡，並確認全庫同值
+    shr_fixed = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        changed = False
+        for _k in ("filament_shrink", "filament_shrinkage_compensation_z"):
+            if _k in fd and fd[_k] != [SHRINK_UNIFORM]:
+                fd[_k] = [SHRINK_UNIFORM]
+                changed = True
+        if changed:
+            jdump(fp_path, fd)
+            shr_fixed += 1
+            print("  收縮補償統一 %s：%s" % (SHRINK_UNIFORM, os.path.basename(fp_path)))
+    if shr_fixed:
+        print("  線材收縮補償全庫一致（%s）：改 %d 支" % (SHRINK_UNIFORM, shr_fixed))
+
     # 4b-6. ★ 支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；純參數、零 C++）
     #
     # 做成 **post-pass**（掃 process/*.json 全量）而不是塞進各 normalize_*：製程有 4+ 條 emit 路徑
