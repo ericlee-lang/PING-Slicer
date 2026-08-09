@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 PING 參數嵌入器 v2 — 完整 F 系列（11 機型家族、136 config）
-吃參數端交付：G:\\...\\20260603 切片參數\\PING Slicer V3.5\\F系列參數\\{機型}\\*.config
+吃參數端交付：D:\\dev\\2026claude\\20260603 切片參數\\PING Slicer V3.5\\F系列參數\\{機型}\\*.config
 → 依 OrcaSlicer 權威分類拆 machine / process → 寫 resources/profiles/PING/ → 重建 PING.json
 
 用法（repo 根目錄）：
@@ -31,7 +31,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PINGDIR = os.path.join(REPO, "resources", "profiles", "PING")
 PROF = os.path.join(REPO, "resources", "profiles")
 PRESET_CPP = os.path.join(REPO, "src", "libslic3r", "Preset.cpp")
-DEFAULT_SRC = r"G:\我的雲端硬碟\2026claude\20260603 切片參數\PING Slicer V3.5\F系列參數"
+DEFAULT_SRC = r"D:\dev\2026claude\20260603 切片參數\PING Slicer V3.5\F系列參數"
 # FF 同進/3in1 範本（無源 config、屬衍生模式）：已驗證手工檔收進 repo 當範本，重產時複製併入。
 # 內含 machine（含 machine_model 底檔）／process／filament（3in1 專用 T4/T3 料）／cover。
 # 2026-07-01：3in1 收 2 槽（T4/T3 走 filament_start_gcode）+ 同進(T5) 編進產生器（範本複製法）。
