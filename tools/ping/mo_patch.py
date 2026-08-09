@@ -5,6 +5,7 @@ hash 表寫 0（wxMsgCatalog 不用 hash 表，二分原文表即可）。
 
 用法：python mo_patch.py            # patch zh_TW 的 OrcaSlicer.mo + PINGSlicer.mo
 """
+import os
 import struct
 import sys
 
@@ -35,6 +36,12 @@ NEW_ENTRIES = {
         "就會在換料塔上沖刷一次（即使該層沒有使用它）。"
         "設為 1 表示每一層更新所有線材；0 表示停用。"
     ),
+    # PING(2026-08-09 Eric 令)：收縮補償警告改「不一致」——英文原文 "does not match" 沒有門檻，
+    # 原譯「差異過大」會讓人以為差一點沒關係（實際差 0.1% 也整個停用，Print.cpp:3623）。
+    (
+        "Filament shrinkage will not be used because filament shrinkage for the used "
+        "filaments does not match."
+    ): "線材收縮補償將被停用，因為所使用的線材收縮率不一致。",
 }
 
 
@@ -94,6 +101,9 @@ def patch(path):
 
 
 if __name__ == "__main__":
-    base = r"D:\dev\2026claude\20260604 ORCA客製\PING-Slicer\resources\i18n\zh_TW"
+    # PING(2026-08-09)：原本寫死開發線絕對路徑 ⇒ 不論在哪個 worktree 跑都會去改開發線的 .mo
+    #（本次實爆：在出貨線跑，結果改到 PING-Slicer 那份）。改成相對本檔推導 repo 根。
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "resources", "i18n", "zh_TW")
     for name in ("OrcaSlicer.mo", "PINGSlicer.mo"):
         patch(rf"{base}\{name}")
