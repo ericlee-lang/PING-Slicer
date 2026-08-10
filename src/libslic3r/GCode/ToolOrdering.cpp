@@ -342,10 +342,15 @@ bool ToolOrdering::insert_idle_purge_extruders()
     if (max_idle <= 0)
         return false;
 
-    // All filaments used by this print (extruder ids are zero based at this point).
+    // PING(2026-08-10 Eric・回報中心 #38)：名單＝「這一盤載入的線材」，不是「這次列印用到的」。
+    // 原本從 m_layer_tools 蒐集實際印過的擠出機，於是「載了 PLA+SUP，但支撐關掉、模型也沒指定
+    // SUP，整份列印一次都沒用到 SUP」的情形會落在 size() < 2 直接跳過 ⇒ 不生換料塔，SUP 就在
+    // 共用熔融區久置劣化／溢料。判準改用載入的線材數（與 Print::has_wipe_tower() 同一個
+    // filament_diameter 依據），沒被用到的線材照樣進沖刷名單。
+    // 擠出機 id 在此處已是 zero based（見上方 reindex）。
     std::set<unsigned int> all_extruders;
-    for (const LayerTools &lt : m_layer_tools)
-        all_extruders.insert(lt.extruders.begin(), lt.extruders.end());
+    for (size_t i = 0; i < m_print_config_ptr->filament_diameter.values.size(); ++ i)
+        all_extruders.insert((unsigned int) i);
     if (all_extruders.size() < 2)
         return false;
 
