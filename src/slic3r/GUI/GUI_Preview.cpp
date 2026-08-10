@@ -307,6 +307,8 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     m_ping_mix_strip->SetBackgroundColour(wxColour(84, 84, 90));
     {
         wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
+        // ⚠ 以下三段 0726–0727 的沿革已於 2026-08-10 被取代（見本區塊末的 #43 說明），
+        //   保留是為了記住「四字折行」那一輪的量測坑，不要照著回去做。
         // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）。
         // PING(2026-07-27 Eric 三裁)：拆兩行＋Head_14 大字；橘底白字＝ButtonStyle::Confirm
         //（軟體標準確認鈕配色 #EA4E16/#FEFEFE，深色模式自帶）；收窄不遮層滑桿數字。
@@ -315,14 +317,23 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
         // Head_14 四字 ≈92px 直接撐開實寬）⇒ render 的 split_lines 永不觸發。
         // 正解＝SetMaxSize 鎖寬——messureSize:406 只有 MaxWidth 會夾住量測值 ⇒ 實寬 60
         // 放不下四字 ⇒ 自動折成「混色」「停用」兩行（折行閾值 60−padding16＝44 > 兩字 38）。
-        ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色停用"));
-        open_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Compact);
-        open_btn->SetFont(Label::Head_14);
-        open_btn->SetVertical(true);
-        open_btn->SetMinSize(wxSize(FromDIP(60), FromDIP(60)));
-        open_btn->SetMaxSize(wxSize(FromDIP(60), -1));   // 鎖寬＝折行的開關（見上）
-        open_btn->UnsetToolTip();   // messureSize 夾寬時會偷設 native tooltip（＝標籤字），
-                                    // 與下方 dark tooltip 重複跳兩種，拆掉只留深色版
+        // PING(2026-08-10 Eric・回報中心 #43)：改成「下拉」的長相＝呼叫出混色那一頁。
+        // 原本是橘底白字、直寫狀態的「混色停用」（Eric 0726/0727 裁），但回報者讀成
+        // 「按下去＝要停用混色」——狀態詞掛在可按的鈕上，語意與動作方向相反。
+        // 改為橫向膠囊「混色 ⌄」：caret 表達的是「這裡可以展開一頁」，不再宣告狀態。
+        // 配色：這顆只在收合（＝停用）時出現（見 update_ping_mix_editor 的 show_strip），
+        // 故用 btn_regular 的淺灰底深字——在深色畫布上看得出可按，也不會被誤讀成「已啟用」。
+        // caret 用 drop_down.svg（#949494 灰描邊，襯得住淺底）；sidebutton_dropdown.svg
+        // 是白描邊、專給橘底側鈕用，放這裡會整個消失。
+        // 點擊行為維持 Eric 0726 裁定不變：展開＝啟用混色。
+        ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色"), "drop_down", 0, 16);
+        open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Window);
+        open_btn->SetFont(Label::Body_12);
+        // 橫向單行：不再 SetVertical/SetMaxSize——那兩者是舊「四字直排折行」的機構
+        //（SOP_wxUI元件坑 §3–§4），這裡要的是自然寬度，讓 messureSize 依「圖示＋兩字」撐開。
+        open_btn->SetMinSize(wxSize(FromDIP(78), FromDIP(26)));
+        open_btn->UnsetToolTip();   // 防禦性保留：messureSize 夾寬時會偷設 native tooltip
+                                    // （＝標籤字），與下方 dark tooltip 會跳兩種
         bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
         open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
             // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
