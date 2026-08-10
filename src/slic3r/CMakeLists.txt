@@ -371,6 +371,11 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhysicalPrinterDialog.hpp
     GUI/PingMixEditor.cpp
     GUI/PingMixEditor.hpp
+    GUI/PingQuotePack.cpp
+    GUI/PingQuotePack.hpp
+    GUI/PingQuoteFormat.cpp
+    GUI/PingQuoteSmoke.cpp
+    GUI/PingQuoteSmoke.hpp
     GUI/Plater.cpp
     GUI/Plater.hpp
     GUI/PlateSettingsDialog.cpp

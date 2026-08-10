@@ -40,6 +40,8 @@
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"
 #include "PhotoTileSmoke.hpp"
+#include "PingQuotePack.hpp"
+#include "PingQuoteSmoke.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
 // BBS
@@ -791,13 +793,20 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
             CallAfter(launch);
         }
     }
+
+    // PING 報價包：設了 PING_QUOTE_SMOKE 就自動載模型→產包→自己關閉（無人值守驗證）。
+    // 同樣的理由與同樣的掛牌保護——見 PingQuoteSmoke.hpp 檔頭與上面 0803 事故註解。
+    run_ping_quote_smoke(this);
 }
 
 /* C-2 第 7 項：閘門/守夜掛牌的單一來源（宣告處有完整說明）。
    一般模式（沒設 PING_PHOTOTILE_SMOKE）回空字串＝行為與現行完全相同。 */
 wxString MainFrame::ping_gate_title_prefix()
 {
-    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr)
+    /* PING 報價包 smoke 一併納入：Eric 的正式 Slicer 常常整天開著，兩個視窗長得
+       一模一樣時他會分不出哪個是自動化在跑的——那正是 0803 事故的成因。
+       任何無人值守模式都必須掛牌，不能只有照片磚那條線有。 */
+    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr)
         return wxString();
     return wxString::FromUTF8("⚠【壓測中・勿操作】");
 }
@@ -2826,6 +2835,21 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(export_menu, wxID_ANY, _L("Export toolpaths as OBJ") + dots, _L("Export toolpaths as OBJ"),
             [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->export_toolpaths_to_obj(); }, "menu_export_toolpaths", nullptr,
             [this]() {return can_export_toolpaths(); }, this);
+
+        // PING：產生報價包（給代印報價／CRM 系統的介面契約 v1）。
+        // 自己會逐物件各切一次，所以不要求盤面已經切過——條件只看有沒有東西可切。
+        export_menu->AppendSeparator();
+        append_menu_item(export_menu, wxID_ANY,
+            wxString::FromUTF8("產生報價包") + dots,
+            wxString::FromUTF8("逐物件單獨切片，輸出重量／時間／尺寸給報價系統"),
+            [this](wxCommandEvent&) {
+                PingQuoteOptions o;
+                // 還原檔預設不含（代印線 Q6 裁定）。要含的人自己在設定檔打開這個鍵；
+                // 正式的 UI 開關等 P4 定案。
+                o.include_restore_3mf = wxGetApp().app_config->get_bool("ping_quote_include_restore_3mf");
+                ping_quote_generate(m_plater, o);
+            }, "", nullptr,
+            [this]() { return can_export_model(); }, this);
 
         append_menu_item(
             export_menu, wxID_ANY, _L("Export Preset Bundle") + dots /* + "\t" + ctrl + "E"*/, _L("Export current configuration to files"),
