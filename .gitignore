@@ -54,3 +54,11 @@ internal_docs/
 # 照片磚閘門的本機測試 datadir（--datadir 隔離用，勿入版）
 _smokedata/
 _vigildata/
+
+# --- PING 內部治理文件：正本在 D:\dev\2026claude\20260604 ORCA客製\00治理文件\ ---
+# 2026-08-10 從公開 repo 全歷史清除（認領牌 c-0810-SEC-01）；檔案留在工作樹供取用，但永不入版
+PING_HANDOFF.md
+PING_CLOUD_PLAN.md
+PING_CUSTOMIZATION.md
+PING_UPGRADE_PLAYBOOK.md
+SOP_內部測試版發布.md
