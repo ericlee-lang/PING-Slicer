@@ -398,7 +398,7 @@ public:
 
     static wxBitmap MakeBitmap()
     {
-        int width = FromDIP(700, nullptr);   // PING: landscape to fit branded splash PNG (923x594)
+        int width = FromDIP(700, nullptr);   // PING: landscape to fit branded splash PNG (1400x900 = 2x DIP，200% 縮放內皆縮小取樣)
         int height = FromDIP(450, nullptr);
 
         wxImage image(width, height);
