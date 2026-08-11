@@ -18,6 +18,7 @@ import json
 import math
 import os
 import re
+import struct
 import sys
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -1093,6 +1094,71 @@ for _n, _d in _tri_machines:
         _cross.append((_b[0] - _a[0]) * (_c[1] - _b[1]) - (_b[1] - _a[1]) * (_c[0] - _b[0]))
     if not (all(_v >= -1e-6 for _v in _cross) or all(_v <= 1e-6 for _v in _cross)):
         err(f"[關門床形・凸性] {_n}: 多邊形非凸 ⇒ 引擎會退回用凸包判定，凹口不會被擋")
+
+# ★ 檢查：床形不對稱機型的「床身盤落點」（Eric 2026-08-11 夜裁「修圓盤」・T021 眼驗①處置）
+#   引擎把床身 STL 擺在 printable_area 的**外框中心**而非床心：
+#       src/slic3r/GUI/3DBed.cpp:624  Vec3d shift = m_build_volume.bounding_volume().center();
+#   床形上下不對稱時圓盤就會被推走（圓角三角形＝往 +Y 推 25mm）。純渲染、切片不受影響，
+#   但畫面會讓人以為可印區跑到盤外。對策＝機型專屬 STL 先反向平移抵銷（embed_params.py
+#   的 emit_offset_bed_stl）。
+#   🔴 這裡斷言的是**最終落點**，不是平移量——「STL 自身中心 ＋ printable_area 外框中心
+#   ＝家族原盤中心」。這樣寫床形改了、平移量改了都會自動跟著對，不會把 25 這個數字寫死。
+_BASE_PLATE_STL = "PING_FD300_buildplate_model.stl"      # FD300 家族原盤（門開共用的那支）
+
+def _stl_xy_center(_path):
+    """二進位 STL 的 XY 外框中心；讀不了回 None。"""
+    try:
+        with open(_path, "rb") as _f:
+            _f.read(80)
+            _cnt = struct.unpack("<I", _f.read(4))[0]
+            _xs, _ys = [], []
+            for _ in range(_cnt):
+                _rec = _f.read(50)
+                if len(_rec) < 50:
+                    return None
+                _v = struct.unpack("<12fH", _rec)
+                for _k in range(3, 12, 3):
+                    _xs.append(_v[_k])
+                    _ys.append(_v[_k + 1])
+    except (OSError, struct.error):
+        return None
+    return ((min(_xs) + max(_xs)) / 2.0, (min(_ys) + max(_ys)) / 2.0) if _xs else None
+
+_mm_closed = [(_n, _d) for _n, (_k, _d) in presets.items()
+              if _k == "machine_model" and _n == "FD300 關門"]
+if not _mm_closed:
+    err("[關門床盤] 找不到 machine_model「FD300 關門」⇒ 床盤落點閘門形同虛設")
+elif not _tri_machines:
+    pass          # 上面那條閘門已經報過「找不到 printable_area」
+else:
+    # 各口徑的 printable_area 必須同形（同一個產生器出來的），否則平移量無所適從
+    _centers = {(round((min(p[0] for p in _q) + max(p[0] for p in _q)) / 2.0, 4),
+                 round((min(p[1] for p in _q) + max(p[1] for p in _q)) / 2.0, 4))
+                for _q in ([tuple(map(float, _p.split("x"))) for _p in _dd["printable_area"]]
+                           for _nn, _dd in _tri_machines)}
+    if len(_centers) != 1:
+        err(f"[關門床盤] 各口徑 printable_area 外框中心不一致：{sorted(_centers)}")
+    _acx, _acy = sorted(_centers)[0]
+    _c_base = _stl_xy_center(os.path.join(PINGDIR, _BASE_PLATE_STL))
+    if _c_base is None:
+        err(f"[關門床盤] 家族原盤讀取失敗：{_BASE_PLATE_STL}")
+    for _mn, _md in _mm_closed:
+        _bm = _md.get("bed_model") or ""
+        if not _bm or _bm == _BASE_PLATE_STL:
+            err(f"[關門床盤] {_mn}: bed_model={_bm!r} 仍指家族原盤 ⇒ 圓盤會被引擎往外框中心推走"
+                f"（外框中心 = ({_acx:.3f}, {_acy:.3f})）")
+            continue
+        _c_off = _stl_xy_center(os.path.join(PINGDIR, _bm))
+        if _c_off is None:
+            err(f"[關門床盤] {_mn}: bed_model 讀不到或非二進位 STL：{_bm}")
+            continue
+        if _c_base is not None:
+            _fx, _fy = _c_off[0] + _acx, _c_off[1] + _acy       # 引擎渲染後的實際落點
+            if abs(_fx - _c_base[0]) > 0.01 or abs(_fy - _c_base[1]) > 0.01:
+                err(f"[關門床盤・落點] {_mn}: 圓盤實際落點 ({_fx:.3f}, {_fy:.3f}) ≠ 原盤 "
+                    f"({_c_base[0]:.3f}, {_c_base[1]:.3f})。"
+                    f"STL 中心 ({_c_off[0]:.3f}, {_c_off[1]:.3f}) + 外框中心 ({_acx:.3f}, {_acy:.3f})。"
+                    f"床形若改過，重跑 embed_params.py regen 讓 STL 跟著重算，不要手改 STL")
 
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
