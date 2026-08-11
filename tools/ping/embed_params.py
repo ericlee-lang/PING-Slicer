@@ -25,7 +25,7 @@ PING 參數嵌入器 v2 — 完整 F 系列（11 機型家族、136 config）
   （注意 2.3.2 無 has_scarf_joint_seam key，external 即啟用）
 - 單料頭/同進/FP 製程速度(2026-06-10 裁定)：travel 250 / 填充 60 / support 40
 """
-import re, json, os, sys, io, shutil, glob
+import re, json, os, sys, io, shutil, glob, math
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PINGDIR = os.path.join(REPO, "resources", "profiles", "PING")
@@ -250,10 +250,14 @@ BED_OVERRIDE = {
     "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50,
               "bed_texture": "P200+_buildplate_texture.png",
               "nozzles": ["0.4", "0.6"]},   # 去掉 0.2、只留 0.4/0.6（使用者 2026-06-15）
-    # FD300 關門（Eric 2026-07-26）：直徑 300→200、高度不變（不帶 height 鍵＝沿用 FD300）；
+    # FD300 關門（Eric 2026-07-26 建立；2026-08-11 改床形）：高度不變（不帶 height 鍵＝沿用 FD300）；
     # 預擠直線 Y-140/-138 → +50 內移＝P200+ 門關 200 實機驗過的同款幾何。
-    # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出 200 床）。
-    "FD300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
+    # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出範圍）。
+    # 🆕 **床形由「Ø200 圓」改為圓角三角形**（Eric 2026-08-11 給幾何條件＋看圖確認「圖面 OK」）：
+    #    圓角貼合 Ø300、內切圓 Ø200 ⇒ 見 rounded_triangle_area()。**可印面積 +51%**。
+    #    預擠線落點不受影響：Y-90/-88 在 x≈±50 處，該處三角形下緣為 y=-100 的直邊 ⇒ 仍在範圍內
+    #    （原本靠「半徑 100 圓內」保證，現在靠「距床心 100 的下直邊」保證，餘裕相同）。
+    "FD300 關門": {"area_polygon": "rounded_triangle", "prime_y_shift": 50},
 }
 
 # ---------- Classic 前代機（V3.6） ----------
@@ -305,12 +309,45 @@ def scale_circle_area_from(area_pts, source_diameter, target_diameter):
         x, y = p.split("x")
         out.append("%gx%g" % (round(float(x) * s, 4), round(float(y) * s, 4)))
     return out
+
+# ★ 圓角三角形床（Eric 2026-08-11 裁・FD300 關門真實可印範圍）
+#   起因：關門機型原本用「直徑 200 的圓」近似，但門關著的實際可達範圍不是圓——
+#   Eric 給的幾何條件有兩條，兩條就把形狀鎖死、無自由度：
+#     ①三個圓角「貼合 Ø300」⇒ 圓角半徑 R_OUT = 150（＝原 FD300 滿床圓）
+#     ②三角形「內切圓 Ø200」⇒ 三條直邊各距床心 R_IN = 100
+#   ⇒ 形狀 ＝「內切圓 r=100 的正三角形」∩「R=150 的圓」＝三直邊＋三圓弧。
+#   實得：弦長 223.61×3、外框 285.0(X)×250.0(Y)、面積 47,452mm²（比 Ø200 圓多 51%）。
+#   ⚠ **必須是凸多邊形**：引擎 BuildVolume 對凹形（Type::Custom）的碰撞判定會**退回用凸包**
+#     （BuildVolume.cpp:78-79 由 m_convex_hull 做分解）＝凹口不會被擋；本形狀為凸 ⇒ 走
+#     Type::Convex 精準路徑（BuildVolume.cpp:400/543）。日後要改形狀，**凸性是硬條件**。
+#   ⚠ 床身 STL 仍是圓盤（BED_S）＝刻意不換：深色圓盤是模型、可印區格線才是 printable_area，
+#     兩者疊起來就是「圓盤上一塊三角亮區」＝Eric 2026-08-11 看圖確認的樣子。
+BED_TRI_R_IN, BED_TRI_R_OUT = 100.0, 150.0
+BED_TRI_APEX_DEG = 90.0     # 尖端方位：90°＝朝 +Y（後方）、平邊朝前（門側）＝Eric 圖面
+BED_TRI_ARC_STEP = 2.0      # 圓弧取樣間隔（度）；39 點，與原 72 點圓同量級
+
+def rounded_triangle_area(r_in=BED_TRI_R_IN, r_out=BED_TRI_R_OUT,
+                          apex_deg=BED_TRI_APEX_DEG, step=BED_TRI_ARC_STEP):
+    """正三角形(內切圓 r_in) ∩ 圓(r_out) 的邊界點列，回傳 "XxY" 字串（同 printable_area 格式）。
+    直邊不必補點：相鄰兩段圓弧的端點連線本身就是那條直邊（引擎以點列連成多邊形）。"""
+    alpha = math.degrees(math.acos(r_in / r_out))       # 圓與邊的交點離切點的圓心角＝48.1897°
+    out = []
+    for c in (apex_deg, apex_deg + 120.0, apex_deg + 240.0):
+        start, end = c - (60.0 - alpha), c + (60.0 - alpha)
+        n = max(2, int(round((end - start) / step)) + 1)
+        for i in range(n):
+            a = math.radians(start + (end - start) * i / (n - 1))
+            out.append("%gx%g" % (round(r_out * math.cos(a), 4), round(r_out * math.sin(a), 4)))
+    return out
 def apply_bed_override(model, mac):
     ov = BED_OVERRIDE.get(model)
     if not ov:
         return
     if isinstance(mac.get("printable_area"), list):
-        mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
+        if ov.get("area_polygon") == "rounded_triangle":   # FD300 關門（0811 改床形）
+            mac["printable_area"] = rounded_triangle_area()
+        else:
+            mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
     if "height" in ov:                       # FD300 關門：高度不變＝不帶 height 鍵
         mac["printable_height"] = ov["height"]
     sg = mac.get("machine_start_gcode")
@@ -728,18 +765,40 @@ DUAL_COMBOS = ["PLA+SUP", "PLA+PLA", "ABS+SUP", "ABS+ABS"]
 # Codex gpt-5.6-sol 四輪雙審「可定稿」＝計畫 v2+v3+v4 疊加，軌跡 _審查_組合製程功能歸類改名_*）。
 # 顯示名唯一產名入口：pname()／PVA twin／Classic 母檔讀取／machine default 全走本表；
 # 內部 cb token（"PLA+SUP" 等）不動＝easy_release／raft／檔名前綴／combo_overrides 照舊。
-COMBO_DISPLAY = {"PLA+SUP": "易拆(Z0)", "PLA+PVA": "易拆(Z0)水溶", "ABS+SUP": "易拆(Z0)+棧板",
-                 "PLA+PLA": "雙料(Z隙)", "ABS+ABS": "雙料(Z隙)+棧板"}
+# ★ 0730 改名批的五類名（**歷史值**，只用來產 renamed_from 回溯鏈，不再是現行名）
+COMBO_DISPLAY_0730 = {"PLA+SUP": "易拆(Z0)", "PLA+PVA": "易拆(Z0)水溶", "ABS+SUP": "易拆(Z0)+棧板",
+                      "PLA+PLA": "雙料(Z隙)", "ABS+ABS": "雙料(Z隙)+棧板"}
 
-def combo_display(cb):
-    return COMBO_DISPLAY.get(cb, cb)
+# ★ 現行名（Eric 2026-08-11 兩裁合併）：
+#   ①「棧板」→「筏層」——參數欄位本來就叫筏層（raft），製程名寫棧板＝誤字。
+#   ②拿掉 (Z0)／(Z隙)／「雙料」——Eric 原話：「Z0 跟 Z隙 其實是參數內的設定，但大家比較瞭解的
+#     就是『易拆』（也就是沒有間隙）。那一般則是會有間隙，所以雙料也拿掉，這樣也可以針對四料
+#     跟單料就統一的名稱。」
+#   ⇒ 產出的 head 段（@ 之前）：
+#       PLA+SUP  「{lh}mm 易拆」          PLA+PVA 「{lh}mm 易拆水溶」   ABS+SUP「{lh}mm 易拆+筏層」
+#       PLA+PLA  「{lh}mm」（**無 token**） ABS+ABS 「{lh}mm_筏層」（**無 token、走 _筏層 分支**）
+#   ⇒ 統一達成：雙料一般版＝`0.2mm @FD300 (0.4)`，與單料頭 `0.2mm @FD300 單料頭 (0.4)`、
+#     四料 `0.3mm @FF600 (0.6)` 完全同形；筏層版三類機統一 `{lh}mm_筏層 @…`。
+#   ⚠ **PLA+PLA 拿掉 token 會讓 Tab.cpp 的 combo 解析放棄**（`find_last_of(' ')` 找不到空白就 return）
+#     ⇒ Eric 0811 裁「補一條『雙料機無 token 就當 PLA+PLA』」，實作在 Tab.cpp（跨層護欄有鎖）。
+COMBO_HEAD = {"PLA+SUP": "%smm 易拆", "PLA+PVA": "%smm 易拆水溶", "ABS+SUP": "%smm 易拆+筏層",
+              "PLA+PLA": "%smm",      "ABS+ABS": "%smm_筏層"}
+
+def combo_head(lh, cb):
+    """製程名 @ 之前的 head 段（唯一產名入口）。"""
+    return COMBO_HEAD.get(cb, "%smm " + cb) % lh
+
+def combo_pname(lh, cb, model, nz):
+    return "%s @%s (%s)" % (combo_head(lh, cb), model, nz)
 
 def combo_renamed_from(lh, cb, model, nz):
-    # 舊全名（renamed_from＝分號分隔「字串」鐵則；本表僅一條）。
-    # ⚠ 刻意不收「舊去@別名」（計畫 v2 §3.2 原擬收）：同層高的去@形態跨 6 台機共用
-    #（例「0.2mm PLA+SUP」＝六支同名）＝不唯一，塞入會撞 renamed_from 舊名唯一性護欄、
-    # 引擎 rename map 也是 1:1 先到先贏＝語意錯誤。偏離已記回審補遺（v4 補遺段）。
-    return "%smm %s @%s (%s)" % (lh, cb, model, nz)
+    # 舊全名回溯鏈（renamed_from＝**分號分隔「字串」**鐵則——array 會讓
+    # PresetBundle.cpp:4098 的 unescape_strings_cstyle 收到 array、nlohmann 直接丟）。
+    # 0811 起本鏈兩條：①材料對原名（~0730）②0730 五類名（0730~0811）。
+    # ⚠ 刻意不收「舊去@別名」：同層高的去@形態跨 6 台機共用（例「0.2mm PLA+SUP」＝六支同名）
+    #   ＝不唯一，塞入會撞 renamed_from 舊名唯一性護欄、引擎 rename map 也是 1:1 先到先贏。
+    return ";".join(["%smm %s @%s (%s)" % (lh, cb, model, nz),
+                     "%smm %s @%s (%s)" % (lh, COMBO_DISPLAY_0730[cb], model, nz)])
 
 def combo_overrides(combo, layer_height, nozzle):
     """V3.0 組合別製程差異復原（2026-06-10 使用者規格＋V3.0「最佳 ABS」定稿實證）：
@@ -1088,9 +1147,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         mac_list.append({"name":mac_name, "sub_path":"machine/%s.json" % mac_name})
         gm += 1
 
-        src_proc_name = (("%smm %s @%s (%s)" %
-                          ("0.2" if nz == "0.4" else "0.3", combo_display("PLA+SUP"),
-                           spec["src_model"], spec["src_nozzle"]))
+        src_proc_name = (combo_pname("0.2" if nz == "0.4" else "0.3", "PLA+SUP",
+                                     spec["src_model"], spec["src_nozzle"])
                          if spec["dual"] else
                          ("%smm @%s (%s)" %
                           ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"])))
@@ -1408,7 +1466,7 @@ def main(src_base):
                 is_dual_machine = (kind in ("dual", "dual1") and mode_key == "PLA+SUP")
                 combos = [cb for cb in DUAL_COMBOS if (nz, cb) in cfgs] if is_dual_machine else [mode_key]
                 def pname(cb):
-                    return ("%smm %s @%s (%s)" % (lh, combo_display(cb), model, nz)) if is_dual_machine \
+                    return combo_pname(lh, cb, model, nz) if is_dual_machine \
                         else ("%smm @%s (%s)" % (lh, model, nz))
                 # machine（雙料取 PLA+SUP 母檔）
                 mac = dict(b["M"])
@@ -1465,13 +1523,16 @@ def main(src_base):
                     # 棧板雙生（單料頭/同進/FP 限定；kind=ff 的四色 is_single=False 天然排除）
                     if is_single and not PING_ONLY:
                         tw = dict(proc); tw.update(PALLET_OVERRIDES)
-                        tw["name"] = "%smm_棧板 @%s (%s)" % (lh, model, nz)
+                        # 0811 改名：「_棧板」→「_筏層」（Eric：參數欄位本來就叫筏層）。
+                        # renamed_from＝舊名（字串；本支僅一條，0708 出生時就叫 _棧板）。
+                        tw["name"] = "%smm_筏層 @%s (%s)" % (lh, model, nz)
+                        tw["renamed_from"] = "%smm_棧板 @%s (%s)" % (lh, model, nz)
                         pallet_twins.append(tw)
                     # PLA+PVA 專屬製程雙生（Eric 2026-07-25 裁「出」）：從同口徑 PLA+SUP 派生
                     #（易拆幾何 Z0／XY 口徑×0.75、支撐料槽 2、速度/層高家規全部自然繼承）
                     if is_dual_machine and cb == "PLA+SUP":
                         pv = dict(proc); pv.update(pva_overrides(nz))
-                        pv["name"] = "%smm %s @%s (%s)" % (lh, combo_display("PLA+PVA"), model, nz)
+                        pv["name"] = combo_pname(lh, "PLA+PVA", model, nz)
                         pv["renamed_from"] = combo_renamed_from(lh, "PLA+PVA", model, nz)
                         pv["filename_format"] = filename_tpl("PLA+PVA")
                         pva_twins.append(pv)

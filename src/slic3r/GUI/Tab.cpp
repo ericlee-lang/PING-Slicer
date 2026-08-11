@@ -193,7 +193,11 @@ void ping_apply_combo_filaments(const std::string &process_name)
     // PING(2026-07-08)：棧板雙生製程（頭段含「_棧板」，接在層高 token 後、無空白分隔
     // → 不走下方 combo token 解析）→ 全槽切 PING ABS（單料頭/同進/FP 全槽同料）。
     // 單向連動（Eric 裁決）：切回無 _棧板 的一般版不自動換回 PLA（一般製程不動線材＝現行為）。
-    if (head.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos) {   // "_棧板" UTF-8
+    // PING(2026-08-11 Eric 改名批)：「_棧板」→「_筏層」；舊字面一併保留＝使用者自存的舊名
+    // 客製製程（不走 renamed_from）也還能連動。0811 起雙料 ABS+ABS 版也叫「_筏層」⇒ 同走本分支
+    //（原「雙料(Z隙)+棧板」的 {ABS, ABS} 配對＝本分支「全槽 ABS」，行為等價）。
+    if (head.find("_\xE7\xAD\x8F\xE5\xB1\xA4") != std::string::npos ||   // "_筏層" UTF-8（現行）
+        head.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos) {   // "_棧板" UTF-8（舊名相容）
         PresetBundle *bundle = wxGetApp().preset_bundle;
         if (bundle->filament_presets.empty()) return;   // 棧板路徑放寬到 ≥1 槽（單料機也套）
         // ⚠ 名稱必須跟得上線材整併：ABS 三支於 2026-07-25 併為單一「PING ABS」（異常單 #37）。
@@ -217,47 +221,63 @@ void ping_apply_combo_filaments(const std::string &process_name)
         }
         return;
     }
+    // PING(2026-08-11 Eric 改名批)：「雙料(Z隙)」token 整個拿掉（一般版名稱與單料/四料統一成
+    // 「{層高}mm @…」）⇒ head 只剩「0.2mm」、**沒有空白可切** ⇒ 舊碼在這裡 return、PLA+PLA
+    // 連動整條啞掉。Eric 原話：「那就補一條『雙料機無 token 就當 PLA+PLA』」⇒ 空 token 不 return，
+    // 留到下面拿到 bundle 後以「槽數＝2」判定是不是雙料本體機（單料頭 1 槽／四料 4 槽天然排除，
+    // 那兩類的一般版本來就沒有連動、行為不變）。
     size_t sp = head.find_last_of(' ');
-    if (sp == std::string::npos) return;
-    const std::string combo = head.substr(sp + 1);
+    const std::string combo = (sp == std::string::npos) ? std::string() : head.substr(sp + 1);
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS = {
         // PING(2026-07-29 Eric 裁 C・#33 連帶)：SupPLA 全家族統一 210 後，PLA+SUP 連動改帶
         // PLA - 210（兩槽同溫 210＝不觸發 #33 溫度不一致視窗；#32 SUP 與 PLA 同溫單的收口）。
         // 機器「預設」槽 1 仍是 PLA - 220（0728 v2 裁雙料維持 220）——只有手選 PLA+SUP 組合才連動。
         // PING(2026-07-29/30 Eric 裁「材料對→功能歸類名」，Codex 四輪雙審定稿)：
         // 製程 token 改功能名，鍵值配對不變（0729 裁 C＝易拆連動帶 PLA-210 照舊）。
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)（原 PLA+SUP）
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_220, PING_PLA_220}},   // 雙料(Z隙)（原 PLA+PLA）
+        // PING(2026-08-11 Eric 改名批)：token 去掉 (Z0)／(Z隙)，「棧板」→「筏層」；
+        //   **「雙料(Z隙)」與「雙料(Z隙)+棧板」兩鍵已消失**——前者變成無 token（走下方空 token
+        //   分支＝PLA+PLA），後者變成「{層高}mm_筏層」（走上方 _筏層 分支＝全槽 ABS）。行為皆不變。
+        {"\xE6\x98\x93\xE6\x8B\x86",                                          {PING_PLA_210, PING_SUP_PLA}}, // 易拆（原 易拆(Z0)／PLA+SUP）
         // 水溶（原 PLA+PVA；0726 補表、0729「PVA 也改」＝PLA 側 210 同溫不跳 #33）
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_210, PING_PVA}},       // 易拆(Z0)水溶
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板（原 ABS+SUP）
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板（原 ABS+ABS）
+        {"\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6",                  {PING_PLA_210, PING_PVA}},     // 易拆水溶
+        {"\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4",                 {PING_ABS, PING_SUP_ABS}},     // 易拆+筏層（原 ABS+SUP）
     };
+    // 空 token（＝一般雙料版，原「雙料(Z隙)」）的配對：兩槽同 PLA。
+    static const std::pair<const char *, const char *> PLAIN_DUAL    = {PING_PLA_220, PING_PLA_220};
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
     // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS_HF = {
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_HF, PING_PLA_HF}},     // 雙料(Z隙)
+        {"\xE6\x98\x93\xE6\x8B\x86",                                          {PING_PLA_HF, PING_SUP_HF}},   // 易拆
         // PVA 無高流量版 ⇒ 第 1 槽走高流量 PLA、第 2 槽用一般 PVA（同 ABS 無高流量版的處理）
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_HF, PING_PVA}},        // 易拆(Z0)水溶
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板
+        {"\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6",                  {PING_PLA_HF, PING_PVA}},      // 易拆水溶
+        {"\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4",                 {PING_ABS, PING_SUP_ABS}},     // 易拆+筏層
     };
+    static const std::pair<const char *, const char *> PLAIN_DUAL_HF = {PING_PLA_HF, PING_PLA_HF};
     PresetBundle *bundle = wxGetApp().preset_bundle;
     const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
     const bool hiflow_machine = printer_model.find("FD450") != std::string::npos ||
                                 printer_model.find("FD600") != std::string::npos ||
                                 printer_model.find("FD800") != std::string::npos;
     const auto &combo_map = hiflow_machine ? COMBO_FILAMENTS_HF : COMBO_FILAMENTS;
-    auto it = combo_map.find(combo);
-    if (it == combo_map.end()) return;
-    if (bundle->filament_presets.size() < 2) return;   // 雙料機限定（單料/四色不套）
+    std::pair<const char *, const char *> target;
+    if (combo.empty()) {
+        // PING(2026-08-11 Eric 裁「雙料機無 token 就當 PLA+PLA」)：0811 改名批後一般雙料版
+        // 名稱是「{層高}mm @…」，與單料頭／四料同形 ⇒ **必須用槽數區分**，不能只看名字。
+        // 恰為 2 槽＝雙料本體機；單料頭(1)／四料(4)在此 return＝維持它們原本就沒有連動的行為。
+        if (bundle->filament_presets.size() != 2) return;
+        target = hiflow_machine ? PLAIN_DUAL_HF : PLAIN_DUAL;
+    } else {
+        auto it = combo_map.find(combo);
+        if (it == combo_map.end()) return;
+        if (bundle->filament_presets.size() < 2) return;   // 雙料機限定（單料/四色不套）
+        target = it->second;
+    }
     // 兩支目標線材都存在才動手
-    if (!bundle->filaments.find_preset(it->second.first, false) ||
-        !bundle->filaments.find_preset(it->second.second, false)) return;
-    bundle->set_filament_preset(0, it->second.first);
-    bundle->set_filament_preset(1, it->second.second);
+    if (!bundle->filaments.find_preset(target.first, false) ||
+        !bundle->filaments.find_preset(target.second, false)) return;
+    bundle->set_filament_preset(0, target.first);
+    bundle->set_filament_preset(1, target.second);
     bundle->export_selections(*wxGetApp().app_config);
     if (Plater *plater = wxGetApp().plater()) {
         plater->sidebar().update_presets(Preset::TYPE_FILAMENT);

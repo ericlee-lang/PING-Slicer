@@ -54,7 +54,7 @@ namespace GUI {
 class TabPresetComboBox;
 class OG_CustomCtrl;
 
-// PING：組合製程→線材單向連動（實作在 Tab.cpp；0729 起 PresetComboBoxes 的「棧板建議」
+// PING：組合製程→線材單向連動（實作在 Tab.cpp；0729 起 PresetComboBoxes 的「筏層建議」（0811 前稱棧板建議）
 // 對話框一鍵切換也走同一條路＝與手選製程完全同行為）
 void ping_apply_combo_filaments(const std::string &process_name);
 

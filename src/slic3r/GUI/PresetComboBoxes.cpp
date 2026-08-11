@@ -932,21 +932,25 @@ static void ping_suggest_pallet_for_abs(const std::string &filament_name)
     if (ft == nullptr || ft->values.empty() || ft->values.front() != "ABS")
         return;
     const std::string cur = bundle->prints.get_selected_preset().name;
-    if (cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 已是 _棧板 版（單一出料）
-        cur.find("+\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos)      // 已是「+棧板」雙料棧板版（0730 功能歸類名）
+    // PING(2026-08-11 Eric 改名批)：「棧板」→「筏層」；舊字面一併保留＝使用者自存舊名不重複打擾。
+    if (cur.find("_\xE7\xAD\x8F\xE5\xB1\xA4") != std::string::npos ||   // 已是 _筏層 版
+        cur.find("+\xE7\xAD\x8F\xE5\xB1\xA4") != std::string::npos ||   // 已是「+筏層」版
+        cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 舊名 _棧板
+        cur.find("+\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos)      // 舊名 +棧板
         return;
-    // 目標名：單一出料「{lh}mm @…」→ 插 _棧板；雙料組合「{lh}mm PLA+X @…」→ 對應 ABS 組合
+    // 目標名：**無 token 版**「{lh}mm @…」→ 插 _筏層。0811 起這條同時涵蓋兩種機：
+    //   ①單一出料（單料頭/FP/四料）②一般雙料版（原「雙料(Z隙)」，token 已拿掉）——
+    //   兩者的筏層版都叫「{lh}mm_筏層 @…」⇒ 用同一條規則就對，原本雙料那條對照已不需要。
     std::string target;
     const size_t at_single = cur.find("mm @");
     if (at_single != std::string::npos) {
-        target = cur.substr(0, at_single) + "mm_\xE6\xA3\xA7\xE6\x9D\xBF @" + cur.substr(at_single + 4);
+        target = cur.substr(0, at_single) + "mm_\xE7\xAD\x8F\xE5\xB1\xA4 @" + cur.substr(at_single + 4);
     } else {
-        // 0730 功能歸類名（Codex 四輪定稿）：來源 pattern 帶「 @」終止符＝「易拆(Z0)」不會誤中
-        // 「易拆(Z0)水溶」（前綴防護）；棧板版仍＝ABS 配料（連動表鍵值不變、僅 token 換名）。
+        // 功能歸類名：來源 pattern 帶「 @」終止符＝「易拆」不會誤中「易拆水溶」（前綴防護）；
+        // 筏層版仍＝ABS 配料（連動表鍵值不變、僅 token 換名）。
         static const std::pair<const char*, const char*> COMBO_TO_PALLET[] = {
-            {" \xE6\x98\x93\xE6\x8B\x86(Z0) @",                         " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)→易拆(Z0)+棧板
-            {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)水溶→易拆(Z0)+棧板
-            {" \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99) @",              " \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF @"}, // 雙料(Z隙)→雙料(Z隙)+棧板
+            {" \xE6\x98\x93\xE6\x8B\x86 @",                         " \xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4 @"}, // 易拆→易拆+筏層
+            {" \xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6 @", " \xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4 @"}, // 易拆水溶→易拆+筏層
         };
         for (const auto& m : COMBO_TO_PALLET) {
             const size_t p = cur.find(m.first);
@@ -961,12 +965,12 @@ static void ping_suggest_pallet_for_abs(const std::string &filament_name)
         return;
     wxGetApp().CallAfter([target] {
         MessageDialog dlg(wxGetApp().plater(),
-            wxString::FromUTF8("你選了 ABS 線材——ABS 建議搭配棧板（筏層）製程，貼床防翹曲。\n\n")
+            wxString::FromUTF8("你選了 ABS 線材——ABS 建議搭配筏層製程，貼床防翹曲。\n\n")
                 + wxString::FromUTF8("要切換到「") + wxString::FromUTF8(target.c_str()) + wxString::FromUTF8("」嗎？\n")
                 + wxString::FromUTF8("（切換後線材槽會自動帶成對應的 ABS 組合）"),
-            wxString::FromUTF8("棧板建議"),
+            wxString::FromUTF8("筏層建議"),
             wxICON_INFORMATION | wxYES_NO | wxCENTRE);
-        dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("切換棧板版"), true);   // 建議動作＝預設焦點
+        dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("切換筏層版"), true);   // 建議動作＝預設焦點
         dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("維持目前製程"));
         if (dlg.ShowModal() != wxID_YES)
             return;

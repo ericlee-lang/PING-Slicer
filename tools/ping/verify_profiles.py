@@ -15,6 +15,7 @@
 """
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -32,11 +33,23 @@ errors = []
 # ★ 組合製程功能歸類名（Eric 0729 裁；Codex 四輪雙審可定稿）。token 抽取＝與 Tab.cpp
 # ping_apply_combo_filaments 同規則（@ 前、最後一個 ASCII 空白後），分類判定一律走本組，
 # 不再 substring 猜名（二輪必改 9）。
-COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆(Z0)",      "易拆(Z0)水溶"
-COMBO_CAT_EASYPAL, COMBO_CAT_DUAL    = "易拆(Z0)+棧板", "雙料(Z隙)"
-COMBO_CAT_DUALPAL                    = "雙料(Z隙)+棧板"
-COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_DUAL, COMBO_CAT_DUALPAL}
+# ★ 0811 改名批（Eric 兩裁合併：「棧板」→「筏層」＋拿掉 (Z0)／(Z隙)／「雙料」）
+#   現行只剩 **三個 token**；另兩類雙料製程**沒有 token**（與單料/四料同形，這正是 Eric 要的統一）：
+#     一般雙料（原 雙料(Z隙)）  → 「{lh}mm @…」
+#     雙料筏層（原 雙料(Z隙)+棧板）→「{lh}mm_筏層 @…」（與單料的 _筏層 雙生同形）
+#   ⇒ 無 token 的兩類**不能靠名字分類**，本檔一律以 renamed_from 鏈尾（PLA+PLA／ABS+ABS）判定，
+#     那條鏈由產生器單一入口 combo_renamed_from() 寫入、且下方會逐支 exact 驗。
+COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆",      "易拆水溶"
+COMBO_CAT_EASYPAL                    = "易拆+筏層"
+COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL}
 COMBO_OLD_TOKENS = {"PLA+SUP", "PLA+PVA", "ABS+SUP", "PLA+PLA", "ABS+ABS"}
+# 0730 五類名（**歷史值**，只用於 renamed_from 回溯鏈驗證）
+COMBO_0730 = {"PLA+SUP": "易拆(Z0)", "PLA+PVA": "易拆(Z0)水溶", "ABS+SUP": "易拆(Z0)+棧板",
+              "PLA+PLA": "雙料(Z隙)", "ABS+ABS": "雙料(Z隙)+棧板"}
+# 無 token 兩類的內部代號（僅供錯誤訊息可讀；不是製程名的一部分）
+CAT_PLAIN_DUAL, CAT_RAFT_DUAL = "(無token・一般雙料)", "(無token・雙料筏層)"
+NEW2OLDCB = {COMBO_CAT_EASY: "PLA+SUP", COMBO_CAT_PVA: "PLA+PVA", COMBO_CAT_EASYPAL: "ABS+SUP",
+             CAT_PLAIN_DUAL: "PLA+PLA", CAT_RAFT_DUAL: "ABS+ABS"}
 
 def cxx_unescape(s):
     """把 C++ 字面裡的 \\xNN 逸出序列解回 UTF-8 字串（房規：CJK 字面走逸出）。"""
@@ -60,25 +73,56 @@ def combo_token(name):
     tok = head[sp + 1:]
     return tok if tok in COMBO_TOKENS else None
 
+def strip_cxx_comments(src):
+    """剝掉 C++ 的 // 與 /* */ 註解，供「原始碼字面」型跨層護欄比對用。
+    不處理字串字面值裡的 // （本檔用途只比對程式碼 token，誤剝也只會讓護欄更嚴、不會放水）。"""
+    out, i, n = [], 0, len(src)
+    while i < n:
+        if src.startswith("//", i):
+            j = src.find("\n", i)
+            i = n if j < 0 else j
+        elif src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        else:
+            out.append(src[i]); i += 1
+    return "".join(out)
+
+def combo_kind(name, d):
+    """回傳製程的功能歸類（三 token 之一，或兩個無 token 雙料代號）；非組合製程回 None。
+    0811 起一般雙料／雙料筏層沒有 token（與單料/四料同形）⇒ 改以 renamed_from 鏈尾判定：
+    只有這兩類的鏈會以「PLA+PLA @…」／「ABS+ABS @…」開頭（產生器唯一入口寫入、下方逐支 exact 驗）。"""
+    t = combo_token(name)
+    if t:
+        return t
+    rf = d.get("renamed_from")
+    if isinstance(rf, str):
+        first = rf.split(";")[0]
+        if " PLA+PLA @" in first:
+            return CAT_PLAIN_DUAL
+        if " ABS+ABS @" in first:
+            return CAT_RAFT_DUAL
+    return None
+
 # 期望配對 baseline（值＝dump 自 Tab.cpp:177-247 現值；四輪修訂 C——配錯在冊線材也要紅）
 EXPECTED_COMBO_MAP = {
     COMBO_CAT_EASY:    ("PING PLA - 210", "PING SupPLA"),
     COMBO_CAT_PVA:     ("PING PLA - 210", "PING PVA"),
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
-    COMBO_CAT_DUAL:    ("PING PLA - 220", "PING PLA - 220"),
-    COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
 }
 EXPECTED_COMBO_MAP_HF = {
     COMBO_CAT_EASY:    ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),
     COMBO_CAT_PVA:     ("PING PLA - 高流量噴頭", "PING PVA"),
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
-    COMBO_CAT_DUAL:    ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭"),
-    COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
 }
-# #39 棧板建議（PresetComboBoxes.cpp）期望三組 source→target＋守衛 token（跨層護欄用）
+# 0811：兩個雙料鍵已從 Tab.cpp 的 map 消失——一般雙料改走「空 token 分支」（Eric 裁「雙料機無
+# token 就當 PLA+PLA」），雙料筏層改走既有「_筏層 分支」（全槽 ABS）。下方跨層護欄另有專查。
+EXPECTED_PLAIN_DUAL    = ("PING PLA - 220", "PING PLA - 220")
+EXPECTED_PLAIN_DUAL_HF = ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭")
+# #39 筏層建議（PresetComboBoxes.cpp）期望兩組 source→target（原第三組「雙料→雙料+棧板」
+# 已被「{lh}mm @…→{lh}mm_筏層 @…」那條通則吸收＝0811 改名後兩者同形）
 EXPECTED_P39 = {" %s @" % COMBO_CAT_EASY:  " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_DUAL:  " %s @" % COMBO_CAT_DUALPAL}
+                " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL}
 
 CLASSIC = {
     "EDU 200":  {"nozzle":"0.6", "retract":"4", "speed":"30", "height":"200", "bed":False},
@@ -385,9 +429,9 @@ for name, (kind, d) in presets.items():
             if d.get("wall_direction") != "ccw":
                 err(f"[牆方向固定 ccw 0730] {name}: wall_direction={d.get('wall_direction')!r}")
             # ★ 功能歸類五類值鎖（0730 改名批；Z隙＝一層層高〔三輪更正、非固定 0.2〕）
-            _vtok = combo_token(name)
+            _vtok = combo_kind(name, d)
             if _vtok:
-                _lh_m = re.match(r"([\d.]+)mm ", name)
+                _lh_m = re.match(r"([\d.]+)mm", name)
                 _lh_v = _lh_m.group(1) if _lh_m else None
                 if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL):
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
@@ -396,18 +440,24 @@ for name, (kind, d) in presets.items():
                 else:
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
                         if d.get(zk) != _lh_v:
-                            err(f"[功能歸類・雙料 Z隙=層高] {name}: {zk}={d.get(zk)!r}, expected {_lh_v!r}")
-                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, COMBO_CAT_DUALPAL) else "0"
+                            err(f"[功能歸類・一般雙料 Z隙=層高] {name}: {zk}={d.get(zk)!r}, expected {_lh_v!r}")
+                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, CAT_RAFT_DUAL) else "0"
                 if d.get("raft_layers") != _raft:
-                    err(f"[功能歸類・棧板 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
-                # renamed_from＝字串＋恰為對應舊材料對全名（改名批回溯鏈）
-                _new2old = {COMBO_CAT_EASY: "PLA+SUP", COMBO_CAT_PVA: "PLA+PVA",
-                            COMBO_CAT_EASYPAL: "ABS+SUP", COMBO_CAT_DUAL: "PLA+PLA",
-                            COMBO_CAT_DUALPAL: "ABS+ABS"}
+                    err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
+                # 0811 起名字裡的「筏層」與 raft_layers 必須同進退（防「改名沒改值」／「改值沒改名」）
+                _name_raft = ("+筏層 @" in name) or ("_筏層 @" in name)
+                if _name_raft != (_raft == "2"):
+                    err(f"[功能歸類・筏層名值不一致] {name}: 名字帶筏層={_name_raft}, raft_layers={d.get('raft_layers')!r}")
+                # renamed_from＝**分號分隔字串**、恰為兩條舊全名（① 材料對原名 ② 0730 五類名）
+                _oldcb = NEW2OLDCB[_vtok]
+                _head_new = name[:name.find("@")].rstrip()          # 例「0.2mm 易拆」「0.2mm_筏層」「0.2mm」
+                _lh_tok = "%smm" % _lh_v
+                _tail = name[name.find("@"):]                        # 「@FD300 (0.4)」
+                _rf_expect = ";".join(["%s %s %s" % (_lh_tok, _oldcb, _tail),
+                                       "%s %s %s" % (_lh_tok, COMBO_0730[_oldcb], _tail)])
                 _rf = d.get("renamed_from")
-                _rf_expect = name.replace(" %s @" % _vtok, " %s @" % _new2old[_vtok])
                 if not isinstance(_rf, str) or _rf != _rf_expect:
-                    err(f"[功能歸類・renamed_from] {name}: {_rf!r}, expected {_rf_expect!r}")
+                    err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
             support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
@@ -917,7 +967,34 @@ else:
             if _t:
                 _proc_tokens.add(_t)
     if _proc_tokens != COMBO_TOKENS:
-        err(f"[跨層護欄・process token 集合] 實得 {sorted(_proc_tokens)!r} ≠ 期望五類")
+        err(f"[跨層護欄・process token 集合] 實得 {sorted(_proc_tokens)!r} ≠ 期望三類（0811 改名後）")
+    # 0811 新增：無 token 的兩類雙料製程必須存在且成對（每台雙料本體機、每口徑各一）——
+    # 它們是這次「統一命名」的產物，一旦產生器回頭把 token 加回來，這條會紅。
+    _plain = {n for n, (k, dd) in presets.items()
+              if k == "process" and dd.get("instantiation") == "true" and combo_kind(n, dd) == CAT_PLAIN_DUAL}
+    _rdual = {n for n, (k, dd) in presets.items()
+              if k == "process" and dd.get("instantiation") == "true" and combo_kind(n, dd) == CAT_RAFT_DUAL}
+    if not _plain or not _rdual:
+        err(f"[跨層護欄・無 token 雙料兩類] 一般雙料 {len(_plain)} 支／雙料筏層 {len(_rdual)} 支，兩者都不該是 0")
+    elif len(_plain) != len(_rdual):
+        err(f"[跨層護欄・無 token 雙料兩類] 支數不成對：一般 {len(_plain)}／筏層 {len(_rdual)}")
+    for _n in _plain:
+        if combo_token(_n) is not None or "_筏層" in _n:
+            err(f"[跨層護欄・一般雙料應無 token] {_n}")
+    # Tab.cpp 必須有「空 token ⇒ 雙料機當 PLA+PLA」那條分支（Eric 2026-08-11 裁）。
+    # 沒有它，一般雙料版選了不會自動配料＝靜默失效（正是 0725 T004 那型的坑）。
+    if os.path.isfile(_tab):
+        # ⚠ **必須剝掉註解再比對**（2026-08-11 反向測試實抓）：本守衛原本只做「字串存在」比對，
+        #   把 `combo.empty()` 註解掉、行為已死，守衛卻因為註解裡那份仍在而照樣綠 ⇒ 假綠。
+        #   同型風險存在於所有「grep 原始碼字面」的跨層護欄，本批先修這一條。
+        _tsrc = strip_cxx_comments(io.open(_tab, encoding="utf-8", errors="ignore").read())
+        if "combo.empty()" not in _tsrc:
+            err("[跨層護欄・空 token 分支] Tab.cpp 找不到 combo.empty() ⇒ 一般雙料版連動會靜默失效")
+        for _c in ("PLAIN_DUAL", "PLAIN_DUAL_HF"):
+            if _c not in _tsrc:
+                err(f"[跨層護欄・空 token 分支] Tab.cpp 缺 {_c} 常數")
+        if "filament_presets.size() != 2" not in _tsrc:
+            err("[跨層護欄・空 token 分支] Tab.cpp 缺「槽數==2」判準 ⇒ 單料/四料可能被誤套 PLA+PLA")
     # 3) #39 棧板建議（PresetComboBoxes.cpp）：三組 source→target＋守衛 pattern exact（二輪必改 8/10）
     _pcb = os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp")
     if not os.path.isfile(_pcb):
@@ -928,8 +1005,9 @@ else:
             if (_s not in _psrc and cxx_escape(_s) not in _psrc) or \
                (_t not in _psrc and cxx_escape(_t) not in _psrc):
                 err(f"[跨層護欄・#39 棧板建議] 缺 source/target 字面 {_s!r}→{_t!r}")
-        if cxx_escape("+棧板") not in _psrc and '"+棧板"' not in _psrc:
-            err("[跨層護欄・#39 棧板建議] 守衛未改「+棧板」判定（舊 ABS+ 守衛對新名失效）")
+        for _lit in ("+筏層", "_筏層"):
+            if cxx_escape(_lit) not in _psrc and ('"%s"' % _lit) not in _psrc:
+                err(f"[跨層護欄・#39 筏層建議] 守衛/目標名未帶「{_lit}」字面（0811 改名後舊守衛失效）")
     # 4) C-12 renamed 回溯（Eric 2026-07-30 裁）：orca_presets 載入端（load_selections＋
     #    update_selections）的 strict 選擇與多料槽 filament_XX 必須帶 renamed resolver——
     #    select_preset_by_name_strict 是 exact-only，系統 preset 改名批後升級版機器 conf
@@ -977,8 +1055,44 @@ else:
             continue
         if _ent[1].get("setting_id") != _row["setting_id"]:
             err(f"[功能歸類・id baseline] {_row['new']}: setting_id={_ent[1].get('setting_id')!r} ≠ {_row['setting_id']!r}（位移！）")
-        if _ent[1].get("renamed_from") != _row["old"]:
-            err(f"[功能歸類・id baseline] {_row['new']}: renamed_from={_ent[1].get('renamed_from')!r} ≠ {_row['old']!r}")
+        # 0811 起 renamed_from 是**分號分隔的回溯鏈**（①材料對原名 ②0730 五類名）；
+        # 本 fixture 的 old 欄＝材料對原名＝鏈的第一條，必須 exact 命中（鏈完整性另有專查）。
+        _rf_chain = (_ent[1].get("renamed_from") or "").split(";")
+        if not _rf_chain or _rf_chain[0] != _row["old"]:
+            err(f"[功能歸類・id baseline] {_row['new']}: renamed_from 鏈首={_rf_chain[0] if _rf_chain else None!r}"
+                f" ≠ {_row['old']!r}（全鏈={_ent[1].get('renamed_from')!r}）")
+
+# ★ 檢查：FD300 關門的列印範圍＝圓角三角形（Eric 2026-08-11 裁，產生器 rounded_triangle_area）
+#   幾何條件（兩條就鎖死形狀）：①三圓角貼合 Ø300 ⇒ 弧上每點離床心恰 150
+#                               ②三角形內切圓 Ø200 ⇒ 三條直邊各距床心 100
+#   ⚠ **凸性是硬條件**：引擎 BuildVolume 對凹形（Type::Custom）的碰撞判定會退回用凸包
+#     （BuildVolume.cpp:78-79）＝凹口不會被擋；凸形才走 Type::Convex 精準路徑。
+_tri_machines = [(_n, _d) for _n, (_k, _d) in presets.items()
+                 if _k == "machine" and "FD300 關門" in _n and isinstance(_d.get("printable_area"), list)]
+if not _tri_machines:
+    err("[關門床形] 找不到任何 FD300 關門機型的 printable_area（改床形的閘門形同虛設）")
+for _n, _d in _tri_machines:
+    _pts = []
+    for _p in _d["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 12:
+        err(f"[關門床形] {_n}: 點數 {len(_pts)} 過少，不像圓角三角形")
+        continue
+    _r = [math.hypot(x, y) for x, y in _pts]
+    if abs(max(_r) - 150.0) > 0.01 or min(_r) < 100.0 - 0.01:
+        err(f"[關門床形・圓角貼合 Ø300] {_n}: 離床心距離 min={min(_r):.4f} max={max(_r):.4f}，"
+            f"期望 max=150（弧在 Ø300 上）且 min≥100")
+    # 內切圓 Ø200：任一點都不得落在半徑 100 的圓內（三直邊恰切於該圓）
+    if min(_r) < 99.99:
+        err(f"[關門床形・內切圓 Ø200] {_n}: 有點離床心僅 {min(_r):.4f} < 100")
+    # 凸性：逐點外積同號（多邊形為凸）
+    _cross = []
+    for _i in range(len(_pts)):
+        _a, _b, _c = _pts[_i], _pts[(_i + 1) % len(_pts)], _pts[(_i + 2) % len(_pts)]
+        _cross.append((_b[0] - _a[0]) * (_c[1] - _b[1]) - (_b[1] - _a[1]) * (_c[0] - _b[0]))
+    if not (all(_v >= -1e-6 for _v in _cross) or all(_v <= 1e-6 for _v in _cross)):
+        err(f"[關門床形・凸性] {_n}: 多邊形非凸 ⇒ 引擎會退回用凸包判定，凹口不會被擋")
 
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
