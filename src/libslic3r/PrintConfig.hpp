@@ -1424,6 +1424,10 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     // BBS
     ((ConfigOptionString,             bed_custom_texture))
     ((ConfigOptionString,             bed_custom_model))
+    // PING 2026-08-11: explicit plate centre in bed coordinates; empty = derive from the
+    // printable area's bounding box centre (legacy). Needed when the printable area is not
+    // symmetric about the plate centre (e.g. FD300 關門's rounded triangle).
+    ((ConfigOptionPoints,             bed_model_offset))
     ((ConfigOptionEnum<BedType>,      curr_bed_type))
     ((ConfigOptionInts,               cool_plate_temp))
     ((ConfigOptionInts,               textured_cool_plate_temp))

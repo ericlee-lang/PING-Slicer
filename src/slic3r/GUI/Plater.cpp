@@ -4659,7 +4659,9 @@ struct Plater::priv
                        std::vector<double>  extruder_heights,
                        const std::string   &custom_texture,
                        const std::string   &custom_model,
-                       bool                 force_as_custom = false);
+                       bool                 force_as_custom = false,
+                       // PING 2026-08-11: explicit plate centre; empty = legacy bbox-centre behaviour
+                       const Pointfs       &bed_model_offset = Pointfs());
 
     bool can_delete() const;
     bool can_delete_all() const;
@@ -4828,7 +4830,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     , main_frame(main_frame)
     //BBS: add bed_exclude_area
     , config(Slic3r::DynamicPrintConfig::new_from_defaults_keys({
-        "printable_area", "bed_exclude_area", "wrapping_exclude_area", "extruder_printable_area", "bed_custom_texture", "bed_custom_model", "print_sequence",
+        "printable_area", "bed_exclude_area", "wrapping_exclude_area", "extruder_printable_area", "bed_custom_texture", "bed_custom_model", "bed_model_offset", "print_sequence",
         "extruder_clearance_radius",
         "extruder_clearance_height_to_lid", "extruder_clearance_height_to_rod",
 		"nozzle_height", "skirt_type", "skirt_loops", "skirt_speed","min_skirt_length", "skirt_distance", "skirt_start_angle",
@@ -11236,7 +11238,8 @@ void Plater::priv::set_bed_shape(const Pointfs       &shape,
                                  std::vector<double>  extruder_heights,
                                  const std::string   &custom_texture,
                                  const std::string   &custom_model,
-                                 bool                 force_as_custom)
+                                 bool                 force_as_custom,
+                                 const Pointfs       &bed_model_offset)
 {
     //Orca: reduce resolution for large bed printer
     BoundingBoxf bed_size = get_extents(shape);
@@ -11247,7 +11250,7 @@ void Plater::priv::set_bed_shape(const Pointfs       &shape,
 
     //BBS: add shape position
     Vec2d shape_position = partplate_list.get_current_shape_position();
-    bool new_shape = bed.set_shape(shape, printable_height, extruder_areas, extruder_heights, custom_model, force_as_custom, shape_position);
+    bool new_shape = bed.set_shape(shape, printable_height, extruder_areas, extruder_heights, custom_model, force_as_custom, shape_position, true, bed_model_offset);
 
     float prev_height_lid, prev_height_rod;
     partplate_list.get_height_limits(prev_height_lid, prev_height_rod);
@@ -11276,7 +11279,7 @@ void Plater::priv::set_bed_shape(const Pointfs       &shape,
 
         Vec2d new_shape_position = partplate_list.get_current_shape_position();
         if (shape_position != new_shape_position)
-            bed.set_shape(shape, printable_height, extruder_areas, extruder_heights, custom_model, force_as_custom, new_shape_position);
+            bed.set_shape(shape, printable_height, extruder_areas, extruder_heights, custom_model, force_as_custom, new_shape_position, true, bed_model_offset);
     }
 }
 
@@ -16555,6 +16558,7 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
         //BBS: add bed_exclude_area
         else if (opt_key == "printable_area" || opt_key == "bed_exclude_area"
             || opt_key == "bed_custom_texture" || opt_key == "bed_custom_model"
+            || opt_key == "bed_model_offset"
             || opt_key == "extruder_clearance_height_to_lid"
             || opt_key == "extruder_clearance_height_to_rod") {
             bed_shape_changed = true;
@@ -16682,13 +16686,16 @@ void Plater::set_bed_shape() const
         p->config->option<ConfigOptionPointsGroups>("extruder_printable_area")->values,
         p->config->option<ConfigOptionFloatsNullable>("extruder_printable_height")->values,
         p->config->option<ConfigOptionString>("bed_custom_texture")->value.empty() ? texture_filename : p->config->option<ConfigOptionString>("bed_custom_texture")->value,
-        p->config->option<ConfigOptionString>("bed_custom_model")->value);
+        p->config->option<ConfigOptionString>("bed_custom_model")->value,
+        false,
+        // PING 2026-08-11: explicit plate centre for beds whose printable area is not symmetric
+        p->config->option<ConfigOptionPoints>("bed_model_offset")->values);
 }
 
 //BBS: add bed exclude area
-void Plater::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_area, const Pointfs& wrapping_exclude_area, const double printable_height, std::vector<Pointfs> extruder_areas, std::vector<double> extruder_heights, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom) const
+void Plater::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_area, const Pointfs& wrapping_exclude_area, const double printable_height, std::vector<Pointfs> extruder_areas, std::vector<double> extruder_heights, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom, const Pointfs& bed_model_offset) const
 {
-    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, wrapping_exclude_area, printable_height, extruder_areas, extruder_heights, custom_texture, custom_model, force_as_custom);
+    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, wrapping_exclude_area, printable_height, extruder_areas, extruder_heights, custom_texture, custom_model, force_as_custom, bed_model_offset);
 }
 
 void Plater::force_filament_colors_update()

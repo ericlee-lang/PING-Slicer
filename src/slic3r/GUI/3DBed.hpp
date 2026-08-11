@@ -110,6 +110,9 @@ private:
     //GLTexture m_temp_texture;
     GLModel m_model;
     Vec3d m_model_offset{ Vec3d::Zero() };
+    // PING 2026-08-11: explicit plate centre in bed coordinates (config key `bed_model_offset`).
+    // Empty = legacy behaviour (use the printable area's bounding box centre). See update_model_offset().
+    Pointfs m_bed_model_offset;
     Axes m_axes;
 
     float m_scale_factor{ 1.0f };
@@ -130,7 +133,7 @@ public:
     // as this class does not use it, thus there is no need to update the UI.
     // BBS
     bool set_shape(const Pointfs& printable_area, const double printable_height, std::vector<Pointfs> extruder_areas, std::vector<double> extruder_heights, const std::string& custom_model, bool force_as_custom = false,
-        const Vec2d position = Vec2d::Zero(), bool with_reset = true);
+        const Vec2d position = Vec2d::Zero(), bool with_reset = true, const Pointfs& bed_model_offset = Pointfs());
 
     void set_position(Vec2d& position);
     void set_axes_mode(bool origin);

@@ -281,5 +281,8 @@
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGM013",
-    "alias": "FD300 關門"
+    "alias": "FD300 關門",
+    "bed_model_offset": [
+        "0x0"
+    ]
 }

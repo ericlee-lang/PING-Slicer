@@ -795,7 +795,9 @@ public:
                        std::vector<double>  extruder_heights,
                        const std::string   &custom_texture,
                        const std::string   &custom_model,
-                       bool                 force_as_custom = false) const;
+                       bool                 force_as_custom = false,
+                       // PING 2026-08-11: explicit plate centre; empty = legacy bbox-centre behaviour
+                       const Pointfs       &bed_model_offset = Pointfs()) const;
 
 	const NotificationManager* get_notification_manager() const;
 	NotificationManager* get_notification_manager();

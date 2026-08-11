@@ -18,7 +18,6 @@ import json
 import math
 import os
 import re
-import struct
 import sys
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -1095,70 +1094,70 @@ for _n, _d in _tri_machines:
     if not (all(_v >= -1e-6 for _v in _cross) or all(_v <= 1e-6 for _v in _cross)):
         err(f"[關門床形・凸性] {_n}: 多邊形非凸 ⇒ 引擎會退回用凸包判定，凹口不會被擋")
 
-# ★ 檢查：床形不對稱機型的「床身盤落點」（Eric 2026-08-11 夜裁「修圓盤」・T021 眼驗①處置）
-#   引擎把床身 STL 擺在 printable_area 的**外框中心**而非床心：
-#       src/slic3r/GUI/3DBed.cpp:624  Vec3d shift = m_build_volume.bounding_volume().center();
-#   床形上下不對稱時圓盤就會被推走（圓角三角形＝往 +Y 推 25mm）。純渲染、切片不受影響，
-#   但畫面會讓人以為可印區跑到盤外。對策＝機型專屬 STL 先反向平移抵銷（embed_params.py
-#   的 emit_offset_bed_stl）。
-#   🔴 這裡斷言的是**最終落點**，不是平移量——「STL 自身中心 ＋ printable_area 外框中心
-#   ＝家族原盤中心」。這樣寫床形改了、平移量改了都會自動跟著對，不會把 25 這個數字寫死。
-_BASE_PLATE_STL = "PING_FD300_buildplate_model.stl"      # FD300 家族原盤（門開共用的那支）
+# ★ 檢查：床形不對稱的機型必須明講盤心（Eric 2026-08-11 夜裁「走乙案」・T021 眼驗①處置）
+#   引擎（`3DBed.cpp` update_model_offset）預設把床身 3D 模型擺在 printable_area 的**外框中心**。
+#   床形對稱時外框中心＝盤心（圓床、矩形床皆然，所以上游從沒踩到）；圓角三角形外框 Y[-100,+150]
+#   ⇒ 中心 (0,+25) ⇒ 圓盤被往 +Y 畫 25mm。⚠ 純渲染：碰撞判定走 m_build_volume 真實多邊形。
+#   對策＝機台 preset 用 `bed_model_offset` 明講盤心；**空值維持引擎原行為 ⇒ 其他機型零影響**。
+#   🔴 本閘門刻意寫成**通則而非特例**：任何「非矩形、也非以外框中心為圓心的圓」的床形都必須宣告
+#      ⇒ P200+ 之後若也改成三角形卻忘了宣告，會在這裡被擋下來，而不是等使用者看到歪盤。
+def _area_is_symmetric(_pts):
+    """矩形（4 點）或「以外框中心為圓心的圓」＝外框中心本來就等於盤心，不必宣告。"""
+    if len(_pts) == 4:
+        return True
+    _cx = (min(_p[0] for _p in _pts) + max(_p[0] for _p in _pts)) / 2.0
+    _cy = (min(_p[1] for _p in _pts) + max(_p[1] for _p in _pts)) / 2.0
+    _rr = [math.hypot(_p[0] - _cx, _p[1] - _cy) for _p in _pts]
+    return (max(_rr) - min(_rr)) <= 0.05
 
-def _stl_xy_center(_path):
-    """二進位 STL 的 XY 外框中心；讀不了回 None。"""
-    try:
-        with open(_path, "rb") as _f:
-            _f.read(80)
-            _cnt = struct.unpack("<I", _f.read(4))[0]
-            _xs, _ys = [], []
-            for _ in range(_cnt):
-                _rec = _f.read(50)
-                if len(_rec) < 50:
-                    return None
-                _v = struct.unpack("<12fH", _rec)
-                for _k in range(3, 12, 3):
-                    _xs.append(_v[_k])
-                    _ys.append(_v[_k + 1])
-    except (OSError, struct.error):
-        return None
-    return ((min(_xs) + max(_xs)) / 2.0, (min(_ys) + max(_ys)) / 2.0) if _xs else None
+_asym_checked = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "machine" or not isinstance(_d.get("printable_area"), list):
+        continue
+    _pts = []
+    for _p in _d["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 3 or _area_is_symmetric(_pts):
+        continue
+    _asym_checked += 1
+    _decl = _d.get("bed_model_offset")
+    if not (isinstance(_decl, list) and len(_decl) == 1):
+        _bx = (min(_p[0] for _p in _pts) + max(_p[0] for _p in _pts)) / 2.0
+        _by = (min(_p[1] for _p in _pts) + max(_p[1] for _p in _pts)) / 2.0
+        err(f"[床盤盤心] {_n}: 床形不對稱（外框中心 ({_bx:.3f}, {_by:.3f})）卻沒宣告 "
+            f"`bed_model_offset` ⇒ 引擎會拿外框中心當盤心，圓盤會被畫歪。"
+            f"在 embed_params.py 的 BED_OVERRIDE 補 `bed_model_center`")
+        continue
+    _ox, _oy = (float(_v) for _v in _decl[0].split("x"))
+    # PING 的圓盤機 printable_area 一律以床心 (0,0) 為原點（見 embed_params.py scale_circle_area）
+    # ⇒ 盤心恆為原點。日後若出現非中心原點的床，這條要連同該註解一起改，不要只放寬數值。
+    if abs(_ox) > 1e-6 or abs(_oy) > 1e-6:
+        err(f"[床盤盤心] {_n}: bed_model_offset={_decl[0]!r}，但 PING 圓盤機的盤心恆為床原點 0x0")
+if _asym_checked == 0:
+    err("[床盤盤心] 沒有掃到任何不對稱床形機型（關門應該要在內）⇒ 閘門形同虛設")
 
-_mm_closed = [(_n, _d) for _n, (_k, _d) in presets.items()
-              if _k == "machine_model" and _n == "FD300 關門"]
-if not _mm_closed:
-    err("[關門床盤] 找不到 machine_model「FD300 關門」⇒ 床盤落點閘門形同虛設")
-elif not _tri_machines:
-    pass          # 上面那條閘門已經報過「找不到 printable_area」
-else:
-    # 各口徑的 printable_area 必須同形（同一個產生器出來的），否則平移量無所適從
-    _centers = {(round((min(p[0] for p in _q) + max(p[0] for p in _q)) / 2.0, 4),
-                 round((min(p[1] for p in _q) + max(p[1] for p in _q)) / 2.0, 4))
-                for _q in ([tuple(map(float, _p.split("x"))) for _p in _dd["printable_area"]]
-                           for _nn, _dd in _tri_machines)}
-    if len(_centers) != 1:
-        err(f"[關門床盤] 各口徑 printable_area 外框中心不一致：{sorted(_centers)}")
-    _acx, _acy = sorted(_centers)[0]
-    _c_base = _stl_xy_center(os.path.join(PINGDIR, _BASE_PLATE_STL))
-    if _c_base is None:
-        err(f"[關門床盤] 家族原盤讀取失敗：{_BASE_PLATE_STL}")
-    for _mn, _md in _mm_closed:
-        _bm = _md.get("bed_model") or ""
-        if not _bm or _bm == _BASE_PLATE_STL:
-            err(f"[關門床盤] {_mn}: bed_model={_bm!r} 仍指家族原盤 ⇒ 圓盤會被引擎往外框中心推走"
-                f"（外框中心 = ({_acx:.3f}, {_acy:.3f})）")
-            continue
-        _c_off = _stl_xy_center(os.path.join(PINGDIR, _bm))
-        if _c_off is None:
-            err(f"[關門床盤] {_mn}: bed_model 讀不到或非二進位 STL：{_bm}")
-            continue
-        if _c_base is not None:
-            _fx, _fy = _c_off[0] + _acx, _c_off[1] + _acy       # 引擎渲染後的實際落點
-            if abs(_fx - _c_base[0]) > 0.01 or abs(_fy - _c_base[1]) > 0.01:
-                err(f"[關門床盤・落點] {_mn}: 圓盤實際落點 ({_fx:.3f}, {_fy:.3f}) ≠ 原盤 "
-                    f"({_c_base[0]:.3f}, {_c_base[1]:.3f})。"
-                    f"STL 中心 ({_c_off[0]:.3f}, {_c_off[1]:.3f}) + 外框中心 ({_acx:.3f}, {_acy:.3f})。"
-                    f"床形若改過，重跑 embed_params.py regen 讓 STL 跟著重算，不要手改 STL")
+# ★ 跨層護欄：`bed_model_offset` 是 profile↔C++ 雙邊契約，任一邊掉了都是「verify 全綠但功能壞」。
+#   ⚠ 一律先 strip_cxx_comments()——0811 實測過：註解掉的那份字串會讓 grep 型護欄假綠。
+for _rel, _needles in (
+    (("src", "slic3r", "GUI", "3DBed.cpp"),
+     ["m_bed_model_offset = bed_model_offset", "m_bed_model_offset.size() == 1"]),
+    (("src", "libslic3r", "PrintConfig.cpp"),
+     ['this->add("bed_model_offset", coPoints)']),
+    (("src", "libslic3r", "Preset.cpp"),
+     ['"bed_model_offset"']),
+    (("src", "slic3r", "GUI", "Plater.cpp"),
+     ['option<ConfigOptionPoints>("bed_model_offset")']),
+):
+    _fp = os.path.join(_repo, *_rel)
+    if not os.path.isfile(_fp):
+        err(f"[床盤盤心・跨層] 找不到 {os.path.join(*_rel)}")
+        continue
+    _src = strip_cxx_comments(io.open(_fp, encoding="utf-8", errors="ignore").read())
+    for _needle in _needles:
+        if _needle not in _src:
+            err(f"[床盤盤心・跨層] {os.path.join(*_rel)} 少了 {_needle!r} ⇒ "
+                f"profile 宣告了盤心但 C++ 不吃，圓盤照樣歪（靜默失效）")
 
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
