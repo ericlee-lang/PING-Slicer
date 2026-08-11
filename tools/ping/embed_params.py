@@ -264,8 +264,14 @@ BED_OVERRIDE = {
     #       產生機台 preset 的 `bed_model_offset`（見 apply_bed_override）；C++ 端＝
     #       3DBed.cpp update_model_offset()。PING 圓盤機的盤心恆為床原點 ⇒ "0x0"。
     #       ⚠ 空值＝維持引擎原行為，所以其他機型一律零影響。
+    #    🆕 **bed_texture 改用關門專屬貼圖**（Eric 2026-08-11 夜裁「logo 下移」）：床貼圖是
+    #       「拉滿床形外框再用床形裁切」（3DBed.cpp:49-67 init_model_from_poly），原圖 logo
+    #       垂直置中 ⇒ 上緣兩側被三角形斜邊切掉（實測溢出 5.03mm）。專屬圖＝原檔往床前緣
+    #       平移 17mm（餘裕 +3.47mm），**只平移不重畫**（CIS 鐵則）。
+    #       產生器＝tools/ping/make_closeddoor_texture.py；閘門吃 bed_texture_ink_extents.json。
     "FD300 關門": {"area_polygon": "rounded_triangle", "prime_y_shift": 50,
-                   "bed_model_center": "0x0"},
+                   "bed_model_center": "0x0",
+                   "bed_texture": "ping_buildplate_texture_closeddoor.png"},
 }
 
 # ---------- Classic 前代機（V3.6） ----------

@@ -13,6 +13,7 @@
 8. 精靈同家族排列：基本款 → 同進 → 3in1 → 單料頭（單料頭最右）
 9. V3.6 Classic 八機型：Marlin、無 M204／machine limits／韌體回抽／PA，回抽值符合 V2.1
 """
+import hashlib
 import io
 import json
 import math
@@ -1136,6 +1137,90 @@ for _n, (_k, _d) in sorted(presets.items()):
         err(f"[床盤盤心] {_n}: bed_model_offset={_decl[0]!r}，但 PING 圓盤機的盤心恆為床原點 0x0")
 if _asym_checked == 0:
     err("[床盤盤心] 沒有掃到任何不對稱床形機型（關門應該要在內）⇒ 閘門形同虛設")
+
+# ★ 檢查：床形不對稱的機型，其床貼圖 logo 必須完全落在可印範圍內（Eric 2026-08-11 夜裁「logo 下移」）
+#   機制：床貼圖是「拉滿床形外框、再用床形裁切」（`3DBed.cpp:49-67` init_model_from_poly）
+#         u=(x-min_x)/size_x；v_eff=1-(y-min_y)/size_y ⇒ **v=0 是影像上緣＝床 +Y（後方）**。
+#   共用圖的 logo 垂直置中，映到三角外框後上緣兩側會被斜邊切掉（實測溢出 5.03mm）
+#   ⇒ 關門改用專屬貼圖（原檔往床前緣平移 17mm，**只平移不重畫**＝CIS 鐵則）。
+#   🔴 這裡驗的是**幾何結果**不是檔名：拿 fixture 記的**墨跡凸包頂點**反算世界座標，逐點要求在床形內。
+#         凸包＝精確（可印區為凸多邊形，最糟點必落在凸包頂點上）；抽樣會漏掉真正最糟的點，0811 反向測試實抓過。
+#   CI 沒有 PIL，所以墨跡凸包離線算好放進 `tools/ping/bed_texture_ink_extents.json`，
+#   並用 SHA-256 綁住貼圖檔——換了圖沒重跑產生器就會被擋。
+_ink_fix_path = os.path.join(PINGDIR, "..", "..", "..", "tools", "ping", "bed_texture_ink_extents.json")
+_ink_fix_path = os.path.normpath(os.path.join(_repo, "tools", "ping", "bed_texture_ink_extents.json"))
+_ink_fix = {}
+if os.path.isfile(_ink_fix_path):
+    _ink_fix = json.load(io.open(_ink_fix_path, encoding="utf-8"))
+else:
+    err(f"[床貼圖] 找不到墨跡 fixture {os.path.basename(_ink_fix_path)}（logo 裁切閘門形同虛設）")
+
+def _poly_clearance(_pts, _x, _y):
+    """凸多邊形內側餘裕（mm）；負＝在外面。"""
+    _a2 = 0.0
+    for _i in range(len(_pts)):
+        _p, _q = _pts[_i], _pts[(_i + 1) % len(_pts)]
+        _a2 += _p[0] * _q[1] - _q[0] * _p[1]
+    _sgn = 1.0 if _a2 > 0 else -1.0          # CCW→1，CW→-1
+    _best = None
+    for _i in range(len(_pts)):
+        _p, _q = _pts[_i], _pts[(_i + 1) % len(_pts)]
+        _ex, _ey = _q[0] - _p[0], _q[1] - _p[1]
+        _len = math.hypot(_ex, _ey)
+        if _len < 1e-9:
+            continue
+        _d = _sgn * ((_ex * (_y - _p[1]) - _ey * (_x - _p[0])) / _len)
+        _best = _d if _best is None else min(_best, _d)
+    return _best if _best is not None else -1e9
+
+_tex_checked = 0
+for _mn, (_mk, _md) in sorted(presets.items()):
+    if _mk != "machine_model":
+        continue
+    # 找這個機型底下任一支機台 preset 拿 printable_area（同機型各口徑同形，前面閘門已驗過一致）
+    _own = [_d for _n2, (_k2, _d) in presets.items()
+            if _k2 == "machine" and _n2.startswith(_mn + " ") and isinstance(_d.get("printable_area"), list)]
+    if not _own:
+        continue
+    _pts = []
+    for _p in _own[0]["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 3 or _area_is_symmetric(_pts):
+        continue
+    _tex_checked += 1
+    _tex = _md.get("bed_texture") or ""
+    _fx = _ink_fix.get(_tex)
+    if _fx is None:
+        err(f"[床貼圖] {_mn}: 床形不對稱卻用了沒登錄墨跡極值的貼圖 {_tex!r} ⇒ logo 會被斜邊切掉。"
+            f"跑 tools/ping/make_closeddoor_texture.py 產專屬貼圖並更新 fixture")
+        continue
+    _tp = os.path.join(PINGDIR, _tex)
+    if not os.path.isfile(_tp):
+        err(f"[床貼圖] {_mn}: 貼圖檔不存在 {_tex}")
+        continue
+    _sha = hashlib.sha256(open(_tp, "rb").read()).hexdigest()
+    if _sha != _fx.get("sha256"):
+        err(f"[床貼圖] {_mn}: {_tex} 的 SHA-256 與 fixture 不符（貼圖換過但沒重跑產生器）")
+        continue
+    _bx0 = min(_p[0] for _p in _pts); _bx1 = max(_p[0] for _p in _pts)
+    _by0 = min(_p[1] for _p in _pts); _by1 = max(_p[1] for _p in _pts)
+    _worst, _wpt = None, None
+    for _u, _v in _fx.get("ink_hull_uv", []):
+        _wx = _bx0 + _u * (_bx1 - _bx0)
+        _wy = _by0 + (1.0 - _v) * (_by1 - _by0)
+        _c = _poly_clearance(_pts, _wx, _wy)
+        if _worst is None or _c < _worst:
+            _worst, _wpt = _c, (_wx, _wy)
+    print(f"床貼圖 logo 餘裕：{_mn} {_tex} → "
+          f"{('無取樣點' if _worst is None else '%+.2f mm' % _worst)}（{len(_fx.get('ink_hull_uv', []))} 點）")
+    if _worst is None:
+        err(f"[床貼圖] {_mn}: fixture 沒有墨跡凸包頂點")
+    elif _worst < 0:
+        err(f"[床貼圖] {_mn}: logo 墨跡超出可印範圍 {-_worst:.2f}mm"
+            f"（最糟點 ({_wpt[0]:.1f}, {_wpt[1]:.1f})）⇒ 畫面上會被切掉")
+if _tex_checked == 0:
+    err("[床貼圖] 沒有掃到任何不對稱床形機型（關門應該要在內）⇒ 閘門形同虛設")
 
 # ★ 跨層護欄：`bed_model_offset` 是 profile↔C++ 雙邊契約，任一邊掉了都是「verify 全綠但功能壞」。
 #   ⚠ 一律先 strip_cxx_comments()——0811 實測過：註解掉的那份字串會讓 grep 型護欄假綠。
