@@ -16,6 +16,13 @@ set(ORCA_VERSION_PATCH ${CMAKE_MATCH_3})
 
 set(SLIC3R_VERSION "01.10.01.50")
 
+# PING(2026-08-12 Eric 裁)：廠內測試版版次，顯示在標題列（`PING Slicer V3.6.0 Beta T022`）。
+# 起因＝有人只看圖示點進去、不看檔名，開了 app 分不出是哪一顆 T 版。
+# 🔴 **出貨版必須留空字串**（空＝標題不附加任何測試版標記）——版本治理：出貨版不得帶測試版標記。
+# 流程＝照既有「build 前原子預留 T 號」：預留 → 改這一行 → push → build ⇒ 成品自帶版次、不可能標錯。
+# ⛔ 不用「執行期讀資源檔」的做法：打包後改檔會破壞 digest 鏈（SOP §2 成品 SHA-256 須與官方 digest MATCH）。
+set(PING_TEST_BUILD "T022")
+
 if (NOT DEFINED ORCA_UPDATER_SIG_KEY)
     set(ORCA_UPDATER_SIG_KEY "" CACHE STRING "Base64url encoded updater signature key")
 endif()

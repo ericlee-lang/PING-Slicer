@@ -1303,6 +1303,38 @@ if _classic_below == 0:
 print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）"
       % (_spd_checked, _SPD_FLOOR, _classic_below))
 
+# ★ 跨層護欄：標題列的廠內測試版版次（Eric 2026-08-12 裁「標題列顯示 Beta T0xx」）
+#   鏈路＝`version.inc` 宣告 → `libslic3r_version.h.in` 由 configure_file 代換 → `BBLTopbar::SetTitle` 消費。
+#   三處任一掉了都是**靜默失效**：編得過、跑得動、標題就是不顯示版次，而版次正是拿來辨識
+#   「手上這顆是哪一版」的東西 ⇒ 沒有它，售服與測試回報會對錯版本。
+#   ⚠ 一律先 strip_cxx_comments()（0811 實測過：註解裡的字串會讓 grep 型護欄假綠）。
+#   🔴 needle 必須帶**後續字元**才夠精確：只寫 `set(PING_TEST_BUILD` 的話，把宣告改名成
+#      `set(PING_TEST_BUILD_XX` 仍會命中（子字串）＝改壞了卻是綠的。0812 反向測試實抓。
+_ver_chain = (
+    (("version.inc",), ['set(PING_TEST_BUILD "'], False),
+    (("src", "libslic3r", "libslic3r_version.h.in"), ["@PING_TEST_BUILD@"], False),
+    (("src", "slic3r", "GUI", "BBLTopbar.cpp"),
+     ["(*PING_TEST_BUILD)", '" Beta %s", PING_TEST_BUILD)'], True),
+)
+for _rel, _needles, _strip in _ver_chain:
+    _fp = os.path.join(_repo, *_rel)
+    if not os.path.isfile(_fp):
+        err(f"[標題版次・跨層] 找不到 {os.path.join(*_rel)}")
+        continue
+    _src = io.open(_fp, encoding="utf-8", errors="ignore").read()
+    if _strip:
+        _src = strip_cxx_comments(_src)
+    for _needle in _needles:
+        if _needle not in _src:
+            err(f"[標題版次・跨層] {os.path.join(*_rel)} 少了 {_needle!r} ⇒ "
+                f"標題列不會顯示廠內測試版版次（靜默失效）")
+# 出貨版守則：PING_TEST_BUILD 有值＝這顆是廠內測試版。不在此擋（值本來就會隨 T 號變），
+# 但明示於輸出，讓打包時一眼看到自己在包哪一種。
+_vi = io.open(os.path.join(_repo, "version.inc"), encoding="utf-8", errors="ignore").read()
+_m = re.search(r'set\(PING_TEST_BUILD\s+"([^"]*)"\s*\)', _vi)
+print("標題列版次：PING_TEST_BUILD = %s"
+      % (f"{_m.group(1)!r}（廠內測試版）" if _m and _m.group(1) else "空字串（出貨版，標題不附加）"))
+
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
 #   韌體不認）＝混色靜默失效——與 Tab.cpp 連動表同型的「verify 全綠但功能壞」坑。
