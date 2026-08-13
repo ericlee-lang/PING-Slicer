@@ -54,10 +54,18 @@ const PingClassicModels = new Set([
 let PingProductLine = 'fast';
 let PingSearchKeyword = '';
 
+// PING: 機型名去掉變體字尾＝「系列／基本機型名」。分組與產品線分類共用同一條規則。
+const PING_VARIANT_SUFFIX = /\s*(單料頭|單噴頭|同進|3in1|關門)$/;
+function PingBaseModel(model) { return model.replace(PING_VARIANT_SUFFIX, ''); }
+
 function ProductLineOf(vendor, model) {
 	// 照片磚機獨立一類（Eric 2026-07-19 定：照片磚設為一類、含不同範圍的機器）
 	if (vendor == 'PING' && model.indexOf('照片磚') != -1) return 'phototile';
-	return vendor == 'PING' && PingClassicModels.has(model) ? 'classic' : 'fast';
+	// 🔴 PING 2026-08-13 修：白名單收的是「基本機型名」，必須先去掉變體字尾再比對。
+	//    舊版拿**完整機型名**去 has() ⇒「DUAL 300 同進」「DUAL 300 單料頭」比不到 ⇒ 落到 fast，
+	//    而本體「DUAL 300」在 classic ⇒ 同型號家族被拆到兩個分頁（違 LAY-11，使用者在
+	//    Classic 分頁找不到自己機器的同進版）。四組 DUAL 全中。
+	return vendor == 'PING' && PingClassicModels.has(PingBaseModel(model)) ? 'classic' : 'fast';
 }
 
 function ProductLineTabs(vendor) {
@@ -133,24 +141,19 @@ ProductLineTabs(strVendor)+
 
 		//Collect Html Node Nozzel Html
 		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
-		let strSeries=ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1|關門)$/,'');
+		let strSeries=PingBaseModel(ModelName);
 		if( !ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor]={};
 		if( !ModelHtml[strVendor].hasOwnProperty(strSeries))
 			ModelHtml[strVendor][strSeries]='';
 
-		let NozzleArray=OneModel['nozzle_diameter'].split(';');
-		let HtmlNozzel='';
-		for(let m=0;m<NozzleArray.length;m++)
-		{
-			let nNozzel=NozzleArray[m];
-			HtmlNozzel += '<div class="pNozzel TextS2"><input type="checkbox" model="' + OneModel['model'] + '" nozzel="' + nNozzel + '" vendor="' + strVendor +'" onclick="CheckBoxOnclick(this)" /><span>'+nNozzel+'</span><span class="trans" tid="t13">mm nozzle</span></div>';
-		}
-
+		// PING 2026-08-13：不再逐口徑產 checkbox；口徑清單掛在卡片的 data-nozzles 上，
+		// 卡片被點時一次寫入整組（見 SetCardSelected）。勾選方框放在**型號前面**（Eric 0813 指定）。
 		let CoverImage=OneModel['cover'];
-		ModelHtml[strVendor][strSeries]+='<div class="PrinterBlock" data-product-line="'+ProductLineOf(strVendor, ModelName)+'">'+
+		ModelHtml[strVendor][strSeries]+='<div class="PrinterBlock" data-product-line="'+ProductLineOf(strVendor, ModelName)+'"'+
+' data-vendor="'+strVendor+'" data-model="'+OneModel['model']+'" data-nozzles="'+OneModel['nozzle_diameter']+'" onclick="ChooseModel(this)">'+
 '	<div class="PImg"><img src="'+CoverImage+'"  /></div>'+
-'    <div class="PName">'+OneModel['model']+'</div>'+ HtmlNozzel +'</div>';
+'    <div class="PName"><span class="PSel"></span><span class="PText">'+OneModel['model']+'</span></div></div>';
 	}
 
 	//Update Nozzel Html Append —— PING: 每個系列包成一個 .SeriesRow（獨立一列）
@@ -164,8 +167,7 @@ ProductLineTabs(strVendor)+
 	}
 	
 	
-	//Update Checkbox
-	$('input').prop("checked", false);
+	//Update Checkbox —— PING 2026-08-13：改機型層級（任一口徑被記錄＝整台已選）
 	for(let m=0;m<nTotal;m++)
 	{
 		let OneModel=pModel[m];
@@ -173,22 +175,15 @@ ProductLineTabs(strVendor)+
 		let SelectList=OneModel['nozzle_selected'];
 		if(SelectList!='')
 		{
-			SelectList=OneModel['nozzle_selected'].split(';');
-    		let nLen=SelectList.length;
-
-		    for(let a=0;a<nLen;a++)
+			SelectList=SelectList.split(';');
+			for(let a=0;a<SelectList.length;a++)
 			{
-			    let nNozzel=SelectList[a];
-				$("input[vendor='" + OneModel['vendor'] + "'][model='" + OneModel['model'] + "'][nozzel='" + nNozzel + "']").prop("checked", true);
-
-				SetModelSelect(OneModel['vendor'], OneModel['model'], nNozzel, true);
+				if(SelectList[a]=='') continue;
+				SetModelSelect(OneModel['vendor'], OneModel['model'], SelectList[a], true);
 			}
 		}
-		else
-		{
-			$("input[vendor='"+OneModel['vendor']+"'][model='"+OneModel['model']+"']").prop("checked", false);
-		}
-	}	
+	}
+	SyncAllCards();
 
 	// let AlreadySelect=$("input:checked");
 	// let nSelect=AlreadySelect.length;
@@ -250,21 +245,51 @@ function GetModelSelect(vendor, model, nozzel) {
 	return oVendor[model][nozzel];
 }
 
+// ── PING 2026-08-13（Eric 裁「拿掉口徑勾選、只勾機型」）─────────────────────────
+// 動線改成：整張卡片可點＝選這台機器，該機型**全部口徑**一起啟用；
+// 口徑留到切片時在主畫面左上角的下拉決定（裝機當下使用者還不知道下一個檔要用哪個噴嘴）。
+// ⓘ 底層儲存結構 ModelNozzleSelected[vendor][model][nozzle] **不變**——只是改由卡片一次寫入
+//    整組口徑，所以 OnExitFilter() 的序列化、C++ 端的收訊與 AppConfig 格式全都不必動。
+// ⚠ 必須寫入完整口徑清單（不可留空集合）：AppConfig::save() 對 variant 集合為空的 model
+//    直接 `continue` 不寫出 ⇒ 空集合會讓整台機器從設定檔消失。
+function SetCardSelected(card, on) {
+	let vendor  = card.getAttribute('data-vendor');
+	let model   = card.getAttribute('data-model');
+	let nozzles = (card.getAttribute('data-nozzles') || '').split(';');
+	for (let i = 0; i < nozzles.length; i++) {
+		if (nozzles[i] == '') continue;
+		SetModelSelect(vendor, model, nozzles[i], on);
+	}
+	card.classList.toggle('Selected', on);
+}
+
+function ChooseModel(card) {
+	SetCardSelected(card, !card.classList.contains('Selected'));
+}
+
+// 依 ModelNozzleSelected 回填卡片外觀：**任一口徑被記錄＝整台視為已選**
+// （相容舊 conf：既有使用者只勾過 0.6 的機器，改版後仍顯示為已選。）
+function SyncCardSelected(card) {
+	let vendor  = card.getAttribute('data-vendor');
+	let model   = card.getAttribute('data-model');
+	let nozzles = (card.getAttribute('data-nozzles') || '').split(';');
+	let on = false;
+	for (let i = 0; i < nozzles.length; i++) {
+		if (nozzles[i] != '' && GetModelSelect(vendor, model, nozzles[i])) { on = true; break; }
+	}
+	card.classList.toggle('Selected', on);
+}
+
+function SyncAllCards() {
+	document.querySelectorAll('.PrinterBlock[data-model]').forEach(SyncCardSelected);
+}
+// ────────────────────────────────────────────────────────────────────────────
+
 function FilterModelList(keyword) {
 	PingSearchKeyword = keyword;
 
-	//Save checkbox state
-	let ModelSelect = $('input[type=checkbox]');
-	for (let n = 0; n < ModelSelect.length; n++) {
-		let OneItem = ModelSelect[n];
-
-		let strModel = OneItem.getAttribute("model");
-
-		let strVendor = OneItem.getAttribute("vendor");
-		let strNozzel = OneItem.getAttribute("nozzel");
-
-		SetModelSelect(strVendor, strModel, strNozzel, OneItem.checked);
-	}
+	// PING 2026-08-13：不必再從 DOM 回收勾選狀態——ChooseModel/SetCardSelected 在點擊當下
+	// 就寫進 ModelNozzleSelected，搜尋重建 DOM 不會遺失（重建後靠 SyncAllCards 回填外觀）。
 
 	let nTotal = pModel.length;
 	let ModelHtml = {};
@@ -306,23 +331,18 @@ function FilterModelList(keyword) {
 
 		//Collect Html Node Nozzel Html
 		//PING: 同 HandleModelList，依家族分組(去模式字尾)
-		let strSeries = ModelName.replace(/\s*(單料頭|單噴頭|同進|3in1|關門)$/,'');
+		let strSeries = PingBaseModel(ModelName);
 		if (!ModelHtml.hasOwnProperty(strVendor))
 			ModelHtml[strVendor] = {};
 		if (!ModelHtml[strVendor].hasOwnProperty(strSeries))
 			ModelHtml[strVendor][strSeries] = '';
 
-		let NozzleArray = OneModel['nozzle_diameter'].split(';');
-		let HtmlNozzel = '';
-		for (let m = 0; m < NozzleArray.length; m++) {
-			let nNozzel = NozzleArray[m];
-			HtmlNozzel += '<div class="pNozzel TextS2"><input type="checkbox" model="' + OneModel['model'] + '" nozzel="' + nNozzel + '" vendor="' + strVendor + '" onclick="CheckBoxOnclick(this)" /><span>' + nNozzel + '</span><span class="trans" tid="t13">mm nozzle</span></div>';
-		}
-
+		// PING 2026-08-13：同 HandleModelList——卡片層級勾選，口徑掛 data-nozzles
 		let CoverImage = OneModel['cover'];
-		ModelHtml[strVendor][strSeries] += '<div class="PrinterBlock" data-product-line="' + ProductLineOf(strVendor, ModelName) + '">' +
+		ModelHtml[strVendor][strSeries] += '<div class="PrinterBlock" data-product-line="' + ProductLineOf(strVendor, ModelName) + '"' +
+			' data-vendor="' + strVendor + '" data-model="' + OneModel['model'] + '" data-nozzles="' + OneModel['nozzle_diameter'] + '" onclick="ChooseModel(this)">' +
 			'	<div class="PImg"><img src="' + CoverImage + '"  /></div>' +
-			'    <div class="PName">' + OneModel['model'] + '</div>' + HtmlNozzel + '</div>';
+			'    <div class="PName"><span class="PSel"></span><span class="PText">' + OneModel['model'] + '</span></div></div>';
 	}
 
 	//Update Nozzel Html Append —— PING: 系列分列(.SeriesRow)
@@ -335,19 +355,8 @@ function FilterModelList(keyword) {
 	}
 
 
-	//Update Checkbox
-	ModelSelect = $('input[type=checkbox]');
-	for (let n = 0; n < ModelSelect.length; n++) {
-		let OneItem = ModelSelect[n];
-
-		let strModel = OneItem.getAttribute("model");
-		let strVendor = OneItem.getAttribute("vendor");
-		let strNozzel = OneItem.getAttribute("nozzel");
-
-		let checked = GetModelSelect(strVendor, strModel, strNozzel);
-
-		OneItem.checked = checked;
-	}
+	//Update Checkbox —— PING 2026-08-13：重建 DOM 後依 ModelNozzleSelected 回填卡片外觀
+	SyncAllCards();
 
 	// let AlreadySelect=$("input:checked");
 	// let nSelect=AlreadySelect.length;
@@ -361,23 +370,17 @@ function FilterModelList(keyword) {
 }
 
 // PING: 改用 native querySelectorAll + 直接設值，移除 jQuery 逐元素 $(this) 包裝開銷（加速全選/全部清空）
-function SelectPrinterAll(sVendor) {
-    let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
-    for (let i = 0; i < inputs.length; i++) {
-		if (sVendor == 'PING' && inputs[i].closest('.PrinterBlock').style.display == 'none') continue;
-        inputs[i].checked = true;
-        SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), true);
-    }
+// PING 2026-08-13：改走卡片（口徑 checkbox 已移除）；隱藏的卡片（產品線分頁/搜尋過濾掉的）一律跳過。
+function SetAllCards(sVendor, on) {
+	let cards = document.querySelectorAll(".PrinterBlock[data-vendor='" + sVendor + "']");
+	for (let i = 0; i < cards.length; i++) {
+		if (sVendor == 'PING' && cards[i].style.display == 'none') continue;
+		SetCardSelected(cards[i], on);
+	}
 }
 
-function SelectPrinterNone(sVendor) {
-    let inputs = document.querySelectorAll("input[vendor='" + sVendor + "']");
-    for (let i = 0; i < inputs.length; i++) {
-		if (sVendor == 'PING' && inputs[i].closest('.PrinterBlock').style.display == 'none') continue;
-        inputs[i].checked = false;
-        SetModelSelect(sVendor, inputs[i].getAttribute("model"), inputs[i].getAttribute("nozzel"), false);
-    }
-}
+function SelectPrinterAll(sVendor)  { SetAllCards(sVendor, true);  }
+function SelectPrinterNone(sVendor) { SetAllCards(sVendor, false); }
 
 
 function GotoFilamentPage()
