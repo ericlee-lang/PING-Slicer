@@ -1244,6 +1244,65 @@ for _rel, _needles in (
             err(f"[床盤盤心・跨層] {os.path.join(*_rel)} 少了 {_needle!r} ⇒ "
                 f"profile 宣告了盤心但 C++ 不吃，圓盤照樣歪（靜默失效）")
 
+# ★ 檢查：支撐／支撐面速度下限 60，Classic 前代機除外（Eric 2026-08-12 裁）
+#   規則＝把支撐拉回與外牆同量級（Fast 系外牆 60／內牆 80／稀疏 100，支撐 40 是唯一異類）。
+#   🔴 Classic 前代機**刻意排除**：Marlin 非 Klipper、無 Input Shaper，整張速度表本來就慢
+#      （EDU 200 全表 40；DUAL 450 外牆 40／頂面 40／支撐 25）⇒ 支撐拉到 60 會變成盤上最快的
+#      東西＝內部倒置。**下一棒看到 Classic 是 25/40 不要「順手統一」。**
+#   ⛔ 本規則只動支撐兩鍵：稀疏填充 100／內牆 80 是全庫標準（Eric 0719 親裁），不得順手改。
+_SPD_FLOOR = 60.0
+_CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
+                     "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
+
+def _proc_machine(_name):
+    """製程 preset 名形如「0.3mm 易拆 @EDU 200 (0.6)」；取 @ 後、( 前的機型名。"""
+    _at = _name.rfind("@")
+    if _at < 0:
+        return ""
+    _m = _name[_at + 1:]
+    _p = _m.rfind("(")
+    return (_m[:_p] if _p >= 0 else _m).strip()
+
+_spd_bad, _classic_below, _spd_checked = [], 0, 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process":
+        continue
+    # 排除 fdm_* 範本母檔：它們不是出貨 preset，且實測 214 支葉檔**全部自帶**這兩顆鍵
+    #（含 32 支 Classic）⇒ 母檔的值到不了輸出。post-pass 若遇到葉檔缺鍵會印警告，
+    # 那才是要處理的情況，不是在這裡把母檔一起改（母檔是 Classic 與 Fast 共用的）。
+    if _n.startswith("fdm_"):
+        continue
+    _vals = []
+    for _key in ("support_speed", "support_interface_speed"):
+        try:
+            _vals.append((_key, float(_d[_key])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not _vals:
+        continue
+    _is_classic = any(_proc_machine(_n).startswith(_c) for _c in _CLASSIC_PREFIXES)
+    if _is_classic:
+        if any(_v < _SPD_FLOOR for _key, _v in _vals):
+            _classic_below += 1
+        continue
+    _spd_checked += 1
+    for _key, _v in _vals:
+        if _v < _SPD_FLOOR:
+            _spd_bad.append("%s: %s=%g" % (_n, _key, _v))
+if _spd_checked == 0:
+    err("[支撐速度] 沒有掃到任何非 Classic 製程 ⇒ 閘門形同虛設")
+for _b in _spd_bad[:8]:
+    err(f"[支撐速度] {_b} < {_SPD_FLOOR:g}（Eric 0812 裁：非 Classic 一律 ≥60）")
+if len(_spd_bad) > 8:
+    err(f"[支撐速度] 另有 {len(_spd_bad) - 8} 項未列出")
+# 反向：Classic 若一支都不剩 <60，代表排除規則沒生效或被人「順手統一」了 ⇒ 要有人來看
+if _classic_below == 0:
+    err("[支撐速度・Classic 排除] Classic 前代機已無任何支撐速度 <60 ⇒ "
+        "排除規則失效或被順手統一。Classic 是 Marlin 無 Input Shaper，整表本來就慢，"
+        "支撐拉到 60 會比外牆還快")
+print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）"
+      % (_spd_checked, _SPD_FLOOR, _classic_below))
+
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
 #   韌體不認）＝混色靜默失效——與 Tab.cpp 連動表同型的「verify 全綠但功能壞」坑。
