@@ -107,18 +107,36 @@
 	flex-wrap: wrap;
 }
 
+/* PING 2026-08-13（Eric 裁乙案・中圖）：拿掉每口徑勾選後卡片變矮，同時縮小卡片與封面圖，
+   一屏可見機型 1 台 → 8 台。整張卡片可點＝選該機型（口徑留到切片時選）。 */
 .PrinterBlock
 {
-	width: 160px;
+	width: 112px;          /* PING: 160 → 112（外框 132px，一列仍 4~5 張） */
 	text-align: center;
 	padding: 10px;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	cursor: pointer;       /* HIE-16：可操作性一眼可辨 */
+	transition: border-color .12s, box-shadow .12s, background-color .12s;
+}
+
+.PrinterBlock:hover
+{
+	border-color: #EA4E16;
+	box-shadow: 0 3px 10px rgba(234,78,22,.16);
+}
+
+.PrinterBlock.Selected
+{
+	border-color: #EA4E16;
+	background: #FFF8F5;
 }
 
 .PImg
 {
-	width:120px;      /* ORCA use covers as 120x120px but use source file as 240x240 for better quality on hidpi */
-	height:120px;	  /* ORCA fit image to fill frame */
-	padding:10px 20px /* ORCA use less vertical padding */
+	width:88px;       /* PING: 120 → 88（中圖） */
+	height:88px;	  /* ORCA fit image to fill frame */
+	padding:4px 12px  /* PING: 配合 112px 卡寬（88+12*2=112） */
 }
 
 .ModelCheckBox
@@ -149,19 +167,45 @@ img.ModelThumbnail
 	object-fit: contain;
 }
 
+/* PING 2026-08-13：型號列＝勾選方框 + 型號名（方框放**前面**，Eric 0813 指定） */
 .PName
 {
 	font-weight: 700;
-	text-align:left;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 5px;
+	line-height: 1.25;
+	word-break: break-word;
 }
 
+.PText { text-align: left; }
+
+/* 勾選方框：未選＝空框（讓「這裡可以勾」一眼看得出來）、已選＝綠底打勾 */
+.PSel
+{
+	flex: 0 0 auto;
+	width: 14px;
+	height: 14px;
+	border: 1.5px solid #B8B8B8;
+	border-radius: 3px;
+	background: #fff;
+	color: #fff;
+	font-size: 10px;
+	line-height: 11px;
+	text-align: center;
+	font-weight: 700;
+}
+
+.PrinterBlock:hover .PSel  { border-color: #EA4E16; }
+.PrinterBlock.Selected .PSel { background: #2E9E5B; border-color: #2E9E5B; }
+.PrinterBlock.Selected .PSel::after { content: "\2713"; }
+
+/* PING 2026-08-13：每口徑勾選框已移除（改機型層級）。保留規則當防呆——
+   萬一哪天有人又產出 .pNozzel，也不會破版。 */
 .pNozzel
 {
-	display: flex;	/* PING: 恢復每噴嘴勾選框顯示(新版Orca改用圖上覆蓋勾選故設為none) */
-	align-items: center;
-	justify-content:flex-start;
-	color: #5A5A5A;	
-	padding-left: 0px; /* ORCA Align checkboxes with with model text */
+	display: none;
 }
 
 .pNozzel input
