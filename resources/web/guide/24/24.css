@@ -121,10 +121,14 @@
 {
 	padding: 10px 0px; /* ORCA Reduce horizontal paddings to fit 4 items per row */
 	display: flex;
-	flex-direction: column;   /* PING: 改直向堆疊，每個系列各自一列 */
+	/* PING 2026-08-13（丙案）：一個系列一張卡，卡片自然 wrap
+	   （不再需要「每系列各佔一列」——變體已收進卡內，見 .VarRow） */
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 9px;
 }
 
-.SeriesRow   /* PING: 同系列卡片排在同一列 */
+.SeriesRow   /* PING: 丙案後已不產生此節點；保留規則避免舊快取頁破版 */
 {
 	display: flex;
 	flex-wrap: wrap;
@@ -135,26 +139,42 @@
    ⚠ 本檔與 21.css 必須同步——24＝重跑精靈、21＝首次啟動，只改一份會讓兩入口行為不一致。 */
 .PrinterBlock
 {
-	width: 112px;          /* PING: 160 → 112（外框 132px，一列仍 4~5 張） */
+	width: 96px;           /* PING: 160 → 96（外框 116px，一列約 6 張） */
 	text-align: center;
-	padding: 10px;
-	border: 1px solid transparent;
+	padding: 8px 10px 7px;
+	border: 1px solid #E2E2E2;
 	border-radius: 4px;
+	background: #fff;
+}
+
+/* 系列名（FD300／FF800…）＝卡片標題，不可點；可點的是下面每一列變體 */
+.SeriesName
+{
+	font-weight: 700;
+	font-size: 12.5px;
+	line-height: 1.2;
+	margin: 5px 0 4px;
+	color: #202221;
+	word-break: break-word;
+}
+
+/* 變體列（雙料／同進／關門／單料頭…）＝真正可勾選的單位 */
+.VarRow
+{
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 1px 2px;
+	border-radius: 3px;
 	cursor: pointer;       /* HIE-16：可操作性一眼可辨 */
-	transition: border-color .12s, box-shadow .12s, background-color .12s;
+	font-size: 11.5px;
+	line-height: 18px;
+	color: #5A5A5A;
 }
 
-.PrinterBlock:hover
-{
-	border-color: #EA4E16;
-	box-shadow: 0 3px 10px rgba(234,78,22,.16);
-}
-
-.PrinterBlock.Selected
-{
-	border-color: #EA4E16;
-	background: #FFF8F5;
-}
+.VarRow:hover           { background: #FDF2EE; }
+.VarRow.Selected        { font-weight: 700; color: #202221; }
+.VarName                { text-align: left; word-break: break-word; }
 
 .PImg
 {
@@ -222,9 +242,11 @@ img.ModelThumbnail
 	font-weight: 700;
 }
 
-.PrinterBlock:hover .PSel  { border-color: #EA4E16; }
-.PrinterBlock.Selected .PSel { background: #2E9E5B; border-color: #2E9E5B; }
-.PrinterBlock.Selected .PSel::after { content: "\2713"; }
+/* 🔴 丙案後「已選」狀態掛在 .VarRow（每台機器一列），不再是整張 .PrinterBlock（一個系列）。
+   選擇器沒跟著改的話方框永遠不會變綠＝功能靜默失效。 */
+.VarRow:hover .PSel  { border-color: #EA4E16; }
+.VarRow.Selected .PSel { background: #2E9E5B; border-color: #2E9E5B; }
+.VarRow.Selected .PSel::after { content: "\2713"; }
 
 /* PING 2026-08-13：每口徑勾選框已移除（改機型層級）。保留規則當防呆——
    萬一哪天有人又產出 .pNozzel，也不會破版。 */
