@@ -79,5 +79,11 @@
     ],
     "pressure_advance": [
         "0.08"
+    ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
     ]
 }

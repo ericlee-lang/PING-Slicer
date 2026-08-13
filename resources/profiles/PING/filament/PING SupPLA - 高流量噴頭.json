@@ -81,6 +81,9 @@
     "pressure_advance": [
         "0.2"
     ],
+    "filament_soluble": [
+        "0"
+    ],
     "filament_retraction_speed": [
         "30"
     ],

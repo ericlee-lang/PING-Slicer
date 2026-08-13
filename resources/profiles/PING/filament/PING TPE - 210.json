@@ -79,5 +79,11 @@
     ],
     "overhang_fan_threshold": [
         "25%"
+    ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
     ]
 }

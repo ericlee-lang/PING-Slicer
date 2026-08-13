@@ -507,6 +507,16 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            # 🆕 G1（Eric 2026-08-13 裁・連動規格批1）：配料屬性必須**顯式**帶兩鍵。
+            # 為什麼：「選材料→製程自動收斂」的家族軸讀 filament_is_support／filament_soluble
+            #   （有支撐材⇒易拆；水溶⇒易拆水溶）。缺鍵時引擎吃 C++ 預設 false／繼承鏈的 0，
+            #   **行為看起來正常但護欄驗不到**——屬「缺鍵型靜默」，正是 G2 與 C++ 端要依賴的地基。
+            # ⚠ 這裡讀的是**未解 inherits 的原始檔內容**（presets 的建法），所以「顯式」在此可驗。
+            # ⚠ 不排除 Classic（家族軸全機種適用；兩鍵是切片語意、非 Klipper 指令，不觸 Marlin 隔離）。
+            # 產生器對應：embed_params.py 4b-2g post-pass（缺鍵補 ["0"]、已有顯式值不動）。
+            for _ak in ("filament_is_support", "filament_soluble"):
+                if d.get(_ak) not in (["0"], ["1"]):
+                    err(f"[配料屬性須顯式 0813] {name}: {_ak}={d.get(_ak)!r}, expected ['0'] 或 ['1']")
             # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
             # ⚠ 0725 補上（Eric 裁「verify 也補」）：本條主線早有、出貨線一直缺＝值兩線一致
             #    但少一道護欄。**刻意放在 Classic 排除區塊之外**——Eric 2026-07-25 裁
@@ -1025,6 +1035,64 @@ else:
             if _got < _need:
                 err(f"[跨層護欄・C-12 renamed 回溯] PresetBundle.cpp {_pat!r} 出現 {_got} 次"
                     f"（應 ≥{_need}＝load_selections＋update_selections 各一）")
+
+# 🆕 G2（Eric 2026-08-13 裁・連動規格批1）：C++ 連動表的配料 ↔ profile 屬性「語意一致」
+# 為什麼：`Tab.cpp` 的 COMBO_FILAMENTS 是「類別預設配料」**捷徑表**（手選製程時自動帶哪兩支），
+#   而新連動改用**材料屬性**（filament_is_support／filament_soluble）反推家族。兩者若對不上——
+#   例如有人把 SupPLA 的 is_support 改成 0——就會出現「手選易拆製程配好料、屬性卻判成一般家族」
+#   的分裂：下拉過濾與自動收斂全錯，而且**兩邊單獨看都正常**，只有交叉比對抓得到。
+# ⚠ 刻意掛在**模組層**，不放進上面 Tab.cpp 存在性的 `else:` 區——G2 驗的是「baseline 常數 ↔ profile
+#   屬性」，不該因為找不到 Tab.cpp 就整條靜默失效（本檔多處「護欄形同虛設」教訓）。
+# ⚠ 依賴 G1：presets 不解 inherits ⇒ 屬性必須是顯式值（embed 4b-2g 補完才成立）。
+def _fil_attr(_name):
+    """回傳 (filament_is_support, filament_soluble) 的**顯式**值；非線材或不存在回 None。"""
+    _e = presets.get(_name)
+    if not _e or _e[0] != "filament":
+        return None
+    return (_e[1].get("filament_is_support"), _e[1].get("filament_soluble"))
+
+_g2_checked = 0
+for _mapname, _map in (("COMBO_FILAMENTS", EXPECTED_COMBO_MAP),
+                       ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
+    for _cat, (_s1, _s2) in _map.items():
+        for _slot, _fil in (("槽1", _s1), ("槽2", _s2)):
+            _at = _fil_attr(_fil)
+            if _at is None:
+                err(f"[G2・配料屬性] {_mapname} {_cat} {_slot}：{_fil!r} 不在 bundle 或非線材")
+                continue
+            _g2_checked += 1
+            _is_sup, _sol = _at
+            if _slot == "槽1":
+                # 槽1＝本體材料，恆非支撐、非水溶（否則筏層軸的「本體全 ABS」判定會算進支撐槽）
+                if _is_sup != ["0"] or _sol != ["0"]:
+                    err(f"[G2・本體槽屬性] {_mapname} {_cat} 槽1 {_fil}: "
+                        f"is_support={_is_sup!r} soluble={_sol!r}, expected ['0']／['0']")
+            else:
+                # 槽2＝三 token 皆為支撐材；否則家族軸推不出「易拆」
+                if _is_sup != ["1"]:
+                    err(f"[G2・支撐槽屬性] {_mapname} {_cat} 槽2 {_fil}: "
+                        f"is_support={_is_sup!r}, expected ['1']（否則家族軸判不出易拆）")
+                # 水溶有且只有「易拆水溶」那一類（PVA）
+                _want_sol = ["1"] if _cat == COMBO_CAT_PVA else ["0"]
+                if _sol != _want_sol:
+                    err(f"[G2・水溶語意] {_mapname} {_cat} 槽2 {_fil}: "
+                        f"soluble={_sol!r}, expected {_want_sol!r}")
+# 一般雙料（無 token）：兩槽皆本體材料。順手把 EXPECTED_PLAIN_DUAL(_HF) 接起來
+# ——這兩個常數自定義以來全檔沒有任何地方用到（0813 實查），等於一直缺這道護欄。
+for _dname, _dpair in (("PLAIN_DUAL", EXPECTED_PLAIN_DUAL),
+                       ("PLAIN_DUAL_HF", EXPECTED_PLAIN_DUAL_HF)):
+    for _fil in _dpair:
+        _at = _fil_attr(_fil)
+        if _at is None:
+            err(f"[G2・配料屬性] {_dname}：{_fil!r} 不在 bundle 或非線材")
+            continue
+        _g2_checked += 1
+        if _at[0] != ["0"] or _at[1] != ["0"]:
+            err(f"[G2・一般雙料屬性] {_dname} {_fil}: "
+                f"is_support={_at[0]!r} soluble={_at[1]!r}, expected ['0']／['0']")
+# 防空轉（同本檔既有範式）：掃到 0 筆＝常數或 presets 建法有變，護欄形同虛設
+if _g2_checked == 0:
+    err("[G2・防空轉] 配料屬性一條都沒驗到 ⇒ baseline 常數或 presets 建法有變，護欄形同虛設")
 
 # ★ 功能歸類普查（0730 改名批）：五 token × 18 支 exact；舊材料對名歸零
 _combo_census = {}

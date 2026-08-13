@@ -63,5 +63,8 @@
     "pressure_advance": [
         "0"
     ],
+    "filament_soluble": [
+        "0"
+    ],
     "alias": "PING SupPLA - Classic"
 }

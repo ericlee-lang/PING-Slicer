@@ -218,8 +218,52 @@ def rename_ff_filament_refs(d):
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
-    # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
-    return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
+    """FF **本體四料機**的機台槽位預設（default_filament_profile）。
+    口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼。
+    🆕 **Eric 2026-08-13 裁：本體四料機四個槽全部是 PLA**——四色是各噴頭「各自獨立印」，
+       四個槽都是本體材料，不該預裝支撐材；第四噴頭放支撐材的是 **3in1**
+       （前三同動印 body＋第四印 SUP；軟體裡收成 2 槽，第 2 槽即是），同進則是單槽。
+    ⚠ 本裁定**推翻**我方原本「FF800 0.4 是漏改」的推定——它才是唯一照規則做的那支
+       （它走 ff_extra 範本、不經本函式），要改的是本函式產的 FF600×3＋FF800 0.6/1.0 共 5 支。
+       ⛔ **參數不一致時不要用「多數決」判對錯**——教訓見 `SOP_preset連動與下拉過濾.md` §10。"""
+    return [FF_FIL_ALIAS["PLA"]]*4
+def _backfill_filament_attrs(_tag):
+    """★ 配料屬性顯式化（Eric 2026-08-13 裁・「選材料→製程自動收斂」批1）
+
+    為什麼：家族軸判定讀 `filament_is_support`／`filament_soluble`（有支撐材⇒易拆；水溶⇒易拆水溶）。
+      施工前 28 支 instantiated 中 **12 支缺 is_support、19 支缺 soluble**，靠 C++ 預設 false 與
+      `fdm_filament_common` 繼承在運作 ⇒ **引擎行為是對的，但護欄與跨層檢查驗不到**（缺鍵型靜默）。
+      寫成顯式值，verify 的 G1／G2 才有東西可驗，C++ 端也不必靠繼承鏈猜。
+
+    做法：缺鍵者補 ["0"]；**已有顯式值一律不動**（PVA 的 1/1、Sup* 系的 is_support=1 全數保留）。
+    ⚠ **不排除 Classic**：家族軸全機種適用，且這兩鍵是切片語意、不是 Klipper 指令
+      （不觸 Marlin 隔離護欄——與 4b-2／4b-2b／4b-2c 排除 Classic 的理由不同，別照抄那兩行）。
+    ⚠ 一律用 `fd[key] = [...]` 直接賦值，**不要重建 dict**——重排鍵序會產生全庫無關 diff。
+    ⓘ 基底檔（`fdm_filament_*`，instantiation=false）天然不在 PING*.json glob 內，另加閘門雙保險。
+    ⓘ 本函式**在 main() 內被呼叫兩次**（4a-0b 衍生前／4b-2g 衍生後），理由見 4a-0b 註解。
+    """
+    tot = n_is = n_sol = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        tot += 1
+        touched = False
+        if fd.get("filament_is_support") is None:
+            fd["filament_is_support"] = ["0"]; n_is += 1; touched = True
+        if fd.get("filament_soluble") is None:
+            fd["filament_soluble"] = ["0"]; n_sol += 1; touched = True
+        if touched:
+            jdump(fp_path, fd)
+    # 無條件印（同 4b-7）：每次 regen 都留下對帳數字，G1 的 28 支基準看 log 就知道
+    print("  配料屬性顯式化 %s：instantiated %d 支｜補 is_support %d 支／補 soluble %d 支"
+          % (_tag, tot, n_is, n_sol))
+def seed_materials_ff(nz):
+    """FF 機型 `default_materials`（可勾線材清單）的**種子值**——與上面的「槽位預設」是兩件事。
+    刻意保留 SupPLA：使用者仍要選得到支撐料，且維持它排在 PLA 之後的既有顯示順序。
+    ⚠ 0813 裁定只動「槽位預設」、沒動可勾清單 ⇒ 不順手改 UI 顯示順序（否則支撐料會依
+      filament_list 序被推到第 9 位——`apply_default_materials()` 的 keep 保序邏輯所致）。"""
+    return [FF_FIL_ALIAS["PLA"], FF_FIL_ALIAS["SupPLA"]]
 # ⓘ 2026-08-07 起本常數只是「種子值」——最終 default_materials 由 4d-2 的
 #   apply_default_materials() post-pass 全族重算（Eric 0807 裁）。死名 PING ABS - 250／
 #   PING PolyABS（0725 ABS 整併已移除）在此一併清掉，post-pass 也會再擋一次。
@@ -1449,6 +1493,16 @@ def main(src_base):
         os.remove(_oldp)
         print("  基礎支改名：%s → %s（renamed_from 字串相容、id 不動）" % (BASE_PLA_OLD, BASE_PLA_NEW))
 
+    # 4a-0b. ★ 配料屬性顯式化【第一趟：衍生之前】（Eric 2026-08-13 裁・連動規格批1）
+    # 🔴 **為什麼要跑兩趟**（0813 冪等測試實抓）：Classic 線材（`_classic_filament`）與高流量三支
+    #   （4b-1b）都是**從磁碟上的母檔複製**再改——程式碼註解自己就標了「非冪等來源」。
+    #   若只在衍生之後補鍵：第一輪母檔無鍵 ⇒ 衍生支也無鍵 ⇒ 補在檔尾（`alias` 之後）；
+    #   第二輪母檔已帶鍵 ⇒ 衍生支繼承到母檔的位置 ⇒ **同樣內容、鍵序不同** ⇒ 每次 regen 都churn。
+    #   先在這裡讓**靜態母檔**帶鍵，衍生支就穩定繼承同一位置；第二趟（4b-2g）再收新建的支。
+    #   ⚠ 這是既有的非冪等來源被本批暴露出來，不是本批引入的——修法選「補鍵跑兩趟」而不是
+    #     「叫衍生產生器各自 pop」，理由同 4b-6 註解：規則放單一點，日後新增衍生路徑自動涵蓋。
+    _backfill_filament_attrs("4a-0b（衍生前）")
+
     gm = gp = 0
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
@@ -1564,7 +1618,7 @@ def main(src_base):
                   "bed_model":bed_for(model),
                   "bed_texture":BED_OVERRIDE.get(model,{}).get("bed_texture",BED_TEXTURE),"hotend_model":"",
                   # FF：口徑合一後各口徑同指合併支 → 去重（921921c8 手工清 2 項的 regen-durable 版）
-                  "default_materials": (_dedup_semilist(";".join(def_fil_ff(nzs[0]) + def_fil_ff(nzs[-1])))
+                  "default_materials": (_dedup_semilist(";".join(seed_materials_ff(nzs[0]) + seed_materials_ff(nzs[-1])))
                                         if kind=="ff" else DEFAULT_MATERIALS_FD)}
             jdump(os.path.join(PINGDIR,"machine","%s.json"%model), mm)
             mm_list.append({"name":model,"sub_path":"machine/%s.json"%model})
@@ -1920,6 +1974,10 @@ def main(src_base):
             jdump(fp_path, fd); ck_fixed += 1
     if ck_fixed:
         print("  線材顏色 key 正規化（複數→單數）：%d 支" % ck_fixed)
+
+    # 4b-2g. ★ 配料屬性顯式化【第二趟：衍生之後】——收 4b-1c TPE 等「新建時未帶鍵」的支。
+    # 規則本體見 `_backfill_filament_attrs()`；兩趟的理由見 4a-0b 註解。
+    _backfill_filament_attrs("4b-2g（衍生後）")
 
     # 4b-3. ★ 洗料塔最小清理量（Eric 2026-07-17 裁）：全線材 30；SupPLA 系（含高流量噴頭/Classic）60；
     # FF「四料高流量噴頭」/「(3in1)」維持特調 120 不動（四色換色需大量清洗，Eric 同日裁「不蓋」）。

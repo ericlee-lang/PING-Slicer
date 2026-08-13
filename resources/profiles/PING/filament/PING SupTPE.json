@@ -84,5 +84,8 @@
     ],
     "default_filament_colour": [
         "#D3D3D3"
+    ],
+    "filament_soluble": [
+        "0"
     ]
 }

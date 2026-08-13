@@ -54,6 +54,12 @@
     "default_filament_colour": [
         "#EA4E16"
     ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
     "alias": "PING PA-CF - Classic",
     "enable_pressure_advance": [
         "0"
