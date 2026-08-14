@@ -70,6 +70,10 @@ struct PingFamily {
     bool operator==(const PingFamily &o) const { return fam == o.fam && raft == o.raft; }
     bool operator!=(const PingFamily &o) const { return !(*this == o); }
 };
+// PING(2026-08-14 批3 R5-2)：切機/切口徑擴槽後，只把「本次新長出的槽」填成該機的
+// default_filament_profile[idx]（3in1 切口徑 carry-over 的治本修法）。舊槽一律不動
+// ——不蓋使用者/專案已做的選擇（0612 裁決精神）。
+void       ping_backfill_new_slots(size_t old_count);
 PingFamily ping_derive_family();                                   // 讀執行期 bundle，不讀 repo JSON
 PingFamily ping_classify_process(const std::string &process_name); // 未知 token 一律視為（一般,否）
 void       ping_converge_process();                                // 材料→製程收斂＋下拉重繪
@@ -353,7 +357,11 @@ public:
     void		update_btns_enabling();
     void		update_preset_choice();
     // Select a new preset, possibly delete the current one.
-    bool select_preset(std::string preset_name = "", bool delete_current = false, const std::string &last_selected_ph_printer_name = "", bool force_select = false, bool force_no_transfer = false);
+    // PING(2026-08-14 批3 R5-1)：尾加 user_initiated——**預設 false ⇒ 既有呼叫點行為零改變**。
+    // 只有「使用者手勢」的呼叫點才傳 true（Tab combo／側欄印表機下拉／口徑下拉），供趟尾判斷
+    // 該不該做材料→製程收斂。開 app 載入走 load_current_preset()、根本不經過本函式 ⇒ 永遠 false
+    // ＝刻意不收斂（R5-4：載入路徑不主動改使用者/專案已留下的選擇）。
+    bool select_preset(std::string preset_name = "", bool delete_current = false, const std::string &last_selected_ph_printer_name = "", bool force_select = false, bool force_no_transfer = false, bool user_initiated = false);
 	bool		may_discard_current_dirty_preset(PresetCollection* presets = nullptr, const std::string& new_printer_name = "", bool no_transfer = false, bool no_transfer_variant = false);
 
     virtual void    clear_pages();

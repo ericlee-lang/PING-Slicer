@@ -388,6 +388,28 @@ PingFamily ping_derive_family()
     return r;
 }
 
+// PING(2026-08-14 批3 R5-2)：擴槽後把「本次新長出的槽」填成該機的 default_filament_profile[idx]。
+// **這是 3in1 切口徑 carry-over 的治本修法**：擴槽走 filament_presets.resize(n, back())＝複製第 1 槽，
+// 而上游原本會逐槽套 default_filament_profile 的校驗碼在 BBS fork 被 `#if 0` 關掉
+//（PresetBundle.cpp:4339-4350）⇒ 新槽一直是「第 1 槽的複製」而不是「機台預設的那支」。
+// ⚠ 只動新槽，**舊槽一律不動**——不蓋使用者／專案已做的選擇（0612 裁決精神）。
+// ⚠ 目標 preset 不存在／不可見／不相容 ⇒ 維持 back() 複製（fail-open，不製造更壞的狀態）。
+void ping_backfill_new_slots(size_t old_count)
+{
+    PresetBundle *bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr) return;
+    const auto *def_fil = bundle->printers.get_edited_preset().config.option<ConfigOptionStrings>("default_filament_profile");
+    if (def_fil == nullptr) return;
+    for (size_t i = old_count; i < bundle->filament_presets.size(); ++i) {
+        if (i >= def_fil->values.size()) break;          // 該機沒有這一槽的預設＝維持複製
+        const std::string &want = def_fil->values[i];
+        if (want.empty()) continue;
+        const Preset *p = bundle->filaments.find_preset(want, false);
+        if (p == nullptr || !p->is_visible || !p->is_compatible) continue;
+        bundle->set_filament_preset(i, want);
+    }
+}
+
 // PING(2026-08-14 批2 R3)：材料 → 製程自動收斂（冪等：重複呼叫結果相同）。
 // 三道安全閥：①fail-open（沒有任何符合的系統製程就整批不動）②非系統支不動（使用者自存／
 // 專案內嵌是他的資產）③dirty 照走既有對話框（Eric 0813 裁5＝b，⛔ 不得用 force_select 繞過）。
@@ -521,7 +543,10 @@ void Tab::create_preset_tab()
                 preset_name = Preset::remove_suffix_modified(preset_name);
                 // PING(2026-06-12)：製程 combo 顯示 alias → 先解析回真名（找不到原樣回傳，全名相容）
                 preset_name = m_presets->get_preset_name_by_alias(preset_name);
-                select_preset(preset_name);
+                // PING(2026-08-14 批3 R5-1)：Tab 分頁的 preset combo＝使用者手勢，
+                // 最後一個參數 user_initiated 傳 true（印表機分頁走這條時，趟尾才會做切機收斂；
+                // 其餘分頁傳了也不會做事，見 Tab::select_preset 趟尾條件）。
+                select_preset(preset_name, false, "", false, false, true);
                 // PING(2026-06-12)：組合製程連動線材（select_preset 成功落地才觸發）
                 if (m_type == Preset::TYPE_PRINT && m_presets->get_selected_preset().name == preset_name)
                     ping_apply_combo_filaments(preset_name);
@@ -5988,7 +6013,8 @@ void Tab::update_preset_choice()
 // Select a preset by a name.If !defined(name), then the default preset is selected.
 // If the current profile is modified, user is asked to save the changes.
 bool Tab::select_preset(
-    std::string preset_name, bool delete_current /*=false*/, const std::string &last_selected_ph_printer_name /* =""*/, bool force_select, bool force_no_transfer)
+    std::string preset_name, bool delete_current /*=false*/, const std::string &last_selected_ph_printer_name /* =""*/, bool force_select, bool force_no_transfer,
+    bool user_initiated /*=false*/)
 {
     BOOST_LOG_TRIVIAL(info) << boost::format("select preset, name %1%, delete_current %2%")
         %preset_name %delete_current;
@@ -6261,7 +6287,14 @@ bool Tab::select_preset(
             const auto *def_fil = m_presets->get_edited_preset().config.option<ConfigOptionStrings>("default_filament_profile");
             const size_t n_def  = def_fil ? def_fil->values.size() : 0;
             if (n_def >= 1 && m_preset_bundle->filament_presets.size() != n_def) {
+                const size_t old_n = m_preset_bundle->filament_presets.size();
                 m_preset_bundle->set_num_filaments((unsigned int) n_def);
+                // PING(2026-08-14 批3 R5-2／R5-3)：補槽 default 填充。
+                // 🔴 **順序釘死**：必須在趟尾收斂「之前」跑。若收斂先跑，切到 FD 雙料且無快照時，
+                //    收斂當下 slot2 還是 slot1 的複製（PLA）⇒ 判「一般」⇒ 收斂到一般製程，接著補槽
+                //    才把 slot2 填成 SupPLA ⇒ 家族變易拆、製程停在一般＝本案要根治的症狀原地復發。
+                //    ⚠ 兩段都能合法插在這個錨點，裝反 code review 看不出來（兩種寫法都「看起來對」）。
+                ping_backfill_new_slots(old_n);
                 wxGetApp().plater()->sidebar().on_filament_count_change(n_def);
             }
         }
@@ -6302,6 +6335,16 @@ bool Tab::select_preset(
 
     if (technology_changed)
         wxGetApp().mainframe->technology_changed();
+
+    // PING(2026-08-14 批3 R5-1／R5-3)：切機台／切口徑之後的材料→製程收斂（裁2＝a 材料贏）。
+    // 🔴 **順序釘死**：這裡是本趟**最後一個動 preset 狀態的步驟**，且必須在 load_current_preset()
+    //    之後——不是原訂的槽數同步後。理由＝避免在 printer 趟的中段巢狀呼叫 print tab 的
+    //    select_preset（repo 內無此先例可證安全），且此時補槽已完成、家族推導才讀得到正確的槽。
+    // ⚠ canceled ＝使用者在「未儲存變更」對話框按了取消 ⇒ 這趟根本沒換成，不該收斂。
+    // ⚠ 側欄印表機下拉那條路會呼叫本函式兩次 ⇒ 收斂必須冪等（R3-1 已保證：已一致就只重繪）。
+    if (user_initiated && m_type == Preset::TYPE_PRINTER && !canceled)
+        ping_converge_process();
+
     BOOST_LOG_TRIVIAL(info) << boost::format("select preset, exit");
 
     return !canceled;

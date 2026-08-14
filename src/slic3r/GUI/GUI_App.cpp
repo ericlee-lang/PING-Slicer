@@ -7451,6 +7451,13 @@ void GUI_App::load_current_presets(bool active_preset_combox/*= false*/, bool ch
             preset_bundle->set_num_filaments((unsigned int) def_fil->values.size());
         }
     }
+    // PING(2026-08-14 批3 R5-2)：擴槽的新槽填該機 default_filament_profile（治本 back-fill）。
+    // 與 Tab::select_preset 那處**共用同一支函式、同一條規則**（規格點名的兩個槽數同步點之一）；
+    // 這裡涵蓋精靈選機頁收尾與啟動載入路徑。只填新槽、舊槽一律不動。
+    // ⚠ 這裡**刻意不做製程收斂**——R5-4：開 app 載入不主動改使用者/專案已留下的選擇，
+    //   舊的不一致快照等他第一次材料或切機手勢時由 R3／R5-1 自然收斂。
+    if (preset_bundle->filament_presets.size() > old_filament_count)
+        ping_backfill_new_slots(old_filament_count);
     // PING(2026-07-23)：槽數有變就重建側欄槽位 UI。選機頁（精靈）路徑收尾走的是本函式，
     // 先前只同步 bundle 沒重建 UI → 切到 FP300 畫面仍留上一台的 2 槽（殘影槽操作全被
     // 越界守衛擋掉、看似全無反應）；左上機器下拉路徑（Tab::select_preset）本就有重建，

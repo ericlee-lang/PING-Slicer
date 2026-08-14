@@ -1036,6 +1036,23 @@ else:
             ("if (!cur.is_system) { redraw(); return; }",         "R3-3 非系統支永不被自動換走"),
             ("if (allowed.empty()) { redraw(); return; }",        "R2-2 fail-open（FF 四料／3in1／Classic 零迴歸靠它）"),
             ("s_ping_converge_guard = true;",                     "防迴圈保險絲置位"),
+            # 🆕 批3
+            ("void ping_backfill_new_slots(size_t old_count)",    "R5-2 擴槽 back-fill 本體（3in1 carry-over 治本）"),
+            ("ping_backfill_new_slots(old_n);",                   "R5-2 掛在 PING 槽數同步之後"),
+            ("if (user_initiated && m_type == Preset::TYPE_PRINTER && !canceled)",
+                                                                  "R5-1 趟尾收斂（含 canceled 守衛）"),
+            ("select_preset(preset_name, false, \"\", false, false, true)",
+                                                                  "R5-1 Tab combo 使用者手勢呼叫點"),
+        ]),
+        # ⚠ needle 必須是**純程式碼**：G3 是先 strip_cxx_comments 再比對，
+        #   帶註解的 needle（如 `/*user_initiated*/ true`）永遠找不到（本護欄第一版實錯）。
+        ("src/slic3r/GUI/Tab.hpp", [
+            ("bool user_initiated = false);",                     "R5-1 來源參數宣告（預設 false＝既有呼叫點零改變）"),
+            ("void       ping_backfill_new_slots(size_t old_count);",
+                                                                  "R5-2 back-fill 對外宣告（兩個槽數同步點共用）"),
+        ]),
+        ("src/slic3r/GUI/GUI_App.cpp", [
+            ("ping_backfill_new_slots(old_filament_count);",      "R5-2 第二個槽數同步點（精靈選機頁/啟動載入）"),
         ]),
         ("src/slic3r/GUI/PresetComboBoxes.cpp", [
             ("ping_derived = ping_derive_family();",              "R2 下拉過濾取推導家族"),
@@ -1044,6 +1061,10 @@ else:
         ]),
         ("src/slic3r/GUI/Plater.cpp", [
             ("ping_converge_process();",                          "R3 掛在 on_select_preset（側欄換料主路徑）"),
+            ("select_preset(preset_name, false, \"\", false, false, true)",
+                                                                  "R5-1 側欄印表機下拉＝使用者手勢"),
+            ("select_preset(preset->name, false, \"\", false, false, true)",
+                                                                  "R5-1 口徑下拉＝使用者手勢（切口徑那條連動的接入點）"),
         ]),
     ]
     _g3_src = {}
@@ -1061,10 +1082,15 @@ else:
     #   （strip_cxx_comments 只剝註解、不剝字串）⇒ 拿掉呼叫後仍有 2 個而假綠（本護欄第一版實錯，
     #   反向測試當場抓到）。定義 `void ping_converge_process()` 與呼叫 `ping_converge_process();`
     #   都帶括號，log 裡的 `"ping_converge_process: ..."` 不帶 ⇒ 恰好只數到真正的程式碼。
+    # ⚠ 門檻要隨掛點數量一起長：批2 是「定義＋線材分頁掛點」＝2；批3 又加了「切機趟尾」＝3。
+    #   忘了同步調高＝拿掉一個掛點仍達標而假綠（批3 反向測試當場抓到）。取 ≥3 且用最小值語意，
+    #   日後新增掛點不會誤紅，但少任何一個現有掛點就會紅。
+    _PING_CONVERGE_MIN = 3   # 定義 ＋ 線材分頁掛點（批2）＋ 切機趟尾（批3）
     _t3 = _g3_src.get("src/slic3r/GUI/Tab.cpp", "")
-    if _t3 and _t3.count("ping_converge_process(") < 2:
+    if _t3 and _t3.count("ping_converge_process(") < _PING_CONVERGE_MIN:
         err("[跨層護欄・G3-a] Tab.cpp 的 ping_converge_process( 只出現 "
-            f"{_t3.count('ping_converge_process(')} 次（應 ≥2＝定義＋線材分頁掛點）")
+            f"{_t3.count('ping_converge_process(')} 次（應 ≥{_PING_CONVERGE_MIN}"
+            "＝定義＋線材分頁掛點＋切機趟尾）")
     # G3-b（Eric 0813 裁5＝b）：dirty 時照走既有「未儲存變更」對話框，
     #      ⛔ 不得用 force_select 繞過——那是無提示直接丟棄使用者的修改，比彈窗更糟。
     if _t3:
@@ -1077,6 +1103,22 @@ else:
             if "force_select" in _body:
                 err("[跨層護欄・G3-b 裁5＝b] ping_converge_process 本體出現 force_select"
                     "＝繞過未儲存變更對話框（Eric 0813 明禁：那是無提示丟棄使用者的修改）")
+    # 🆕 G3-d（批3 R5-3・順序釘死）：補槽 → load_current_preset() → 趟尾收斂。
+    # 🔴 這條是本批**最重要**的護欄：兩段修復都能合法插在同一個錨點，**裝反就等於沒修**，
+    #    而且 code review 看不出來（兩種寫法都「看起來對」）⇒ 只能靠護欄釘死。
+    #    收斂若先跑：切到 FD 雙料且無快照時，slot2 當下還是 slot1 的複製（PLA）⇒ 判「一般」⇒
+    #    收斂到一般製程，接著補槽才把 slot2 填成 SupPLA ⇒ 家族變易拆、製程停在一般＝症狀原地復發。
+    if _t3:
+        _i_fill = _t3.find("ping_backfill_new_slots(old_n);")
+        _i_load = _t3.find("load_current_preset();", _i_fill) if _i_fill >= 0 else -1
+        _i_conv = _t3.find("if (user_initiated && m_type == Preset::TYPE_PRINTER && !canceled)")
+        if _i_fill < 0 or _i_load < 0 or _i_conv < 0:
+            err("[跨層護欄・G3-d 批3 R5-3] 補槽／load_current_preset／趟尾收斂 三個錨點抓不齊"
+                f"（fill={_i_fill} load={_i_load} conv={_i_conv}）⇒ 順序護欄形同虛設")
+        elif not (_i_fill < _i_load < _i_conv):
+            err("[跨層護欄・G3-d 批3 R5-3] **順序錯了**：必須是 補槽 → load_current_preset → 趟尾收斂"
+                f"（實際位移 fill={_i_fill} load={_i_load} conv={_i_conv}）"
+                "；收斂先跑＝3in1/FD 雙料的家族判定會讀到還沒補的槽，症狀原地復發")
     # G3-c（Eric 0813 裁4）：#39 筏層建議對話框已退役，不得復活（自動收斂已涵蓋＝復活就是重複打擾）。
     _p3 = _g3_src.get("src/slic3r/GUI/PresetComboBoxes.cpp", "")
     if _p3 and "ping_suggest_pallet_for_abs" in _p3:

@@ -1261,7 +1261,9 @@ bool Sidebar::priv::switch_diameter(bool single)
         return false;
     }
     preset->is_visible = true; // force visible
-    return wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(preset->name);
+    // PING(2026-08-14 批3 R5-1)：口徑下拉＝使用者手勢，最後一個參數 user_initiated 傳 true。
+    // 切口徑與切機器殊途同歸 select_preset(printer) ⇒ 這一個參數就同時接上了「口徑那條連動」。
+    return wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(preset->name, false, "", false, false, true);
 }
 
 bool Sidebar::priv::sync_extruder_list(bool &only_external_material)
@@ -9387,7 +9389,10 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
 
             update_objects_position_when_select_preset([this, &preset_type, &preset_name]() {
                 wxWindowUpdateLocker noUpdates2(sidebar->filament_panel());
-                wxGetApp().get_tab(preset_type)->select_preset(preset_name);
+                // PING(2026-08-14 批3 R5-1)：側欄印表機下拉＝使用者手勢，末參數 user_initiated 傳 true。
+                // ⚠ 這條路徑會呼叫 select_preset 兩次（本處＋下方那處）⇒ 收斂必須冪等（R3-1 已保證：
+                //   已一致就只重繪不換）。審查複驗過兩次收斂同結果、無震盪。
+                wxGetApp().get_tab(preset_type)->select_preset(preset_name, false, "", false, false, true);
                 // update plater with new config
                 q->on_config_change(wxGetApp().preset_bundle->full_config());
             });
@@ -9424,7 +9429,9 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
         //BBS
         //wxWindowUpdateLocker noUpdates1(sidebar->print_panel());
         wxWindowUpdateLocker noUpdates2(sidebar->filament_panel());
-        wxGetApp().get_tab(preset_type)->select_preset(preset_name);
+        // PING(2026-08-14 批3 R5-1)：側欄下拉（印表機/製程）＝使用者手勢，末參數 user_initiated 傳 true。
+        // 收斂只在 printer 型別的趟尾觸發，其餘型別傳了也不會做事（見 Tab::select_preset 趟尾條件）。
+        wxGetApp().get_tab(preset_type)->select_preset(preset_name, false, "", false, false, true);
     }
 
     // update plater with new config
