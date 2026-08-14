@@ -120,10 +120,9 @@ EXPECTED_COMBO_MAP_HF = {
 # token 就當 PLA+PLA」），雙料筏層改走既有「_筏層 分支」（全槽 ABS）。下方跨層護欄另有專查。
 EXPECTED_PLAIN_DUAL    = ("PING PLA - 220", "PING PLA - 220")
 EXPECTED_PLAIN_DUAL_HF = ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭")
-# #39 筏層建議（PresetComboBoxes.cpp）期望兩組 source→target（原第三組「雙料→雙料+棧板」
-# 已被「{lh}mm @…→{lh}mm_筏層 @…」那條通則吸收＝0811 改名後兩者同形）
-EXPECTED_P39 = {" %s @" % COMBO_CAT_EASY:  " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL}
+# #39 筏層建議對話框：2026-08-14 批2 R4 依 Eric 0813 裁4 **整支退役**——批2 的材料→製程自動收斂
+# （ping_converge_process）已涵蓋同一件事，對話框成了「先問一次、然後系統自己也會做」的重複動作。
+# ⇒ 原 EXPECTED_P39 與其跨層護欄一併移除，改由下方 G3-c 反向斷言「它確實不在了、且不得復活」。
 
 CLASSIC = {
     "EDU 200":  {"nozzle":"0.6", "retract":"4", "speed":"30", "height":"200", "bed":False},
@@ -928,11 +927,27 @@ else:
     _names = {}
     for m in re.finditer(r'constexpr\s+const\s+char\s*\*\s*(PING_\w+)\s*=\s*"((?:[^"\\]|\\.)*)"', _src):
         _names[m.group(1)] = _cstr(m.group(2))
-    if not _names:
+    # 🆕 2026-08-14 批2 R1：PING_TOK_* 是「製程名 token」不是線材名 ⇒ 不能套線材存在性斷言
+    #    （會誤紅）。但它們同樣會被改名批打死（0811「棧板」→「筏層」就是先例）⇒ **換判準、不放寬**：
+    #    token 必須真的出現在某支製程名裡。
+    _tok_names = {k: v for k, v in _names.items() if k.startswith("PING_TOK_")}
+    _fil_names = {k: v for k, v in _names.items() if not k.startswith("PING_TOK_")}
+    if not _fil_names:
         err("[跨層護欄] Tab.cpp 抓不到任何 PING_* 線材常數（格式變了？護欄失效）")
-    for _k, _v in sorted(_names.items()):
+    if not _tok_names:
+        err("[跨層護欄] Tab.cpp 抓不到任何 PING_TOK_* 製程 token 常數（批2 R1 家族分類器失去護欄）")
+    for _k, _v in sorted(_fil_names.items()):
         if _v not in presets:
             err(f"[跨層護欄・C++ 線材名對不上 profile] Tab.cpp {_k} = {_v!r} 不在 bundle ⇒ 組合連動會靜默失效")
+    # ⚠ PING_TOK_RAFT_OLD 是**刻意保留的舊名**（使用者自存的舊名製程仍要連動得到）⇒ 全庫查無屬正常，
+    #   不列入斷言。其餘 token 查無＝分類器對不上實際製程名，家族過濾與自動收斂會靜默失效。
+    _proc_names = [_n for _n, (_k2, _d2) in presets.items() if _k2 == "process"]
+    for _k, _v in sorted(_tok_names.items()):
+        if _k == "PING_TOK_RAFT_OLD":
+            continue
+        if not any(_v in _pn for _pn in _proc_names):
+            err(f"[跨層護欄・C++ 製程 token 對不上 profile] Tab.cpp {_k} = {_v!r} 沒出現在任何製程名"
+                " ⇒ 家族分類與配料連動會靜默失效")
 
     # 2) 功能歸類改名批（0730、Codex 四輪定稿）：兩張連動表**分別**解析、逐張對期望配對 baseline
     #    exact 比對（缺鍵/多鍵/配錯在冊線材皆紅——二輪必改 10）；process token 與兩張 map 雙向相等。
@@ -1006,19 +1021,67 @@ else:
                 err(f"[跨層護欄・空 token 分支] Tab.cpp 缺 {_c} 常數")
         if "filament_presets.size() != 2" not in _tsrc:
             err("[跨層護欄・空 token 分支] Tab.cpp 缺「槽數==2」判準 ⇒ 單料/四料可能被誤套 PLA+PLA")
-    # 3) #39 棧板建議（PresetComboBoxes.cpp）：三組 source→target＋守衛 pattern exact（二輪必改 8/10）
-    _pcb = os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp")
-    if not os.path.isfile(_pcb):
-        err(f"[跨層護欄] 找不到 {_pcb}（#39 護欄形同虛設）")
-    else:
-        _psrc = io.open(_pcb, encoding="utf-8", errors="ignore").read()
-        for _s, _t in EXPECTED_P39.items():
-            if (_s not in _psrc and cxx_escape(_s) not in _psrc) or \
-               (_t not in _psrc and cxx_escape(_t) not in _psrc):
-                err(f"[跨層護欄・#39 棧板建議] 缺 source/target 字面 {_s!r}→{_t!r}")
-        for _lit in ("+筏層", "_筏層"):
-            if cxx_escape(_lit) not in _psrc and ('"%s"' % _lit) not in _psrc:
-                err(f"[跨層護欄・#39 筏層建議] 守衛/目標名未帶「{_lit}」字面（0811 改名後舊守衛失效）")
+    # 3) 🆕 G3（2026-08-14 批2・連動規格 R7）：C++ 連動碼存活護欄（取代已退役的 #39 護欄）。
+    #    ⚠ 一律先 strip_cxx_comments 再比對——0811 實抓：把 `combo.empty()` 註解掉、行為已死，
+    #      守衛卻因為註解裡那份仍在而照樣綠＝假綠。
+    #    ⚠ needle 一律帶前後文——0812 實抓：`set(PING_TEST_BUILD` 是 `..._XX` 的子字串，改名照樣綠。
+    _G3_NEEDLES = [
+        ("src/slic3r/GUI/Tab.cpp", [
+            ("PingFamily ping_derive_family()",                   "R1 家族推導本體"),
+            ("PingFamily ping_classify_process(",                 "R1 製程名分類本體"),
+            ("ping_parse_process_name(process_name)",             "R1 配料連動與家族分類共用同一支解析器"),
+            ('option<ConfigOptionBools>("filament_is_support")',  "家族軸讀對鍵（⛔ 不可改用 filament_type 判材料角色）"),
+            ('option<ConfigOptionBools>("filament_soluble")',     "水溶軸讀對鍵"),
+            ("void ping_converge_process()",                      "R3 自動收斂本體"),
+            ("if (!cur.is_system) { redraw(); return; }",         "R3-3 非系統支永不被自動換走"),
+            ("if (allowed.empty()) { redraw(); return; }",        "R2-2 fail-open（FF 四料／3in1／Classic 零迴歸靠它）"),
+            ("s_ping_converge_guard = true;",                     "防迴圈保險絲置位"),
+        ]),
+        ("src/slic3r/GUI/PresetComboBoxes.cpp", [
+            ("ping_derived = ping_derive_family();",              "R2 下拉過濾取推導家族"),
+            ("if (ping_filter_active && preset.is_system && i != idx_selected &&",
+                                                                  "R2 過濾＋非系統支/選中兩道豁免（缺 is_system＝使用者自存製程會集體消失）"),
+        ]),
+        ("src/slic3r/GUI/Plater.cpp", [
+            ("ping_converge_process();",                          "R3 掛在 on_select_preset（側欄換料主路徑）"),
+        ]),
+    ]
+    _g3_src = {}
+    for _rel, _needles in _G3_NEEDLES:
+        _fp = os.path.join(_repo, *_rel.split("/"))
+        if not os.path.isfile(_fp):
+            err(f"[跨層護欄・G3] 找不到 {_rel}（G3 形同虛設）")
+            continue
+        _g3_src[_rel] = strip_cxx_comments(io.open(_fp, encoding="utf-8", errors="ignore").read())
+        for _needle, _why in _needles:
+            if _needle not in _g3_src[_rel]:
+                err(f"[跨層護欄・G3 連動碼存活] {_rel} 缺「{_why}」：找不到 {_needle!r}")
+    # G3-a 防空轉：Tab.cpp 至少要有「定義 1 處 ＋ 呼叫 ≥1 處」，只剩定義＝連動根本沒接上。
+    # ⚠ 必須數**帶左括號**的形式：光數 "ping_converge_process" 會把 log 訊息裡那個字串字面也算進去
+    #   （strip_cxx_comments 只剝註解、不剝字串）⇒ 拿掉呼叫後仍有 2 個而假綠（本護欄第一版實錯，
+    #   反向測試當場抓到）。定義 `void ping_converge_process()` 與呼叫 `ping_converge_process();`
+    #   都帶括號，log 裡的 `"ping_converge_process: ..."` 不帶 ⇒ 恰好只數到真正的程式碼。
+    _t3 = _g3_src.get("src/slic3r/GUI/Tab.cpp", "")
+    if _t3 and _t3.count("ping_converge_process(") < 2:
+        err("[跨層護欄・G3-a] Tab.cpp 的 ping_converge_process( 只出現 "
+            f"{_t3.count('ping_converge_process(')} 次（應 ≥2＝定義＋線材分頁掛點）")
+    # G3-b（Eric 0813 裁5＝b）：dirty 時照走既有「未儲存變更」對話框，
+    #      ⛔ 不得用 force_select 繞過——那是無提示直接丟棄使用者的修改，比彈窗更糟。
+    if _t3:
+        _cv = _t3.find("void ping_converge_process()")
+        if _cv >= 0:
+            # ⚠ 範圍必須收斂到**函式本體**：Tab::select_preset 本身就定義在同檔後面、且合法使用
+            #   force_select ⇒ 搜到檔尾會必定誤紅（本護欄第一版實錯）。頂層函式的收尾大括號在第 0 欄。
+            _end  = _t3.find("\n}", _cv)
+            _body = _t3[_cv:_end if _end > 0 else len(_t3)]
+            if "force_select" in _body:
+                err("[跨層護欄・G3-b 裁5＝b] ping_converge_process 本體出現 force_select"
+                    "＝繞過未儲存變更對話框（Eric 0813 明禁：那是無提示丟棄使用者的修改）")
+    # G3-c（Eric 0813 裁4）：#39 筏層建議對話框已退役，不得復活（自動收斂已涵蓋＝復活就是重複打擾）。
+    _p3 = _g3_src.get("src/slic3r/GUI/PresetComboBoxes.cpp", "")
+    if _p3 and "ping_suggest_pallet_for_abs" in _p3:
+        err("[跨層護欄・G3-c 裁4] ping_suggest_pallet_for_abs 又出現在 PresetComboBoxes.cpp"
+            "（#39 對話框已於批2 退役）")
     # 4) C-12 renamed 回溯（Eric 2026-07-30 裁）：orca_presets 載入端（load_selections＋
     #    update_selections）的 strict 選擇與多料槽 filament_XX 必須帶 renamed resolver——
     #    select_preset_by_name_strict 是 exact-only，系統 preset 改名批後升級版機器 conf

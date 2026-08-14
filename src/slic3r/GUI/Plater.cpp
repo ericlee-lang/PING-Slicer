@@ -9477,6 +9477,16 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
     for (auto plate : plate_list) {
          plate->update_slice_result_valid_state(false);
     }
+
+    // PING(2026-08-14 批2 R3)：材料 → 製程自動收斂＋乙案過濾重繪。
+    // ⚠ 掛點**必須是本函式最尾端**：中段（9351 set_filament_preset 之後）filaments「集合」的
+    //   選中還是舊料，此時任何會觸發 update_compatible 的呼叫，都會讓單槽機分支把
+    //   filament_presets.front() 覆寫回舊料（PresetBundle.cpp:4541-4544）⇒ 後續判斷全跑在錯的
+    //   資料上。到這裡單槽與多槽都已完全落地（SOP_preset連動與下拉過濾 §3 時序洞）。
+    // ⚠ 代價＝上面那圈 update_slice_result_valid_state(false) 已經跑過，收斂若真的換了製程，
+    //   由 ping_converge_process 自己再標一次失效。
+    if (preset_type == Preset::TYPE_FILAMENT)
+        ping_converge_process();
 }
 
 void Plater::priv::on_slicing_update(SlicingStatusEvent &evt)
