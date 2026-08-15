@@ -91,7 +91,7 @@ function normalizeRequest(req){
     mode, nozzle,
     width:  clamp('width',  size.widthMm,  SIZE_MIN_MM, SIZE_MAX_MM, 100),
     height: clamp('height', size.heightMm, SIZE_MIN_MM, SIZE_MAX_MM, 75),
-    thick:  clamp('thick',  size.thickMm,  2, 30, 6),                       // index.html:1014-1016
+    thick:  clamp('thick',  size.thickMm,  2, 30, 10),                       // index.html:1014-1016
     /* 上限 48→8＝Eric 2026-08-02 裁 B。依據：①他實測雙料 8 階已偏多、6 階足夠
        ②K 掃描實證最終調色盤有 64 色上限，K≥11 之後色數完全不變、只是白燒 quantize
        （K48 比 K12 慢 3.3 倍、零色數收益；ksweep_result_20260802.json）。
