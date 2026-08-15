@@ -483,7 +483,15 @@ private:
         if (m_concluded) return;
         m_concluded = true;
         m_beat.Stop();
+#ifdef _WIN32
+        /* 🔴 這道 #ifdef 是必要的，不是保險：`cancel_wake_timer()` 的**定義**在上面
+           202–257 的 `#ifdef _WIN32` 區塊裡（RTC 喚醒定時器是 Windows 專屬 API）。
+           這一處呼叫原本逸出守衛 ⇒ Linux/macOS 前處理器把定義砍掉後就是
+           `use of undeclared identifier`，2026-08-15 開發線 CI（run 31881494512）
+           實際紅在這一行。412 行那處呼叫因為落在 387–418 的守衛內所以一直沒事。
+           ⚠ MSVC 側預處理結果逐字不變＝目的碼不變。 */
         cancel_wake_timer();   // 二輪 I9：收工時拆掉任何仍上膛的 RTC 定時器
+#endif
         add_event("vigil_end", verdict());
         write_report();
         BOOST_LOG_TRIVIAL(warning) << "PhotoTile 守夜結束：" << verdict() << "（報告 " << m_out_path << "）";

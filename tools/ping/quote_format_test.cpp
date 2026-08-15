@@ -1,6 +1,8 @@
 // 離線驗 quote.txt 契約合規性：不啟動 Slicer、不切片，只測純函式 ping_quote_format_txt。
 #include "PingQuotePack.hpp"
+#include <clocale>
 #include <cstdio>
+#include <locale>
 #include <string>
 #include <vector>
 
@@ -154,6 +156,39 @@ int main()
         PingQuoteObject o; o.name = "夾具"; o.instances = 1;
         p.objects.push_back(o);
         check(!has(ping_quote_format_txt(p), "instances"), "單份時不輸出 instances");
+    }
+
+    /* ── 案例 6：語系免疫（2026-08-15 補；在此之前本測試完全沒有 locale 案）
+       PingQuoteFormat.cpp 檔頭最在意的就是這條：逗號小數的系統語系下若輸出
+       `weight_g=71,42`，報價系統照 key=value 解析不是失敗就是只讀到 71＝算錯錢。
+       但本測試一直沒有任何一案會踩到 locale，等於那條規則沒有守門員——
+       0815 把 to_chars 換成 ostringstream 時才發現這個缺口，順手補上。
+       ⚠ 一定要「兩種都設」：snprintf/std::to_string 吃 setlocale(LC_NUMERIC)，
+         未 imbue 的 ostream 吃 std::locale::global()，只設一種會漏掉另一條路。 */
+    {
+        const char *saved = ::setlocale(LC_NUMERIC, nullptr);
+        std::string saved_s = saved ? saved : "C";
+        bool applied = (::setlocale(LC_NUMERIC, "de-DE") != nullptr);
+        std::locale saved_global;
+        bool global_applied = false;
+        try { saved_global = std::locale::global(std::locale("de-DE")); global_applied = true; }
+        catch (...) { /* 該語系不存在就只測 setlocale 那條路 */ }
+
+        if (!applied && !global_applied) {
+            ::printf("[SKIP]  逗號小數語系不可用，語系免疫案跳過\n");
+        } else {
+            PingQuotePack p;
+            p.nozzle = 0.4;       p.has_nozzle = true;
+            p.layer_height = 0.2; p.has_layer_height = true;
+            PingQuoteObject o; o.name = "語系件"; o.weight_g = 71.42; o.has_weight = true;
+            p.objects.push_back(o);
+            const std::string t = ping_quote_format_txt(p);
+            check(has(t, "weight_g=71.42"), "逗號小數語系下仍輸出小數點（weight_g）");
+            check(!has(t, "71,42"), "逗號小數語系下不得出現逗號小數");
+            check(has(t, "\nnozzle=0.4\n"), "逗號小數語系下 nozzle 仍是小數點");
+        }
+        if (global_applied) std::locale::global(saved_global);
+        ::setlocale(LC_NUMERIC, saved_s.c_str());
     }
 
     ::printf("\n%s  失敗 %d 項\n", g_fail == 0 ? "全部通過" : "有失敗", g_fail);

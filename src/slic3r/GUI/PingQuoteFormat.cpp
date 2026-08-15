@@ -14,10 +14,11 @@
 
 #include "PingQuotePack.hpp"
 
-#include <charconv>
 #include <cmath>
+#include <iomanip>
+#include <locale>
+#include <sstream>
 #include <string>
-#include <system_error>
 #include <vector>
 
 namespace Slic3r { namespace GUI {
@@ -25,13 +26,28 @@ namespace Slic3r { namespace GUI {
 // ---------------------------------------------------------------------
 // 數值格式化
 //
-// 【一律用 std::to_chars，不用 snprintf 也不用 std::to_string】
-// 這兩者都吃 `LC_NUMERIC`：在逗號小數的系統語系下會輸出 `weight_g=71,42`，
+// 【⛔ 禁用 snprintf 與 std::to_string；本檔用 imbue(std::locale::classic()) 的 ostringstream】
+// 那兩者都吃 `LC_NUMERIC`：在逗號小數的系統語系下會輸出 `weight_g=71,42`，
 // 報價系統照 key=value 解析不是失敗就是只讀到 71 —— 直接算錯錢。
 // 本 fork 只在特定 scope 用 RAII 的 CNumericLocalesSetter，GUI 執行緒**沒有**
 // 全域強制 C locale（GUI_App.cpp 那行 wxSetlocale(LC_NUMERIC,"C") 是註解掉的），
 // 所以不能假設「反正跑起來是 C locale」。
-// to_chars 定義上就與 locale 無關，而且不必把 libslic3r 拉進這個 TU（離線測試才編得動）。
+// imbue 到 stream 上的 locale 不受 setlocale() 或 std::locale::global() 影響，
+// 而且不必把 libslic3r 拉進這個 TU（離線測試才編得動）。
+//
+// 【為什麼不是 std::to_chars（2026-08-15 換掉，原因寫在這裡免得下一棒又換回去）】
+// to_chars 本身沒問題，問題在 **Apple libc++ 的浮點多載標了
+// `availability(macos, strict, introduced=13.3)`**，而本專案 macOS 部署目標是
+// `-mmacosx-version-min=10.15` ⇒ 直接是 hard error（strict availability，
+// **不是**被 -Werror=unguarded-availability 升級的 warning，關掉那些旗標也修不好）。
+// 2026-08-15 開發線 CI（run 31881494512）兩個 macOS job 實際紅在這一行。
+// Linux(libstdc++) 與 MSVC 都沒有 availability 這套機制，所以只有 macOS 會炸。
+//
+// 【等價性已實測，不是推論】改寫前後在 MSVC/UCRT（＝真正產出契約檔的那家）逐字串比對
+// 500,202 筆（契約值＋邊界＋10^50~10^70 定向 fuzz）＝**0 筆不等**。
+// ⚠ 邊界條件必須是 `> 64` 不能寫 `>= 64`：舊版 `to_chars(buf, buf+64, …)` 在輸出
+//   **恰好 64 字元**時是成功的，寫成 `>=` 會讓那些值從「64 字元字串」變成空字串
+//   ⇒ 該欄位整行消失。實測 500,202 筆裡有 9,810 筆剛好 64 字元，全會被誤殺。
 //
 // 失敗回傳空字串 ⇒ 呼叫端整行不輸出（符合契約「抓不到的值整行省略」）。
 // ---------------------------------------------------------------------
@@ -39,11 +55,13 @@ static std::string fixed(double v, int decimals)
 {
     if (!std::isfinite(v))
         return std::string();
-    char       buf[64];
-    const auto r = std::to_chars(buf, buf + sizeof(buf), v, std::chars_format::fixed, decimals);
-    if (r.ec != std::errc())
+    std::ostringstream os;
+    os.imbue(std::locale::classic());          // 與 LC_NUMERIC／global locale 完全無關
+    os << std::fixed << std::setprecision(decimals) << v;
+    std::string s = os.str();
+    if (s.empty() || s.size() > 64)            // 對齊舊版 char buf[64]：恰好 64 仍算成功
         return std::string();
-    return std::string(buf, r.ptr);
+    return s;
 }
 
 // 口徑與層高**不能用固定小數位**。PING 實際存在 0.25 口徑與 0.125mm 層高：
