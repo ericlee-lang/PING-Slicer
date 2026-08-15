@@ -4674,6 +4674,9 @@ struct PingPhotoTilePrinter
     bool        known_mode       = false; // mode 欄位可辨識（舊版網頁沒帶＝false，行為照舊）
     bool        already_selected = false; // 目前機器（含其衍生 user preset）已符合＝不切不打擾
     std::string preset_name;              // 需要切換時的目標；解析不到＝空
+    /* 2026-08-15：有這台機、但使用者沒在「選擇 3D 列印機」裡加入 ⇒ 引導他去加入，
+       而不是給一句「找不到機型」讓他不知道能怎麼辦。 */
+    bool        exists_but_hidden = false;
 };
 
 static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& mode, const std::string& nozzle)
@@ -4702,11 +4705,21 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
         out.already_selected = true;
         return out;
     }
+    /* 【2026-08-15 A 案・Eric 裁】只認**使用者已加入**的機型（is_visible）。
+       `is_visible` 正是「選擇 3D 列印機」對話框在設的（ConfigWizard：preset.is_visible = evt.enable）。
+       修正前這裡掃全部 system preset ⇒ 使用者沒加入四料機卻選了四色，仍會被自動切到
+       一台他沒勾選、可能根本沒有的機器，而且沒有錯誤也沒有提示。 */
+    const Preset* hidden_hit = nullptr;
     for (const Preset& preset : bundle->printers)
         if (preset.is_system && matches(preset)) {
-            out.preset_name = preset.name;
-            return out;
+            if (preset.is_visible) {
+                out.preset_name = preset.name;
+                return out;
+            }
+            if (hidden_hit == nullptr)
+                hidden_hit = &preset;
         }
+    out.exists_but_hidden = (hidden_hit != nullptr);
     return out;
 }
 
@@ -9015,12 +9028,25 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                     NotificationType::CustomNotification,
                     NotificationManager::NotificationLevel::RegularNotificationLevel,
                     std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
-        } else if (target.known_mode && !target.already_selected && plater() != nullptr) {
-            // 唯一已知情境＝雙料×1.0 口徑（FD 家族無 1.0 機）：不硬切、提醒手選
-            plater()->get_notification_manager()->push_notification(
-                NotificationType::CustomNotification,
-                NotificationManager::NotificationLevel::WarningNotificationLevel,
-                "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
+        } else if (target.known_mode && !target.already_selected) {
+            /* 【2026-08-15 A 案・Eric 裁】配不到「已加入」的照片磚機 ⇒ **誠實報錯、不載入**，
+               並保留 3MF 路徑（與 protocol_stale_env 同一種處置）。
+               修正前是「跳個警告通知、照樣載入」——3MF 會落在當前那台不對的機器上被錯誤切片，
+               而通知很容易被略過。寧可不載入，也不要靜默切錯機。
+               兩種原因分開講，因為使用者能做的事不同：
+                 ・有這台機但沒加入 → 去「選擇 3D 列印機 → 照片磚」加進來（做得到）
+                 ・根本沒有這個組合（例：雙料×1.0 口徑，FD 家族無 1.0 機）→ 換口徑或換模式 */
+            const std::string msg = target.exists_but_hidden
+                ? std::string("這片照片磚需要的機型你還沒加入。請到「選擇 3D 列印機 → 照片磚」"
+                              "把它加進來，再回照片磚頁按一次產生（檔案保留在 ") + project_path + "）。"
+                : std::string("找不到符合這個模式與口徑的同進照片磚機型，為避免切到錯的機器，"
+                              "這片照片磚沒有自動載入（檔案保留在 ") + project_path + "）。";
+            BOOST_LOG_TRIVIAL(warning)
+                << "PhotoTile 工作室：無可用（已加入）目標機型，不載入 " << project_path
+                << "（exists_but_hidden=" << (target.exists_but_hidden ? "true" : "false") << "）";
+            if (done)
+                done(false, "no_target_printer", msg);
+            return;
         }
         request_open_project(project_path);
         // 覆審 I-2：成功回推排在上盤動作之後。未存變更提示按取消（case b）這層攔不到

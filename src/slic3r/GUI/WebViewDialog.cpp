@@ -4,6 +4,8 @@
 #include "slic3r/GUI/wxExtensions.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/PhotoTileCapability.hpp"
+#include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
 
@@ -281,6 +283,34 @@ void WebViewPanel::ShowPhotoTile(const wxString& image_path)
     m_pending_photo_tile_image = image_path;
     wxString url = photo_tile_url();
     load_url(url);
+}
+
+/* 【2026-08-15・Eric 裁 A 案】把「使用者已加入哪些照片磚機」告訴工作室頁面，
+   讓四色按鈕在沒有四料機時擋得住。
+   為什麼需要：resolver 只認已加入的機型（is_visible），配不到就不載入並報錯——
+   但那是**做完之後**才擋。頁面端先擋，使用者才不會白做一輪。
+   fail-open：這支沒被呼叫（舊頁面）⇒ 頁面 machineCap 維持 null ⇒ 不擋、行為照舊。 */
+void WebViewPanel::SendPhotoTileMachineCapability()
+{
+    bool has_dual = false, has_quad = false;
+    if (PresetBundle* bundle = wxGetApp().preset_bundle) {
+        for (const Preset& preset : bundle->printers) {
+            if (!preset.is_visible)
+                continue;
+            const PhotoTileCapability cap = photo_tile_capability_of(preset);
+            if (!cap.is_photo_tile)
+                continue;
+            if (cap.mode == "dual")
+                has_dual = true;
+            else if (cap.mode == "quad")
+                has_quad = true;
+        }
+    }
+    const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
+                           + ",\"hasQuad\":" + (has_quad ? "true" : "false") + "}";
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：已加入的照片磚機 " << json;
+    RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
+              + from_u8(json) + ");");
 }
 
 void WebViewPanel::SendPendingPhotoTileImage()
@@ -703,8 +733,10 @@ void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
         if (wxGetApp().get_mode() == comDevelop)
             wxLogMessage("%s", "Document loaded; url='" + evt.GetURL() + "'");
     }
-    if (evt.GetURL().Contains("/web/phototile/index.html"))
+    if (evt.GetURL().Contains("/web/phototile/index.html")) {
+        SendPhotoTileMachineCapability();   // 先告知料數，再送圖
         SendPendingPhotoTileImage();
+    }
     UpdateState();
 }
 

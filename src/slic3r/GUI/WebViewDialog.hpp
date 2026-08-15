@@ -159,6 +159,7 @@ private:
     wxString m_response_js;
     wxString m_pending_photo_tile_image;
 
+    void SendPhotoTileMachineCapability();
     void SendPendingPhotoTileImage();
 
     DECLARE_EVENT_TABLE()
