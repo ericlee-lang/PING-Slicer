@@ -72,6 +72,12 @@
   .viewseg{margin-left:auto;}
   body.embedded header{position:sticky; top:0; z-index:10; background:#fff;}
   @media (max-width:1280px){ main{grid-template-columns:1fr 1fr;} .panel.ctrl{grid-column:1/-1;} }
+
+/* 2026-08-15 料數閘門：鎖住的模式按鈕。刻意**不用純灰**——灰色沒有語意
+   （HIE-16：Eric 因「作廢」灰字看不出可按而立）。用虛線邊＋鎖頭，並保持字可讀，
+   讓使用者看得出「有這個能力，只是你的機器沒有」，點下去還有完整說明。 */
+#modeSeg button.locked{opacity:.72;border-style:dashed;cursor:help}
+#modeSeg button.locked::after{content:' 🔒';font-size:.9em}
 </style>
 </head>
 <body>
@@ -745,6 +751,17 @@ window.PINGPhotoTile={
     finally{ nativeImageMeta=null; nativeImageChunks=[]; }
   },
   imageError(message){ document.getElementById('srcStat').textContent=message; },
+  /* ── 2026-08-15：宿主告知「使用者已加入哪些照片磚機」──────────────────
+     為什麼要有：ping_resolve_photo_tile_printer() 是去 bundle->printers 找符合的
+     system preset，**沒加入的機器不在 bundle 裡** ⇒ 選了四色卻沒有四料機 ⇒ 解析不到
+     ⇒ 不切機 ⇒ 3MF 落在當前的雙料機上，**無錯誤無提示**，拿去印才發現。
+     cap = { hasDual:bool, hasQuad:bool, families:[...] }
+     🔴 fail-open：宿主沒呼叫（舊版宿主／獨立開頁）⇒ machineCap 維持 null ⇒ 不擋、
+        行為照舊。新閘門不該變成新的壞事來源。 */
+  setMachineCapability(cap){
+    machineCap = (cap && typeof cap === 'object') ? cap : null;
+    syncModeAvailability();
+  },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
   jobProgress(p){
     if(!genState||!p||p.jobId!==genState.jobId) return;      // 舊 job 殘響：不理
@@ -1061,9 +1078,34 @@ document.getElementById('mapSel').onchange=e=>{ params.map=e.target.value; queue
 document.getElementById('invChk').onchange=e=>{ params.inv=e.target.checked; queue(); };
 function thick(){ document.getElementById('thickInfo').textContent=
   `＝混色區 ${(params.layers*params.lh).toFixed(2)} mm`; }
+let machineCap=null;                    // null＝宿主沒告知 ⇒ 不擋（fail-open）
+const quadAvailable=()=> !machineCap || machineCap.hasQuad!==false;
+function modeBlockedMessage(){
+  /* 用陣列 join 組訊息：完全不靠跳脫字元，避免產生/編輯過程把 \n 寫成真換行 */
+  return ['你目前加入的照片磚機只有雙料機（FD 家族）。','',
+          '四色需要四料照片磚機（FF600／FF800 同進照片磚）。',
+          '到「選擇 3D 列印機 → 照片磚」把四料機加進來，就可以選這個模式。'].join(String.fromCharCode(10));
+}
+function syncModeAvailability(){
+  const seg=document.getElementById('modeSeg'); if(!seg) return;
+  const quadBtn=seg.querySelector('[data-n="4"]'); if(!quadBtn) return;
+  const ok=quadAvailable();
+  quadBtn.classList.toggle('locked', !ok);
+  quadBtn.title = ok ? '' : '需要四料照片磚機（FF600／FF800）——點一下看說明';
+  /* 已經停在四色卻發現沒有四料機 ⇒ 退回雙料並告知，不讓他一路做到匯出才炸 */
+  if(!ok && slotCount===4){
+    slotCount=2;
+    for(const b of seg.children) b.classList.toggle('on', b.dataset.n==='2');
+    renderSlots(); simulate();
+    alert(['已改回「雙料」。',''].join(String.fromCharCode(10))+modeBlockedMessage());
+  }
+}
 document.getElementById('modeSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
-  slotCount=+e.target.dataset.n;
+  const want=+e.target.dataset.n;
+  /* 🔴 料數閘門：不是灰掉就算，要講得出原因與下一步（FBK-11／HIE-16） */
+  if(want===4 && !quadAvailable()){ alert(modeBlockedMessage()); return; }
+  slotCount=want;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
   /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
      切換不需要靠 suggest() 生槽位，原本這樣做只是順手把使用者的配色洗掉。 */
