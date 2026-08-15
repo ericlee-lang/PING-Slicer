@@ -194,6 +194,14 @@ function filterLabels(labels, img, P, paletteSize, strategy){
   const minWidthMm=2*P.nozzle;
   const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,
     Math.max(1,Math.round(minWidthMm/sx)));
+  /* ⚠ 【2026-08-15 D-2 未修・已知缺陷】這裡只守**水平**寬度，水平細條過得了關
+     （實錄：杜賓剪影的耳緣碎塊、尾巴細線、腿部斑紋鋸齒邊——Eric 0815 圈出）。
+     曾試「轉置後再跑一次同一支演算法」補垂直向，**實測回歸、已退**：
+     enforceMinHorizontalWidth 併掉的是「短於門檻的段」，而圓形色塊的上下左右
+     邊緣天生就是短段 ⇒ 兩個方向各跑一次＝從四面侵蝕，**杜賓的眼睛整個被磨掉**。
+     這比開運算兇：直徑 28 格的圓點本應通過 16 格結構元的開運算，卻被這招吃掉。
+     正解＝真正的 2-D 形態學開運算（erode→dilate，被開掉的格再以最近鄰回填），
+     成本約每次生成多 2–3 秒，待 Eric 裁定後再做。 */
   const result=root.PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,P.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
   let changedPixels=0;
@@ -335,10 +343,32 @@ function suggestSlots(img, mode){
     return rgbHex(l2s(r),l2s(g),l2s(b));
   }
   if(slotCount===2){
+    /* 【2026-08-15 修・Eric 裁 P0】原評分＝√n×(彩度+3)，**沒有任何明度分離項**：
+       第二支料只要「面積大又有彩度」就贏，於是四種題材實測全挑錯——
+         人像原照 → 米白＋淡粉 #eab6a3（ΔE 28.5，整張糊成粉紅）
+         臉填滿畫面的模板風 → 兩支米白（38.17，等於白板）
+         風景剪影（大面積天空）→ 兩支米白（30.40）
+         黑色杜賓 → 米白＋棕 #975a30（13.95，黑狗被印成棕狗）
+       共同觸發條件＝**單一顏色佔大面積**。雙料的每一階都落在兩支料的連線上，
+       兩支太接近＝整張磚根本沒有對比可用。
+       ⚠ 遵守 Eric 2026-08-05 裁示「**分散是最佳化目標，不是閘門**」：
+          這裡加的是**評分權重**（隨明度差飽和的係數），**不是硬門檻**——
+          全圖真的只有淺色時仍會回傳相對最好的那一支，不會失敗；
+          使用者手動指定相近色（同色系漸層）完全不受影響，
+          本函式只約束「我們主動建議的初值」。 */
+    const LA=lin2lab(...hexLin('#f2f0eb'))[0];   // slotA 固定米白，取其 L
     let main=null, bs=-1;
     for(const c of clusters){
       const ch=Math.hypot(c.lab[1],c.lab[2]);
-      const s=Math.sqrt(c.n)*(ch+3);
+      /* sep 刻意**不設飽和上限**：雙料的每一階都在兩支料的連線上，
+         第二支越遠、整條可用色階越長，所以「更暗」要能持續加分。
+         實證＝黑白杜賓：黑(ΔL≈80) 與棕斑(ΔL≈50) 若都夾成 1，就只剩彩度決勝，
+         棕斑贏 ⇒ 黑狗被印成棕狗（ΔE 13.96，強制米白＋黑只要 8.46）。 */
+      const sep=Math.abs(c.lab[0]-LA)/100;
+      /* 彩度降為次要因子，與四料分支的 `1+彩度/25` 同一把尺（原本 `彩度+3`
+         讓有彩度的群大贏 11 倍，才會發生「彩度壓過明度」的誤選）。
+         保留「偏好有彩度」的既有取向，只是不再讓它一票否決明度。 */
+      const s=Math.sqrt(c.n)*(1+ch/25)*sep;
       if(s>bs){bs=s;main=c;}
     }
     if(main && Math.hypot(main.lab[1],main.lab[2])<8)
