@@ -159,9 +159,14 @@ private:
     wxString m_response_js;
     wxString m_pending_photo_tile_image;
 
-    void SendPhotoTileMachineCapability();
     void SendPendingPhotoTileImage();
 
+public:
+    /* 2026-08-15：頁面主動要料數時由 GUI_App 呼叫（跨類別）⇒ 必須 public。
+       其餘照片磚回推走的是類別內部路徑，維持 private。 */
+    void SendPhotoTileMachineCapability();
+
+private:
     DECLARE_EVENT_TABLE()
 };
 

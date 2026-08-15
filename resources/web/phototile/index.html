@@ -1086,6 +1086,26 @@ function modeBlockedMessage(){
           '四色需要四料照片磚機（FF600／FF800 同進照片磚）。',
           '到「選擇 3D 列印機 → 照片磚」把四料機加進來，就可以選這個模式。'].join(String.fromCharCode(10));
 }
+/* 【2026-08-15 修】改用頁內橫幅，不用 alert。
+   原因：嵌入式 WebView2 的 script dialog 由宿主決定要不要顯示，不可靠；
+   而且 modal 對話框在工作室裡本來就不是好體驗。訊息就顯示在模式列下方。 */
+function showModeNotice(text){
+  let el = document.getElementById('modeNotice');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'modeNotice';
+    el.style.cssText = 'margin:6px 0 0;padding:8px 10px;border-radius:3px;'
+      + 'background:#fdf1de;border:1px solid #e8c9a0;color:#7a4a00;'
+      + 'font-size:12.5px;line-height:1.7;white-space:pre-line';
+    const seg = document.getElementById('modeSeg');
+    if(seg && seg.parentNode) seg.parentNode.insertBefore(el, seg.nextSibling);
+    else document.body.appendChild(el);
+  }
+  el.textContent = text;
+  el.style.display = '';
+  clearTimeout(showModeNotice._t);
+  showModeNotice._t = setTimeout(()=>{ el.style.display='none'; }, 12000);
+}
 function syncModeAvailability(){
   const seg=document.getElementById('modeSeg'); if(!seg) return;
   const quadBtn=seg.querySelector('[data-n="4"]'); if(!quadBtn) return;
@@ -1097,14 +1117,14 @@ function syncModeAvailability(){
     slotCount=2;
     for(const b of seg.children) b.classList.toggle('on', b.dataset.n==='2');
     renderSlots(); simulate();
-    alert(['已改回「雙料」。',''].join(String.fromCharCode(10))+modeBlockedMessage());
+    showModeNotice(['已改回「雙料」。',''].join(String.fromCharCode(10))+modeBlockedMessage());
   }
 }
 document.getElementById('modeSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
   const want=+e.target.dataset.n;
   /* 🔴 料數閘門：不是灰掉就算，要講得出原因與下一步（FBK-11／HIE-16） */
-  if(want===4 && !quadAvailable()){ alert(modeBlockedMessage()); return; }
+  if(want===4 && !quadAvailable()){ showModeNotice(modeBlockedMessage()); return; }
   slotCount=want;
   for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
   /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
@@ -1411,6 +1431,12 @@ document.getElementById('btnBack').onclick=()=>{
   if(window.wx && typeof window.wx.postMessage==='function')
     sendSlicerMessage('phototile_home');
 };
+/* 【2026-08-15 修】料數改成「頁面主動要」，不再靠宿主在 DocumentLoaded 推。
+   原本宿主在頁面載入完成時 RunScript 呼叫 setMachineCapability，但實測
+   machineCap 一直是 null——`window.PINGPhotoTile && …` 的短路會**靜默無效**，
+   時序對不上完全看不出來。頁面自己開口時一定已經 ready，不必猜。 */
+if(embeddedMode && window.wx && typeof window.wx.postMessage==='function')
+  sendSlicerMessage('phototile_query_capability');
 renderSlots(); thick(); syncOrientUI();
 if(embeddedMode) simulate(); else makeDemo();
 </script>

@@ -4806,6 +4806,14 @@ std::string GUI_App::handle_web_request(std::string cmd)
             else if (command_str.compare("homepage_phototile") == 0) {
                 CallAfter([this] { open_photo_tile(); });
             }
+            else if (command_str.compare("phototile_query_capability") == 0) {
+                /* 【2026-08-15】頁面主動要料數。DocumentLoaded 那次推送保留當備援，
+                   但這條才是可靠的一條——頁面開口時一定已經 ready。 */
+                CallAfter([this] {
+                    if (mainframe != nullptr && mainframe->m_webview != nullptr)
+                        mainframe->m_webview->SendPhotoTileMachineCapability();
+                });
+            }
             else if (command_str.compare("phototile_home") == 0) {
                 /* 覆審 I-3：離開工作室＝取消現役生成（**同步**清，賽跑窗＝零）。
                    C-1 時頁面卸載＝生成自然中止；C-2 把工作搬進 C++ 後這個天然保護消失

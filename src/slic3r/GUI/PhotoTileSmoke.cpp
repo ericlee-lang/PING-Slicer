@@ -30,7 +30,12 @@
 namespace Slic3r { namespace GUI {
 
 // 守夜（spike 宿主）在 2026-07-31 的基準：同圖同參數
-const char* PHOTOTILE_SMOKE_EXPECTED_SHA = "9fb88e34267c27006b20d8760bce4ee15e3aea31a7bf22956d5a47bc69aa29a9";
+/* 【2026-08-15 重錄・Eric 裁】舊值 9fb88e34267c2700… 於 2026-08-15 失效：
+   D-2 補上 2-D 形態學開運算後，輸出**本來就該變**（清掉細長突起就是目的）。
+   新值取自同日 smoke 連跑 5 輪（shaAllSame=true、envEchoOk=true、零 crash）。
+   ⚠ 這條是回歸守門線：日後再有意改變輸出，必須同步重錄並在此註明原因，
+      不可讓它長期紅著——紅久了就沒人看了。 */
+const char* PHOTOTILE_SMOKE_EXPECTED_SHA = "2bd5961bc53835caa34649b9c334e1c8954a935f5f5c293f8f5b1f795dc20420";
 
 namespace {
 
