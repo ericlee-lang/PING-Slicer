@@ -262,7 +262,7 @@ let slotCount = 2;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
 let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'flat', klevels:8,
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
-               width:100, height:75, thick:6,     // 垂直模式實體尺寸（mm）
+               width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
@@ -922,10 +922,31 @@ function suggest(){
        基底白色、疊越多層越深）：挑圖中最搶眼的主色（面積×彩度），對色自動切
        「照明暗」（亮→少層近白、暗→多層深色）——先不考慮混色，純層數漸層 --- */
     if(slotCount===2){
+      /* 【2026-08-15 D-1 修・Eric 裁 P0】⚠ 0815 那顆 `2fc9492d42` **只修了 engine.js**，
+         工作室這顆「依這張圖建議配色與換層」按鈕跑的是本段、一直還是舊的錯公式——
+         同步出貨線時才發現（兩線同一個洞）。內容與 engine.js `suggestSlots()` 的雙料分支同義。
+
+         原評分＝√n×(彩度+3)，**沒有任何明度分離項**：第二支料只要「面積大又有彩度」
+         就贏，四種題材實測全挑錯（真引擎／100mm／口徑 0.4）——
+           人像原照            → 米白＋淡粉 #eab6a3   ΔE 28.51（整張糊成粉紅）
+           臉填滿畫面的模板風  → 兩支米白            ΔE 38.17（等於白板）
+           風景剪影（大面積天空）→ 兩支米白          ΔE 30.40
+           黑色杜賓            → 米白＋棕 #975a30    ΔE 13.95（黑狗被印成棕狗）
+         共同觸發條件＝**單一顏色佔大面積**。修後 14.19／5.31／8.90／8.28。
+         ⚠ 遵守 Eric 2026-08-05「**分散是最佳化目標，不是閘門**」：加的是評分權重、無硬門檻。
+         ⚠ **只套垂直混色**：這理由是混色專屬（雙料每一階都落在兩支料的連線上）；
+            平躺是層數/TD 疊色機制、且屬研究線＝行為維持原狀。engine.js 本來就只有
+            混色路徑（無平躺分支）⇒ 這樣切與正本一致。 */
+      const vertical = params.orient==='vertical';
+      const LA = lin2lab(...hexLin('#f2f0eb'))[0];   // slotA 固定米白，取其 L
       let main=null, bs=-1;
       for(const c of clusters){
         const ch=Math.hypot(c.lab[1],c.lab[2]);
-        const s=Math.sqrt(c.n)*(ch+3);          // +3：全灰階圖也挑得出最深的主調
+        /* sep 刻意**不設飽和上限**：第二支越遠、整條可用色階越長，所以「更暗」要能
+           持續加分。實證＝黑白杜賓：黑(ΔL≈80) 與棕斑(ΔL≈50) 若都夾成 1 就只剩彩度
+           決勝，棕斑贏 ⇒ 黑狗被印成棕狗。 */
+        const s = vertical ? Math.sqrt(c.n)*(1+ch/25)*(Math.abs(c.lab[0]-LA)/100)
+                           : Math.sqrt(c.n)*(ch+3);   // 平躺：原式不動（+3 讓全灰階圖也挑得出主調）
         if(s>bs){bs=s;main=c;}
       }
       if(main && Math.hypot(main.lab[1],main.lab[2])<8)      // 幾乎無彩度（黑白照）
@@ -1202,7 +1223,7 @@ document.getElementById('aspectLock').onchange=e=>{
   else updateSizeInfo();
 };
 document.getElementById('tIn').onchange=e=>{
-  params.thick=Math.max(2,Math.min(30,parseFloat(e.target.value)||6)); e.target.value=params.thick;
+  params.thick=Math.max(2,Math.min(30,parseFloat(e.target.value)||10)); e.target.value=params.thick;
 };
 const noiseIn=document.getElementById('noiseIn');
 noiseIn.oninput=e=>{
