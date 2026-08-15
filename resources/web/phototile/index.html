@@ -1094,11 +1094,18 @@ function showModeNotice(text){
   if(!el){
     el = document.createElement('div');
     el.id = 'modeNotice';
-    el.style.cssText = 'margin:6px 0 0;padding:8px 10px;border-radius:3px;'
+    /* 🔴 flex:0 0 100% 是必要的，不是裝飾：`header` 是 display:flex + flex-wrap:wrap，
+       insertBefore 進去就變成**同一列的 flex item**——0815 CDP 實測橫幅擠在四色鈕右邊、
+       把「開啟圖片」推到邊緣並撐高整條 header（版面整個下移），根本不在模式列下方。
+       撐滿一整行才會換行落到模式列正下方；上緣間距交給 header 自己的 gap。 */
+    el.style.cssText = 'flex:0 0 100%;margin:0;padding:8px 10px;border-radius:3px;'
       + 'background:#fdf1de;border:1px solid #e8c9a0;color:#7a4a00;'
       + 'font-size:12.5px;line-height:1.7;white-space:pre-line';
+    /* 掛在 header **最後**而不是 modeSeg 的下一個——兩者視覺上都是「模式列下方」，
+       但插在 modeSeg 後面會把後續的「用測試圖／開啟圖片」推到橫幅下一行（0815 實測），
+       12 秒後橫幅收掉又跳回來＝主要按鈕來回位移。掛最後則第一行原封不動。 */
     const seg = document.getElementById('modeSeg');
-    if(seg && seg.parentNode) seg.parentNode.insertBefore(el, seg.nextSibling);
+    if(seg && seg.parentNode) seg.parentNode.appendChild(el);
     else document.body.appendChild(el);
   }
   el.textContent = text;
