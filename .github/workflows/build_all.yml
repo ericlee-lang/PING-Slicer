@@ -262,7 +262,15 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: OrcaSlicer-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak
-        path: '/__w/OrcaSlicer/OrcaSlicer/OrcaSlicer-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak'
+        # PING 2026-08-16: this was hardcoded to the upstream workspace
+        # /__w/OrcaSlicer/OrcaSlicer/, which does not exist in this fork - the real
+        # path is /__w/PING-Slicer/PING-Slicer/. upload-artifact defaults to
+        # if-no-files-found: warn, so the mismatch would have yielded a GREEN job
+        # that ships no .flatpak at all: a false green, which is worse than the
+        # honest red it replaced. github.workspace is rename-proof; the explicit
+        # error setting means a missing bundle fails loudly instead of silently.
+        path: ${{ github.workspace }}/OrcaSlicer-Linux-flatpak_${{ env.ver }}_${{ matrix.variant.arch }}.flatpak
+        if-no-files-found: error
     - name: Deploy Flatpak to nightly release
       if: github.repository == 'OrcaSlicer/OrcaSlicer' && github.ref == 'refs/heads/main'
       uses: WebFreak001/deploy-nightly@v3.2.0

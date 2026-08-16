@@ -325,7 +325,19 @@ modules:
     post-install:
 
       - | # Desktop integration files
-        install -Dm644 -t /app/share/icons/hicolor/scalable/apps/ resources/images/OrcaSlicer.svg
+        # PING 2026-08-16: the scalable SVG is deliberately NOT installed.
+        # flatpak build-export requires a SQUARE app icon, and
+        # resources/images/OrcaSlicer.svg is 523.6x136.4 - it is the PING wordmark
+        # used as the in-app dialog logo, not an app icon. Upstream's file happened
+        # to be a 64x64 square so one file could serve both roles; PING's cannot.
+        # Installing it made every Flatpak build fail at export:
+        #   error: ...com.orcaslicer.OrcaSlicer.svg is not a valid icon:
+        #          Expected a square icon but got: 524x136
+        # scalable/ is optional - CMake already installs square PNG icons at
+        # 32/128/192 (see the SLIC3R_FHS branch of CMakeLists.txt), and those pass
+        # validation. Dropping this line is what fixes the export; do NOT "fix" it
+        # by reshaping the dialog wordmark. If a scalable icon is ever wanted, add a
+        # SEPARATE square asset - do not reuse OrcaSlicer.svg for both roles again.
         install -Dm644 ${FLATPAK_ID}.metainfo.xml /app/share/metainfo/${FLATPAK_ID}.metainfo.xml
         mv /app/share/applications/OrcaSlicer.desktop /app/share/applications/${FLATPAK_ID}.desktop
         desktop-file-edit --set-key=Exec --set-value="entrypoint %U" /app/share/applications/${FLATPAK_ID}.desktop
