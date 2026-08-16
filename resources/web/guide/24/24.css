@@ -250,7 +250,8 @@ img.ModelThumbnail
 /* 🔴 丙案後「已選」狀態掛在 .VarRow（每台機器一列），不再是整張 .PrinterBlock（一個系列）。
    選擇器沒跟著改的話方框永遠不會變綠＝功能靜默失效。 */
 .VarRow:hover .PSel  { border-color: #EA4E16; }
-.VarRow.Selected .PSel { background: #2E9E5B; border-color: #2E9E5B; }
+/* PING CIS（Eric 2026-08-16）：上游綠 #2E9E5B ＝非品牌色 → Raised Orange #EA4E16 */
+.VarRow.Selected .PSel { background: #EA4E16; border-color: #EA4E16; }
 .VarRow.Selected .PSel::after { content: "\2713"; }
 
 /* PING 2026-08-13：每口徑勾選框已移除（改機型層級）。保留規則當防呆——
