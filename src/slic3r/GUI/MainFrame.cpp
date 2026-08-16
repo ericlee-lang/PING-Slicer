@@ -40,6 +40,7 @@
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"
 #include "PhotoTileSmoke.hpp"
+#include "PingAiKeyDialog.hpp"
 #include "PingQuotePack.hpp"
 #include "PingQuoteSmoke.hpp"
 #include "../Utils/Process.hpp"
@@ -2607,6 +2608,17 @@ static wxMenu* generate_help_menu()
         wxString::FromUTF8("量 wx 事件圈成本並與守夜基準比對 SHA-256（C-1 閘門①）"),
         [](wxCommandEvent&) {
             run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+        }, "", nullptr,
+        []() { return wxGetApp().app_config->get_bool("developer_mode"); });
+
+    /* PING P3「子」：AI 生圖服務金鑰設定。**只在開發者模式出現**——
+       Eric 2026-08-16 裁「做子但先不對客戶露出」（產品內生圖＝「丑」尚未做，
+       現在讓客戶填了也沒有 AI 款式可解鎖）。裁定與安全理由見 PingAiKeyDialog.hpp。 */
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("設定 AI 生圖服務金鑰（開發）"),
+        wxString::FromUTF8("填入／測試／移除 AI 生圖金鑰；存進系統憑證保管庫，不進專案檔、匯出包與 log"),
+        [](wxCommandEvent&) {
+            show_ping_ai_key_dialog(wxGetApp().mainframe);
         }, "", nullptr,
         []() { return wxGetApp().app_config->get_bool("developer_mode"); });
 

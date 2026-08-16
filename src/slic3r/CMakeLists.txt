@@ -491,6 +491,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/PhotoTileLiveGate.cpp
     GUI/PhotoTileCapability.cpp
     GUI/PhotoTileCapability.hpp
+    GUI/PingAiKeyDialog.cpp
+    GUI/PingAiKeyDialog.hpp
     GUI/PhotoTileGateJson.hpp
     GUI/PhotoTileSleepVigil.cpp
     GUI/PhotoTileGoldenGate.cpp
@@ -625,6 +627,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/IPrinterAgent.hpp
     Utils/OrcaCloudServiceAgent.cpp
     Utils/OrcaCloudServiceAgent.hpp
+    Utils/PingAiKeyStore.cpp
+    Utils/PingAiKeyStore.hpp
     Utils/OrcaPrinterAgent.cpp
     Utils/OrcaPrinterAgent.hpp
     Utils/QidiPrinterAgent.cpp
