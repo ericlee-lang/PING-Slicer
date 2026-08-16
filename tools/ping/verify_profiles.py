@@ -159,11 +159,16 @@ for name, (kind, d) in presets.items():
                 "travel_acceleration": "5000",
                 "seam_position": "aligned",
                 # 爬坡品質（Eric 2026-07-24）：懸空降速四段＋橋接流量；照片磚特調豁免
-                "enable_overhang_speed": "1",
+                # 🔴 2026-08-16 Eric 裁「A+C」**推翻上面 0724 的降速部分**（四段值本身留著當備援）：
+                #    A＝`enable_overhang_speed` 全庫關（實測：0.6 黃銅跑 75% 那階的 10 mm/s，
+                #       噴頭停留過久、料在裡面滾沸，品質反而變差）
+                #    C＝最慢那階 10 → **25**（不取 30：50% 段就是 25，取 30 會讓懸空更多的那段更快＝順序反了）
+                #    ⚠ 要放寬回 "1"／"10" 必須是 **Eric 新的一次裁定**，不是實作者順手改這行。
+                "enable_overhang_speed": "0",
                 "overhang_1_4_speed": "50",
                 "overhang_2_4_speed": "50",
                 "overhang_3_4_speed": "25",
-                "overhang_4_4_speed": "10",
+                "overhang_4_4_speed": "25",
                 "bridge_flow": "0.95",
                 # 支撐臨界角 35（Eric 2026-07-25 裁，推翻 07-24 的 60；照片磚豁免）
                 # 🔴 Orca 基準（= Cura/V2.1 的 55）；兩線相反 Orca = 90 − Cura，見 ping-slicer/orca-sync.md

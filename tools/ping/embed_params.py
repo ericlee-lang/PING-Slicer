@@ -459,11 +459,17 @@ def normalize_unified_values(proc, ff=False):
     # （10%/25%/50%/75%；25% 段沿用原值 50＝對照兩側同值）＋橋接流量 0.95。
     # 線材側配套「懸空冷卻觸發閾值 25%」＝4b-2c sweep。
     # 照片磚/Classic/DL1016 不走本函式＝天然豁免（同 jerk 註）。
-    proc["enable_overhang_speed"] = "1"
+    # 🔴 2026-08-16 Eric 裁「A+C」，**推翻上面 0724 那批的一半**——理由是新的實測：
+    #    0.6 黃銅（大口徑高流量）跑到 75% 那階的 10 mm/s 時，噴頭停留過久、料在裡面滾沸，
+    #    出來的品質反而變差。⇒ A＝降速開關全庫關閉；C＝最慢那階 10 → 25。
+    #    ⚠ **C 取 25 不取 30**：50% 那階就是 25，設 30 會讓「懸空更多的那階反而更快」＝順序反了。
+    #    ⚠ 0724 的 A/B 實證是在 **FD300 同進 0.4**（小口徑）做的，本次一併關掉等於也關了那個好處；
+    #      Eric 知情後仍選 A+C（B＝只關大口徑的方案已提過）。要改回 B 就是這裡加一條口徑判斷。
+    proc["enable_overhang_speed"] = "0"
     proc["overhang_1_4_speed"] = "50"
     proc["overhang_2_4_speed"] = "50"
     proc["overhang_3_4_speed"] = "25"
-    proc["overhang_4_4_speed"] = "10"
+    proc["overhang_4_4_speed"] = "25"
     proc["bridge_flow"] = "0.95"
     # ⑥ 支撐臨界角 35（Eric 2026-07-25 裁，推翻 07-24 的 60）。照片磚/Classic/DL1016 豁免同上。
     # 🔴 這是 Orca 基準值（自水平量、越大支撐越多），= Cura/V2.1 的 55。
