@@ -130,6 +130,23 @@ for name, (kind, d) in presets.items():
         for f in d.get("default_filament_profile", []) or []:
             if f not in presets:
                 err(f"[default_filament_profile missing] {name} -> {f!r}")
+        # ★ 檢查 12（Eric 2026-08-16 裁・槽位預設護欄；與出貨線同版）——四條都是「已經是這樣、
+        #   把它釘住」，動機是這些預設散落在 def_fil_*／ff_extra 範本／照片磚範本三條產線，
+        #   被改掉都是靜默的（0813 back-fill 事故即一例）。
+        _dfp = d.get("default_filament_profile") or []
+        if len(_dfp) >= 2 and "3in1" in name:
+            if _dfp[1] != "PING SupPLA(3in1)":
+                err(f"[3in1 第二槽必為 SupPLA(3in1)] {name} -> {_dfp[1]!r}")
+        elif len(_dfp) == 2 and name.startswith(("FD", "DUAL")):
+            if "SupPLA" not in _dfp[1]:
+                err(f"[雙料機第二槽必為 SupPLA 系] {name} -> {_dfp[1]!r}")
+        if name.startswith(("FF600", "FF800")) and not any(
+                t in name for t in ("同進", "3in1", "照片磚")):
+            if _dfp and set(_dfp) != {"PING PLA - 高流量噴頭"}:
+                err(f"[四料本體機四槽必為高流量噴頭支] {name} -> {sorted(set(_dfp))!r}")
+        if "同進照片磚" in name and name.startswith(("FF600", "FF800")):
+            if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
+                err(f"[FF 照片磚機必為照片磚專用支] {name} -> {sorted(set(_dfp))!r}")
         if ("machine_max_acceleration_x" in d and "DL1016" not in name
                 and not re.match(r"^(EDU|DUAL|PING 2|PING 3)", name)):
             V, A, J = ("200", "1500", "56") if "FF" in name else ("400", "5000", "7")
@@ -297,8 +314,18 @@ for name, (kind, d) in presets.items():
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
             pv = pv[0] if isinstance(pv, list) and pv else pv
-            expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
+            # 🔴 2026-08-16 改名：「四料高流量噴頭」→「四料同進噴頭」；照片磚專用支同享 120
+            expected_pv = ("120" if ("四料同進噴頭" in name or "(照片磚)" in name or "(3in1)" in name)
                            else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
+            # ★ 檢查 13（Eric 2026-08-16 裁・四料同進流量）：同進 PLA 支 50、SupPLA 30、
+            #   照片磚專用支 30（豁免，等 Eric 實印再定）。⚠ 放寬必須是 Eric 新的一次裁定。
+            _mvs = d.get("filament_max_volumetric_speed")
+            _mvs = _mvs[0] if isinstance(_mvs, list) and _mvs else _mvs
+            _want_mvs = {"PING PLA - 四料同進噴頭": "50",
+                         "PING SupPLA - 四料同進噴頭": "30",
+                         "PING PLA(照片磚)": "30"}.get(name)
+            if _want_mvs and _mvs != _want_mvs:
+                err(f"[四料同進流量 0816] {name}: {_mvs!r}, expected {_want_mvs!r}")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁）＋
@@ -318,7 +345,10 @@ for name, (kind, d) in presets.items():
                                 ("filament_wipe_distance", "5"), ("filament_retract_before_wipe", "100%")):
                     if _v(k) != want:
                         err(f"[線材回抽四項 0723] {name}: {k}={_v(k)!r}, expected {want!r}")
-                is_hf = ("高流量" in name) or ("(3in1)" in name)
+                # 🔴 2026-08-16 改名連坐：舊名靠字串「高流量」落進 is_hf，改成「四料同進噴頭」
+                #    後會掉出去、被當一般流量（出貨線實測踩到）。照片磚專用支同屬同進硬體。
+                is_hf = (("高流量" in name) or ("四料同進" in name)
+                         or ("(照片磚)" in name) or ("(3in1)" in name))
                 if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
                     err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
@@ -343,7 +373,7 @@ for name, (kind, d) in presets.items():
                 if "TPE" in name or "PVA" in name:
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
-                elif ("高流量" in name) or ("(3in1)" in name):
+                elif is_hf:   # 🔴 0816：原本是內聯複製的字串判定（漏了四料同進/照片磚），改用同一個變數
                     # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽 3/30/30——長度 2→3 上蓋 0723 補裁；
                     # 速度/裝填明寫 30（四料高流量兩支原為 nil＝繼承機器 20/20，Eric 抓到的漏）
                     for _k, _want, _label in (("filament_retraction_length", "3", "長度"),

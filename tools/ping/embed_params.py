@@ -190,12 +190,22 @@ def def_fil_single_for(base):
     return [BASE_PLA_NEW]   # 0728 v2 連動：FP300＋FD300 系單一出料（單料頭/同進）＝210
 # FF 四料線材改名（同裁定：綁機型＝錯）：「高流量 @FF」→「四料高流量噴頭」系、解除機型綁定。
 # setting_id/filament_id 不變（同一支材料身份）；3in1 專用支不動。
-FF_FIL_ALIAS = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
+# ★ 2026-08-16 Eric 二次改名：「四料高流量噴頭」→「**四料同進噴頭**」（出貨線同批同步）。
+#   理由（Eric 原話）：**高流量指的是加熱本體長度比一般流量長**；四料噴頭與雙料高流量噴頭
+#   加熱長度一樣、同屬高流量，四料只是多兩個通道 ⇒ 舊名在暗示「流量更高」＝錯誤資訊。
+FF_FIL_ALIAS = {"PLA": "PING PLA - 四料同進噴頭", "SupPLA": "PING SupPLA - 四料同進噴頭"}
+FF_FIL_OLD   = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPLA - 四料高流量噴頭"}
+# ★ Eric 0816 裁「甲」：照片磚豁免——維持舊值（流量 30、清料 120），另開專用支綁死照片磚機。
+PT_FIL_PLA = "PING PLA(照片磚)"
 FF_FIL_RENAME = {}   # 舊名→新名（4b 填入，供 ff_extra/照片磚範本 default 引用改名）
+for _k in ("PLA", "SupPLA"):
+    FF_FIL_RENAME[FF_FIL_OLD[_k]] = FF_FIL_ALIAS[_k]          # 0816 本代改名
 for _nz in ("0.4", "0.6", "1.0"):
     # 2026-07-18 口徑合一：舊「@FF 口徑」與「四料高流量噴頭 口徑」一律指到合併支（無口徑尾碼）
     FF_FIL_RENAME["PING PLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["PLA"]
     FF_FIL_RENAME["PING SupPLA - 高流量 @FF %s" % _nz] = FF_FIL_ALIAS["SupPLA"]
+    FF_FIL_RENAME["%s %s" % (FF_FIL_OLD["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]      # 前代帶口徑
+    FF_FIL_RENAME["%s %s" % (FF_FIL_OLD["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
 def _dedup_semilist(s):
@@ -206,20 +216,35 @@ def _dedup_semilist(s):
         if x and x not in seen:
             seen.add(x); out.append(x)
     return ";".join(out)
-def rename_ff_filament_refs(d):
-    """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）"""
+def rename_ff_filament_refs(d, pt=False, quad=False):
+    """機器/機型檔內的高流量 @FF 引用改新名（default_filament_profile／default_materials）。
+    🆕 pt=True（照片磚機）：改指**照片磚專用支**（Eric 0816 裁「甲」＝照片磚維持舊值不吃 50）。
+    🆕 quad=True（**四料本體機**）：改指「高流量噴頭」支（分開進＝各噴頭獨立、不吃同進支）。"""
+    m = FF_FIL_RENAME
+    if pt or quad:
+        tgt = PT_FIL_PLA if pt else HFN_PLA
+        m = dict(FF_FIL_RENAME)
+        m[FF_FIL_OLD["PLA"]] = tgt
+        m[FF_FIL_ALIAS["PLA"]] = tgt
+        for _n in ("0.4", "0.6", "1.0"):
+            m["%s %s" % (FF_FIL_OLD["PLA"], _n)] = tgt
+            m["%s %s" % (FF_FIL_ALIAS["PLA"], _n)] = tgt
+            m["PING PLA - 高流量 @FF %s" % _n] = tgt
     v = d.get("default_filament_profile")
     if isinstance(v, list):
-        d["default_filament_profile"] = [FF_FIL_RENAME.get(x, x) for x in v]
+        d["default_filament_profile"] = [m.get(x, x) for x in v]
     dm = d.get("default_materials")
     if isinstance(dm, str):
-        d["default_materials"] = _dedup_semilist(";".join(FF_FIL_RENAME.get(x, x) for x in dm.split(";")))
+        d["default_materials"] = _dedup_semilist(";".join(m.get(x, x) for x in dm.split(";")))
 # PING(2026-07-02)：範本收編的口徑變體——machine 檔在 ff_extra（無交付 config，Eric 已實機驗收），
 # 這裡只把口徑補進 machine_model 的 nozzle_diameter（精靈勾選）；default_materials 維持交付口徑不動。
 EXTRA_MODEL_NOZZLES = {"FF800": ["0.4"]}
 def def_fil_ff(nz):
     # 口徑合一（2026-07-18）：四槽預設＝合併支，不再帶口徑尾碼
-    return [FF_FIL_ALIAS["PLA"]]*3 + [FF_FIL_ALIAS["SupPLA"]]
+    # 🆕 2026-08-16 兩線收斂（含補上出貨線 0813 裁1「四槽全 PLA」）：四料本體機四槽＝
+    #    「高流量噴頭」支——四料分開進＝各噴頭各自獨立出料，不共用噴頭 ⇒ 不需要同進支的
+    #    清料 120／PA 0.4。原本開發線第 4 槽是四料 SupPLA，本次一併收斂成與出貨線一致。
+    return [HFN_PLA]*4
 # ⓘ 2026-08-07 起本常數只是「種子值」——最終 default_materials 由 4d-2 的
 #   apply_default_materials() post-pass 全族重算（Eric 0807 裁）。死名 PING ABS - 250／
 #   PING PolyABS（0725 ABS 整併已移除）在此一併清掉，post-pass 也會再擋一次。
@@ -771,7 +796,8 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
     n_mac = n_proc = n_cov = 0
     for fn in sorted(os.listdir(os.path.join(FF_EXTRA, "machine"))):
         d = json.load(io.open(os.path.join(FF_EXTRA, "machine", fn), encoding="utf-8"))
-        rename_ff_filament_refs(d)   # 高流量 @FF → 四料高流量噴頭（2026-07-12 改名）
+        # 0712 改名鏈＋🆕 0816：四料本體機（非同進/3in1/照片磚）四槽改指「高流量噴頭」支
+        rename_ff_filament_refs(d, quad=not any(t in d["name"] for t in ("同進", "3in1", "照片磚")))
         name = d["name"]
         if d.get("type") == "machine_model":
             mm_list.append({"name": name, "sub_path": "machine/%s.json" % name}); ff_models.append(name)
@@ -819,7 +845,7 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     pt_models = []
     for fn in sorted(os.listdir(os.path.join(PHOTOTILE, "machine"))):
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", fn), encoding="utf-8"))
-        rename_ff_filament_refs(d)   # 照片磚 64 槽高流量引用改新名（2026-07-12）
+        rename_ff_filament_refs(d, pt=True)   # 照片磚 64 槽 → 照片磚專用支（0816 裁「甲」）
         if d.get("type") == "machine_model":
             jdump(os.path.join(PINGDIR, "machine", "%s.json" % d["name"]), d)
             mm_list.append({"name": d["name"], "sub_path": "machine/%s.json" % d["name"]})
@@ -837,7 +863,7 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         return nm.startswith("FF600 同進照片磚") or "@FF600 同進照片磚" in nm
     for name in PHOTOTILE_MACHINES:
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
-        rename_ff_filament_refs(d)   # 照片磚 64 槽高流量引用改新名（2026-07-12）
+        rename_ff_filament_refs(d, pt=True)   # 照片磚 64 槽 → 照片磚專用支（0816 裁「甲」）
         if name.startswith("FD300 同進照片磚"):   # FD300 硬體同款門 → 預擠同套左側弧線
             apply_fd300_prime_arc("FD300 同進", d)
         if _is_reserved(name):
@@ -1190,23 +1216,43 @@ def main(src_base):
                 "enable_pressure_advance":["1"],
                 # 2026-07-18 Eric 裁：四料兩支 PA 統一 0.4（原 SupPLA 承 0.6 基底帶到 0.12＝漏改）
                 "pressure_advance":["0.4"],
-                "filament_max_volumetric_speed":["30"],
+                # 🆕 2026-08-16 Eric 裁：流量 30→50 **只給同進那支（PLA）**——同進＝四進一出、
+                #    盤上只有一個料槽。SupPLA 支未點名維持 30；照片磚走下方專用支豁免。
+                "filament_max_volumetric_speed":["30" if sup else "50"],
                 "hot_plate_temp":["60"],"hot_plate_temp_initial_layer":["60"]})
             # PING(2026-07-26 Eric 裁 A・下拉去重)：四料高流量噴頭支＝FF 四進一出硬體專屬
             #（四色/同進/FF 照片磚 64 槽預設引用實證），與 3in1 支（帶 T012/T3 同步進料
             # gcode、流量 20/12、PA 0.2）互為**不同機構**、不是重複——各綁各的機，下拉
             # 不再互相出現；值與行為分毫不動。清單動態取自本輪 mac_list（含 ff_extra/照片磚
             # ——4b 在其後跑，本檔 4a-3 註解即為此設計）＝regen-durable。
+            # 🆕 2026-08-16 改名後可見範圍收斂成**只有同進機**（四料本體改吃高流量噴頭支、
+            #    照片磚改吃專用支 ⇒ 它們不該再看到這支）。
             fp["compatible_printers"] = sorted(
                 x["name"] for x in mac_list
-                if x["name"].startswith(("FF600", "FF800")) and "3in1" not in x["name"])
+                if x["name"].startswith(("FF600", "FF800")) and "同進" in x["name"]
+                and "照片磚" not in x["name"] and "3in1" not in x["name"])
             if sup: fp["filament_is_support"] = ["1"]
             # 清洗量維持實機 120（FF 換色需大量清洗；Eric 2026-07-17 裁「不蓋」＝30/60 規則不套 FF）
             # 噴溫一律 210/210（Eric 2026-07-17 裁：0.6 實機 190 塞頭）
             fp["nozzle_temperature_initial_layer"] = ["210"]
             fp["nozzle_temperature"] = ["210"]
+            # 🆕 2026-08-16 改名接舊名：⚠ renamed_from ＝**字串**不是 list（T004 鐵則）
+            fp["renamed_from"] = FF_FIL_OLD[mat]
             jdump(os.path.join(PINGDIR,"filament","%s.json"%alias), fp)
             fil_new.append({"name":alias,"sub_path":"filament/%s.json"%alias})
+            # 🆕 照片磚專用支（Eric 0816 裁「甲」）：與同進支同源但維持舊值＝流量 30＋清料 120；
+            #    compatible 綁死照片磚機。⚠ 刻意不掛 renamed_from（舊名只能有一個接手者）。
+            if not sup:
+                pt = json.loads(json.dumps(fp))          # 深拷貝（本檔未 import copy）
+                pt.update({"name":PT_FIL_PLA, "alias":PT_FIL_PLA,
+                           "setting_id":"PINGFILPTPLA", "filament_id":"PINGFILPTPLA",
+                           "filament_max_volumetric_speed":["30"]})
+                pt.pop("renamed_from", None)
+                pt["compatible_printers"] = sorted(
+                    x["name"] for x in mac_list
+                    if x["name"].startswith(("FF600", "FF800")) and "照片磚" in x["name"])
+                jdump(os.path.join(PINGDIR,"filament","%s.json"%PT_FIL_PLA), pt)
+                fil_new.append({"name":PT_FIL_PLA,"sub_path":"filament/%s.json"%PT_FIL_PLA})
     # 舊名檔清除（改名後不留雙份；PING.json 舊條目在 4d 過濾）
     for old in FF_FIL_RENAME:
         oldp = os.path.join(PINGDIR, "filament", "%s.json" % old)
@@ -1349,7 +1395,9 @@ def main(src_base):
         fd["filament_wipe"] = ["1"]
         fd["filament_wipe_distance"] = ["5"]
         fd["filament_retract_before_wipe"] = ["100%"]
-        is_hf = ("高流量" in bn) or ("(3in1)" in bn)
+        # 🔴 2026-08-16 改名連坐：家族判定靠名字字串，「四料高流量噴頭」→「四料同進噴頭」後
+        #    會掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6 靜默退回一般流量值（出貨線實測踩到）。
+        is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
         if "TPE" in bn or "PVA" in bn:
             pass                                          # TPE/SupTPE 維持 3（0718 定稿）；PVA 維持 3（0724 V2.1 案定稿）
@@ -1379,7 +1427,9 @@ def main(src_base):
         if fd.get("instantiation") != "true":
             continue
         bn = os.path.basename(fp_path)[:-5]
-        if any(t in bn for t in ("Classic", "高流量", "(3in1)", "TPE", "PA-CF")):
+        # 🔴 2026-08-16 改名連坐：Eric 0728 原裁本就寫「不是高流量跟火山口**或四料**」，
+        #    這裡把「四料同進」與照片磚支明文列出，不再靠名字碰巧含「高流量」拿豁免。
+        if any(t in bn for t in ("Classic", "高流量", "四料同進", "(照片磚)", "(3in1)", "TPE", "PA-CF")):
             continue
         if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.08"]:
             fd["enable_pressure_advance"] = ["1"]
@@ -1444,7 +1494,7 @@ def main(src_base):
     pv_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         bn = os.path.basename(fp_path)
-        if "四料高流量噴頭" in bn or "(3in1)" in bn:
+        if "四料同進噴頭" in bn or "(3in1)" in bn or "(照片磚)" in bn:
             continue
         fd = json.load(io.open(fp_path, encoding="utf-8"))
         # PVA＝85（V2.1 案 75＋劉勝賢現行 +10，0724 對帳定稿）；SupPLA 系 60；其餘 30

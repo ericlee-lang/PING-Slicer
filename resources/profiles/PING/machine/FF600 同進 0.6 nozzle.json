@@ -20,7 +20,7 @@
         "#808080"
     ],
     "default_filament_profile": [
-        "PING PLA - 四料高流量噴頭"
+        "PING PLA - 四料同進噴頭"
     ],
     "default_print_profile": "0.35mm @FF600 同進 (0.6)",
     "deretraction_speed": [

@@ -917,14 +917,6 @@
             "sub_path": "filament/PING PLA - 220.json"
         },
         {
-            "name": "PING PLA - 四料高流量噴頭",
-            "sub_path": "filament/PING PLA - 四料高流量噴頭.json"
-        },
-        {
-            "name": "PING SupPLA - 四料高流量噴頭",
-            "sub_path": "filament/PING SupPLA - 四料高流量噴頭.json"
-        },
-        {
             "name": "PING PLA - 高流量噴頭",
             "sub_path": "filament/PING PLA - 高流量噴頭.json"
         },
@@ -951,6 +943,18 @@
         {
             "name": "PING SupPLA(3in1)",
             "sub_path": "filament/PING SupPLA(3in1).json"
+        },
+        {
+            "name": "PING PLA - 四料同進噴頭",
+            "sub_path": "filament/PING PLA - 四料同進噴頭.json"
+        },
+        {
+            "name": "PING PLA(照片磚)",
+            "sub_path": "filament/PING PLA(照片磚).json"
+        },
+        {
+            "name": "PING SupPLA - 四料同進噴頭",
+            "sub_path": "filament/PING SupPLA - 四料同進噴頭.json"
         }
     ],
     "machine_list": [
