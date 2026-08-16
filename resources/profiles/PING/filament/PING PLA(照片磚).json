@@ -57,10 +57,10 @@
         "10"
     ],
     "fan_max_speed": [
-        "30"
+        "100"
     ],
     "fan_min_speed": [
-        "30"
+        "100"
     ],
     "filament_cooling_final_speed": [
         "3.4"
@@ -90,7 +90,7 @@
         "1"
     ],
     "filament_is_support": [
-        "1"
+        "0"
     ],
     "filament_loading_speed": [
         "28"
@@ -174,7 +174,7 @@
         "0"
     ],
     "filament_type": [
-        "PETG"
+        "PLA"
     ],
     "filament_unloading_speed": [
         "90"
@@ -267,34 +267,22 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA - 四料高流量噴頭",
-    "alias": "PING SupPLA - 四料高流量噴頭",
+    "name": "PING PLA(照片磚)",
+    "alias": "PING PLA(照片磚)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILHFSUP",
-    "filament_id": "PINGFILHFSUP",
+    "setting_id": "PINGFILPTPLA",
+    "filament_id": "PINGFILPTPLA",
     "inherits": "fdm_filament_pla",
     "compatible_printers": [
-        "FF600 0.4 nozzle",
-        "FF600 0.6 nozzle",
-        "FF600 1.0 nozzle",
-        "FF600 同進 0.4 nozzle",
-        "FF600 同進 0.6 nozzle",
-        "FF600 同進 1.0 nozzle",
         "FF600 同進照片磚 0.4 nozzle",
         "FF600 同進照片磚 0.6 nozzle",
         "FF600 同進照片磚 1.0 nozzle",
-        "FF800 0.4 nozzle",
-        "FF800 0.6 nozzle",
-        "FF800 1.0 nozzle",
-        "FF800 同進 0.4 nozzle",
-        "FF800 同進 0.6 nozzle",
-        "FF800 同進 1.0 nozzle",
         "FF800 同進照片磚 0.4 nozzle",
         "FF800 同進照片磚 0.6 nozzle",
         "FF800 同進照片磚 1.0 nozzle"
     ],
     "default_filament_colour": [
-        "#D3D3D3"
+        "#EA4E16"
     ]
 }

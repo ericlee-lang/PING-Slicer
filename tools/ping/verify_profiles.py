@@ -206,6 +206,27 @@ for name, (kind, d) in presets.items():
         for f in d.get("default_filament_profile", []) or []:
             if f not in presets:
                 err(f"[default_filament_profile missing] {name} -> {f!r}")
+        # ★ 檢查 12（Eric 2026-08-16 裁・槽位預設護欄）——四條全部是「已經是這樣、把它釘住」，
+        #   不是新行為。動機：這些預設散落在 def_fil_*／ff_extra 範本／照片磚範本三條產線，
+        #   之前被改掉都是靜默的（0813 back-fill 事故即為一例）。
+        _dfp = d.get("default_filament_profile") or []
+        if len(_dfp) >= 2 and "3in1" in name:
+            # 12-a 3in1 第二槽＝SupPLA(3in1)（3in1＝前三主體＋第四支撐的硬體，支撐支不可換成別支）
+            if _dfp[1] != "PING SupPLA(3in1)":
+                err(f"[3in1 第二槽必為 SupPLA(3in1)] {name} -> {_dfp[1]!r}")
+        elif len(_dfp) == 2 and name.startswith(("FD", "DUAL")):
+            # 12-b 雙料機第二槽＝SupPLA 系（各線用各自變體：基礎／高流量噴頭／Classic）
+            if "SupPLA" not in _dfp[1]:
+                err(f"[雙料機第二槽必為 SupPLA 系] {name} -> {_dfp[1]!r}")
+        if name.startswith(("FF600", "FF800")) and not any(
+                t in name for t in ("同進", "3in1", "照片磚")):
+            # 12-c 四料本體機四槽＝高流量噴頭支（0816 裁：分開進＝各噴頭獨立、不吃同進支）
+            if _dfp and set(_dfp) != {"PING PLA - 高流量噴頭"}:
+                err(f"[四料本體機四槽必為高流量噴頭支] {name} -> {sorted(set(_dfp))!r}")
+        if "同進照片磚" in name and name.startswith(("FF600", "FF800")):
+            # 12-d 照片磚機＝照片磚專用支（0816 裁「甲」＝照片磚維持舊值、不吃流量 50）
+            if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
+                err(f"[FF 照片磚機必為照片磚專用支] {name} -> {sorted(set(_dfp))!r}")
         # 檢查 10（Eric 2026-07-17 裁「全機隊」）：機器動力學＝Klipper 實值（時間預估校正）；
         # DL1016 與 Classic 前代機跳過
         if ("machine_max_acceleration_x" in d and "DL1016" not in name
@@ -502,10 +523,21 @@ for name, (kind, d) in presets.items():
             pv = d.get("filament_minimal_purge_on_wipe_tower")
             pv = pv[0] if isinstance(pv, list) and pv else pv
             # PVA＝85（V2.1 案 75＋劉勝賢現行 +10，0724 對帳定稿）；SupPLA 系 60；其餘 30
-            expected_pv = ("120" if ("四料高流量噴頭" in name or "(3in1)" in name)
+            # 🔴 2026-08-16 改名：「四料高流量噴頭」→「四料同進噴頭」；照片磚專用支同享 120
+            expected_pv = ("120" if ("四料同進噴頭" in name or "(照片磚)" in name or "(3in1)" in name)
                            else "85" if "PVA" in name else "60" if "SupPLA" in name else "30")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
+            # ★ 檢查 13（Eric 2026-08-16 裁・四料同進流量）：同進＝四進一出、單槽，流量 50；
+            #   SupPLA 同進支 Eric 未點名＝維持 30；照片磚專用支豁免＝維持 30（等 Eric 實印再定）。
+            #   ⚠ 要放寬**必須是 Eric 新的一次裁定**，不是下一棒覺得該一致就改。
+            _mvs = d.get("filament_max_volumetric_speed")
+            _mvs = _mvs[0] if isinstance(_mvs, list) and _mvs else _mvs
+            _want_mvs = {"PING PLA - 四料同進噴頭": "50",
+                         "PING SupPLA - 四料同進噴頭": "30",
+                         "PING PLA(照片磚)": "30"}.get(name)
+            if _want_mvs and _mvs != _want_mvs:
+                err(f"[四料同進流量 0816] {name}: {_mvs!r}, expected {_want_mvs!r}")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁「擴及所有材料」）＋
             # 🔴 冷卻降速一律**關**（Eric 2026-08-07 裁，翻 0718 自己那條「一律開」）
             #    原話：「經過實測…它是在特殊情況下才需要進行勾選，因此大部分情況下都要取消」
@@ -540,7 +572,11 @@ for name, (kind, d) in presets.items():
                                 ("filament_wipe_distance", "5"), ("filament_retract_before_wipe", "100%")):
                     if _v(k) != want:
                         err(f"[線材回抽四項 0723] {name}: {k}={_v(k)!r}, expected {want!r}")
-                is_hf = ("高流量" in name) or ("(3in1)" in name)
+                # 🔴 2026-08-16 改名連坐：舊名「四料高流量噴頭」靠字串「高流量」落進 is_hf，
+                #    改名成「四料同進噴頭」後就掉出去、被當一般流量要求 PA 0.08（本輪實測踩到）。
+                #    照片磚專用支同理（它就是同進支的照片磚分身）。
+                is_hf = (("高流量" in name) or ("四料同進" in name)
+                         or ("(照片磚)" in name) or ("(3in1)" in name))
                 if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
                     err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
                 # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只限一般流量」→ 2026-07-28 三輪裁

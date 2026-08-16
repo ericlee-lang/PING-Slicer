@@ -102,7 +102,7 @@
         "nil"
     ],
     "filament_max_volumetric_speed": [
-        "30"
+        "50"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "120"
@@ -267,33 +267,22 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA - 四料高流量噴頭",
-    "alias": "PING PLA - 四料高流量噴頭",
+    "name": "PING PLA - 四料同進噴頭",
+    "alias": "PING PLA - 四料同進噴頭",
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGFILHFPLA",
     "filament_id": "PINGFILHFPLA",
     "inherits": "fdm_filament_pla",
     "compatible_printers": [
-        "FF600 0.4 nozzle",
-        "FF600 0.6 nozzle",
-        "FF600 1.0 nozzle",
         "FF600 同進 0.4 nozzle",
         "FF600 同進 0.6 nozzle",
         "FF600 同進 1.0 nozzle",
-        "FF600 同進照片磚 0.4 nozzle",
-        "FF600 同進照片磚 0.6 nozzle",
-        "FF600 同進照片磚 1.0 nozzle",
-        "FF800 0.4 nozzle",
-        "FF800 0.6 nozzle",
-        "FF800 1.0 nozzle",
         "FF800 同進 0.4 nozzle",
         "FF800 同進 0.6 nozzle",
-        "FF800 同進 1.0 nozzle",
-        "FF800 同進照片磚 0.4 nozzle",
-        "FF800 同進照片磚 0.6 nozzle",
-        "FF800 同進照片磚 1.0 nozzle"
+        "FF800 同進 1.0 nozzle"
     ],
+    "renamed_from": "PING PLA - 四料高流量噴頭",
     "default_filament_colour": [
         "#EA4E16"
     ]
