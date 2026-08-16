@@ -187,19 +187,23 @@ jobs:
     # To turn it back on permanently, restore the upstream condition:
     #   if: ${{ !cancelled() && !vars.SELF_HOSTED && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     #
-    # KNOWN BROKEN - two blockers, both must be fixed together (verified 2026-08-16
-    # against run 31925931529, jobs 95113381923 / 95113382046, identical on both arches):
-    #  1. Export fails: resources/images/OrcaSlicer.svg is 523.6x136.4, but flatpak
-    #     requires a SQUARE app icon. That file serves two roles - the in-app dialog
-    #     logo (wants the wide wordmark) and the scalable app icon (must be square).
-    #     Fix by splitting them, not by reshaping the dialog logo.
-    #  2. Upload would silently produce nothing: line ~242 hardcodes the upstream
-    #     workspace /__w/OrcaSlicer/OrcaSlicer/, but this fork runs in
-    #     /__w/PING-Slicer/PING-Slicer/. actions/upload-artifact defaults to
-    #     if-no-files-found: warn, so fixing only (1) turns an honest red into a
-    #     green job that ships no .flatpak. Fix the path AND set if-no-files-found: error.
-    # Note also: because the job fails, its cache post-step is skipped, so the
-    # flatpak-builder cache is never written - every attempt is a cold 1-2.6h build.
+    # HISTORY - two blockers were diagnosed and fixed on 2026-08-16 (evidence: run
+    # 31925931529, jobs 95113381923 / 95113382046, identical failure on both arches):
+    #  1. Export failed because resources/images/OrcaSlicer.svg is 523.6x136.4 while
+    #     flatpak requires a SQUARE app icon. That file serves two roles - the in-app
+    #     dialog logo (wants the wide wordmark) and the scalable app icon (must be
+    #     square). FIXED by no longer installing it at all; scalable/ is optional and
+    #     the square PNGs already pass. See scripts/flatpak/com.orcaslicer.OrcaSlicer.yml.
+    #  2. Upload pointed at the upstream workspace /__w/OrcaSlicer/OrcaSlicer/ while
+    #     this fork runs in /__w/PING-Slicer/PING-Slicer/, and upload-artifact defaults
+    #     to if-no-files-found: warn - so fixing only (1) would have turned an honest
+    #     red into a green job shipping no .flatpak. FIXED below (github.workspace +
+    #     if-no-files-found: error).
+    # NOT YET PROVEN GREEN: Flatpak has never succeeded on this fork, so a third
+    # blocker behind these two cannot be ruled out until someone dispatches with
+    # run-flatpak = true. Note the cache is still cold: while the job fails its cache
+    # post-step is skipped, so the first successful run is the one that finally
+    # populates flatpak-builder cache. Budget 1-2.6h for that first attempt.
     if: ${{ !cancelled() && !vars.SELF_HOSTED && github.event_name == 'workflow_dispatch' && inputs.run-flatpak }}
     runs-on: ${{ matrix.variant.runner }}
     env:
