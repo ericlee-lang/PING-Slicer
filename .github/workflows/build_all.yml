@@ -41,6 +41,10 @@ on:
         description: 'Only build dependencies (bypasses caching)'
         type: boolean
         default: false
+      run-flatpak:
+        description: 'Also build the Linux Flatpak (off by default - see the flatpak job)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -167,17 +171,36 @@ jobs:
             runner: ubuntu-24.04
           - arch: aarch64
             runner: ubuntu-24.04-arm
-    # PING: Flatpak is manual-only. PING ships Windows (and macOS), not Linux, and
+    # PING: Flatpak is opt-in only. PING ships Windows (and macOS), not Linux, and
     # these two jobs cost ~2.6h per build (x86_64 alone is the longest job in the
     # whole run) only to be discarded. Everything needed to build it is still here:
     # scripts/flatpak/, the manifest and the icons are untouched.
     #
-    # To run it: trigger "Build all" manually (workflow_dispatch).
+    # It was manual-only (any workflow_dispatch) until 2026-08-16. The problem: the
+    # dev line is supposed to dispatch "Build all" after every C++ change, and these
+    # two jobs are RED for a known reason, so the run's overall conclusion was always
+    # "failure" - nobody could use "is the run green?" as a signal, and a genuinely
+    # new breakage would hide behind the standing red. Eric ruled on 2026-08-16:
+    # take it off the default dispatch path, keep the switch. Hence the input below.
+    #
+    # To run it: dispatch "Build all" with run-flatpak = true.
     # To turn it back on permanently, restore the upstream condition:
     #   if: ${{ !cancelled() && !vars.SELF_HOSTED && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
-    # Note: it currently FAILS at export because resources/images/OrcaSlicer.svg is
-    # 523.6x136.4 (flatpak requires a square app icon) - fix that first.
-    if: ${{ !cancelled() && !vars.SELF_HOSTED && github.event_name == 'workflow_dispatch' }}
+    #
+    # KNOWN BROKEN - two blockers, both must be fixed together (verified 2026-08-16
+    # against run 31925931529, jobs 95113381923 / 95113382046, identical on both arches):
+    #  1. Export fails: resources/images/OrcaSlicer.svg is 523.6x136.4, but flatpak
+    #     requires a SQUARE app icon. That file serves two roles - the in-app dialog
+    #     logo (wants the wide wordmark) and the scalable app icon (must be square).
+    #     Fix by splitting them, not by reshaping the dialog logo.
+    #  2. Upload would silently produce nothing: line ~242 hardcodes the upstream
+    #     workspace /__w/OrcaSlicer/OrcaSlicer/, but this fork runs in
+    #     /__w/PING-Slicer/PING-Slicer/. actions/upload-artifact defaults to
+    #     if-no-files-found: warn, so fixing only (1) turns an honest red into a
+    #     green job that ships no .flatpak. Fix the path AND set if-no-files-found: error.
+    # Note also: because the job fails, its cache post-step is skipped, so the
+    # flatpak-builder cache is never written - every attempt is a cold 1-2.6h build.
+    if: ${{ !cancelled() && !vars.SELF_HOSTED && github.event_name == 'workflow_dispatch' && inputs.run-flatpak }}
     runs-on: ${{ matrix.variant.runner }}
     env:
       date:
