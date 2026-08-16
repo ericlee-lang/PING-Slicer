@@ -11,17 +11,13 @@
 namespace Slic3r { 
 namespace GUI {
 
-class AboutDialogLogo : public wxPanel
-{
-public:
-    AboutDialogLogo(wxWindow* parent);
-    
-private:
-    ScalableBitmap logo;
-    void onRepaint(wxEvent &event);
-};
-
-
+// PING 2026-08-16: AboutDialogLogo removed - it was declared and defined but never
+// instantiated anywhere in the tree (upstream dead code; predates PING's About
+// branding in 7b52c6e448, traceable back to the BambuStudio import). The real About
+// dialog builds its logo from PING_about.png in AboutDialog.cpp. Keeping it around
+// cost us a misdiagnosis: a grep for resources/images/OrcaSlicer_192px.png hit this
+// class and made it look like the About dialog depended on that asset, which nearly
+// blocked unifying the icon set.
 
 class CopyrightsDialog : public DPIDialog
 {
