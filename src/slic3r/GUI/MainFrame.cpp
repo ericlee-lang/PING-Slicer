@@ -41,6 +41,7 @@
 #include "WebViewDialog.hpp"
 #include "PhotoTileSmoke.hpp"
 #include "PingAiKeyDialog.hpp"
+#include "libslic3r_version.h"   // 建置時產生（build/src/libslic3r/），不帶目錄前綴
 #include "PingQuotePack.hpp"
 #include "PingQuoteSmoke.hpp"
 #include "../Utils/Process.hpp"
@@ -2637,10 +2638,24 @@ static wxMenu* generate_help_menu()
     //    [](wxCommandEvent&) {
     //        //TODO
     //    });
-    // Check New Version
+    /* Check New Version — PING 改「告知型」（Eric 2026-08-16 裁「做②」）
+       改之前：這一項呼叫 check_new_version_sf()，而那支第一行就 return
+       （GUI_App.cpp，本 fork 無自有更新伺服器、刻意停用）⇒ 使用者按下去**完全沒有反應**，
+       是一顆死按鈕。現在改成誠實告知：講清楚「不會自動更新」並給對外入口。
+       ⚠ 不做真的自動更新——那要更新 feed 伺服器＋程式碼簽章＋回滾，
+       而簽章買不買尚未裁定（見待確認「軟體對外上架」）。這裡刻意不預留半套機制。 */
     append_menu_item(helpMenu, wxID_ANY, _L("Check for Updates"), _L("Check for Updates"),
         [](wxCommandEvent&) {
-            wxGetApp().check_new_version_sf(true, 1);
+            const wxString msg = wxString::FromUTF8(
+                "目前版本：V" SoftFever_VERSION "\n\n"   // 與標題列同一組數字（3.5.5）
+                "本軟體不會自動更新，也不會自己連網查版本。\n"
+                "要取得新版，請聯絡 PING，或到官網的下載頁看看。");
+            MessageDialog dlg(wxGetApp().mainframe, msg, wxString::FromUTF8("檢查更新"), wxYES_NO);
+            dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("打開官網"));
+            dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("關閉"));
+            if (dlg.ShowModal() == wxID_YES)
+                wxLaunchDefaultBrowser("https://ping3dp.com/software_and_tools/ping-slicer/",
+                                       wxBROWSER_NEW_WINDOW);
         }, "", nullptr, []() {
             return true;
         });
