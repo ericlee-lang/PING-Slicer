@@ -392,6 +392,28 @@ public:
                        int(width * 0.224),
                        int(height * 0.527) - ver_ext.GetHeight() / 2);
 
+        /* PING 2026-08-16（Eric 令「加一條『開發線試用包』」）：試用包要一眼看得出來。
+           起因＝試用包與正式版視窗長得一模一樣、資料夾名只差 `-dev`，Eric 0816 連續開錯兩次
+           （找不到只有開發線才有的「產生報價包」）。版本治理本來就要求廠內測試版雙標。
+           判準＝**exe 旁邊有沒有 data_dir 資料夾**——那是試用包獨有的獨立資料根
+           （SOP_開發線Portable試用包 §4；正式版與安裝版都走 %APPDATA%）。
+           ⚠ 這裡刻意自己重算而不讀 data_dir()：splash 早於 set_data_dir() 執行。 */
+        {
+            namespace fs = boost::filesystem;
+            const fs::path exe_dir =
+                fs::path(wxStandardPaths::Get().GetExecutablePath().ToUTF8().data()).parent_path();
+            if (fs::is_directory(exe_dir / "data_dir")) {
+                wxFont tag_font = m_constant_text.version_font;
+                tag_font.SetPixelSize(wxSize(0, int(height * 0.030)));
+                memDc.SetFont(tag_font);
+                memDc.SetTextForeground(wxColour(0xEA, 0x4E, 0x16));   // Raised Orange（深色底上的 accent）
+                const wxString tag = wxString::FromUTF8("開發線試用包");
+                memDc.DrawText(tag,
+                               int(width * 0.224),
+                               int(height * 0.527) + ver_ext.GetHeight() / 2 + int(height * 0.008));
+            }
+        }
+
         // Dynamic Text — 載入狀態文字（Loading configuration...），保留於底部
         m_action_line_y_position = int(height * 0.90);
     }
