@@ -601,11 +601,18 @@ def normalize_unified_values(proc, ff=False):
     # 值源自 Orca 端 A/B 對照實印檔，非 V2.1 換算——Cura 無四段結構（僅單一
     # wall_overhang_speed_factor 百分比），故不涉跨基準換算。
     # 照片磚/Classic/DL1016 不走本函式＝天然豁免（同 jerk 註）。
-    proc["enable_overhang_speed"] = "1"
+    # 🔴 2026-08-16 Eric 裁「A+C」並令「同步出貨線」，**推翻上面 0724 那批的降速部分**：
+    #    A＝降速開關全庫關閉；C＝最慢那階 10 → **25**（不取 30：50% 段就是 25，
+    #    取 30 會讓「懸空更多的那階反而更快」＝順序反了）。
+    #    理由＝Eric 實測 0.6 黃銅（大口徑高流量）跑 10 mm/s 時噴頭停留過久、料在裡面滾沸。
+    #    ⚠ 0724 的 A/B 實證是在 FD300 同進 0.4（小口徑）做的，本次一併關掉等於也關了那個好處；
+    #      已提過 B（只關大口徑）方案，Eric 知情後仍選 A+C。要改回 B＝這裡加一條口徑判斷。
+    #    ⚠ 與開發線 ping/v3.5 的 commit afdddff35a 同一裁定、同一組值，兩線必須一致。
+    proc["enable_overhang_speed"] = "0"
     proc["overhang_1_4_speed"] = "50"
     proc["overhang_2_4_speed"] = "50"
     proc["overhang_3_4_speed"] = "25"
-    proc["overhang_4_4_speed"] = "10"
+    proc["overhang_4_4_speed"] = "25"
     proc["bridge_flow"] = "0.95"
     # ⑥ 支撐臨界角 35（Eric 2026-07-25 裁，推翻 07-24 的 60）。照片磚/Classic/DL1016 豁免同上。
     # 🔴 這是 Orca 基準值（自水平量、越大支撐越多），= Cura/V2.1 的 55。

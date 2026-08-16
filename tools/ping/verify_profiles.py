@@ -275,11 +275,12 @@ for name, (kind, d) in presets.items():
                 "seam_position": "aligned",
                 # ★ Classic 套 F 系新工藝（Eric 2026-07-25 裁）：爬坡品質＋支撐臨界角改與全庫同值
                 #   （原本這裡是豁免的，由 emit_classic 還原成 關/1/30；本裁取消該還原）
-                "enable_overhang_speed": "1",
+                # 🔴 2026-08-16 Eric 裁「A+C」：F 系關降速，Classic 依「跟進」精神一起關
+                "enable_overhang_speed": "0",
                 "overhang_1_4_speed": "50",
                 "overhang_2_4_speed": "50",
                 "overhang_3_4_speed": "25",
-                "overhang_4_4_speed": "10",
+                "overhang_4_4_speed": "25",   # 0816 C：10 → 25（Classic 跟進 F 系）
                 "bridge_flow": "0.95",
                 "support_threshold_angle": "35",
             } if is_classic else {
@@ -299,11 +300,14 @@ for name, (kind, d) in presets.items():
                 "seam_position": "aligned",
                 # 爬坡品質（Eric 2026-07-24）：懸空降速四段＋橋接流量；照片磚/Classic 豁免
                 # ⚠ 單位＝mm/s（裸數字；ratio_over=outer_wall_speed，要用 % 須帶符號）
-                "enable_overhang_speed": "1",
+                # 🔴 2026-08-16 Eric 裁「A+C」推翻降速部分（四段值留著當備援）：
+                #    A＝開關全庫關；C＝最慢階 10 → 25（不取 30：會比 50% 段的 25 更快＝順序反）。
+                #    ⚠ 要放寬回 "1"／"10" 必須是 **Eric 新的一次裁定**，不是實作者順手改這行。
+                "enable_overhang_speed": "0",
                 "overhang_1_4_speed": "50",
                 "overhang_2_4_speed": "50",
                 "overhang_3_4_speed": "25",
-                "overhang_4_4_speed": "10",
+                "overhang_4_4_speed": "25",
                 "bridge_flow": "0.95",
                 # 支撐臨界角 35（Eric 2026-07-25 裁）
                 # 🔴 Orca 基準（= Cura/V2.1 的 55）；兩線相反 Orca = 90 − Cura，見 ping-slicer/orca-sync.md
@@ -402,8 +406,12 @@ for name, (kind, d) in presets.items():
                         err(f"[樹狀支撐保守配方 0725] {name}: {key}={d.get(key)!r}, expected {value!r}")
                 # ★ Classic 前代：確認新工藝**確實有套**（Eric 2026-07-25 裁「Classic 套新工藝」，
                 #   本斷言由「豁免破功」反轉為「跟進破功」——防哪天有人又把還原塞回 emit_classic）
+                #   🔴 2026-08-16 Eric 裁「A+C」＋令「同步出貨線」：F 系的降速開關全庫關閉，
+                #      依 0725「Classic 跟進 F 系」的精神，Classic 一起關（DUAL 800 的 0.6／1.0
+                #      同樣是大口徑，滾沸的物理一樣成立）⇒ 本斷言的期望值同步改 "0"。
+                #      ⚠ 這裡改的是「跟進的對象變了」，**不是取消跟進**——其餘四項仍照舊守著。
                 if _cls_proc:
-                    for key, value in (("enable_overhang_speed", "1"), ("bridge_flow", "0.95"),
+                    for key, value in (("enable_overhang_speed", "0"), ("bridge_flow", "0.95"),
                                        ("support_threshold_angle", "35"),
                                        ("tree_support_branch_angle", "30"),
                                        ("tree_support_branch_diameter", "%g" % min(nz_v * 12, 10.0))):
