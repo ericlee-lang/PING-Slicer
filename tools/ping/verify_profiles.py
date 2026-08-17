@@ -296,9 +296,14 @@ for name, (kind, d) in presets.items():
                         if d.get(zk) != "0":
                             err(f"[功能歸類・易拆 Z0] {name}: {zk}={d.get(zk)!r}")
                 else:
+                    # 🔴 Z隙規則 2026-08-17 由 Eric 改裁：一般家族＝固定 0.2，不再是「一層層高」。
+                    # 舊規只套得到雙料機（combo_overrides 只在 is_dual_machine 跑），非雙料機沿用母檔值
+                    # ⇒ 全庫散成五種值。Eric 看到「FF800 四料本體是 0、FD300 卻是 0.3」後裁「全部改 0.2」。
+                    # 出貨線同批＝054a1f2cde。⚠ 易拆 0 不變（「易拆＝沒有間隙」是命名語意本身）。
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
-                        if d.get(zk) != _lh_v:
-                            err(f"[功能歸類・雙料 Z隙=層高] {name}: {zk}={d.get(zk)!r}, expected {_lh_v!r}")
+                        if d.get(zk) != "0.2":
+                            err(f"[功能歸類・一般 Z隙=0.2] {name}: {zk}={d.get(zk)!r}, expected '0.2'"
+                                f"（Eric 2026-08-17 裁，取代舊規「一層層高」）")
                 _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, COMBO_CAT_DUALPAL) else "0"
                 if d.get("raft_layers") != _raft:
                     err(f"[功能歸類・棧板 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")

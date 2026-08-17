@@ -518,6 +518,20 @@ def normalize_unified_values(proc, ff=False):
 #   主體類規則全庫套＝同 0722 ×9 先例，含易拆/3in1 範本 30%）；raft 機種（ABS 系/棧板 raft_layers≥1）
 #   ＝raft 首層＝貼床要抓床，維持 100% 不動——呼叫點須在 combo_overrides 之後（raft_layers 已定）。
 # DL1016 不在 repo 自然跳過。
+# ★ 易拆家族的權威組合集（單一真實來源）——檔名前綴判定與支撐 Z 間距共用同一份。
+# ⛔ 不要在別處另寫 `cb.endswith("+SUP")`：會**漏掉 PLA+PVA**（易拆水溶也是專用支撐料、同樣不相熔）。
+EASY_COMBOS = ("PLA+SUP", "ABS+SUP", "PLA+PVA")
+
+# ★ 支撐 Z 間距全庫統一（Eric 2026-08-17 裁：「一層層高」→**一般家族全部 0.2**）
+# 與出貨線 054a1f2cde 同一批（兩線收斂）。現況三個來源互不知情：①雙料機走 combo_overrides
+# （+SUP→0、其餘→層高）②非雙料機不跑它 ⇒ 沿用母檔攤平值 ③fdm_process_common 缺 bottom 鍵。
+# ⚠ 易拆的 0 不可動——「易拆＝沒有間隙」是 Eric 0811 定名時的語意本身。
+def normalize_support_z(proc, easy_release):
+    z = "0" if easy_release else "0.2"
+    proc["support_top_z_distance"]    = z
+    proc["support_bottom_z_distance"] = z
+    return proc
+
 def normalize_support_interface(proc, nozzle=None, easy_release=False):
     if proc.get("support_interface_top_layers") in ("1", "2"):
         proc["support_interface_top_layers"] = "4"
@@ -1085,6 +1099,10 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
+                    # PING(2026-08-17 Eric 裁)：支撐 Z 間距＝易拆 0／一般 0.2。
+                    # ⚠ **無條件跑、刻意不放進 is_dual_machine**——非雙料機正是現況最亂的一群。
+                    # ⚠ 必須在 combo_overrides **之後**：後者對 +SUP 也寫這兩個鍵，先跑會被蓋掉。
+                    normalize_support_z(proc, easy_release=cb in EASY_COMBOS)
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔統一（0708 立；0717 寬 25；0729 錐體30/速60）
                     normalize_wall_accel(proc)   # 內外牆加速度 1500（2026-07-29 Eric 裁）
@@ -1769,6 +1787,27 @@ def main(src_base):
     # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
     # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
     # 重新啟用前需「清噴頭」等機制配套驗證通過（見 apply_deferred_heating 註記）。
+
+    # ★ 支撐 Z 間距最終掃描（Eric 2026-08-17 裁；與出貨線 054a1f2cde 同一批）
+    # 為什麼要「最後再掃一遍」：製程有多條產出路徑，併入類是「讀既有檔再 update」⇒ 只改主迴圈會漏
+    # （出貨線實測漏 5 支）。判準用製程名，**必須含 3in1**——它是易拆家族（第 2 槽 SupPLA(3in1)
+    # 是支撐料、不相熔）但名字裡沒有「易拆」，出貨線第一版就是漏了它、6 支被誤設 0.2（實測抓到）。
+    _zt = _zg = 0
+    for _e in proc_list:
+        _p = os.path.join(PINGDIR, _e["sub_path"].replace("process/", "process" + os.sep))
+        if not os.path.exists(_p):
+            continue
+        _d = json.load(io.open(_p, encoding="utf-8"))
+        _nm   = _d.get("name", "")
+        _easy = ("易拆" in _nm) or ("3in1" in _nm)
+        _z    = "0" if _easy else "0.2"
+        if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:
+            _d["support_top_z_distance"] = _d["support_bottom_z_distance"] = _z
+            jdump(_p, _d)
+            _zt += 1
+        _zg += 1 if _easy else 0
+    print("  支撐 Z 間距最終掃描（易拆 0／一般 0.2）：掃 %d 支｜易拆 %d 支｜補正 %d 支"
+          % (len(proc_list), _zg, _zt))
 
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
