@@ -17124,7 +17124,12 @@ void Plater::pop_warning_and_go_to_device_page(wxString printer_name, PrinterWar
 {
     printer_name.Replace("Bambu Lab", "", false);
     wxString content;
-    bool device_page = (wxGetApp().mainframe == nullptr) && (wxGetApp().mainframe->m_monitor->IsShown());
+    // PING(2026-08-17 c-0817-BAM-02)：原碼把判斷寫反了——`== nullptr` 為真時才去解參考它。
+    // 後果兩層：①mainframe 真的是 null 就當場崩潰 ②不是 null 就短路成 false，
+    // 使得 device_page 恆為 false，下面那句「請到裝置頁連接…」的文案永遠不會出現。
+    // 改成 != nullptr，並補 m_monitor 的 null 檢查（show_device(false) 會把它 RemovePage）。
+    bool device_page = (wxGetApp().mainframe != nullptr) && (wxGetApp().mainframe->m_monitor != nullptr) &&
+                       (wxGetApp().mainframe->m_monitor->IsShown());
     if (type == PrinterWarningType::NOT_CONNECTED) {
         if (device_page) {
             content = wxString::Format(_L("Printer not connected. Please go to the device page to connect %s before syncing."),
