@@ -580,7 +580,7 @@ def filename_tpl(mode_key):
     「Non-ASCII7 characters...」；字串字面值是 lexeme[utf8char]、中文合法。"""
     base = FILENAME_BASE
     # 2026-07-23 Eric 改版：模式_列印設備(口徑)_檔名_時間0.5H_重量g（佔位符需同日後 binary，profile 與 binary 同車）
-    if mode_key in ("PLA+SUP", "ABS+SUP", "PLA+PVA"): return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式
+    if mode_key in EASY_COMBOS: return '{"易拆_"}' + base   # 組合別製程→前綴直判，免模板條件式（集合＝EASY_COMBOS 單一真實來源）
     if mode_key in ("PLA+PLA", "ABS+ABS"): return '{"雙色_"}' + base
     # Mix_ → 同進_（Eric 2026-07-26 裁）：7 個前綴裡只有這個是英文，與 易拆/雙色/單料/四色/經典
     # 不一致，同事看檔名會覺得不整齊。已查無消費者——切片端無人讀此前綴，機台端判混色是看
@@ -667,6 +667,30 @@ def normalize_unified_values(proc, ff=False):
 #   主體類規則全庫套＝同 0722 ×9 先例，含易拆/3in1 範本 30%）；raft 機種（ABS 系/棧板 raft_layers≥1）
 #   ＝raft 首層＝貼床要抓床，維持 100% 不動——呼叫點須在 combo_overrides 之後（raft_layers 已定）。
 # Classic 前代由 Fast 複製自然繼承（支撐屬切片行為、韌體無關）；DL1016 不在 repo 自然跳過。
+# ★ 易拆家族的權威組合集（單一真實來源）——檔名前綴判定與支撐 Z 間距共用同一份。
+# ⛔ 不要在別處另寫一份 `cb.endswith("+SUP")`：那會**漏掉 PLA+PVA**（易拆水溶也是專用支撐料、
+#    同樣不相熔）。本專案今天已經被「同一件事寫兩份、改一份忘另一份」咬過兩次（0816 改名連坐、
+#    0813 槽位料改了幾何沒改），故此處集中定義。
+EASY_COMBOS = ("PLA+SUP", "ABS+SUP", "PLA+PVA")
+
+# ★ 支撐 Z 間距全庫統一（Eric 2026-08-17 裁：「一層層高」→**一般家族全部 0.2**）
+# 起因＝Eric 截圖：FF800 四料本體機的頂/底 Z 間距是 0，而同為「一般」的 FD300 卻是 0.3。
+# 全檔盤點現況散成五種值（0／0.125／0.2／0.3／0.5），來源有三個、彼此不知道對方存在：
+#   ①雙料機走 combo_overrides：+SUP→0、其餘→**層高**（0.125／0.3／0.5 就是這樣來的）
+#   ②**非雙料機不跑 combo_overrides**（呼叫點有 `if is_dual_machine`）⇒ 沿用母檔攤平值
+#     （多數 0.2；FF600／FF800 四料本體機是 0）
+#   ③fdm_process_common 只有 top=0.2、**bottom 整個缺鍵**
+# ⇒ 本函式**無條件跑在所有機型**，把三個來源收斂成兩個值：易拆 0／一般 0.2。
+# ⚠ 易拆的 0 不可動——「易拆＝沒有間隙」是 Eric 2026-08-11 定名時的語意本身（見 COMBO_HEAD 註解）。
+# 🔴 順帶修掉一個真缺陷：FF600 三口徑＋FF800 0.6／1.0 那 5 支原本是 0——0813 裁1 把第 4 槽由
+#   SupPLA 改成 PLA（＝支撐變同料、會相熔）卻沒同步改幾何值，Z 仍留在易拆的 0 ⇒ 支撐熔在件上拆不下來。
+#   教訓與 0816「改名＝改分類鍵」同型：**改了分類的依據，就要改跟著分類走的值**，而 verify 不會紅。
+def normalize_support_z(proc, easy_release):
+    z = "0" if easy_release else "0.2"
+    proc["support_top_z_distance"]    = z
+    proc["support_bottom_z_distance"] = z
+    return proc
+
 def normalize_support_interface(proc, nozzle=None, easy_release=False):
     if proc.get("support_interface_top_layers") in ("1", "2"):
         proc["support_interface_top_layers"] = "4"
@@ -1614,6 +1638,11 @@ def main(src_base):
                     proc.update(proc_overrides(kind, base, is_single))
                     if is_dual_machine:
                         proc.update(combo_overrides(cb, lh, nz))
+                    # PING(2026-08-17 Eric 裁)：支撐 Z 間距全庫統一＝易拆 0／一般 0.2。
+                    # ⚠ **無條件跑、刻意不放進 is_dual_machine**——非雙料機（單料頭／同進／四料／單料機）
+                    #   正是現況最亂的一群（它們根本不跑 combo_overrides）。放進去等於只修一半。
+                    # ⚠ 位置必須在 combo_overrides **之後**：後者對 +SUP 也寫這兩個鍵，先跑會被蓋掉。
+                    normalize_support_z(proc, easy_release=cb in EASY_COMBOS)
                     normalize_support_mode(proc, model)
                     normalize_fast_speed(proc)   # 牆速/填充正規化（外60/內≤80/填100/accel5000；首層不動）
                     normalize_prime_tower(proc)  # 換料塔統一（0708 立；0717 寬 25；0729 錐體30/速60）
@@ -2408,6 +2437,35 @@ def main(src_base):
     # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
     # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
     # 重新啟用前需「清噴頭」等機制配套驗證通過（見 apply_deferred_heating 註記）。
+
+    # ★ 支撐 Z 間距最終掃描（Eric 2026-08-17 裁：易拆 0／一般 0.2）
+    # 為什麼是「最後掃一遍」而不是在各產出點各寫一次：製程有**四條**產出路徑（主迴圈／ff_extra 併入／
+    # Classic V3.6 併入／Classic DUAL 變體併入），後三條是「讀既有檔再 update」⇒ 只改主迴圈會漏。
+    # 實測就是這樣：只改主迴圈那版重產後仍有 5 支沒被套到（4 支 DUAL Classic 本體＋0.2mm @FF800 (0.4)）。
+    # ⚠ 判準＝製程名含「易拆」**或**「3in1」。
+    #   ①「易拆」涵蓋 COMBO_HEAD 產出的三種形態：易拆／易拆水溶／易拆+筏層。
+    #   ②🔴 **3in1 必須另外列**——它是易拆家族（第 2 槽 `PING SupPLA(3in1)` 是支撐料、不相熔，
+    #     ping-slicer 支撐間距總表明文「3in1(PLA+SUP)＝0 兩線一致無爭議」），但**名字裡沒有「易拆」
+    #     兩個字**。實測就是漏掉這 6 支（FF600／FF800 × 三口徑）被誤設成 0.2 ＝ 支撐會熔在件上。
+    #   ⚠ 這裡**刻意與 C++ 的 ping_classify_process 不同**：那張 token 表是給**下拉過濾**用的，
+    #     未知 token 一律當「一般」是它的 fail-visible 設計（Tab.cpp:333 註解）。本處是**幾何值**，
+    #     必須按物理家族判（會不會相熔），兩者目的不同、不可互抄。
+    _zt = _zg = 0
+    for _e in proc_list:
+        _p = os.path.join(PINGDIR, _e["sub_path"].replace("process/", "process" + os.sep))
+        if not os.path.exists(_p):
+            continue
+        _d = json.load(io.open(_p, encoding="utf-8"))
+        _nm   = _d.get("name", "")
+        _easy = ("易拆" in _nm) or ("3in1" in _nm)
+        _z = "0" if _easy else "0.2"
+        if _d.get("support_top_z_distance") != _z or _d.get("support_bottom_z_distance") != _z:
+            _d["support_top_z_distance"] = _d["support_bottom_z_distance"] = _z
+            jdump(_p, _d)
+            _zt += 1
+        _zg += 1 if _easy else 0
+    print("  支撐 Z 間距最終掃描（易拆 0／一般 0.2）：掃 %d 支｜易拆 %d 支｜補正 %d 支"
+          % (len(proc_list), _zg, _zt))
 
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))

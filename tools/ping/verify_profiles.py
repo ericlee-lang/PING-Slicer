@@ -457,7 +457,12 @@ for name, (kind, d) in presets.items():
             # reorient_perimeters（PerimeterGenerator.cpp:1424）⇒ 層間迴路方向恆一致
             if d.get("wall_direction") != "ccw":
                 err(f"[牆方向固定 ccw 0730] {name}: wall_direction={d.get('wall_direction')!r}")
-            # ★ 功能歸類五類值鎖（0730 改名批；Z隙＝一層層高〔三輪更正、非固定 0.2〕）
+            # ★ 功能歸類五類值鎖（0730 改名批）
+            # 🔴 **Z隙規則已於 2026-08-17 由 Eric 改裁：一般家族＝固定 0.2，不再是「一層層高」。**
+            #   舊規（0730 三輪更正定的「Z隙＝一層層高」）作廢原因＝它只套得到雙料機（`combo_overrides`
+            #   只在 is_dual_machine 跑），非雙料機沿用母檔值 ⇒ 全庫散成 0／0.125／0.2／0.3／0.5 五種。
+            #   Eric 0817 看到「FF800 四料本體機是 0、FD300 卻是 0.3」後裁「全部改 0.2」。
+            #   ⚠ 易拆 0 不變（「易拆＝沒有間隙」是命名語意本身）。全庫層級的斷言見檔尾檢查 14。
             _vtok = combo_kind(name, d)
             if _vtok:
                 _lh_m = re.match(r"([\d.]+)mm", name)
@@ -468,8 +473,9 @@ for name, (kind, d) in presets.items():
                             err(f"[功能歸類・易拆 Z0] {name}: {zk}={d.get(zk)!r}")
                 else:
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
-                        if d.get(zk) != _lh_v:
-                            err(f"[功能歸類・一般雙料 Z隙=層高] {name}: {zk}={d.get(zk)!r}, expected {_lh_v!r}")
+                        if d.get(zk) != "0.2":
+                            err(f"[功能歸類・一般 Z隙=0.2] {name}: {zk}={d.get(zk)!r}, expected '0.2'"
+                                f"（Eric 2026-08-17 裁：一般家族全庫固定 0.2，取代舊規「一層層高」）")
                 _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, CAT_RAFT_DUAL) else "0"
                 if d.get("raft_layers") != _raft:
                     err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
@@ -1624,8 +1630,32 @@ for _name, (_kind, _d) in presets.items():
 if _exp_census["棧板3"] == 0:
     err("[支撐首層擴展] 全庫找不到任何 raft_layers>=1 的棧板製程 ⇒ 棧板家族消失或判定失效")
 
+# ★ 檢查 14：支撐 Z 間距家族值（Eric 2026-08-17 裁「一般家族全部 0.2」；產生器最終掃描的硬閘門）
+#   易拆家族＝0（不相熔、貼緊好剝）／一般家族＝0.2（同料會相熔，要留隙才拆得下來）。
+#   🔴 這條的存在理由＝0817 實錄：0813 把 FF 四料本體機第 4 槽由 SupPLA 改成 PLA（支撐變同料），
+#      **幾何值沒跟著改**、Z 仍留在易拆的 0 ⇒ 支撐熔在件上；當時 verify 全綠、沒有任何東西擋得住。
+#   ⚠ 易拆判定必須含 **3in1**——它是易拆家族（第 2 槽 SupPLA(3in1) 是支撐料）但名字裡沒有「易拆」，
+#      本檢查第一版就是漏了它、把 6 支誤判成一般（實測抓到）。
+_Z_CENSUS = {"易拆0": 0, "一般0.2": 0}
+for _name, (_kind, _d) in presets.items():
+    if _kind != "process" or _name.startswith("fdm_"):
+        continue
+    _easy = ("易拆" in _name) or ("3in1" in _name)
+    _want = "0" if _easy else "0.2"
+    _fam  = "易拆" if _easy else "一般"
+    for _k in ("support_top_z_distance", "support_bottom_z_distance"):
+        if _k not in _d:
+            err(f"[支撐Z間距] {_name}: 缺鍵 {_k}（{_fam}家族應顯式寫 {_want}，不可靠繼承）")
+        elif str(_d[_k]) != _want:
+            err(f"[支撐Z間距] {_name}: {_k}={_d[_k]!r} ≠ {_want!r}（{_fam}家族）")
+    if _d.get("support_top_z_distance") == _want and _d.get("support_bottom_z_distance") == _want:
+        _Z_CENSUS["易拆0" if _easy else "一般0.2"] += 1
+if _Z_CENSUS["易拆0"] == 0:
+    err("[支撐Z間距] 全庫找不到任何易拆家族製程 ⇒ 易拆家族消失或判定失效")
+
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜棧板 3 ×{_exp_census['棧板3']}")
+print(f"支撐Z間距：易拆 0 ×{_Z_CENSUS['易拆0']}｜一般 0.2 ×{_Z_CENSUS['一般0.2']}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:
