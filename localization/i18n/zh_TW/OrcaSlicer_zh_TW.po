@@ -21281,3 +21281,183 @@ msgstr "與 PING Slicer 關聯，以便 Orca 可以從中打開模型"
 
 msgid "with PING Slicer so that it can open models from"
 msgstr "開啟來自下列網站的模型："
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Abort"
+msgstr "中止"
+
+msgid "An unexpected error occurred"
+msgstr "發生非預期的錯誤"
+
+msgid "Archive preview"
+msgstr "壓縮檔預覽"
+
+msgid "Authorizing..."
+msgstr "授權中……"
+
+msgid "Auto Segment"
+msgstr "自動分段"
+
+msgid "Auxiliaryies"
+msgstr "附件"
+
+msgid "Bed model centre"
+msgstr "熱床模型中心"
+
+msgid "Can't create file at %1%"
+msgstr "無法在 %1% 建立檔案"
+
+msgid "Centre of the 3D bed model in bed coordinates. Leave empty to use the centre of the printable area's bounding box."
+msgstr "3D 熱床模型在熱床座標中的中心點。留空則使用可列印範圍外框的中心。"
+
+msgid "Connected to CrealityPrint successfully!"
+msgstr "已成功連線到 CrealityPrint！"
+
+msgid "Connection timed out. Please check if the printer and computer network are functioning properly, and confirm that they are on the same network."
+msgstr "連線逾時。請檢查列印設備與電腦的網路是否正常，並確認兩者位於同一個網路。"
+
+msgid "Connection to ESP3D is working correctly."
+msgstr "與 ESP3D 的連線正常。"
+
+msgid "Copy to Clipboard"
+msgstr "複製到剪貼簿"
+
+msgid "Could not connect to CrealityPrint"
+msgstr "無法連線到 CrealityPrint"
+
+msgid "Could not connect to ESP3D"
+msgstr "無法連線到 ESP3D"
+
+msgid "Cut gizmo editing"
+msgstr "切割工具編輯"
+
+msgid "Depth ratio"
+msgstr "深度比例"
+
+msgid "Ejecting."
+msgstr "正在退出裝置。"
+
+msgid "Entering Assembly gizmo"
+msgstr "進入組裝工具"
+
+msgid "Entering Cut gizmo"
+msgstr "進入切割工具"
+
+msgid "Entering Measure gizmo"
+msgstr "進入測量工具"
+
+msgid "Entering Paint-on fuzzy skin"
+msgstr "進入毛絨表面塗刷"
+
+msgid "File/data transfer interrupted. Please check the printer and network, then try it again."
+msgstr "檔案／資料傳輸中斷。請檢查列印設備與網路後再試一次。"
+
+msgid ""
+"Invalid state. \n"
+"No one part is selected for keep after cut"
+msgstr ""
+"狀態無效。\n"
+"切割後未選擇任何要保留的部件"
+
+msgid "Leaving Assembly gizmo"
+msgstr "離開組裝工具"
+
+msgid "Leaving Cut gizmo"
+msgstr "離開切割工具"
+
+msgid "Leaving Measure gizmo"
+msgstr "離開測量工具"
+
+msgid "Leaving Paint-on fuzzy skin"
+msgstr "離開毛絨表面塗刷"
+
+msgid "Masked SLA file exported to %1%"
+msgstr "遮罩 SLA 檔案已匯出至 %1%"
+
+msgid "Model Pictures"
+msgstr "模型圖片"
+
+msgid "Model simplification has been canceled"
+msgstr "已取消模型簡化"
+
+msgid "Move over surface"
+msgstr "沿表面移動"
+
+msgid "Movement"
+msgstr "移動"
+
+msgid "Movement:"
+msgstr "移動："
+
+msgid "Object %s has zero size and can't be arranged."
+msgstr "物件 %s 的尺寸為零，無法排列。"
+
+msgid "Open-source slicing stands on a tradition of collaboration and attribution. Slic3r, created by Alessandro Ranellucci and the RepRap community, laid the foundation. PrusaSlicer by Prusa Research built on that work, Bambu Studio forked from PrusaSlicer, and SuperSlicer extended it with community-driven enhancements. Each project carried the work of its predecessors forward, crediting those who came before."
+msgstr "開源切片軟體建立在協作與署名的傳統之上。由 Alessandro Ranellucci 與 RepRap 社群開發的 Slic3r 奠定了基礎；Prusa Research 的 PrusaSlicer 在此之上繼續發展，Bambu Studio 由 PrusaSlicer 分支而來，SuperSlicer 則以社群驅動的改進加以擴充。每一個專案都延續了前人的成果，並向先行者致謝。"
+
+msgid "OrcaSlicer began in that same spirit, drawing from PrusaSlicer, BambuStudio, SuperSlicer, and CuraSlicer. But it has since grown far beyond its origins — introducing advanced calibration tools, precise wall and seam control and hundreds of other features."
+msgstr "OrcaSlicer 也承襲同樣的精神，汲取了 PrusaSlicer、BambuStudio、SuperSlicer 與 CuraSlicer 的成果，並在此之後遠遠超越了它的起點——帶來進階校正工具、精準的牆面與接縫控制，以及數百項其他功能。"
+
+msgid "Paint-on fuzzy skin editing"
+msgstr "毛絨表面塗刷編輯"
+
+msgid ""
+"Post-processing script %1% failed.\n"
+"\n"
+"The post-processing script is expected to change the G-code file %2% in place, but the G-code file was deleted and likely saved under a new name.\n"
+"Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n"
+msgstr ""
+"後處理腳本 %1% 執行失敗。\n"
+"\n"
+"後處理腳本應直接就地修改 G-code 檔案 %2%，但該 G-code 檔案已被刪除，可能已存成新的檔名。\n"
+"請調整後處理腳本改為就地修改 G-code；若需要為後處理過的 G-code 檔案重新命名，請參閱手冊說明。\n"
+
+msgid "Prizm"
+msgstr "稜柱"
+
+msgid "SIMD is supported:"
+msgstr "支援 SIMD："
+
+msgid "System Information"
+msgstr "系統資訊"
+
+msgid "Taking a configuration snapshot failed."
+msgstr "建立設定快照失敗。"
+
+msgid "The Hostname/IP/URL could not be parsed, please check it and try again."
+msgstr "無法解析主機名稱／IP／URL，請檢查後再試一次。"
+
+msgid "The download has failed"
+msgstr "下載失敗"
+
+msgid "The selected 3MF contains FDM supports painted object using a newer version of PrusaSlicer and is not compatible."
+msgstr "所選 3MF 內含以較新版本 PrusaSlicer 繪製的 FDM 支撐物件，不相容。"
+
+msgid "The selected 3MF contains multi-material painted object using a newer version of PrusaSlicer and is not compatible."
+msgstr "所選 3MF 內含以較新版本 PrusaSlicer 繪製的多材質物件，不相容。"
+
+msgid "The selected 3MF contains seam painted object using a newer version of PrusaSlicer and is not compatible."
+msgstr "所選 3MF 內含以較新版本 PrusaSlicer 繪製的接縫物件，不相容。"
+
+msgid "The selected 3mf file has been saved with a newer version of %1% and is not compatible."
+msgstr "所選 3mf 檔案是以較新版本的 %1% 儲存，不相容。"
+
+msgid "Today, OrcaSlicer is the most widely used and actively developed open-source slicer in the 3D printing community. Many of its innovations have been adopted by other slicers, making it a driving force for the entire industry."
+msgstr "如今，OrcaSlicer 是 3D 列印社群中使用最廣泛、開發也最活躍的開源切片軟體。它的許多創新已被其他切片軟體採用，成為推動整個產業前進的力量。"
+
+msgid "connector is out of cut contour"
+msgstr "連接件超出切割輪廓"
+
+msgid "connector is out of object"
+msgstr "連接件超出物件範圍"
+
+msgid "connectors are out of cut contour"
+msgstr "連接件超出切割輪廓"
+
+msgid "connectors is out of object"
+msgstr "連接件超出物件範圍"
