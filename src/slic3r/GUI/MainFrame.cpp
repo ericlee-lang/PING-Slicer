@@ -2603,6 +2603,20 @@ static wxMenu* generate_help_menu()
             wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
         });
 
+    /* PING：色彩校正（Eric 2026-08-17 裁「獨立選單項、兩線都進」）。
+       流程＝印一塊 48 格校正塊 → 拍照 → 在工具裡點色塊的**四個外角** → 讀出 48 格實際顏色。
+       ⚠ 用 wxLaunchDefaultBrowser 開**外部瀏覽器**（與「照片磚產生器」同一招）：
+         工作室在產品裡是嵌在 WebView2 的，若改成在裡面換頁會把工作室頂掉、且校正頁沒有回程。
+       ⚠ 對位偵測的門檻目前是在**合成照片**上量的（正確案 9~10／錯誤案 49 起跳、門檻 20），
+         實體印件拍出來後要重量一次——這條還沒做，見 照片磚_色彩校正/README.md。 */
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("色彩校正"),
+        wxString::FromUTF8("讀校正塊實拍照片，量出各料實際印出來的顏色（於瀏覽器開啟）"),
+        [](wxCommandEvent&) {
+            std::string html_path = Slic3r::resources_dir() + "/web/phototile/calibration.html";
+            wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
+        });
+
     // PING C-1 閘門①：照片磚引擎 wx 整合 smoke。**只在開發者模式出現**（客戶端看不到）。
     append_menu_item(helpMenu, wxID_ANY,
         wxString::FromUTF8("照片磚引擎 smoke（開發）"),
