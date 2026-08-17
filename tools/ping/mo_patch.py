@@ -76,6 +76,117 @@ NEW_ENTRIES = {
     "The travel acceleration setting exceeds the printer's maximum travel acceleration (machine_max_acceleration_travel).\nOrca will automatically cap the travel acceleration speed to ensure it doesn't surpass the printer's capabilities.\nYou can adjust the machine_max_acceleration_travel value in your printer's configuration to get higher speeds.": "移動加速度設定已超過列印設備的最大移動加速度值（machine_max_acceleration_travel）。\nPING Slicer 將自動限制移動加速度，以確保不超出列印設備的性能範圍。\n如需更高速度，您可以在列印設備配置中調整 machine_max_acceleration_travel 值。",
     # F16 換料預熱
     "To reduce the waiting time after tool change, Orca can preheat the next tool while the current tool is still in use. This setting specifies the time in seconds to preheat the next tool. Orca will insert a M104 command to preheat the tool in advance.": "為了縮短工具更換後的等待時間，PING Slicer 可在目前工具使用期間提前預熱下一個工具。此設定用於指定預熱下一個工具的時間（單位：秒）。PING Slicer 將自動插入 M104 指令以提前進行工具預熱。",
+    # PING(2026-08-17 I18N-04)：補完繁中介面剩餘的未翻字串。
+    # 盤點＝活字串 5366 條、.mo 查不到 236 條；扣除 PING 看不到的區域（ConfigWizard 死碼 66／
+    # SLA 71／WebView 開發者選單 17／Elegoo 11／Linux 桌面整合 9／Bambu 8）後剩 54 條，即以下。
+    # src/libslic3r/Format/3mf.cpp:1852
+    "The selected 3mf file has been saved with a newer version of %1% and is not compatible.": "所選 3mf 檔案是以較新版本的 %1% 儲存，不相容。",
+    # src/libslic3r/Format/3mf.cpp:1863
+    "The selected 3MF contains FDM supports painted object using a newer version of PrusaSlicer and is not compatible.": "所選 3MF 內含以較新版本 PrusaSlicer 繪製的 FDM 支撐物件，不相容。",
+    # src/libslic3r/Format/3mf.cpp:1867
+    "The selected 3MF contains seam painted object using a newer version of PrusaSlicer and is not compatible.": "所選 3MF 內含以較新版本 PrusaSlicer 繪製的接縫物件，不相容。",
+    # src/libslic3r/Format/3mf.cpp:1871
+    "The selected 3MF contains multi-material painted object using a newer version of PrusaSlicer and is not compatible.": "所選 3MF 內含以較新版本 PrusaSlicer 繪製的多材質物件，不相容。",
+    # src/libslic3r/GCode/PostProcessor.cpp:323
+    "Post-processing script %1% failed.\n\nThe post-processing script is expected to change the G-code file %2% in place, but the G-code file was deleted and likely saved under a new name.\nPlease adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n": "後處理腳本 %1% 執行失敗。\n\n後處理腳本應直接就地修改 G-code 檔案 %2%，但該 G-code 檔案已被刪除，可能已存成新的檔名。\n請調整後處理腳本改為就地修改 G-code；若需要為後處理過的 G-code 檔案重新命名，請參閱手冊說明。\n",
+    # src/libslic3r/PrintConfig.cpp:684
+    "Bed model centre": "熱床模型中心",
+    # src/libslic3r/PrintConfig.cpp:685
+    "Centre of the 3D bed model in bed coordinates. Leave empty to use the centre of the printable area's bounding box.": "3D 熱床模型在熱床座標中的中心點。留空則使用可列印範圍外框的中心。",
+    # src/slic3r/Config/Snapshot.cpp:584
+    "Taking a configuration snapshot failed.": "建立設定快照失敗。",
+    # src/slic3r/Config/Snapshot.cpp:599
+    "Abort": "中止",
+    # src/slic3r/GUI/AboutDialog.cpp:274
+    "Open-source slicing stands on a tradition of collaboration and attribution. Slic3r, created by Alessandro Ranellucci and the RepRap community, laid the foundation. PrusaSlicer by Prusa Research built on that work, Bambu Studio forked from PrusaSlicer, and SuperSlicer extended it with community-driven enhancements. Each project carried the work of its predecessors forward, crediting those who came before.": "開源切片軟體建立在協作與署名的傳統之上。由 Alessandro Ranellucci 與 RepRap 社群開發的 Slic3r 奠定了基礎；Prusa Research 的 PrusaSlicer 在此之上繼續發展，Bambu Studio 由 PrusaSlicer 分支而來，SuperSlicer 則以社群驅動的改進加以擴充。每一個專案都延續了前人的成果，並向先行者致謝。",
+    # src/slic3r/GUI/AboutDialog.cpp:275
+    "OrcaSlicer began in that same spirit, drawing from PrusaSlicer, BambuStudio, SuperSlicer, and CuraSlicer. But it has since grown far beyond its origins — introducing advanced calibration tools, precise wall and seam control and hundreds of other features.": "OrcaSlicer 也承襲同樣的精神，汲取了 PrusaSlicer、BambuStudio、SuperSlicer 與 CuraSlicer 的成果，並在此之後遠遠超越了它的起點——帶來進階校正工具、精準的牆面與接縫控制，以及數百項其他功能。",
+    # src/slic3r/GUI/AboutDialog.cpp:276
+    "Today, OrcaSlicer is the most widely used and actively developed open-source slicer in the 3D printing community. Many of its innovations have been adopted by other slicers, making it a driving force for the entire industry.": "如今，OrcaSlicer 是 3D 列印社群中使用最廣泛、開發也最活躍的開源切片軟體。它的許多創新已被其他切片軟體採用，成為推動整個產業前進的力量。",
+    # src/slic3r/GUI/AuxiliaryDataViewModel.cpp:12
+    "Model Pictures": "模型圖片",
+    # src/slic3r/GUI/AuxiliaryDialog.cpp:17
+    "Auxiliaryies": "附件",
+    # src/slic3r/GUI/BackgroundSlicingProcess.cpp:524
+    "Masked SLA file exported to %1%": "遮罩 SLA 檔案已匯出至 %1%",
+    # src/slic3r/GUI/Downloader.cpp:191
+    "The download has failed": "下載失敗",
+    # src/slic3r/GUI/DownloaderFileGet.cpp:207
+    "Can't create file at %1%": "無法在 %1% 建立檔案",
+    # src/slic3r/GUI/FileArchiveDialog.cpp:173
+    "Archive preview": "壓縮檔預覽",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1433
+    "Movement:": "移動：",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1502
+    "Movement": "移動",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1601
+    "Auto Segment": "自動分段",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1632
+    "Depth ratio": "深度比例",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1718
+    "Prizm": "稜柱",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1785
+    "connector is out of cut contour": "連接件超出切割輪廓",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1785
+    "connectors are out of cut contour": "連接件超出切割輪廓",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1788
+    "connector is out of object": "連接件超出物件範圍",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1788
+    "connectors is out of object": "連接件超出物件範圍",
+    # src/slic3r/GUI/Gizmos/GLGizmoAdvancedCut.cpp:1793
+    "Invalid state. \nNo one part is selected for keep after cut": "狀態無效。\n切割後未選擇任何要保留的部件",
+    # src/slic3r/GUI/Gizmos/GLGizmoAssembly.hpp:24
+    "Entering Assembly gizmo": "進入組裝工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoAssembly.hpp:25
+    "Leaving Assembly gizmo": "離開組裝工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoCut.hpp:327
+    "Entering Cut gizmo": "進入切割工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoCut.hpp:328
+    "Leaving Cut gizmo": "離開切割工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoCut.hpp:329
+    "Cut gizmo editing": "切割工具編輯",
+    # src/slic3r/GUI/Gizmos/GLGizmoFuzzySkin.hpp:25
+    "Entering Paint-on fuzzy skin": "進入毛絨表面塗刷",
+    # src/slic3r/GUI/Gizmos/GLGizmoFuzzySkin.hpp:26
+    "Leaving Paint-on fuzzy skin": "離開毛絨表面塗刷",
+    # src/slic3r/GUI/Gizmos/GLGizmoFuzzySkin.hpp:27
+    "Paint-on fuzzy skin editing": "毛絨表面塗刷編輯",
+    # src/slic3r/GUI/Gizmos/GLGizmoMeasure.hpp:250
+    "Entering Measure gizmo": "進入測量工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoMeasure.hpp:251
+    "Leaving Measure gizmo": "離開測量工具",
+    # src/slic3r/GUI/Gizmos/GLGizmoSimplify.hpp:141
+    "Model simplification has been canceled": "已取消模型簡化",
+    # src/slic3r/GUI/Jobs/ArrangeJob.cpp:509
+    "Object %s has zero size and can't be arranged.": "物件 %s 的尺寸為零，無法排列。",
+    # src/slic3r/GUI/Jobs/PlaterWorker.hpp:91
+    "An unexpected error occurred": "發生非預期的錯誤",
+    # src/slic3r/GUI/NotificationManager.cpp:1189
+    "Ejecting.": "正在退出裝置。",
+    # src/slic3r/GUI/OAuthDialog.cpp:28
+    "Authorizing...": "授權中……",
+    # src/slic3r/GUI/SurfaceDrag.cpp:94
+    "Move over surface": "沿表面移動",
+    # src/slic3r/GUI/SysInfoDialog.cpp:163
+    "SIMD is supported:": "支援 SIMD：",
+    # src/slic3r/GUI/SysInfoDialog.cpp:170
+    "Copy to Clipboard": "複製到剪貼簿",
+    # src/slic3r/GUI/SysInfoDialog.cpp:85
+    "System Information": "系統資訊",
+    # src/slic3r/Utils/CrealityPrint.cpp:74
+    "Connected to CrealityPrint successfully!": "已成功連線到 CrealityPrint！",
+    # src/slic3r/Utils/CrealityPrint.cpp:78
+    "Could not connect to CrealityPrint": "無法連線到 CrealityPrint",
+    # src/slic3r/Utils/ESP3D.cpp:58
+    "Connection to ESP3D is working correctly.": "與 ESP3D 的連線正常。",
+    # src/slic3r/Utils/ESP3D.cpp:62
+    "Could not connect to ESP3D": "無法連線到 ESP3D",
+    # src/slic3r/Utils/PrintHost.cpp:84
+    "Connection timed out. Please check if the printer and computer network are functioning properly, and confirm that they are on the same network.": "連線逾時。請檢查列印設備與電腦的網路是否正常，並確認兩者位於同一個網路。",
+    # src/slic3r/Utils/PrintHost.cpp:86
+    "The Hostname/IP/URL could not be parsed, please check it and try again.": "無法解析主機名稱／IP／URL，請檢查後再試一次。",
+    # src/slic3r/Utils/PrintHost.cpp:88
+    "File/data transfer interrupted. Please check the printer and network, then try it again.": "檔案／資料傳輸中斷。請檢查列印設備與網路後再試一次。",
 }
 
 
