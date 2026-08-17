@@ -1,0 +1,370 @@
+{
+  "_說明": "照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。",
+  "version": "0.1",
+  "updated": "2026-08-15",
+  "constants": {
+    "minWidthFactor": 2,
+    "_minWidthFactor": "最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。",
+    "nozzles": [
+      0.4,
+      0.6,
+      1.0
+    ],
+    "_nozzles": "引擎 NOZZLES 白名單；沒有 0.8。",
+    "kMax": 8,
+    "gridMax": 3200,
+    "defaultThickMm": 10,
+    "_defaultThickMm": "厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。"
+  },
+  "policies": {
+    "slotSelection": {
+      "rule": "款式自帶料色，不呼叫 suggestSlots",
+      "why": "suggestSlots 在單色佔大面積時挑錯料，四種題材實測全中；即使 P0 已修評分，風格化款式的料色本來就由款式決定，不該再猜。"
+    },
+    "aiRedrawBoundary": {
+      "case": "中間案",
+      "rule": "AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。",
+      "why": "低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。",
+      "ruledBy": "Eric 2026-08-15"
+    },
+    "outOfScope": {
+      "商品照": "Eric 2026-08-15 裁「先不考慮」，暫不列入。"
+    }
+  },
+  "_minTileMm說明": "只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。",
+  "subjects": [
+    {
+      "id": "portrait_closeup",
+      "name": "人像特寫",
+      "keyFeature": "眼睛",
+      "detect": "偵測到臉且臉寬 ≥ 畫面 35%"
+    },
+    {
+      "id": "person_full",
+      "name": "人物全身",
+      "keyFeature": "姿勢與輪廓",
+      "detect": "偵測到臉且 8% ≤ 臉寬 < 畫面 20%"
+    },
+    {
+      "id": "landscape",
+      "name": "風景",
+      "keyFeature": "相鄰山脊的分離度",
+      "detect": "偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"
+    },
+    {
+      "id": "pet_short",
+      "name": "寵物・短毛高對比",
+      "keyFeature": "輪廓與耳形",
+      "detect": "人工指定；動態範圍 ≥ 120"
+    },
+    {
+      "id": "pet_long",
+      "name": "寵物・長毛低對比",
+      "keyFeature": "輪廓＋大塊毛色分區",
+      "detect": "人工指定；動態範圍 < 120"
+    }
+  ],
+  "styles": [
+    {
+      "id": "stencil2",
+      "name": "模板風",
+      "requiresAI": true,
+      "subjects": [
+        "portrait_closeup"
+      ],
+      "tones": 2,
+      "mode": "dual",
+      "slots": [
+        "#f2f0eb",
+        "#141414"
+      ],
+      "preserves": [
+        "輪廓",
+        "五官"
+      ],
+      "drops": [
+        "明暗結構",
+        "髮絲",
+        "衣服圖案"
+      ],
+      "composition": {
+        "faceFillMin": 0.85,
+        "_why": "臉不填滿畫面時 100mm 印不出眼睛"
+      },
+      "minTileMm": {
+        "0.4": 100,
+        "0.6": 150,
+        "1.0": 250
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 5.29,
+        "note": "需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "promptTemplate": "Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.",
+      "priority": 1,
+      "deltaEBySubject": {
+        "portrait_closeup": 5.29
+      }
+    },
+    {
+      "id": "silhouette",
+      "name": "純剪影",
+      "requiresAI": true,
+      "subjects": [
+        "person_full",
+        "pet_short",
+        "landscape"
+      ],
+      "tones": 3,
+      "mode": "dual",
+      "slots": [
+        "#f2f0eb",
+        "#141414"
+      ],
+      "preserves": [
+        "輪廓",
+        "姿勢",
+        "耳形",
+        "大塊斑紋"
+      ],
+      "drops": [
+        "五官",
+        "毛髮質感",
+        "明暗結構"
+      ],
+      "composition": {},
+      "minTileMm": {
+        "0.4": 100,
+        "0.6": 150,
+        "1.0": 250
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 10.07,
+        "note": "目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "promptTemplate": "Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.",
+      "priority": 1,
+      "deltaEBySubject": {
+        "pet_short": 10.07,
+        "landscape": 10.64
+      }
+    },
+    {
+      "id": "flat_warm",
+      "name": "平色塊（暖）",
+      "requiresAI": true,
+      "subjects": [
+        "pet_long"
+      ],
+      "tones": 4,
+      "mode": "quad",
+      "slots": [
+        "#f2f0eb",
+        "#e6b072",
+        "#c26a1c",
+        "#3a2416"
+      ],
+      "slotsDualFallback": [
+        "#f2f0eb",
+        "#6b3f22"
+      ],
+      "preserves": [
+        "輪廓",
+        "毛色分區",
+        "眼鼻位置"
+      ],
+      "drops": [
+        "毛髮質感",
+        "絨毛邊緣"
+      ],
+      "composition": {},
+      "minTileMm": {
+        "0.4": 100,
+        "0.6": 150,
+        "1.0": 250
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 5.49,
+        "note": "四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster using a warm ramp. No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+      "priority": 1,
+      "deltaEBySubject": {
+        "pet_long": 5.49
+      }
+    },
+    {
+      "id": "ridge_layers",
+      "name": "山巒分層",
+      "requiresAI": true,
+      "subjects": [
+        "landscape"
+      ],
+      "tones": 5,
+      "mode": "dual",
+      "slots": [
+        "#f2ead6",
+        "#1e2a33"
+      ],
+      "preserves": [
+        "山脊分層",
+        "天際線"
+      ],
+      "drops": [
+        "細桿",
+        "電線",
+        "樹葉細節",
+        "天空漸層"
+      ],
+      "composition": {},
+      "minTileMm": {
+        "0.4": 100,
+        "0.6": 150,
+        "1.0": 250
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 6.55,
+        "note": "原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "promptTemplate": "Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.",
+      "priority": 1,
+      "deltaEBySubject": {
+        "landscape": 6.55
+      }
+    },
+    {
+      "id": "screenprint",
+      "name": "絹印撞色",
+      "requiresAI": true,
+      "subjects": [
+        "portrait_closeup"
+      ],
+      "tones": 5,
+      "mode": "quad",
+      "slots": [
+        "#f2f0eb",
+        "#022561",
+        "#44a1dc",
+        "#0e1418"
+      ],
+      "preserves": [
+        "輪廓",
+        "五官",
+        "明暗結構"
+      ],
+      "drops": [
+        "衣服細格紋",
+        "髮絲"
+      ],
+      "composition": {
+        "faceFillMin": 0.85
+      },
+      "minTileMm": {
+        "0.4": 320,
+        "0.6": 480,
+        "1.0": 800
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 7.86,
+        "note": "最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+      "priority": 2,
+      "deltaEBySubject": {
+        "portrait_closeup": 7.86
+      }
+    },
+    {
+      "id": "local_flat",
+      "name": "本地款式",
+      "requiresAI": false,
+      "subjects": [
+        "portrait_closeup",
+        "person_full",
+        "pet_long",
+        "landscape"
+      ],
+      "tones": 4,
+      "mode": "dual",
+      "slots": [
+        "#f2f0eb",
+        "#784430"
+      ],
+      "preserves": [
+        "輪廓",
+        "大塊明暗分區"
+      ],
+      "drops": [
+        "細節質感",
+        "銳利邊緣"
+      ],
+      "composition": {},
+      "minTileMm": {
+        "0.4": 100,
+        "0.6": 150,
+        "1.0": 250
+      },
+      "verified": {
+        "tileMm": 100,
+        "nozzle": 0.4,
+        "deltaE": 6.12,
+        "note": "沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。",
+        "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
+      },
+      "pipeline": [
+        "bilateral x3",
+        "pyrMeanShiftFiltering(sp=18,sr=32)",
+        "kmeans(Lab,K=4)",
+        "medianBlur(5,7)",
+        "ramp by luminance"
+      ],
+      "promptTemplate": null,
+      "priority": 9,
+      "deltaEBySubject": {
+        "portrait_closeup": 6.12,
+        "landscape": 11.69,
+        "pet_short": 5.04,
+        "pet_long": 13.22
+      }
+    }
+  ],
+  "selection": {
+    "_說明": "自動挑款式的順序",
+    "steps": [
+      "1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值",
+      "2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度",
+      "3. 偵測主體 → 判 subject（見 subjects.detect）",
+      "4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數",
+      "5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false",
+      "6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗",
+      "7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸",
+      "8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"
+    ]
+  },
+  "acceptance": {
+    "deltaE": {
+      "warn": 12,
+      "fail": 20,
+      "_note": "ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"
+    },
+    "keyRegion": {
+      "status": "未實作",
+      "_note": "依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"
+    }
+  }
+}
