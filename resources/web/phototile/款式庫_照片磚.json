@@ -1,7 +1,7 @@
 {
   "_說明": "照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。",
   "version": "0.1",
-  "updated": "2026-08-15",
+  "updated": "2026-08-17",
   "constants": {
     "minWidthFactor": 2,
     "_minWidthFactor": "最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。",
@@ -18,8 +18,8 @@
   },
   "policies": {
     "slotSelection": {
-      "rule": "款式自帶料色，不呼叫 suggestSlots",
-      "why": "suggestSlots 在單色佔大面積時挑錯料，四種題材實測全中；即使 P0 已修評分，風格化款式的料色本來就由款式決定，不該再猜。"
+      "rule": "AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）",
+      "why": "原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"
     },
     "aiRedrawBoundary": {
       "case": "中間案",
@@ -107,7 +107,8 @@
       "priority": 1,
       "deltaEBySubject": {
         "portrait_closeup": 5.29
-      }
+      },
+      "lockSlots": true
     },
     {
       "id": "silhouette",
@@ -153,7 +154,8 @@
       "deltaEBySubject": {
         "pet_short": 10.07,
         "landscape": 10.64
-      }
+      },
+      "lockSlots": true
     },
     {
       "id": "flat_warm",
@@ -200,7 +202,8 @@
       "priority": 1,
       "deltaEBySubject": {
         "pet_long": 5.49
-      }
+      },
+      "lockSlots": true
     },
     {
       "id": "ridge_layers",
@@ -242,7 +245,8 @@
       "priority": 1,
       "deltaEBySubject": {
         "landscape": 6.55
-      }
+      },
+      "lockSlots": true
     },
     {
       "id": "screenprint",
@@ -287,7 +291,8 @@
       "priority": 2,
       "deltaEBySubject": {
         "portrait_closeup": 7.86
-      }
+      },
+      "lockSlots": true
     },
     {
       "id": "local_flat",
@@ -297,7 +302,8 @@
         "portrait_closeup",
         "person_full",
         "pet_long",
-        "landscape"
+        "landscape",
+        "pet_short"
       ],
       "tones": 4,
       "mode": "dual",
@@ -340,7 +346,9 @@
         "landscape": 11.69,
         "pet_short": 5.04,
         "pet_long": 13.22
-      }
+      },
+      "lockSlots": false,
+      "_subjects註": "pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"
     }
   ],
   "selection": {

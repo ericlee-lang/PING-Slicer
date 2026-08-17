@@ -36,6 +36,9 @@ BLOCK = re.compile(
 REQUIRED_STYLE_KEYS = {
     "id", "name", "requiresAI", "subjects", "tones", "mode", "slots",
     "preserves", "drops", "minTileMm", "priority",
+    # lockSlots＝料色鎖不鎖（Eric 2026-08-17 裁）。頁面用 `s.lockSlots===false` 判斷，
+    # 缺了會被當成 undefined ⇒ 靜默走鎖定分支、本地款式又變回鎖死料色。
+    "lockSlots",
 }
 NOZZLES = {"0.4", "0.6", "1.0"}          # 引擎 NOZZLES 白名單；沒有 0.8
 
