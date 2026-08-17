@@ -5,6 +5,7 @@ hash 表寫 0（wxMsgCatalog 不用 hash 表，二分原文表即可）。
 
 用法：python mo_patch.py            # patch zh_TW 的 OrcaSlicer.mo + PINGSlicer.mo
 """
+import os
 import struct
 import sys
 
@@ -35,6 +36,44 @@ NEW_ENTRIES = {
         "就會在換料塔上沖刷一次（即使該層沒有使用它）。"
         "設為 1 表示每一層更新所有線材；0 表示停用。"
     ),
+    # PING(2026-08-09 Eric 令)：收縮補償警告改「不一致」——英文原文 "does not match" 沒有門檻，
+    # 原譯「差異過大」會讓人以為差一點沒關係（實際差 0.1% 也整個停用，Print.cpp:3623）。
+    (
+        "Filament shrinkage will not be used because filament shrinkage for the used "
+        "filaments does not match."
+    ): "線材收縮補償將被停用，因為所使用的線材收縮率不一致。",
+    # PING(2026-08-17 I18N-02)：補完 7/9 品牌清洗漏掉的 .mo 配套。
+    # Eric 0817 三裁：校正項目名（Orca Cube/YOLO…）保留 Orca；C5 用「開啟來自下列網站的模型：」；本批走 mo_patch。
+    # A. 原本 .mo 查無此 msgid ⇒ 繁中顯示英文（詞法掃描確認，已排除註解死碼）
+    # C1 SysInfoDialog  src/slic3r/GUI/SysInfoDialog.cpp:151
+    "Blacklisted libraries loaded into PING Slicer process:": "已載入 PING Slicer 程序的黑名單程式庫：",
+    # C2 Snapshot 標題  src/slic3r/Config/Snapshot.cpp:597
+    "PING Slicer error": "PING Slicer 錯誤",
+    # C3 Snapshot  src/slic3r/Config/Snapshot.cpp:596
+    "PING Slicer has encountered an error while taking a configuration snapshot.": "PING Slicer 在建立設定快照時發生錯誤。",
+    # C4 換料塔（沿用舊譯換品牌字）  src/slic3r/GUI/WipeTowerDialog.cpp:328
+    "PING Slicer would re-calculate your flushing volumes everytime the filaments color changed or filaments changed. You could disable the auto-calculate in PING Slicer > Preferences": "每當線材顏色變更或線材變更時，PING Slicer 都會重新計算您的沖洗體積。您可以在 PING Slicer > 偏好設定中停用自動計算",
+    # C5 網頁連結關聯 tooltip（Eric 0817 定稿）  src/slic3r/GUI/Preferences.cpp:1154
+    "with PING Slicer so that it can open models from": "開啟來自下列網站的模型：",
+    # B. msgid 查得到但中文仍寫 Orca（值不同即覆蓋）
+    # F1 使用者預設同步
+    "\n\nOrca has detected that your user presets synchronization function is not enabled, which may result in unsuccessful Filament settings on the Device page.\nClick \"Sync user presets\" to enable the synchronization function.": "\n\nPING Slicer 偵測到您的使用者預設同步功能尚未啟用，這可能導致線材設定在裝置頁面上無法正常使用。\n請點擊『同步使用者預設』以啟用同步功能。",
+    # F3 記住線材/製程
+    "If enabled, Orca will remember and switch filament/process configuration for each printer automatically.": "啟用後，PING Slicer 會記住且自動切換各機臺線材與列印設定。",
+    # F4 連線偏差
+    "Junction deviation setting exceeds the printer's maximum value (machine_max_junction_deviation).\nOrca will automatically cap the junction deviation to ensure it doesn't surpass the printer's capabilities.\nYou can adjust the machine_max_junction_deviation value in your printer's configuration to get higher limits.": "連線偏差設定超出列印設備的最大值 (machine_max_junction_deviation)。\nPING Slicer 將自動限制連線偏差，以確保其不會超出列印設備的能力。\n您可以調整列印設備配置中的 machine_max_junction_deviation 值以獲得更高的限制。",
+    # F10 API Key 說明
+    "PING Slicer can upload G-code files to a printer host. This field should contain the API Key or the password required for authentication.": "PING Slicer 可以將 G-code 檔案上傳到列印設備。此欄位應包含用於身份驗證的 API 金鑰或密碼。",
+    # F12 加速度（另修參數名筆誤）
+    "The acceleration setting exceeds the printer's maximum acceleration (machine_max_acceleration_extruding).\nOrca will automatically cap the acceleration speed to ensure it doesn't surpass the printer's capabilities.\nYou can adjust the machine_max_acceleration_extruding value in your printer's configuration to get higher speeds.": "加速度設定已超過列印設備的最大加速度值 (machine_max_acceleration_extruding)。\nPING Slicer 將自動限制加速度，以確保不超出列印設備的性能範圍。\n如需更高速度，您可以在列印設備配置中調整 machine_max_acceleration_extruding 值。",
+    # F13 韌體更新
+    "The firmware version is abnormal. Repairing and updating are required before printing. Do you want to update now? You can also update later on printer or update next time starting Orca.": "韌體版本異常，必須修復並更新後才能列印。您要現在更新嗎？也可以稍後在列印設備上更新，或在下次啟動 PING Slicer 時進行更新。",
+    # F14 急動
+    "The jerk setting exceeds the printer's maximum jerk (machine_max_jerk_x/machine_max_jerk_y).\nOrca will automatically cap the jerk speed to ensure it doesn't surpass the printer's capabilities.\nYou can adjust the maximum jerk setting in your printer's configuration to get higher speeds.": "抖動設定已超過列印設備的最大急動值（machine_max_jerk_x/machine_max_jerk_y）。\nPING Slicer 將自動限制急動速度，以確保不超出列印設備的性能範圍。\n如需更高速度，您可以在列印設備配置中調整最大急動值。",
+    # F15 移動加速度
+    "The travel acceleration setting exceeds the printer's maximum travel acceleration (machine_max_acceleration_travel).\nOrca will automatically cap the travel acceleration speed to ensure it doesn't surpass the printer's capabilities.\nYou can adjust the machine_max_acceleration_travel value in your printer's configuration to get higher speeds.": "移動加速度設定已超過列印設備的最大移動加速度值（machine_max_acceleration_travel）。\nPING Slicer 將自動限制移動加速度，以確保不超出列印設備的性能範圍。\n如需更高速度，您可以在列印設備配置中調整 machine_max_acceleration_travel 值。",
+    # F16 換料預熱
+    "To reduce the waiting time after tool change, Orca can preheat the next tool while the current tool is still in use. This setting specifies the time in seconds to preheat the next tool. Orca will insert a M104 command to preheat the tool in advance.": "為了縮短工具更換後的等待時間，PING Slicer 可在目前工具使用期間提前預熱下一個工具。此設定用於指定預熱下一個工具的時間（單位：秒）。PING Slicer 將自動插入 M104 指令以提前進行工具預熱。",
 }
 
 
@@ -94,6 +133,9 @@ def patch(path):
 
 
 if __name__ == "__main__":
-    base = r"D:\dev\2026claude\20260604 ORCA客製\PING-Slicer\resources\i18n\zh_TW"
+    # PING(2026-08-09)：原本寫死開發線絕對路徑 ⇒ 不論在哪個 worktree 跑都會去改開發線的 .mo
+    #（本次實爆：在出貨線跑，結果改到 PING-Slicer 那份）。改成相對本檔推導 repo 根。
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "resources", "i18n", "zh_TW")
     for name in ("OrcaSlicer.mo", "PINGSlicer.mo"):
         patch(rf"{base}\{name}")
