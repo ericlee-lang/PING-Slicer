@@ -291,7 +291,7 @@
     "name": "0.35mm @FF800 同進 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP118",
+    "setting_id": "PINGP116",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 同進 0.6 nozzle"

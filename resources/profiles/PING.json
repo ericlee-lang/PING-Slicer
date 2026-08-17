@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.82",
+    "version": "01.00.00.83",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -559,56 +559,56 @@
             "sub_path": "process/0.35mm @FF800 (1.0).json"
         },
         {
-            "name": "0.25mm @FF600 3in1 (0.4)",
-            "sub_path": "process/0.25mm @FF600 3in1 (0.4).json"
-        },
-        {
             "name": "0.25mm @FF600 同進 (0.4)",
             "sub_path": "process/0.25mm @FF600 同進 (0.4).json"
-        },
-        {
-            "name": "0.25mm @FF800 3in1 (0.4)",
-            "sub_path": "process/0.25mm @FF800 3in1 (0.4).json"
         },
         {
             "name": "0.25mm @FF800 同進 (0.4)",
             "sub_path": "process/0.25mm @FF800 同進 (0.4).json"
         },
         {
-            "name": "0.2mm @FF800 (0.4)",
-            "sub_path": "process/0.2mm @FF800 (0.4).json"
+            "name": "0.25mm 易拆 @FF600 3in1 (0.4)",
+            "sub_path": "process/0.25mm 易拆 @FF600 3in1 (0.4).json"
         },
         {
-            "name": "0.35mm @FF600 3in1 (0.6)",
-            "sub_path": "process/0.35mm @FF600 3in1 (0.6).json"
+            "name": "0.25mm 易拆 @FF800 3in1 (0.4)",
+            "sub_path": "process/0.25mm 易拆 @FF800 3in1 (0.4).json"
+        },
+        {
+            "name": "0.2mm @FF800 (0.4)",
+            "sub_path": "process/0.2mm @FF800 (0.4).json"
         },
         {
             "name": "0.35mm @FF600 同進 (0.6)",
             "sub_path": "process/0.35mm @FF600 同進 (0.6).json"
         },
         {
-            "name": "0.35mm @FF800 3in1 (0.6)",
-            "sub_path": "process/0.35mm @FF800 3in1 (0.6).json"
-        },
-        {
             "name": "0.35mm @FF800 同進 (0.6)",
             "sub_path": "process/0.35mm @FF800 同進 (0.6).json"
         },
         {
-            "name": "0.45mm @FF600 3in1 (1.0)",
-            "sub_path": "process/0.45mm @FF600 3in1 (1.0).json"
+            "name": "0.35mm 易拆 @FF600 3in1 (0.6)",
+            "sub_path": "process/0.35mm 易拆 @FF600 3in1 (0.6).json"
+        },
+        {
+            "name": "0.35mm 易拆 @FF800 3in1 (0.6)",
+            "sub_path": "process/0.35mm 易拆 @FF800 3in1 (0.6).json"
         },
         {
             "name": "0.45mm @FF600 同進 (1.0)",
             "sub_path": "process/0.45mm @FF600 同進 (1.0).json"
         },
         {
-            "name": "0.45mm @FF800 3in1 (1.0)",
-            "sub_path": "process/0.45mm @FF800 3in1 (1.0).json"
-        },
-        {
             "name": "0.45mm @FF800 同進 (1.0)",
             "sub_path": "process/0.45mm @FF800 同進 (1.0).json"
+        },
+        {
+            "name": "0.45mm 易拆 @FF600 3in1 (1.0)",
+            "sub_path": "process/0.45mm 易拆 @FF600 3in1 (1.0).json"
+        },
+        {
+            "name": "0.45mm 易拆 @FF800 3in1 (1.0)",
+            "sub_path": "process/0.45mm 易拆 @FF800 3in1 (1.0).json"
         },
         {
             "name": "0.35mm @FF800 同進照片磚 (0.6)",
