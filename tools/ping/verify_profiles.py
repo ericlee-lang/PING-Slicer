@@ -92,7 +92,17 @@ def strip_cxx_comments(src):
 def combo_kind(name, d):
     """回傳製程的功能歸類（三 token 之一，或兩個無 token 雙料代號）；非組合製程回 None。
     0811 起一般雙料／雙料筏層沒有 token（與單料/四料同形）⇒ 改以 renamed_from 鏈尾判定：
-    只有這兩類的鏈會以「PLA+PLA @…」／「ABS+ABS @…」開頭（產生器唯一入口寫入、下方逐支 exact 驗）。"""
+    只有這兩類的鏈會以「PLA+PLA @…」／「ABS+ABS @…」開頭（產生器唯一入口寫入、下方逐支 exact 驗）。
+
+    🔴 **3in1 一律回 None（Eric 2026-08-17 改名批後補）**：3in1 是**機器變體**（FF600/FF800 3in1），
+    不是五種雙料組合製程之一，走的是 `ff_extra` 範本複製、不是雙料 combo 產線。
+    改名前它 head 無 token ⇒ 本函式本來就回 None；改名補上「易拆」後會誤落進雙料組合的三項檢查
+    （renamed_from 0730 兩段回溯鏈／介面間距 0.1／易拆支數斷言），而它三項都本來就不適用：
+      ①它沒有 0730 那段改名史 ②它的介面間距是**實心 0**（ping-slicer 明訂，非 0.1）③它不算在 18 支內。
+    ⇒ 這裡明確排除＝**維持改名前的既有行為**，不是為了讓 verify 變綠而放寬標準。
+    （3in1 的支撐 Z 間距＝0 由檔尾「檢查 14」獨立把關，不依賴本函式。）"""
+    if "3in1" in name:
+        return None
     t = combo_token(name)
     if t:
         return t
@@ -372,12 +382,16 @@ for name, (kind, d) in presets.items():
                 # 一般支撐＝口徑×3/7 取兩位（密度＝線寬/(間距+線寬)⇒70%；0.25→0.11/0.4→0.17/
                 # 0.6→0.26＝Eric 截圖錨值/1.0→0.43）；易拆家族既值不動（介面密＝表面品質、不影響拆）：
                 # PLA+SUP/PVA 0.1、ABS+SUP 黃金 0.04、3in1 實心 0。Classic 由 Fast 複製繼承＝同查。
-                if _ctok == COMBO_CAT_EASYPAL:
+                # ⚠ **3in1 必須排在最前面**（Eric 2026-08-17 改名批後調序）：它是更 specific 的規則。
+                #   原本排在 COMBO_CAT_EASY 後面能運作，是**依賴「3in1 名字沒有易拆 token」這個巧合**；
+                #   0817 把 3in1 改名補上「易拆」後，_ctok 變成 COMBO_CAT_EASY ⇒ 被前一條攔截、
+                #   實心 0 被誤判成應為 0.1（實測 4 支紅）。判準排序不可依賴命名巧合。
+                if "3in1" in name:
+                    _sis = "0"
+                elif _ctok == COMBO_CAT_EASYPAL:
                     _sis = "0.04"
                 elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA):
                     _sis = "0.1"
-                elif "3in1" in name:
-                    _sis = "0"
                 elif "@DUAL" in name and "同進" not in name and "單料頭" not in name:
                     # Classic 標準雙料（DUAL 300/450/600/800 本體）＝從 Fast 易拆(Z0) 母檔複製、
                     # 槽 2 裝 Classic SupPLA（0726 裁「Classic 用它實際的模式：雙料→易拆」）⇒ 名稱雖無
@@ -1253,6 +1267,11 @@ if _g2_checked == 0:
 _combo_census = {}
 for _n, (_k, _d) in presets.items():
     if _k != "process":
+        continue
+    # 🔴 3in1 不計入雙料組合普查（Eric 2026-08-17 改名批後補）：它是**機器變體**、走 ff_extra 範本，
+    #    不是那 18 支一組的雙料組合製程。改名補上「易拆」token 後會被 combo_token 認到 ⇒ 18 變 24。
+    #    ⚠ 同 combo_kind() 的排除理由：維持改名前的既有計數行為，不是放寬標準。
+    if "3in1" in _n:
         continue
     _t = combo_token(_n)
     if _t:

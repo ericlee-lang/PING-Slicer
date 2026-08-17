@@ -289,14 +289,15 @@
     "xy_contour_compensation": "0",
     "xy_hole_compensation": "0",
     "type": "process",
-    "name": "0.45mm @FF800 3in1 (1.0)",
+    "name": "0.45mm 易拆 @FF600 3in1 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP922",
+    "setting_id": "PINGP916",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
-        "FF800 3in1 1.0 nozzle"
+        "FF600 3in1 1.0 nozzle"
     ],
     "solid_infill_rotate_template": "45,135",
-    "wipe_tower_max_idle_layers": "1"
+    "wipe_tower_max_idle_layers": "1",
+    "renamed_from": "0.45mm @FF600 3in1 (1.0)"
 }
