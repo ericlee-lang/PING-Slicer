@@ -5,7 +5,9 @@ hash 表寫 0（wxMsgCatalog 不用 hash 表，二分原文表即可）。
 
 用法：python mo_patch.py            # patch zh_TW 的 OrcaSlicer.mo + PINGSlicer.mo
 """
+import io
 import os
+import re
 import struct
 import sys
 
@@ -132,10 +134,139 @@ def patch(path):
     print(f"{path}: {len(entries)} entries (added {added}, updated {updated})")
 
 
+# ---------------------------------------------------------------------------
+# PING(2026-08-17)：跑完 .mo 就順手把 .po 同步回來。
+#
+# 為什麼要有這段：CMake 的 gettext_po_to_mo 是獨立 custom target、不在 ALL_BUILD 內
+# ⇒ .po 不是生效來源（產品吃 repo 預存的 .mo）。但 .po 是唯一 grep 得到的可讀來源，
+# 一旦漂移，後人 grep 到的就是過期譯文。0817 人工補平過一次（補 86 條、修 11 條），
+# 補完隨即發現：只要有人跑了本腳本而沒同步 .po，下一秒就再度漂移 ⇒ 併進工具才根治。
+#
+# 合併式，不是重生：只改「值不同」的 msgstr、只追加「.po 沒有」的 msgid，
+# 既有註解（#: 出處、#. 說明、#, 旗標）與複數形區塊一律原樣保留，不刪任何條目。
+# ---------------------------------------------------------------------------
+
+_PO_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "\\": "\\"}
+_PO_KW = re.compile(r'^(msgctxt|msgid_plural|msgid|msgstr(?:\[\d+\])?)\s+"(.*)"\s*$')
+_PO_STR = re.compile(r'^"(.*)"\s*$')
+
+
+def _po_unescape(s):
+    out, i = [], 0
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s):
+            out.append(_PO_ESCAPES.get(s[i + 1], "\\" + s[i + 1]))
+            i += 2
+        else:
+            out.append(s[i])
+            i += 1
+    return "".join(out)
+
+
+def _po_escape(s):
+    return (s.replace("\\", "\\\\").replace('"', '\\"')
+             .replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n"))
+
+
+def _po_emit(keyword, value):
+    """多行字串照 gettext 慣例：含換行就 keyword "" 後逐行續行。"""
+    if "\n" not in value:
+        return ['%s "%s"' % (keyword, _po_escape(value))]
+    parts = value.split("\n")
+    lines = ['%s ""' % keyword]
+    for i, seg in enumerate(parts):
+        if i < len(parts) - 1:
+            lines.append('"%s\\n"' % _po_escape(seg))
+        elif seg:
+            lines.append('"%s"' % _po_escape(seg))
+    return lines
+
+
+def _po_blocks(text):
+    """切成 [(註解行, [[keyword, [片段…]], …]), …]；認不得的行原樣留在註解區。"""
+    blocks, cur_c, cur_e = [], [], []
+    for line in text.split("\n"):
+        if line.strip() == "":
+            if cur_c or cur_e:
+                blocks.append((cur_c, cur_e))
+                cur_c, cur_e = [], []
+            continue
+        if line.startswith("#"):
+            if cur_e:                       # 註解代表新區塊開始
+                blocks.append((cur_c, cur_e))
+                cur_c, cur_e = [], []
+            cur_c.append(line)
+            continue
+        m = _PO_KW.match(line)
+        if m:
+            cur_e.append([m.group(1), [m.group(2)]])
+            continue
+        m = _PO_STR.match(line)
+        if m and cur_e:
+            cur_e[-1][1].append(m.group(1))
+            continue
+        cur_c.append(line)
+    if cur_c or cur_e:
+        blocks.append((cur_c, cur_e))
+    return blocks
+
+
+def sync_po(po_path, mo_path):
+    if not os.path.exists(po_path):
+        print(f"{po_path}: 不存在，略過 .po 同步")
+        return
+    mo = {o.decode("utf-8"): t.decode("utf-8") for o, t in read_mo(mo_path)}
+    with io.open(po_path, encoding="utf-8", newline="") as f:
+        blocks = _po_blocks(f.read())
+
+    seen, n_upd, out = set(), 0, []
+    for comments, entries in blocks:
+        kws = {e[0]: e for e in entries}
+        rewrite = None
+        if "msgid" in kws:
+            msgid = _po_unescape("".join(kws["msgid"][1]))
+            ctxt = _po_unescape("".join(kws["msgctxt"][1])) if "msgctxt" in kws else None
+            key = (ctxt + "\x04" + msgid) if ctxt is not None else msgid
+            if key in mo:
+                seen.add(key)
+                if "msgid_plural" not in kws and "msgstr" in kws and key != "":
+                    if _po_unescape("".join(kws["msgstr"][1])) != mo[key]:
+                        rewrite, n_upd = mo[key], n_upd + 1
+        out.extend(comments)
+        for e in entries:
+            if rewrite is not None and e[0] == "msgstr":
+                out.extend(_po_emit("msgstr", rewrite))
+            else:
+                out.append('%s "%s"' % (e[0], e[1][0]))
+                out.extend('"%s"' % s for s in e[1][1:])
+        out.append("")
+
+    # ⚠ 追加時必須排除兩種特殊鍵，否則會把控制字元寫進 .po（0817 沙箱實測寫進 18 個 NUL）：
+    #   "\x00" ＝ 複數形（.mo 存成 singular\0plural）、"\x04" ＝ msgctxt（存成 ctxt\4msgid）
+    # 兩者在 .po 端本來就有 msgid_plural／msgctxt 區塊，不需也不可追加。
+    missing = sorted(k for k in mo
+                     if k not in seen and k != "" and "\x00" not in k and "\x04" not in k)
+    if missing:
+        out += ["#",
+                "# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====",
+                "# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），",
+                "# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。",
+                "#", ""]
+        for k in missing:
+            out += _po_emit("msgid", k) + _po_emit("msgstr", mo[k]) + [""]
+
+    with io.open(po_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(out).rstrip("\n") + "\n")
+    print(f"{po_path}: synced (updated {n_upd}, appended {len(missing)})")
+
+
 if __name__ == "__main__":
     # PING(2026-08-09)：原本寫死開發線絕對路徑 ⇒ 不論在哪個 worktree 跑都會去改開發線的 .mo
     #（本次實爆：在出貨線跑，結果改到 PING-Slicer 那份）。改成相對本檔推導 repo 根。
-    base = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__)))), "resources", "i18n", "zh_TW")
+    repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    base = os.path.join(repo, "resources", "i18n", "zh_TW")
     for name in ("OrcaSlicer.mo", "PINGSlicer.mo"):
-        patch(rf"{base}\{name}")
+        patch(os.path.join(base, name))
+    # PING(2026-08-17)：.mo 改完就同步 .po，避免兩者再度漂移（見上方說明）。
+    sync_po(os.path.join(repo, "localization", "i18n", "zh_TW", "OrcaSlicer_zh_TW.po"),
+            os.path.join(base, "OrcaSlicer.mo"))
