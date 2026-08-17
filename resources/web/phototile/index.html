@@ -62,6 +62,43 @@
   .viewseg{margin-left:auto;}
   body.embedded header{position:sticky; top:0; z-index:10; background:#fff;}
   @media (max-width:1280px){ main{grid-template-columns:1fr 1fr;} .panel.ctrl{grid-column:1/-1;} }
+  /* 🔴 原圖與款式必須包成**同一個 grid item**（.colstack），不能各自當 section：
+     main 是三欄 grid，多一個 section 就等於多一欄 ⇒ 會把列印模擬擠進 400px 欄、
+     把料與層推到第二列（開發線實測，捲動 356→613px）。 */
+  .colstack{display:flex; flex-direction:column; gap:14px; min-width:0}
+  #stylePanel .row{margin-bottom:2px}
+  #styleFix{margin-top:4px}
+  #styleFix:empty{margin-top:0}
+  #styleWhy:empty{display:none}
+/* 款式卡（AI 風格化 P3 階段 A）。**刻意不放預覽縮圖**——產品的預覽就是中間那張真模擬，
+   比原型的預烤縮圖誠實（原型的圖是離線烤好的，產品沒有那些圖也不該假造）。
+   擋下的卡沿用料數閘門那條 HIE-16 的作法：虛線邊＋字保持可讀，不用純灰（灰色沒有語意）。 */
+  /* 🔴 原圖與款式必須包成**同一個 grid item**（.colstack），不能各自當 section：
+     main 是三欄 grid，多一個 section 就等於多一欄 ⇒ 會把列印模擬擠進 400px 欄、
+     把料與層推到第二列（本棒實測，捲動 356→613px）。 */
+  .colstack{display:flex; flex-direction:column; gap:14px; min-width:0}
+  #stylePanel .row{margin-bottom:2px}
+  #styleFix{margin-top:4px}
+  #styleFix:empty{margin-top:0}
+  #styleWhy:empty{display:none}
+  /* 🔴 不寫死欄數：717px 的左欄下 auto-fit 會排成 3 欄，而目前任一題材最多 3 個款式
+     ⇒ 恆一列、修正動作不會被推到摺線下（本棒實測踩過，只有截圖看得出來）。
+     款式庫長大到 4 個以上時會自己換行，不必回來改欄數。 */
+  .stylegrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+             gap:8px; margin-top:8px}
+  .scard{border:1px solid var(--gray); border-radius:6px; padding:7px 9px; cursor:pointer; background:#fff}
+  .scard:hover{border-color:var(--black)}
+  .scard.sel{border-color:var(--orange); box-shadow:inset 0 0 0 1px var(--orange)}
+  .scard.applied{background:#fffaf7}
+  .scard.off{opacity:.72; border-style:dashed; cursor:help}
+  .scard .nm{font-weight:700; font-size:13.5px}
+  .scard .tag{font-size:10.5px; padding:1px 5px; border-radius:3px; margin-left:6px}
+  .scard .tag.ai{background:var(--orange); color:#fff}
+  .scard .tag.loc{background:var(--gray); color:#555}
+  .scard .meta{font-size:11.5px; color:#777; margin-top:2px; line-height:1.45}
+  .scard .pill{font-size:11.5px; margin-top:4px}
+  .scard .pill.ok{color:#2d7a33}
+  .scard .pill.no{color:var(--orange); font-weight:600}
 </style>
 </head>
 <body>
@@ -88,6 +125,8 @@
 </header>
 
 <main>
+  <!-- 左欄＝原圖＋款式（同一個 grid item，見 .colstack 註解） -->
+  <div class="colstack">
   <!-- 原圖 -->
   <section class="panel">
     <h2>原圖 <span class="hint">拖放／貼上／開啟圖片</span></h2>
@@ -97,6 +136,25 @@
     </div>
     <div class="statline" id="srcStat">尚未載入圖片</div>
   </section>
+
+  <!-- 款式（AI 風格化 P3 階段 A）。動線正本＝動線原型v2_照片磚.html（Eric 2026-08-17「動線 OK」）。
+       版位＝左欄原圖下方，理由是 1920x1080 實測此處本來就有 378px 空白（原圖欄底部落在 702），
+       塞這裡不會讓既有捲動變糟——判例 R-01：一覽可操作是硬底線，空間不夠先砍間距、不砍可操作高度。
+       只在「垂直（混色）」出現：平躺（疊色）＝研究線，行為維持原狀不動。 -->
+  <section class="panel" id="stylePanel" style="display:none">
+    <h2>款式 <span class="hint">系統挑出這個尺寸做得出來的</span></h2>
+    <div class="pad">
+      <div class="row"><label>題材</label>
+        <select id="subjectSel"></select>
+        <span class="sub" id="subjectInfo"></span>
+      </div>
+      <!-- 修正動作放在卡片**上方**：這是「現在該做什麼」，不該排在一堆卡片後面等人捲下去找。 -->
+      <div class="statline" id="styleWhy"></div>
+      <div id="styleFix"></div>
+      <div class="stylegrid" id="styleGrid"></div>
+    </div>
+  </section>
+  </div>
 
   <!-- 模擬 -->
   <section class="panel">
@@ -166,12 +224,16 @@
         雜訊尺寸 ≤ <input type="number" id="noiseIn" value="2.0" min="0" max="20" step="0.1" style="width:64px"> mm
         <span class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</span>
       </div>
+      <!-- 兩個實驗選項（都預設關閉）收進 details：一進來只做這次要做的事（七律#2）。 -->
+      <details id="advDetails" style="display:none">
+        <summary style="font-weight:700; cursor:pointer; margin:6px 0">進階／實驗選項</summary>
       <div class="row" id="teethRow" style="display:none"><label>邊界</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
       <div class="row" id="p2aRow" style="display:none"><label>縫遮罩</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn"> 實驗 P2A：正/背面標禁縫區（blocker；驗證期預設關閉）</label>
       </div>
+      </details>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 25×4 全料同出柱（防久未用料空燒）</label>
         柱寬 <input type="number" id="pillarXY" value="25" min="5" max="60" step="1" style="width:64px"> mm
@@ -185,8 +247,12 @@
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="invChk"> 反過來</label>
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
-      <div style="font-weight:700; margin-bottom:5px">換料清單（給列印用）</div>
-      <pre id="swapList">—</pre>
+      <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
+           （空間不夠先砍間距與裝飾、絕不砍可操作區）收成 details，功能一個沒少。 -->
+      <details id="swapDetails">
+        <summary style="font-weight:700; cursor:pointer">換料清單（給列印用）</summary>
+        <pre id="swapList">—</pre>
+      </details>
     </div>
     <div class="disclaim">
       螢幕模擬僅為近似，實際顏色以實品為準。各料「透光距離」目前是暫定值，
@@ -199,6 +265,10 @@
 
 <script src="mesh_union.js?v=20260720b"></script>
 <script src="size_ratio.js?v=20260720b"></script>
+<!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
+     這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
+     兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
+<script id="ptStyleLib" type="application/json">{"_說明":"照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。","version":"0.1","updated":"2026-08-17","constants":{"minWidthFactor":2,"_minWidthFactor":"最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。","nozzles":[0.4,0.6,1.0],"_nozzles":"引擎 NOZZLES 白名單；沒有 0.8。","kMax":8,"gridMax":3200,"defaultThickMm":10,"_defaultThickMm":"厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。"},"policies":{"slotSelection":{"rule":"AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）","why":"原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"},"aiRedrawBoundary":{"case":"中間案","rule":"AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。","why":"低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。","ruledBy":"Eric 2026-08-15"},"outOfScope":{"商品照":"Eric 2026-08-15 裁「先不考慮」，暫不列入。"}},"_minTileMm說明":"只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。","subjects":[{"id":"portrait_closeup","name":"人像特寫","keyFeature":"眼睛","detect":"偵測到臉且臉寬 ≥ 畫面 35%"},{"id":"person_full","name":"人物全身","keyFeature":"姿勢與輪廓","detect":"偵測到臉且 8% ≤ 臉寬 < 畫面 20%"},{"id":"landscape","name":"風景","keyFeature":"相鄰山脊的分離度","detect":"偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"},{"id":"pet_short","name":"寵物・短毛高對比","keyFeature":"輪廓與耳形","detect":"人工指定；動態範圍 ≥ 120"},{"id":"pet_long","name":"寵物・長毛低對比","keyFeature":"輪廓＋大塊毛色分區","detect":"人工指定；動態範圍 < 120"}],"styles":[{"id":"stencil2","name":"模板風","requiresAI":true,"subjects":["portrait_closeup"],"tones":2,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","五官"],"drops":["明暗結構","髮絲","衣服圖案"],"composition":{"faceFillMin":0.85,"_why":"臉不填滿畫面時 100mm 印不出眼睛"},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.29,"note":"需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.","priority":1,"deltaEBySubject":{"portrait_closeup":5.29},"lockSlots":true},{"id":"silhouette","name":"純剪影","requiresAI":true,"subjects":["person_full","pet_short","landscape"],"tones":3,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","姿勢","耳形","大塊斑紋"],"drops":["五官","毛髮質感","明暗結構"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":10.07,"note":"目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.","priority":1,"deltaEBySubject":{"pet_short":10.07,"landscape":10.64},"lockSlots":true},{"id":"flat_warm","name":"平色塊（暖）","requiresAI":true,"subjects":["pet_long"],"tones":4,"mode":"quad","slots":["#f2f0eb","#e6b072","#c26a1c","#3a2416"],"slotsDualFallback":["#f2f0eb","#6b3f22"],"preserves":["輪廓","毛色分區","眼鼻位置"],"drops":["毛髮質感","絨毛邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.49,"note":"四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster using a warm ramp. No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"pet_long":5.49},"lockSlots":true},{"id":"ridge_layers","name":"山巒分層","requiresAI":true,"subjects":["landscape"],"tones":5,"mode":"dual","slots":["#f2ead6","#1e2a33"],"preserves":["山脊分層","天際線"],"drops":["細桿","電線","樹葉細節","天空漸層"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.55,"note":"原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"landscape":6.55},"lockSlots":true},{"id":"screenprint","name":"絹印撞色","requiresAI":true,"subjects":["portrait_closeup"],"tones":5,"mode":"quad","slots":["#f2f0eb","#022561","#44a1dc","#0e1418"],"preserves":["輪廓","五官","明暗結構"],"drops":["衣服細格紋","髮絲"],"composition":{"faceFillMin":0.85},"minTileMm":{"0.4":320,"0.6":480,"1.0":800},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":7.86,"note":"最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":2,"deltaEBySubject":{"portrait_closeup":7.86},"lockSlots":true},{"id":"local_flat","name":"本地款式","requiresAI":false,"subjects":["portrait_closeup","person_full","pet_long","landscape","pet_short"],"tones":4,"mode":"dual","slots":["#f2f0eb","#784430"],"preserves":["輪廓","大塊明暗分區"],"drops":["細節質感","銳利邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.12,"note":"沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"pipeline":["bilateral x3","pyrMeanShiftFiltering(sp=18,sr=32)","kmeans(Lab,K=4)","medianBlur(5,7)","ramp by luminance"],"promptTemplate":null,"priority":9,"deltaEBySubject":{"portrait_closeup":6.12,"landscape":11.69,"pet_short":5.04,"pet_long":13.22},"lockSlots":false,"_subjects註":"pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"}],"selection":{"_說明":"自動挑款式的順序","steps":["1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值","2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度","3. 偵測主體 → 判 subject（見 subjects.detect）","4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數","5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false","6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗","7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸","8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"]},"acceptance":{"deltaE":{"warn":12,"fail":20,"_note":"ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"},"keyRegion":{"status":"未實作","_note":"依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"}}}</script>
 <script>
 "use strict";
 const startupQuery=new URLSearchParams(location.search);
@@ -243,6 +313,9 @@ let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
 let viewMode = 'sim';
+/* 自動驗收用的色差。三條模擬路徑本來就各自算了 sumDE/n，但只寫進 #metric 的
+   innerHTML ⇒ 程式讀不到。存起來才有「生完就驗、沒過重生」的尺（P3 丑）。 */
+let lastDeltaE = null;
 
 /* ================= UI 生成：料槽 ================= */
 const slotList = document.getElementById('slotList');
@@ -472,6 +545,7 @@ function simulateVerticalQuad(){
     noiseStats:window.__noiseStats};                 // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
+  lastDeltaE=de;
   const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——換料 B/C/D 的顏色試試（例如補圖中缺的色系）';
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
@@ -527,6 +601,7 @@ function simulateVertical(){
     noiseStats:window.__noiseStats};                         // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
+  lastDeltaE=de;
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（垂直混色＝雙色色階呈現，彩圖色差偏大屬正常，看色階順不順就好）　<span class="sub">重算 ${ms} ms</span>`;
 }
@@ -576,6 +651,7 @@ function simulate(){
   drawCore({core});
   listSwaps();
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
+  lastDeltaE=de;
   const verdict = params.map==='lum'
     ? '明暗漸層模式＝單色調呈現，色差偏大屬正常，看漸層順不順就好'
     : (de<10?'貼近':de<20?'尚可':'落差明顯——這組料色蓋不到照片的色域，換色或加料試試');
@@ -1046,11 +1122,13 @@ function syncOrientUI(){
   document.getElementById('sizeRow').style.display=v?'':'none';
   document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
-  document.getElementById('p2aRow').style.display=v?'':'none';      // P2A 縫遮罩＝垂直模式限定
+  document.getElementById('p2aRow').style.display=v?'':'none';
+  document.getElementById('advDetails').style.display=v?'':'none'; // 實驗選項容器同進退      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
   document.getElementById('btnExport').style.display=v?'':'none';   // 3MF 輸出＝垂直模式限定
   if(!v) document.getElementById('exportStat').style.display='none';
   if(!img) updateNoiseStat(null);
+  if(typeof ptSyncVisibility==='function') ptSyncVisibility();
   updateSizeInfo();
 }
 function pillarSide(){ return params.pillarXY; }
@@ -1421,6 +1499,196 @@ document.getElementById('btnBack').onclick=()=>{
   if(window.wx && typeof window.wx.postMessage==='function')
     sendSlicerMessage('phototile_home');
 };
+/* ================= 款式（AI 風格化 P3 階段 A） =================
+   規格＝規格_照片磚AI風格化_20260815.html v0.3｜動線＝動線原型v2_照片磚.html
+   （Eric 2026-08-17 實走後回「動線 OK」）。資料正本＝款式庫_照片磚.json。 */
+const STYLE_LIB=JSON.parse(document.getElementById('ptStyleLib').textContent);
+let ptSubject=STYLE_LIB.subjects[0].id, ptStyle=null, ptUserPicked=false;
+/* 目前**實際套用**的款式（≠ ptStyle＝目前推薦/選取的那張）。分開存是因為
+   「選取」與「已生效」是兩件事，混在一起會出現「顯示已套用、實際不是」。 */
+let ptApplied=null;
+/* 使用者一動料色／色階數／自動配色／料數，實際設定就偏離款式 ⇒ 清掉已套用標記。
+   🔴 不清會變成假回饋，那比沒有回饋更糟。 */
+function ptInvalidateApplied(){ if(ptApplied){ ptApplied=null;
+  if(typeof ptRender==='function') ptRender(); } }
+
+/* 🔴 階段 A 對 AI 款式 fail-closed。**理由不是保守，是誠實**：產品內還沒有任何生圖路徑
+   （那是階段 B 的 phototile_ai_generate），而「有沒有填金鑰」頁面也還不知道
+   （Eric 0816 裁 C 案＝明文不進網頁層，連布林通道都還沒開）。
+   ⚠ 刻意與 machineCap 的 fail-open 不同：fail-open 是「資訊缺就別擋」，
+   這裡是「功能真的不存在」——標得出來比裝得出來重要（FBK-11）。
+   階段 B 開了宿主布林之後，只要把這支改成讀那個值。 */
+function ptAiReady(){ return false; }
+
+/* ── 兩線相容 shim ────────────────────────────────────────────────────────
+   出貨線沒有 quadAvailable／showModeNotice（0815 的料數閘門與頁內橫幅是開發線專屬），
+   但它有開發線沒有的 `ping_install_photo_tile_printers()`＝進工作室自動裝三家族照片磚機
+   ⇒ 那邊四料本來就備齊、閘門不需要（0815 鐵則：搬之前先問那邊是不是已有更好的解法）。
+   有就用、沒有就走該線合理的預設，讓兩線的款式程式逐字元相同、日後不再分岔。 */
+function ptQuadOk(){ return typeof quadAvailable==='function' ? quadAvailable() : true; }
+function ptNotice(text){
+  if(typeof showModeNotice==='function'){ showModeNotice(text); return; }
+  const el=document.getElementById('styleWhy');      // 沒有橫幅就寫回款式區的說明行
+  if(el) el.textContent=text.split(String.fromCharCode(10)).join('　');
+}
+
+/* 🔴 鍵要用 toFixed(1)：params.nozzle 是數字，String(1.0)==='1' 對不上款式庫的 '1.0'。 */
+function ptMinTile(s){ return s.minTileMm[params.nozzle.toFixed(1)] ?? s.minTileMm['0.4']; }
+function ptStyleById(id){ return STYLE_LIB.styles.find(s=>s.id===id); }
+function ptUsable(s){
+  /* 四料：雙料的每一階都落在兩支料的連線上（規格硬約束⑤）⇒ 要第二個色相就一定得四料。 */
+  if(s.mode==='quad' && !ptQuadOk()) return {ok:false, kind:'quad', why:'需要四料機台'};
+  if(s.requiresAI && !ptAiReady()) return {ok:false, kind:'ai', why:'需要 AI 生圖（尚未開放）'};
+  if(params.width < ptMinTile(s)) return {ok:false, kind:'size', why:'需放大到 '+ptMinTile(s)+' mm'};
+  return {ok:true, kind:'ok', why:''};
+}
+function ptCandidates(){
+  const all=STYLE_LIB.styles.filter(s=>s.subjects.includes(ptSubject));
+  const by=(a,b)=>a.priority-b.priority;
+  /* 可用排前、不可用排後但**不隱藏**（Eric 2026-08-15 定：讓他看得到「有那台機器就做得到什麼」）。
+     🔴 排序不可用 ΔE——那是「款式×照片」的配對值、也不是品質分數。用款式庫宣告的 priority。 */
+  return [...all.filter(s=>ptUsable(s).ok).sort(by), ...all.filter(s=>!ptUsable(s).ok).sort(by)];
+}
+
+/* 套用＝把款式那組**已驗證過的**設定寫進參數並鎖住料色。
+   ⚠ 與原型的差別（刻意）：原型是自動選就自動反映；產品**要點一下才套**——
+   否則一進垂直模式就會靜默蓋掉使用者手調的料色與色階數。自動的只有「推薦哪一張」。 */
+function ptApply(s){
+  const want=s.mode==='quad'?4:2;
+  if(want===4 && !ptQuadOk()){
+    ptNotice(typeof modeBlockedMessage==='function' ? modeBlockedMessage() : '這款需要四料機台。');
+    return false; }
+  slotCount=want;
+  const seg=document.getElementById('modeSeg');
+  if(seg) for(const b of seg.children) b.classList.toggle('on', +b.dataset.n===want);
+  /* 料色：先寫進款式宣告的那組（沒有圖時的合理初值），再看要不要交給自動配色。
+     🔴 分界＝這個款式吃的是「AI 生的平面化圖」還是「原始照片」（Eric 2026-08-17 裁）：
+       · AI 款（lockSlots=true）**鎖定**——配色是款式設計的一部分，且自動配色在
+         單色佔大面積的平面化圖上會挑錯料（臉填滿的模板風 38.17 → 鎖定後 5.29）。
+       · 本地款（lockSlots=false）**交給自動配色**——D-1（2fc9492d42）修好評分之後，
+         規格自己的杜賓案例就是自動 8.28 勝過手動鎖定 8.45；而鎖死一組固定料色
+         碰到色系不同的照片反而更差（實測：米白＋棕在綠色風景 ΔE 37.9→44.8）。 */
+  s.slots.forEach((hex,i)=>{ if(slots[i]) slots[i].color=hex; });
+  params.klevels=s.tones;
+  const lv=document.getElementById('levelsIn'); if(lv) lv.value=s.tones;
+  if(s.lockSlots===false && img && typeof suggest==='function'){
+    /* suggest() 自己會收尾 renderSlots()+simulate()，實測 659 ms、且期間 #metric
+       會顯示「建議計算中…」＝已有回饋，不必另做進度。 */
+    renderSlots(); suggest();
+  }else{
+    renderSlots(); simulate();
+  }
+  ptApplied=s.id;
+  return true;
+}
+
+function ptSyncVisibility(){
+  const p=document.getElementById('stylePanel');
+  if(p) p.style.display=(params.orient==='vertical')?'':'none';
+}
+
+function ptRender(){
+  const sub=document.getElementById('subjectSel');
+  if(!sub) return;
+  if(!sub.options.length){
+    /* 表單紀律：下拉必有預設值（第一個選項），不留空白。 */
+    sub.innerHTML=STYLE_LIB.subjects.map(s=>
+      '<option value="'+s.id+'">'+s.name+'</option>').join('');
+    sub.value=ptSubject;
+  }
+  const info=document.getElementById('subjectInfo');
+  const sj=STYLE_LIB.subjects.find(s=>s.id===ptSubject);
+  if(info) info.textContent=sj?('關鍵特徵＝'+sj.keyFeature+'（款式保不住它就別選）'):'';
+
+  const cands=ptCandidates();
+  /* 推薦：可用的裡 priority 最小。使用者自己點過就固定住，除非它變成不可用。 */
+  const cur=ptStyle?ptStyleById(ptStyle):null;
+  if(!ptUserPicked || !cur || !cands.some(s=>s.id===ptStyle) || !ptUsable(cur).ok){
+    const good=cands.filter(s=>ptUsable(s).ok);
+    ptStyle=good.length?good[0].id:null;
+  }
+
+  const g=document.getElementById('styleGrid');
+  if(g){
+    g.innerHTML=cands.length ? cands.map(s=>{
+      const u=ptUsable(s);
+      return '<div class="scard'+((s.id===ptStyle&&u.ok)?' sel':'')+(s.id===ptApplied?' applied':'')+(u.ok?'':' off')+'" data-s="'+s.id+'">'
+        +'<div><span class="nm">'+s.name+'</span>'
+        +'<span class="tag '+(s.requiresAI?'ai':'loc')+'">'+(s.requiresAI?'AI':'本地')+'</span></div>'
+        +'<div class="meta">建議 '+s.tones+' 色階　·　'+(s.mode==='quad'?'四料':'雙料')+'　·　'+(s.lockSlots===false?'料色自動':'料色鎖定')
+        +'<br>保留 '+s.preserves.join('、')+'</div>'
+        +'<div class="pill '+(u.ok?'ok':'no')+'">'
+        +(u.ok?(ptMinTile(s)+' mm 起可印'+(s.id===ptApplied?'　·　已套用':(s.id===ptStyle?'　·　點一下套用':''))):u.why)
+        +'</div></div>';
+    }).join('') : '<div class="statline">這個題材目前沒有款式</div>';
+
+    g.querySelectorAll('.scard').forEach(e=>e.onclick=()=>{
+      const s=ptStyleById(e.dataset.s), u=ptUsable(s);
+      if(!u.ok){
+        /* FBK-11：不能只是點不動，要講得出缺什麼、下一步做什麼。
+           🔴 用頁內橫幅、**不用 alert**：這頁在產品裡跑在 WebView2 裡，modal 會卡住整個
+           renderer（本棒實測：面板隱藏時 alert 一跳，頁面停住、連 CDP 都進不去）。
+           而且 0815 為料數閘門加的 showModeNotice 就是這件事的既有解法——同頁兩種回饋
+           樣式會多一份學習成本（LAY-12）。 */
+        const nl=String.fromCharCode(10);
+        const tail = u.kind==='quad'
+          ? '這款需要四料照片磚機（FF 家族）。你的機器清單裡目前沒有四料照片磚機，'+nl
+            +'所以做不出來——在「選擇 3D 列印機」的照片磚分頁加入 FF600／FF800 就選得到。'
+          : u.kind==='ai'
+            ? '這款要靠 AI 重畫。產品內的生圖還沒開放（開發中），現在能用的是標「本地」的款式。'
+            : '把寬度放大到 '+ptMinTile(s)+' mm 以上就可以選。';
+        ptNotice('「'+s.name+'」目前不能選——'+u.why+nl+tail);
+        return;
+      }
+      if(ptApply(s)){ ptStyle=s.id; ptUserPicked=true; ptRender(); }
+    });
+  }
+
+  /* 被尺寸擋下的款式 → 給得出來的修正動作（FBK-11）。 */
+  const why=document.getElementById('styleWhy'), fix=document.getElementById('styleFix');
+  if(fix) fix.innerHTML='';
+  const blocked=cands.filter(s=>ptUsable(s).kind==='size');
+  if(blocked.length && fix && why){
+    const cheap=blocked.slice().sort((a,b)=>ptMinTile(a)-ptMinTile(b))[0];
+    const need=ptMinTile(cheap);
+    why.textContent='「'+cheap.name+'」在 '+params.width+' mm 做不出來，放大到 '+need+' mm 就可以。';
+    const b=document.createElement('button');
+    b.className='btn ghost'; b.textContent='放大到 '+need+' mm';
+    /* 走既有的寬度輸入，不自己算比例——比例鎖定的邏輯歸 applySizeChange。
+       🔴 事件名必須是 **change**：這頁的寬度輸入掛的是 onchange（見下方 wIn.onchange）。
+       本棒實測踩過：派 'input' 時 UI 變成 80、params.width 卻還是 100 ⇒ 這顆鈕是死的。 */
+    b.onclick=()=>{ const w=document.getElementById('wIn');
+      if(w){ w.value=need; w.dispatchEvent(new Event('change',{bubbles:true})); }
+      setTimeout(ptRender,0); };
+    fix.appendChild(b);
+  }else if(why){
+    why.textContent = ptStyle ? '' :
+      (ptAiReady() ? '把尺寸放大，或換一個題材。'
+                   : '這個題材目前沒有本地款式可用；AI 款式要等產品內建生圖。');
+  }
+}
+
+document.getElementById('subjectSel').addEventListener('change',e=>{
+  ptSubject=e.target.value; ptUserPicked=false; ptRender();
+});
+/* 尺寸／口徑一改，能做得出來的款式就跟著洗牌（Eric 核可的動線第③點）。
+   🔴 聽 change 不聽 input：params.width 是在 onchange 才更新的，
+   聽 input 會在還沒更新前就重算門檻 ⇒ 畫面說可印、實際尺寸還是舊的。 */
+const wEl=document.getElementById('wIn');
+if(wEl) wEl.addEventListener('change',()=>setTimeout(ptRender,0));
+const nzEl=document.getElementById('nozzleSel');
+if(nzEl) nzEl.addEventListener('change',()=>setTimeout(ptRender,0));
+document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptRender,0));
+/* 這幾個一動，實際設定就不再等於款式宣告的那組 ⇒ 收回「已套用」。
+   🔴 事件名要對到既有 handler，否則是**靜默無效的監聽**（本棒差點裝錯兩個）：
+   色階數＝onchange／自動配色＝click／料數＝click／料色＝slotList 聽的是 **input**（不是 change）。 */
+const lvEl=document.getElementById('levelsIn');
+if(lvEl) lvEl.addEventListener('change',()=>setTimeout(ptInvalidateApplied,0));
+const sgEl=document.getElementById('btnSuggest');
+if(sgEl) sgEl.addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
+document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
+document.getElementById('slotList').addEventListener('input',()=>setTimeout(ptInvalidateApplied,0));
+ptSyncVisibility(); ptRender();
 renderSlots(); thick(); syncOrientUI();
 if(embeddedMode) simulate(); else makeDemo();
 </script>
