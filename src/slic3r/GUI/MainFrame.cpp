@@ -39,6 +39,7 @@
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"
+#include "PingQuotePack.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
 // BBS
@@ -2764,6 +2765,26 @@ void MainFrame::init_menubar_as_editor()
         append_menu_item(export_menu, wxID_ANY, _L("Export toolpaths as OBJ") + dots, _L("Export toolpaths as OBJ"),
             [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->export_toolpaths_to_obj(); }, "menu_export_toolpaths", nullptr,
             [this]() {return can_export_toolpaths(); }, this);
+
+        // PING：產生報價包（給代印報價／CRM 系統的介面契約 v1.2）。
+        // 自己會逐物件各切一次，所以不要求盤面已經切過——條件只看有沒有東西可切。
+        export_menu->AppendSeparator();
+        append_menu_item(export_menu, wxID_ANY,
+            wxString::FromUTF8("產生報價包") + dots,
+            wxString::FromUTF8("逐物件單獨切片，輸出重量／時間／尺寸給報價系統"),
+            [this](wxCommandEvent&) {
+                PingQuoteOptions o;
+                /* 還原檔**預設含**（契約 v1.2；為什麼改見 PingQuotePack.hpp）。
+                   ⚠ 一定要先問 has()：AppConfig::get_bool 對「鍵不存在」與「鍵＝0」
+                   都回 false，直接呼叫等於把預設值硬寫死成「不含」——沒動過設定檔的
+                   使用者（＝絕大多數，包含客戶）就永遠拿不到還原檔，而且不會有任何徵兆。
+                   鍵不存在＝沿用結構裡的契約預設值；要關的人自己把鍵設成 0。
+                   對話框上的勾選等 UI 落點 P4 定案再做（Eric 0819 裁「落點之後再說」）。 */
+                if (wxGetApp().app_config->has("ping_quote_include_restore_3mf"))
+                    o.include_restore_3mf = wxGetApp().app_config->get_bool("ping_quote_include_restore_3mf");
+                ping_quote_generate(m_plater, o);
+            }, "", nullptr,
+            [this]() { return can_export_model(); }, this);
 
         append_menu_item(
             export_menu, wxID_ANY, _L("Export Preset Bundle") + dots /* + "\t" + ctrl + "E"*/, _L("Export current configuration to files"),
