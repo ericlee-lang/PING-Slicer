@@ -13633,6 +13633,10 @@ void Plater::set_ping_mix_enabled(bool on)
     AppConfig* cfg = wxGetApp().app_config;
     if (cfg != nullptr)
         cfg->set("ping_mix_editor_expanded", on ? "1" : "0");
+    // PING(2026-08-19)：開關搬到上方列後，切換的入口不再是預覽頁自己的浮動鈕
+    // ⇒ 右側曲線面板的開合要在這裡一併推動（原本靠 Preview 的浮鈕 callback 帶）。
+    if (p->preview != nullptr)
+        p->preview->update_ping_mix_editor();
     // 推進背景切片程序：下次匯出/上傳於咽喉點生效（啟用→插碼、停用→還原原始檔，免重切）
     p->background_process.set_ping_mix_enabled(on);
     // 預覽端立即生效：檢視清單/自動切換/著色一次刷新

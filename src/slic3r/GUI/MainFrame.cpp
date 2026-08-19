@@ -1264,6 +1264,8 @@ void MainFrame::update_title_colour_after_set_title()
 
 void MainFrame::show_option(bool show)
 {
+    // PING：記住整排的顯示狀態——混色鈕的可見性＝這個 AND「機型是同進」（岔路②）
+    m_side_tools_shown = show;
     if (!show) {
         if (m_slice_btn->IsShown()) {
             m_slice_btn->Hide();
@@ -1280,6 +1282,30 @@ void MainFrame::show_option(bool show)
             m_print_option_btn->Show();
             Layout();
         }
+    }
+    update_ping_mix_side_button();
+}
+
+// PING(2026-08-19 Eric 令)：上方列混色鈕的顯示與標籤。
+// 岔路②＝非同進機型**整組隱藏**（上方列已擠，不留永遠不能按的鈕佔位）；
+// 岔路③＝準備頁也看得到（這開關決定輸出的 G-code 插不插 M6051/M6052，準備階段就該能決定；
+//         右側曲線面板本身仍只在預覽頁展開，那段邏輯在 Preview::update_ping_mix_editor()）。
+void MainFrame::update_ping_mix_side_button()
+{
+    if (m_mix_panel == nullptr || m_mix_btn == nullptr)
+        return;
+    const bool tongjin = (m_plater != nullptr) && m_plater->is_ping_tongjin_selected();
+    const bool on      = (m_plater != nullptr) && m_plater->is_ping_mix_enabled();
+
+    const wxString want = wxString::FromUTF8(on ? "混色啟用" : "混色停用");
+    if (m_mix_btn->GetLabel() != want)
+        m_mix_btn->SetLabel(want);
+
+    const bool show = tongjin && m_side_tools_shown;
+    if (m_mix_panel->IsShown() != show) {
+        m_mix_panel->Show(show);
+        Layout();
+        fit_tab_labels();   // 同切片改標籤時的處置（上方列寬度變了）
     }
 }
 
@@ -1883,10 +1909,22 @@ wxBoxSizer* MainFrame::create_side_tools()
     auto slice_panel = new wxPanel(this,wxID_ANY,wxDefaultPosition,wxDefaultSize,wxTRANSPARENT_WINDOW);
     auto print_panel = new wxPanel(this,wxID_ANY,wxDefaultPosition,wxDefaultSize,wxTRANSPARENT_WINDOW);
 
+    // PING(2026-08-19 Eric 令)：混色開關從預覽頁畫布浮動鈕搬到上方列，格式與切片那組一致。
+    m_mix_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTRANSPARENT_WINDOW);
+    m_mix_btn = new SideButton(m_mix_panel, wxString::FromUTF8("混色停用"), "");
+    m_mix_option_btn = new SideButton(m_mix_panel, "", "sidebutton_dropdown", 0, 14);
+
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
     m_print_btn = new SideButton(print_panel, _L("Print plate"), "");
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
+
+    auto mix_sizer = new wxBoxSizer(wxHORIZONTAL);
+    mix_sizer->Add(m_mix_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
+    mix_sizer->Add(m_mix_btn, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
+    // 右側間距放在面板內＝整組隱藏時連空隙一起收掉（岔路②）
+    mix_sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    m_mix_panel->SetSizer(mix_sizer);
 
     auto slice_sizer = new wxBoxSizer(wxHORIZONTAL);
     slice_sizer->Add(m_slice_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
@@ -1902,6 +1940,8 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_slice_option_btn->Enable();
     m_print_option_btn->Enable();
     //sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    sizer->Add(m_mix_panel);          // PING：混色鈕排在切片鈕左邊（Eric 圖示位置）
+    m_mix_panel->Hide();              // 預設藏著，等 update_ping_mix_side_button() 依機型決定
     sizer->Add(slice_panel);
     sizer->Add(FromDIP(15), 0, 0, 0, 0);
     sizer->Add(print_panel);
@@ -2009,6 +2049,44 @@ wxBoxSizer* MainFrame::create_side_tools()
             /* else if (m_print_select == ePrintMultiMachine)
                  wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE));*/
         });
+
+    // ── PING 混色開關（Eric 2026-08-19）────────────────────────────────
+    // 岔路①：主鈕標籤＝**目前狀態**（同原浮動鈕語意），點一下直接切換；
+    //         要明確指定就用左邊小箭頭。狀態鍵仍是 AppConfig ping_mix_editor_expanded。
+    auto set_ping_mix = [this](bool on) {
+        if (m_plater == nullptr)
+            return;
+        m_plater->set_ping_mix_enabled(on);   // 內含背景切片旗標＋預覽面板/著色刷新
+        update_ping_mix_side_button();
+    };
+
+    m_mix_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
+        set_ping_mix(m_plater != nullptr && !m_plater->is_ping_mix_enabled());
+    });
+
+    m_mix_option_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
+        if (m_mix_option_pop_up)
+            delete m_mix_option_pop_up;
+        m_mix_option_pop_up = new SidePopup(this);
+        SideButton* on_btn  = new SideButton(m_mix_option_pop_up, wxString::FromUTF8("混色啟用"), "");
+        SideButton* off_btn = new SideButton(m_mix_option_pop_up, wxString::FromUTF8("混色停用"), "");
+        on_btn->SetCornerRadius(0);
+        off_btn->SetCornerRadius(0);
+        on_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
+            set_ping_mix(true);
+            if (m_mix_option_pop_up) m_mix_option_pop_up->Dismiss();
+        });
+        off_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
+            set_ping_mix(false);
+            if (m_mix_option_pop_up) m_mix_option_pop_up->Dismiss();
+        });
+        m_mix_option_pop_up->append_button(on_btn);
+        m_mix_option_pop_up->append_button(off_btn);
+        m_mix_option_pop_up->Popup(m_mix_btn);
+    });
+
+    update_ping_mix_side_button();
+    // ───────────────────────────────────────────────────────────────────
 
     m_slice_option_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
         {
@@ -2392,6 +2470,21 @@ void MainFrame::update_side_button_style()
     // m_publish_btn->SetBorderColor(m_btn_bg_enable);
     // m_publish_btn->SetBackgroundColour(wxColour(59,68,70));
     // m_publish_btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+
+    // PING：混色組套用與切片組完全相同的度量（Eric 令「格式設定一樣」）
+    if (m_mix_btn != nullptr) {
+        m_mix_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
+        m_mix_btn->SetCornerRadius(FromDIP(12));
+        m_mix_btn->SetExtraSize(wxSize(FromDIP(38), FromDIP(10)));
+        m_mix_btn->SetMinSize(wxSize(-1, FromDIP(24)));
+    }
+    if (m_mix_option_btn != nullptr) {
+        m_mix_option_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Center);
+        m_mix_option_btn->SetCornerRadius(FromDIP(12));
+        m_mix_option_btn->SetExtraSize(wxSize(FromDIP(10), FromDIP(10)));
+        m_mix_option_btn->SetIconOffset(FromDIP(2));
+        m_mix_option_btn->SetMinSize(wxSize(FromDIP(24), FromDIP(24)));
+    }
 
     m_slice_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
     m_slice_btn->SetCornerRadius(FromDIP(12));
@@ -4357,6 +4450,9 @@ void MainFrame::update_side_preset_ui()
 
     //take off multi machine
     if(m_multi_machine){m_multi_machine->clear_page();}
+
+    // PING：換機型可能改變「是否同進」⇒ 重算混色鈕的顯示（岔路②）
+    update_ping_mix_side_button();
 }
 
 void MainFrame::on_select_default_preset(SimpleEvent& evt)

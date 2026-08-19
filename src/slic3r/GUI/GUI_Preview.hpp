@@ -93,9 +93,9 @@ class Preview : public wxPanel
     DynamicPrintConfig* m_config;
     BackgroundSlicingProcess* m_process;
     GCodeProcessorResult* m_gcode_result;
-    // PING: 混色曲線編輯器（預覽頁右側，同進機型才顯示；預設收合成右緣窄條，點「混色」展開）
+    // PING: 混色曲線編輯器（預覽頁右側；同進機型 AND 混色啟用才顯示——
+    //       開關 2026-08-19 起在上方列 MainFrame::m_mix_btn，不再是畫布浮動鈕）
     PingMixEditor* m_ping_mix_editor { nullptr };
-    wxPanel*       m_ping_mix_strip  { nullptr };
 
     // Calling this function object forces Plater::schedule_background_process.
     std::function<void()> m_schedule_background_process;
@@ -161,10 +161,8 @@ public:
     void show_sliders(bool show = true);
     void show_moves_sliders(bool show = true);
     void show_layers_sliders(bool show = true);
-    // PING: 依機型顯示/隱藏混色編輯器並同步配方（切到預覽頁、切片完成時呼叫）
+    // PING: 依機型與混色開關顯示/隱藏編輯器並同步配方（切到預覽頁、切片完成、切換開關時呼叫）
     void update_ping_mix_editor();
-    // PING: 浮動「混色」鈕定位（畫布右上，不佔 sizer 欄；2026-07-09 Eric）
-    void position_ping_mix_strip();
     void set_reload_paint_after_background_process_apply(bool flag) { m_reload_paint_after_background_process_apply = flag; }
     bool get_reload_paint_after_background_process_apply() { return m_reload_paint_after_background_process_apply; }
 
