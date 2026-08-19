@@ -56,5 +56,5 @@
     "prime_tower_width": "30",
     "prime_volume": "45",
     "wipe_tower_max_idle_layers": "1",
-    "solid_infill_rotate_template": "45,135"
+    "solid_infill_rotate_template": ""
 }

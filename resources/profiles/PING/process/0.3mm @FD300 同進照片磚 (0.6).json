@@ -144,7 +144,6 @@
     "reduce_infill_retraction": "1",
     "resolution": "0.012",
     "role_based_wipe_speed": "1",
-    "rotate_solid_infill_direction": "1",
     "scarf_angle_threshold": "155",
     "scarf_joint_flow_ratio": "1",
     "scarf_joint_speed": "100%",
