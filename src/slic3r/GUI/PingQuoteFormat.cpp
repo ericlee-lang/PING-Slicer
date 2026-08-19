@@ -1,5 +1,5 @@
 // =====================================================================
-// PING 報價包 — quote.txt 格式產生器（介面契約 v1.1）
+// PING 報價包 — quote.txt 格式產生器（介面契約 v1.2）
 //
 // 這一段刻意與 PingQuotePack.cpp 分開放：它是**純函式**，不碰 GUI、不碰 GL、
 // 不碰切片引擎，只依賴 PingQuotePack.hpp 與標準函式庫。
@@ -139,7 +139,14 @@ std::string ping_quote_format_txt(const PingQuotePack &pack)
     if (pack.has_wall_loops)          s += "wall_loops=" + std::to_string(pack.wall_loops) + "\n";
     if (!pack.process_file.empty())   s += "process_file=" + pack.process_file + "\n";
     // restore_file 只在還原檔真的進包時才寫（代印線指出的一致性要求）。
-    if (!pack.restore_file.empty())   s += "restore_file=" + pack.restore_file + "\n";
+    // restore_size_b（v1.2 新增）與它**綁在一起輸出**：契約規定「有還原檔時必填」，
+    // 而對方明訂「宣告了 restore_file 但大小對不上就整包擋下」——所以兩行要嘛一起有、
+    // 要嘛一起沒有。size 是 0 卻宣告了檔名＝內部有 bug，此時寧可兩行都不出，
+    // 讓對方當成「這包沒有還原檔」（可用），而不是「這包的還原檔壞了」（整包被擋）。
+    if (!pack.restore_file.empty() && pack.restore_size_b > 0) {
+        s += "restore_file=" + pack.restore_file + "\n";
+        s += "restore_size_b=" + std::to_string(pack.restore_size_b) + "\n";
+    }
 
     // 只數真的有輸出的物件（切失敗的那件整段不出現，objects 必須與區塊數一致）
     int emitted = 0;
@@ -161,6 +168,9 @@ std::string ping_quote_format_txt(const PingQuotePack &pack)
         ++idx;
         s += "\n[object " + std::to_string(idx) + "]\n";
         s += "name=" + sanitize_value(o.name) + "\n";
+        // 原始模型檔名（v1.2 新增，選填）。契約範例把它排在 name 後面，照排。
+        // 抓不到就整行省略——代印線 Q5 明講「切片端沒保留原始檔名就省略，我方不強制」。
+        if (!o.source_file.empty()) s += "source_file=" + sanitize_value(o.source_file) + "\n";
 
         // ── 重量：一律用「即將送出的兩位小數」判斷，不是用原始 double
         const double wr = round2(o.weight_g);

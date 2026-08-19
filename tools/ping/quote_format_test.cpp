@@ -29,10 +29,14 @@ static PingQuotePack make_sample()
     p.support = "none";
     p.wall_loops = 2;          p.has_wall_loops = true;
     p.process_file = "process.json";
+    // 契約 v1.2：還原檔預設進包，檔頭要同時報大小（解壓後位元組數）
+    p.restore_file = "restore.3mf";
+    p.restore_size_b = 13107200;
     p.mode = "per_object";
 
     PingQuoteObject a;
     a.name = "治具A";
+    a.source_file = "cube_v2.stl";   // 契約 v1.2 選填欄位
     a.filaments = {"PING TPE - 210", "PING SupTPE"};
     a.size_x = 118.4; a.size_y = 62.0; a.size_z = 12.5; a.has_size = true;
     a.weight_g = 13.18; a.has_weight = true;
@@ -70,6 +74,9 @@ int main()
     check(has(s, "\ninfill_density=15\n"), "infill 純數字不帶 %");
     check(!has(s, "infill_density=15%"), "infill 不得帶 %");
     check(has(s, "\nprocess_file=process.json\n"), "process_file");
+    check(has(s, "\nrestore_file=restore.3mf\n"), "v1.2 restore_file");
+    check(has(s, "\nrestore_size_b=13107200\n"), "v1.2 restore_size_b（純位元組整數）");
+    check(has(s, "\nsource_file=cube_v2.stl\n"), "v1.2 source_file");
     check(has(s, "\nmode=per_object\n"), "mode");
     check(has(s, "\nobjects=2\n"), "objects=2");
     check(has(s, "\n[object 1]\n"), "[object 1] 區塊");
@@ -189,6 +196,55 @@ int main()
         }
         if (global_applied) std::locale::global(saved_global);
         ::setlocale(LC_NUMERIC, saved_s.c_str());
+    }
+
+    /* ── 案例 7：契約 v1.2 新增的兩個欄位（2026-08-19 補）
+       v1.2＝restore.3mf 改預設含／新增檔頭 restore_size_b／新增每物件選填 source_file／
+       schema 維持 1。這裡守的是「三個容易靜默壞掉的地方」：
+         ① restore_file 與 restore_size_b 必須成對——對方明訂大小對不上就整包擋下，
+            所以缺一不可，寧可兩行都不出（＝當成沒有還原檔，包還能用）。
+         ② source_file 是選填：抓不到就整行省略，絕不輸出空值。
+         ③ schema 不准偷偷進位（v1.2 是純新增，雙方講好維持 1）。 */
+    {
+        // 7-1 沒有還原檔 → 兩行都不得出現（不得留 restore_size_b=0 這種孤兒行）
+        PingQuotePack p;
+        PingQuoteObject o; o.name = "無還原檔件";
+        p.objects.push_back(o);
+        const std::string t = ping_quote_format_txt(p);
+        check(!has(t, "restore_file"), "沒還原檔→不出現 restore_file");
+        check(!has(t, "restore_size_b"), "沒還原檔→不出現 restore_size_b（不得留 =0 孤兒行）");
+    }
+    {
+        // 7-2 宣告了檔名卻沒有大小＝內部有 bug。此時兩行一起吞掉：
+        //     對方收到「有 restore_file 但大小對不上」會把**整包**擋下，
+        //     收到「沒有還原檔」則照常匯入 —— 壞在這裡要往可用的那邊倒。
+        PingQuotePack p;
+        p.restore_file = "restore.3mf";
+        p.restore_size_b = 0;
+        PingQuoteObject o; o.name = "半殘件";
+        p.objects.push_back(o);
+        const std::string t = ping_quote_format_txt(p);
+        check(!has(t, "restore_file"), "有檔名沒大小→restore_file 也不出（不得讓對方整包擋下）");
+        check(!has(t, "restore_size_b"), "有檔名沒大小→restore_size_b 不出");
+    }
+    {
+        // 7-3 source_file 選填：沒有就整行省略；有分號要轉全形（與 name 同規）
+        PingQuotePack p;
+        PingQuoteObject a; a.name = "沒來源檔";                       // source_file 留空
+        PingQuoteObject b; b.name = "有來源檔"; b.source_file = "a;b.stl";
+        p.objects = {a, b};
+        const std::string t = ping_quote_format_txt(p);
+        const size_t o1 = t.find("[object 1]"), o2 = t.find("[object 2]");
+        check(t.find("source_file", o1) > o2 || t.find("source_file", o1) == std::string::npos,
+              "沒來源檔→該段不出現 source_file");
+        check(!has(t, "source_file=a;b.stl"), "來源檔名的半形分號不得原樣輸出");
+        check(has(t, "source_file=a\xEF\xBC\x9B" "b.stl"), "來源檔名分號轉全形");
+        // 契約範例把 source_file 排在 name 之後，順序也一起守住
+        check(t.find("source_file", o2) > t.find("name=", o2), "source_file 排在 name 之後");
+    }
+    {
+        // 7-4 v1.2 是純新增欄位，schema 不准跟著進位
+        check(has(ping_quote_format_txt(make_sample()), "\nschema=1\n"), "v1.2 之後 schema 仍為 1");
     }
 
     ::printf("\n%s  失敗 %d 項\n", g_fail == 0 ? "全部通過" : "有失敗", g_fail);

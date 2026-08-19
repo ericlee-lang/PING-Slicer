@@ -407,6 +407,28 @@ void PingQuotePackJob::slice_one(const PlanItem &item, PingQuoteObject &out, Ctl
     { boost::system::error_code ec; boost::filesystem::remove(tmp, ec); }
 }
 
+// 取該物件的原始模型檔名（契約 v1.2 的 source_file，選填）。
+//
+// 【只回檔名、不回路徑】完整路徑會把切片人員電腦的目錄結構帶進客戶看得到的報價單，
+//   對報價系統又毫無用處——契約也明寫「只要檔名、不要夾檔」。
+// 【為什麼先看 volume 再看 object】從 .3mf 專案開檔時 ModelObject::input_file 是那顆
+//   .3mf 的路徑，對「這件對回客戶寄來的哪一顆檔」完全沒有幫助；ModelVolume::source
+//   .input_file 才記著當初匯入的網格檔名。直接開 STL 時兩者相同，取誰都對。
+// 【抓不到就回空】例如在軟體內生成的物件（照片磚）根本沒有來源檔。
+//   空字串＝該行整行省略，這是契約允許的（代印線 Q5 明講不強制）。
+static std::string quote_source_file(const ModelObject &mo)
+{
+    auto basename = [](const std::string &p) -> std::string {
+        if (p.empty())
+            return std::string();
+        return boost::filesystem::path(p).filename().string();
+    };
+    for (const ModelVolume *v : mo.volumes)
+        if (v != nullptr && v->is_model_part() && !v->source.input_file.empty())
+            return basename(v->source.input_file);
+    return basename(mo.input_file);
+}
+
 void PingQuotePackJob::process(Ctl &ctl)
 {
     if (!m_fatal.empty())
@@ -421,7 +443,8 @@ void PingQuotePackJob::process(Ctl &ctl)
         const ModelObject *mo  = m_model.objects[item.obj_idx];
 
         PingQuoteObject out;
-        out.name      = mo->name;
+        out.name        = mo->name;
+        out.source_file = quote_source_file(*mo);   // 契約 v1.2 新增（選填）
         out.obj_idx   = item.obj_idx;
         out.inst_idx  = item.inst_idx;
         out.instances = item.instances;
@@ -697,14 +720,19 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
         if (b.first == "process.json")
             m_pack.process_file = "process.json";
 
-    // 3mf 還原檔：**預設不含**（代印線 Q6 裁定——報價系統只讀 quote.txt 與 PNG，
-    // 12 MB 的 3mf 對它是純負擔；還原檔的價值在切片端）。要含才產。
+    // 3mf 還原檔：**預設含**（契約 v1.2；理由與歷史寫在 PingQuotePack.hpp 的
+    // include_restore_3mf 註解裡——一句話＝沒有它，客戶／列印端拿到的包無法重現這一盤）。
+    // restore_file 與 restore_size_b 一起設：契約規定有檔就必須報大小，
+    // 而 size 用的是**解壓後**的位元組數（＝這顆 std::string 的長度），不是 zip 內壓縮後的。
     std::string restore_3mf;
     if (m_opts.include_restore_3mf) {
-        if (build_restore_3mf(restore_3mf))
-            m_pack.restore_file = "restore.3mf";
-        else
+        if (build_restore_3mf(restore_3mf) && !restore_3mf.empty()) {
+            m_pack.restore_file   = "restore.3mf";
+            m_pack.restore_size_b = static_cast<std::uint64_t>(restore_3mf.size());
+        } else {
+            restore_3mf.clear();   // 產失敗就別把半顆檔塞進 zip
             m_pack.warnings.push_back(_u8L("3mf 還原檔產生失敗，包內不含它。"));
+        }
     }
 
     // quote.txt 要在縮圖跑完之後才產——image= 那幾行是上面才填進去的

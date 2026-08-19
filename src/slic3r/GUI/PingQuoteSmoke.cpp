@@ -92,11 +92,17 @@ void run_ping_quote_smoke(MainFrame *frame)
         PingQuoteOptions opts;
         opts.output_path = out_path;
         opts.silent      = true;   // 無人值守：一個 modal 都不能彈
-        // PING_QUOTE_SMOKE_3MF=1 才附還原檔——預設關與產品路徑一致，
-        // 這樣 smoke 驗到的就是使用者真正會拿到的包。
+        /* 還原檔跟著產品路徑走——**契約 v1.2 起產品預設是「含」**，所以 smoke 也預設含，
+           smoke 驗到的才會是使用者真正會拿到的那顆包。
+           ⚠ 這一段 2026-08-19 翻面過：v1.1 時代產品預設不含，這裡也就預設不含
+           （`PING_QUOTE_SMOKE_3MF=1` 才開）。**當時的判準沒變、是產品的預設值變了**——
+           判準永遠是「與產品路徑一致」，不是「小包比較快」。跟著改的話 smoke 會安靜地
+           只驗一條使用者根本走不到的路徑。
+           要測不含的那條（＝使用者把設定鍵關掉）：`PING_QUOTE_SMOKE_3MF=0`。
+           舊腳本寫 `=1` 仍然是含，行為不變。 */
         {
             const char *w3mf = ::getenv("PING_QUOTE_SMOKE_3MF");
-            opts.include_restore_3mf = (w3mf != nullptr && std::string(w3mf) == "1");
+            opts.include_restore_3mf = !(w3mf != nullptr && std::string(w3mf) == "0");
         }
         opts.on_done     = [frame](bool ok, const std::string &msg) { finish_smoke(frame, ok, msg); };
         ping_quote_generate(plater, opts);
