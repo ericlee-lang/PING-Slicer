@@ -1,16 +1,16 @@
 {
     "type": "filament",
-    "name": "PING SupPLA",
+    "name": "PING PLA(照片磚 FD300)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "GPINGSPLA",
-    "filament_id": "GPINGSPLA",
+    "setting_id": "PINGFILPTPLAFD",
+    "filament_id": "PINGFILPTPLAFD",
     "inherits": "fdm_filament_pla",
     "filament_vendor": [
         "PING"
     ],
     "filament_type": [
-        "PETG"
+        "PLA"
     ],
     "nozzle_temperature": [
         "210"
@@ -37,13 +37,10 @@
         "100"
     ],
     "filament_retraction_length": [
-        "2"
-    ],
-    "filament_is_support": [
-        "1"
+        "nil"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "60"
+        "30"
     ],
     "filament_start_gcode": [
         "; Filament gcode\nSET_RETRACTION RETRACT_LENGTH=[retraction_length] RETRACT_SPEED=[retraction_speed] UNRETRACT_EXTRA_LENGTH=[retract_restart_extra] UNRETRACT_SPEED=[deretraction_speed]\n"
@@ -73,13 +70,18 @@
         "25%"
     ],
     "default_filament_colour": [
-        "#D3D3D3"
+        "#EA4E16"
     ],
+    "alias": "PING PLA(照片磚 FD300)",
     "enable_pressure_advance": [
         "1"
     ],
     "pressure_advance": [
         "0.08"
+    ],
+    "compatible_printers": [
+        "FD300 同進照片磚 0.4 nozzle",
+        "FD300 同進照片磚 0.6 nozzle"
     ],
     "filament_retraction_speed": [
         "30"

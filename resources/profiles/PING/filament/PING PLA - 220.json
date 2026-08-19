@@ -78,7 +78,7 @@
         "1.24"
     ],
     "filament_deretraction_speed": [
-        "nil"
+        "30"
     ],
     "filament_diameter": [
         "1.75"
@@ -135,7 +135,7 @@
         "nil"
     ],
     "filament_retract_restart_extra": [
-        "0.2"
+        "nil"
     ],
     "filament_retract_when_changing_layer": [
         "nil"
@@ -144,13 +144,13 @@
         "nil"
     ],
     "filament_retraction_length": [
-        "nil"
+        "2"
     ],
     "filament_retraction_minimum_travel": [
         "3"
     ],
     "filament_retraction_speed": [
-        "nil"
+        "30"
     ],
     "filament_shrink": [
         "100%"

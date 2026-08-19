@@ -955,6 +955,10 @@
         {
             "name": "PING SupPLA - 四料同進噴頭",
             "sub_path": "filament/PING SupPLA - 四料同進噴頭.json"
+        },
+        {
+            "name": "PING PLA(照片磚 FD300)",
+            "sub_path": "filament/PING PLA(照片磚 FD300).json"
         }
     ],
     "machine_list": [

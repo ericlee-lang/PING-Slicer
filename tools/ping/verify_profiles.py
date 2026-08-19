@@ -341,8 +341,10 @@ for name, (kind, d) in presets.items():
                 err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
-            # 線材回抽統一（Eric 2026-07-23 三裁）：四項＋額外回填流量律＋長度收斂
-            if name.startswith("PING"):
+            # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
+            # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
+            #    專屬護欄在檔尾「Classic 材料層回抽覆蓋 0807」。
+            if name.startswith("PING") and "Classic" not in name:
                 def _v(k):
                     x = d.get(k)
                     return x[0] if isinstance(x, list) and x else x
@@ -352,10 +354,20 @@ for name, (kind, d) in presets.items():
                         err(f"[線材回抽四項 0723] {name}: {k}={_v(k)!r}, expected {want!r}")
                 # 🔴 2026-08-16 改名連坐：舊名靠字串「高流量」落進 is_hf，改成「四料同進噴頭」
                 #    後會掉出去、被當一般流量（出貨線實測踩到）。照片磚專用支同屬同進硬體。
+                # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
                 is_hf = (("高流量" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
-                if _v("filament_retract_restart_extra") != ("0.6" if is_hf else "0.2"):
-                    err(f"[額外回填流量律 0723] {name}: {_v('filament_retract_restart_extra')!r}, expected {'0.6' if is_hf else '0.2'!r}")
+                is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)")
+                # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
+                #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
+                _want_extra = "0.6" if is_hf else "nil"
+                if _v("filament_retract_restart_extra") != _want_extra:
+                    err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
+                # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30
+                for _k, _label in (("filament_retraction_speed", "回抽速度"),
+                                   ("filament_deretraction_speed", "裝填速度")):
+                    if _v(_k) != "30":
+                        err(f"[回抽速度 30/30 0819] {name}: {_label}={_v(_k)!r} 應 30")
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
@@ -371,24 +383,30 @@ for name, (kind, d) in presets.items():
                 #   單向護欄照舊：0.12 不得出現在高流量／3in1 家族。
                 if is_hf and _v("pressure_advance") == "0.12":
                     err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
+                #   ⚠ Classic 前代線材另有 PA 全關斷言（Marlin 無 PA），不受本條影響。
                 if not is_hf and "TPE" not in name and "PA-CF" not in name:
                     if _v("enable_pressure_advance") != "1" or _v("pressure_advance") != "0.08":
                         err(f"[一般流量 PA 0.08 0728] {name}: enable={_v('enable_pressure_advance')!r} "
                             f"pa={_v('pressure_advance')!r}, expected 1/0.08")
-                if "TPE" in name or "PVA" in name:
+                # 回抽長度四分支（🆕 0819 改寫）
+                if is_pt:
+                    # 🔴 照片磚＝零回抽，且零回抽只寫在機器層（retraction_length 0,0）——
+                    #    線材覆蓋會贏，所以線材端必須是 nil。0730 那批曾把 FF 照片磚支掃成 3，
+                    #    靜默蓋掉零回抽整整 20 天沒人發現；這條護欄就是為了不再發生。
+                    if _v("filament_retraction_length") != "nil":
+                        err(f"[照片磚零回抽 0819] {name}: {_v('filament_retraction_length')!r} 應 nil（吃機器層 0）")
+                elif "TPE" in name or "PVA" in name:
+                    # 軟料/PVA 長度維持既值不動（Eric 0819「軟料回抽為 3、不改動」；PVA 0724 定稿）。
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
                 elif is_hf:   # 🔴 0816：原本是內聯複製的字串判定（漏了四料同進/照片磚），改用同一個變數
-                    # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽 3/30/30——長度 2→3 上蓋 0723 補裁；
-                    # 速度/裝填明寫 30（四料高流量兩支原為 nil＝繼承機器 20/20，Eric 抓到的漏）
-                    for _k, _want, _label in (("filament_retraction_length", "3", "長度"),
-                                              ("filament_retraction_speed", "30", "回抽速度"),
-                                              ("filament_deretraction_speed", "30", "裝填速度")):
-                        if _v(_k) != _want:
-                            err(f"[高流量家族 3/30/30（0730 裁·含 3in1）] {name}: {_label}={_v(_k)!r} 應 {_want}")
+                    # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽長度 3；0819「排除不動」再確認。
+                    if _v("filament_retraction_length") != "3":
+                        err(f"[高流量家族長度 3（0730 裁·0819 再確認）] {name}: {_v('filament_retraction_length')!r} 應 3")
                 else:
-                    if _v("filament_retraction_length") != "nil":
-                        err(f"[基礎支長度應收斂繼承 0723] {name}: {_v('filament_retraction_length')!r}")
+                    # 🆕 Eric 2026-08-19 令：一般流量線材回抽長度 2（蓋掉 0723 的「收斂繼承 nil」）
+                    if _v("filament_retraction_length") != "2":
+                        err(f"[一般流量回抽長度 2 0819] {name}: {_v('filament_retraction_length')!r} 應 2")
         # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
         # 缺 T 時切片器會自動補「槽位序號」T（第2槽→T1）→機上無此巨集→Klipper 只警告不停
         # →三路同步進料靜默失效（0717 同事 T1 事故機制）。T4/T012/T3 皆可（^T 開頭即過）。
@@ -517,7 +535,12 @@ else:
 # 預設連動定案（Eric 0728 v2「連動」）：單一出料機（FP300×3＋FD300 系 單料頭/同進/同進照片磚）
 # 預設一律 PLA - 210；雙料機（FD300/FD300 Pro 標準雙料＋關門＝FD300 雙料變體）首槽維持 PLA - 220；
 # 其餘機器不得外溢（P200+ 客戶版/Classic 變體＝不在範圍待裁）。
-_single_out_210 = {"FD300 單料頭", "FD300 Pro 單料頭", "FD300 同進", "FD300 Pro 同進", "FD300 同進照片磚"}
+# 🆕 2026-08-19：FD300 同進照片磚**移出**本集合——它改吃 `PING PLA(照片磚 FD300)` 專用支
+#   （Eric 0819 裁「給它專用支」，理由＝零回抽必須靠線材端 nil 才不被覆蓋；見下方專屬護欄）。
+#   噴溫仍是 210（專用支從 PLA-210 整支派生），0728 v2 的意旨沒有被推翻，只是落點換到專用支。
+_single_out_210 = {"FD300 單料頭", "FD300 Pro 單料頭", "FD300 同進", "FD300 Pro 同進"}
+_pt_fd_model = "FD300 同進照片磚"
+_PT_FIL_FD = "PING PLA(照片磚 FD300)"
 _dual_keep_220 = {"FD300", "FD300 Pro", "FD300 關門"}
 for _mn, (_mk, _md) in presets.items():
     if _mk == "machine":
@@ -526,6 +549,12 @@ for _mn, (_mk, _md) in presets.items():
         if _mn.startswith("FP300 ") and _mn.endswith("nozzle"):
             if _dfp != ["PING PLA - 210"]:
                 err(f"[FP300 預設 210 0728] {_mn}: {_dfp!r}, expected ['PING PLA - 210']")
+        elif _pmod == _pt_fd_model:
+            # 🆕 檢查 12 追加（Eric 2026-08-19）：FD300 照片磚機必為照片磚 FD300 專用支。
+            # 🔴 動機與 FF 那條同源：照片磚的零回抽只寫在機器層，線材覆蓋會贏 ⇒ 只要槽位被
+            #    換回任何一般流量支（例如共用的 PLA-210），零回抽就**靜默失效、不會報錯**。
+            if _dfp and set(_dfp) != {_PT_FIL_FD}:
+                err(f"[FD300 照片磚機必為照片磚 FD300 專用支 0819] {_mn} -> {sorted(set(_dfp))!r}")
         elif _pmod in _single_out_210:
             if not isinstance(_dfp, list) or "PING PLA - 220" in _dfp or "PING PLA - 210" not in _dfp:
                 err(f"[單一出料預設 210 0728v2] {_mn}: {_dfp!r}")

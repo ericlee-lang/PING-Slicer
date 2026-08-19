@@ -37,7 +37,7 @@
         "100"
     ],
     "filament_retraction_length": [
-        "nil"
+        "2"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "30"
@@ -64,7 +64,7 @@
         "100%"
     ],
     "filament_retract_restart_extra": [
-        "0.2"
+        "nil"
     ],
     "overhang_fan_threshold": [
         "25%"
@@ -79,5 +79,11 @@
     ],
     "pressure_advance": [
         "0.08"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
     ]
 }
