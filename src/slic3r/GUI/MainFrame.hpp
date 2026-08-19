@@ -296,6 +296,8 @@ public:
     //BBS
     void        show_sync_dialog();
     void        update_side_preset_ui();
+    // PING：依「機型是否同進」與「混色是否啟用」刷新上方列混色鈕的顯示與標籤
+    void        update_ping_mix_side_button();
     void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
@@ -407,6 +409,15 @@ public:
     SideButton* m_print_option_btn{ nullptr };
 
     SidePopup*  m_slice_option_pop_up{ nullptr };
+
+    // PING(2026-08-19 Eric 令)：混色開關搬上方列，格式比照切片那組（SideButton ＋ SidePopup）。
+    // 原本是預覽頁畫布右上角的浮動鈕（Preview::m_ping_mix_strip，已移除）。
+    // 拍板：①主鈕點了就切換 ②非同進機型整組隱藏 ③準備頁也看得到（面板本身仍只在預覽頁展開）。
+    wxPanel*    m_mix_panel{ nullptr };
+    SideButton* m_mix_btn{ nullptr };
+    SideButton* m_mix_option_btn{ nullptr };
+    SidePopup*  m_mix_option_pop_up{ nullptr };
+    bool        m_side_tools_shown{ true };   // show_option() 的當前狀態（混色鈕要跟著走）
 
     FilamentGroupPopup* m_filament_group_popup{ nullptr };
     mutable bool          m_slice_enable{ true };

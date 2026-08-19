@@ -285,8 +285,8 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     // sizer, m_canvas_widget
     m_canvas_widget->Bind(wxEVT_KEY_DOWN, &Preview::update_layers_slider_from_canvas, this);
 
-    // PING: 外層改水平 sizer——canvas 佔滿＋右側混色曲線編輯器（同進機型才顯示；
-    // 預設收合成右緣「混色」窄條，點了展開，狀態記 AppConfig ping_mix_editor_expanded）
+    // PING: 外層改水平 sizer——canvas 佔滿＋右側混色曲線編輯器（同進機型 AND 混色啟用才顯示；
+    // 開關在上方列，狀態記 AppConfig ping_mix_editor_expanded）
     wxBoxSizer *main_sizer = new wxBoxSizer(wxHORIZONTAL);
     main_sizer->Add(m_canvas_widget, 1, wxALL | wxEXPAND, 0);
 
@@ -296,67 +296,21 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     m_ping_mix_editor->set_toggle_callback([this]() { update_ping_mix_editor(); });
     main_sizer->Add(m_ping_mix_editor, 0, wxEXPAND, 0);
 
-    // PING(2026-07-09 Eric)：收合狀態不再佔一條空白直欄——「混色」鈕改成浮動小鈕疊在畫布
-    // 右上角（比照摺疊側邊欄的浮動 <> 鈕）。不入 sizer、on size 重定位、Raise 蓋在畫布上
-    //（GL canvas 帶 WS_CLIPSIBLINGS，浮鈕區域不會被 GL 繪掉）。
-    m_ping_mix_strip = new wxPanel(this, wxID_ANY);
-    // StaticBox/Button clears its rounded corners with the parent colour (captured at Create).
-    // PING(2026-07-29 回報中心 #24 邊角破圖・劉勝賢 test11 實機截圖定罪)：預覽頁畫布「不分主題」
-    // 恆為深色（DEFAULT_BG_LIGHT_COLOR_DARK＝84,84,90；亮主題只有準備頁畫布是 231 淺灰）——
-    // 原本跟 app 主題取色，亮主題把角落塗成 231 淺灰＝深底上的白色直角。固定用畫布深色常數。
-    m_ping_mix_strip->SetBackgroundColour(wxColour(84, 84, 90));
-    {
-        wxBoxSizer* strip_sizer = new wxBoxSizer(wxVERTICAL);
-        // ⚠ 以下三段 0726–0727 的沿革已於 2026-08-10 被取代（見本區塊末的 #43 說明），
-        //   保留是為了記住「四字折行」那一輪的量測坑，不要照著回去做。
-        // PING(2026-07-26 Eric)：浮鈕直寫狀態——「混色停用」（展開面板標題＝「混色啟用」）。
-        // PING(2026-07-27 Eric 三裁)：拆兩行＋Head_14 大字；橘底白字＝ButtonStyle::Confirm
-        //（軟體標準確認鈕配色 #EA4E16/#FEFEFE，深色模式自帶）；收窄不遮層滑桿數字。
-        // PING(2026-07-27 二輪修正・Eric 實機回報「四字仍一行、疊到走線卡片」)：
-        // 真因＝messureSize() 會把「單行文字量測寬」寫回控件最小寬（SetMinSize 只是下限，
-        // Head_14 四字 ≈92px 直接撐開實寬）⇒ render 的 split_lines 永不觸發。
-        // 正解＝SetMaxSize 鎖寬——messureSize:406 只有 MaxWidth 會夾住量測值 ⇒ 實寬 60
-        // 放不下四字 ⇒ 自動折成「混色」「停用」兩行（折行閾值 60−padding16＝44 > 兩字 38）。
-        // PING(2026-08-10 Eric・回報中心 #43)：改成「下拉」的長相＝呼叫出混色那一頁。
-        // 原本是橘底白字、直寫狀態的「混色停用」（Eric 0726/0727 裁），但回報者讀成
-        // 「按下去＝要停用混色」——狀態詞掛在可按的鈕上，語意與動作方向相反。
-        // 改為橫向膠囊「混色 ⌄」：caret 表達的是「這裡可以展開一頁」，不再宣告狀態。
-        // 配色：這顆只在收合（＝停用）時出現（見 update_ping_mix_editor 的 show_strip），
-        // 故用 btn_regular 的淺灰底深字——在深色畫布上看得出可按，也不會被誤讀成「已啟用」。
-        // caret 用 drop_down.svg（#949494 灰描邊，襯得住淺底）；sidebutton_dropdown.svg
-        // 是白描邊、專給橘底側鈕用，放這裡會整個消失。
-        // 點擊行為維持 Eric 0726 裁定不變：展開＝啟用混色。
-        ::Button* open_btn = new ::Button(m_ping_mix_strip, wxString::FromUTF8("混色"), "drop_down", 0, 16);
-        open_btn->SetStyle(ButtonStyle::Regular, ButtonType::Window);
-        open_btn->SetFont(Label::Body_12);
-        // 橫向單行：不再 SetVertical/SetMaxSize——那兩者是舊「四字直排折行」的機構
-        //（SOP_wxUI元件坑 §3–§4），這裡要的是自然寬度，讓 messureSize 依「圖示＋兩字」撐開。
-        open_btn->SetMinSize(wxSize(FromDIP(78), FromDIP(26)));
-        open_btn->UnsetToolTip();   // 防禦性保留：messureSize 夾寬時會偷設 native tooltip
-                                    // （＝標籤字），與下方 dark tooltip 會跳兩種
-        bind_ping_dark_tooltip(open_btn, wxString::FromUTF8("展開並啟用混色——輸出 G-code 將依曲線插入混色指令"));
-        open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-            // B 案：展開＝混色啟用（下次匯出/上傳插 M6051/M6052、預覽切混色檢視）
-            if (wxGetApp().plater() != nullptr)
-                wxGetApp().plater()->set_ping_mix_enabled(true);
-            update_ping_mix_editor();
-        });
-        strip_sizer->Add(open_btn, 0, 0, 0);
-        m_ping_mix_strip->SetSizerAndFit(strip_sizer);
-    }
-    m_ping_mix_strip->Hide();
+    // PING(2026-08-19 Eric 令)：畫布上的浮動「混色」鈕已移除，開關搬到上方列
+    // （MainFrame::create_side_tools 的 m_mix_btn／m_mix_option_btn，格式同切片組）。
+    // 這裡只留曲線編輯器本身；顯示與否＝同進機型 AND 混色啟用。
 
     SetSizer(main_sizer);
     SetMinSize(GetSize());
     GetSizer()->SetSizeHints(this);
-    Bind(wxEVT_SIZE, [this](wxSizeEvent& evt) { evt.Skip(); position_ping_mix_strip(); });
 
     bind_event_handlers();
 
     return true;
 }
 
-// PING: 依機型與收合狀態排版——非同進：兩者都藏；同進＋收合：右緣「混色」窄條；同進＋展開：編輯器
+// PING: 依機型與混色開關排版——非同進或已停用：編輯器藏；同進＋啟用：編輯器展開。
+// 2026-08-19 起開關本身在上方列（MainFrame），本函式順便刷新那顆鈕＝兩邊共用同一組判定。
 void Preview::update_ping_mix_editor()
 {
     if (m_ping_mix_editor == nullptr)
@@ -364,25 +318,13 @@ void Preview::update_ping_mix_editor()
     const bool tongjin  = m_ping_mix_editor->update_from_plater();
     const bool expanded = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_mix_enabled();
     const bool show_editor = tongjin && expanded;
-    const bool show_strip  = tongjin && !expanded;
-    if (show_editor != m_ping_mix_editor->IsShown() || (m_ping_mix_strip != nullptr && show_strip != m_ping_mix_strip->IsShown())) {
+    if (show_editor != m_ping_mix_editor->IsShown()) {
         m_ping_mix_editor->Show(show_editor);
-        if (m_ping_mix_strip != nullptr)
-            m_ping_mix_strip->Show(show_strip);
         Layout();
     }
-    position_ping_mix_strip();
-}
-
-// PING(2026-07-09)：浮動「混色」鈕定位——畫布右上角（右緣內縮 6、頂 6），顯示時 Raise 保持最上層
-void Preview::position_ping_mix_strip()
-{
-    if (m_ping_mix_strip == nullptr || !m_ping_mix_strip->IsShown())
-        return;
-    const wxSize cs = GetClientSize();
-    const wxSize bs = m_ping_mix_strip->GetSize();
-    m_ping_mix_strip->SetPosition(wxPoint(cs.x - bs.x - FromDIP(6), FromDIP(6)));
-    m_ping_mix_strip->Raise();
+    // PING(2026-08-19)：上方列的混色鈕與本面板共用同一組判定 ⇒ 同一個漏斗刷新，避免兩邊不同步
+    if (wxGetApp().mainframe != nullptr)
+        wxGetApp().mainframe->update_ping_mix_side_button();
 }
 
 Preview::~Preview()
