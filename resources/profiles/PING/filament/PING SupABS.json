@@ -58,7 +58,7 @@
         "30"
     ],
     "filament_retraction_length": [
-        "nil"
+        "2"
     ],
     "filament_is_support": [
         "1"
@@ -88,7 +88,7 @@
         "100%"
     ],
     "filament_retract_restart_extra": [
-        "0.2"
+        "nil"
     ],
     "overhang_fan_threshold": [
         "25%"
@@ -104,5 +104,11 @@
     ],
     "filament_soluble": [
         "0"
+    ],
+    "filament_retraction_speed": [
+        "30"
+    ],
+    "filament_deretraction_speed": [
+        "30"
     ]
 }

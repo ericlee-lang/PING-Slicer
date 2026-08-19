@@ -200,6 +200,15 @@ FF_FIL_OLD   = {"PLA": "PING PLA - 四料高流量噴頭", "SupPLA": "PING SupPL
 # ★ 2026-08-16 Eric 裁「甲」：照片磚豁免——照片磚機 64 槽維持舊值（流量 30、清料 120），
 #   故另開專用支綁死照片磚機；等 Eric 自己實印後再決定要不要跟著吃 50。
 PT_FIL_PLA = "PING PLA(照片磚)"
+# 🆕 2026-08-19 Eric 裁「給它專用支」：FD300 同進照片磚＝**雙料一般流量**硬體，與 FF 同進照片磚
+#   （四進一出高流量）不是同一種噴頭 ⇒ 不能共用 PT_FIL_PLA（那支 PA 0.4／清料 120 是四料值）。
+#   真因：照片磚機的**零回抽寫在機器層**（`retraction_length 0,0`＋`use_firmware_retraction 0`），
+#   但**線材覆蓋會贏**。FD300 照片磚 64 槽原本吃共用的 `PING PLA - 210`，0819 一般流量改回抽 2
+#   之後就會蓋掉零回抽 ⇒ 從 PLA-210 派生一支綁死 FD300 照片磚機的專用支，
+#   噴溫／PA 0.08／流量／色全部原封不動，只把回抽長度留 `nil`（吃機器層 0）。
+#   ⚠ 名字刻意是「(照片磚 FD300)」而非「(照片磚)」——後者是 is_hf 的判定字串，
+#     這支是一般流量硬體，**不可**落進高流量家族（0816 改名連坐教訓的反向應用）。
+PT_FIL_PLA_FD = "PING PLA(照片磚 FD300)"
 FF_FIL_RENAME = {}   # 舊名→新名（4b 填入，供 ff_extra/照片磚範本 default 引用改名）
 for _k in ("PLA", "SupPLA"):
     FF_FIL_RENAME[FF_FIL_OLD[_k]] = FF_FIL_ALIAS[_k]          # 0816 本代改名
@@ -1920,6 +1929,39 @@ def main(src_base):
     jdump(os.path.join(PINGDIR, "filament", "PING PVA.json"), fd_)
     fil_new.append({"name": "PING PVA", "sub_path": "filament/PING PVA.json"})
 
+    # 4b-1e. ★ FD300 照片磚專用線材（Eric 2026-08-19 裁「給它專用支」）——見 PT_FIL_PLA_FD 註解。
+    # 從 `PING PLA - 210` 整支派生（噴溫 210／PA 0.08／流量／清料／色全部原封不動），
+    # 只改三件：①身分（name/alias/id）②`compatible_printers` 綁死 FD300 同進照片磚兩台
+    # ③`filament_retraction_length` = nil（讓機器層零回抽 0,0 生效；4b-2b 的 is_pt 也會再釘一次）。
+    # ⚠ 獨立 alias＝防與 PLA-210 併組後下拉選不到（3in1 教訓）。
+    # ⓘ 排在 4b-2b 之前，讓後面的回抽／PA／清料 sweep 一體適用＝regen-durable。
+    _pt_fd_src = os.path.join(PINGDIR, "filament", BASE_PLA_NEW + ".json")
+    _pt_fd_machines = ["FD300 同進照片磚 0.4 nozzle", "FD300 同進照片磚 0.6 nozzle"]
+    if os.path.isfile(_pt_fd_src):
+        _ptfd = json.load(io.open(_pt_fd_src, encoding="utf-8"))
+        _ptfd.update({"name": PT_FIL_PLA_FD, "alias": PT_FIL_PLA_FD,
+                      "setting_id": "PINGFILPTPLAFD", "filament_id": "PINGFILPTPLAFD",
+                      "filament_retraction_length": ["nil"]})
+        _ptfd.pop("renamed_from", None)          # 舊名只能有一個接手者（PLA-210 已接 "PING PLA"）
+        _ptfd["compatible_printers"] = [m for m in _pt_fd_machines
+                                        if os.path.isfile(os.path.join(PINGDIR, "machine", m + ".json"))]
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % PT_FIL_PLA_FD), _ptfd)
+        fil_new.append({"name": PT_FIL_PLA_FD, "sub_path": "filament/%s.json" % PT_FIL_PLA_FD})
+        # FD300 照片磚機／model 的 64 槽預設改指專用支（0728 v2 那批把它們指到 PLA-210，
+        # 本批再往下走一階）。`default_materials` 不在這裡動＝交給 4d-2 的全族 post-pass 重算。
+        _ptfd_n = 0
+        for _pm in _pt_fd_machines + ["FD300 同進照片磚"]:
+            _pp = os.path.join(PINGDIR, "machine", _pm + ".json")
+            if not os.path.isfile(_pp):
+                continue
+            _pd = json.load(io.open(_pp, encoding="utf-8"))
+            _dfp = _pd.get("default_filament_profile")
+            if isinstance(_dfp, list) and any(x == BASE_PLA_NEW for x in _dfp):
+                _pd["default_filament_profile"] = [PT_FIL_PLA_FD if x == BASE_PLA_NEW else x
+                                                   for x in _dfp]
+                jdump(_pp, _pd); _ptfd_n += 1
+        print("  照片磚 FD300 專用線材：1 支；機／model 槽位改指 %d 檔" % _ptfd_n)
+
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
     # ——免機端 wrapper、全機隊（含舊 C8/單料/四料）原生支援、老檔無指令＝機器 config 預設、
@@ -1954,11 +1996,28 @@ def main(src_base):
     if sr_added:
         print("  線材 SET_RETRACTION 回抽控制：+%d 支（M207/M208 退場）" % sr_added)
 
-    # 4b-2b. ★ 線材回抽統一（Eric 2026-07-23 三裁＋兩補裁・主線 25650196/8515bafb/95bf5a7c 移植）：
-    # ①長度收斂繼承（未勾＝機器 1.3＝與韌體 config 同值等效）；特例：高流量家族（高流量噴頭/四料/3in1）=2、TPE=3
-    # ②額外回填長度＝噴頭流量形式律：高流量=0.6、一般流量=0.2（含 TPE）——換料/回抽後補缺料
-    # ③四項統一（PLA - 220 基準）：空駛臨界 3／回抽時擦拭 1／擦拭距離 5／擦拭前回抽 100%
-    # ⚠ Classic 前代線材豁免（Marlin 隔離原則：回抽行為值未經 Eric 裁、不動）；DL1016 不在名單自然豁免。
+    # 4b-2b. ★ 線材回抽統一（Eric 2026-07-23 三裁 → **2026-08-19 一般流量整組改寫**）：
+    #
+    # ①🆕【0819 Eric 令】**一般流量線材**（＝非高流量家族）＝
+    #    回抽長度 **2**／回抽速度 **30**／裝填速度 **30**／**額外回填長度取消勾選**。
+    #    「取消勾選」＝`filament_retract_restart_extra` 設 `nil`（退回機器層）——
+    #    **全機型機器層 `retract_restart_extra` 本來就是 0**，所以 UI 顯示灰色 0＝Eric 要的樣子。
+    #    ⇒ 蓋掉 0723 的「基礎支長度收斂繼承 nil」與「一般流量額外回填 0.2」兩條。
+    # ②**軟料（TPE／SupTPE）與 PVA 的「長度」維持 3、不動**（Eric 0819 原話「軟料回抽為 3，不改動」；
+    #    PVA 同列＝0724 V2.1 案定稿，Eric 0819 二裁「維持 3」）。速度／裝填仍一併 30/30。
+    # ③**高流量家族維持 0730 既值 3/30/30/0.6 不動**（Eric 0819 裁「排除」）。家族＝
+    #    高流量噴頭／四料同進／(3in1)／FF 照片磚專用支。
+    # ④🆕【0819 附帶修復】**照片磚系＝回抽長度 `nil`**，讓機器層零回抽（`0,0`）生效。
+    #    🔴 真因：照片磚機的零回抽只寫在機器層，**線材覆蓋會贏**；0730「高流量家族 3/30/30」
+    #    那批把 FF 照片磚支掃成 3，**靜默蓋掉零回抽、不會報錯**——本批修回。
+    #    FD300 照片磚走 4b-1e 新開的 PT_FIL_PLA_FD（一般流量硬體、不入 is_hf）。
+    # ⑤四項統一（以 PLA - 220 為基準）：空駛距離臨界值 3／回抽時擦拭 1／擦拭距離 5／擦拭前回抽量 100%。
+    # ⑥🔴 **Classic 前代線材整組豁免**（Eric 2026-08-07 硬體事實：**赤兔不能吃韌體回抽** ⇒
+    #    Classic 線材不得在材料層覆蓋任何回抽鍵，一律由 Classic machine preset 控制；
+    #    verify_profiles.py「Classic 材料層回抽覆蓋 0807」有護欄擋）。
+    #    ⚠ 0819 Eric 曾答「Classic 一起改」，但**那次提問沒把 0807 這條事實端出來**；
+    #      實作時被護欄擋下 ⇒ 依「規則優先」全部退回原狀，等 Eric 在知情下重裁。
+    # 冪等 sweep；DL1016 不在名單自然豁免。
     rt_touched = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
@@ -1966,7 +2025,7 @@ def main(src_base):
             continue
         bn = os.path.basename(fp_path)[:-5]
         if "Classic" in bn:
-            continue
+            continue                                      # ⑥ Classic 整組豁免（赤兔無韌體回抽，見上方註）
         before = json.dumps(fd, sort_keys=True)
         fd["filament_retraction_minimum_travel"] = ["3"]
         fd["filament_wipe"] = ["1"]
@@ -1976,25 +2035,22 @@ def main(src_base):
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
         is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
-        fd["filament_retract_restart_extra"] = ["0.6" if is_hf else "0.2"]
-        if "TPE" in bn or "PVA" in bn:
-            pass                                          # TPE/SupTPE 維持 3（0718 定稿）；PVA 維持 3（0724 V2.1 案定稿）
-                                                          # ⚠ 0725 稽核抓漏：01148acf 全批移植時這裡漏了 PVA，
-                                                          #   PVA 掉進 else 拿 nil＝繼承機器 1.3，與主線 48023ae8 不符
+        is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD)         # ④ 照片磚系＝零回抽
+        fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
+        fd["filament_retraction_speed"] = ["30"]
+        fd["filament_deretraction_speed"] = ["30"]
+        if is_pt:
+            fd["filament_retraction_length"] = ["nil"]    # ④ 吃機器層 0,0＝零回抽
+        elif "TPE" in bn or "PVA" in bn:
+            pass                                          # ② 長度不動（TPE/SupTPE 0718、PVA 0724 定稿；Classic 兩支本來就沒覆蓋鍵）
         elif is_hf:
-            # 2026-07-30 Eric 裁「高流量材料回抽 3/30/30，雙料高流量與四料高流量都一致」：
-            # 長度 2→3（0723 補裁的 2 被上蓋）＋速度/裝填 30 明寫。四料高流量兩支原本 speed/
-            # deretraction 是 nil（＝繼承機器 20/20、非 30）＝Eric 說的「沒改到」，本裁一併補齊。
-            # 範圍＝is_hf 家族（含 3in1，沿 0723「3in1 同勾」的同族慣例）。
-            fd["filament_retraction_length"] = ["3"]
-            fd["filament_retraction_speed"] = ["30"]
-            fd["filament_deretraction_speed"] = ["30"]
+            fd["filament_retraction_length"] = ["3"]      # ③ 0730 高流量家族既值
         else:
-            fd["filament_retraction_length"] = ["nil"]    # 其餘收斂繼承機器 1.3
+            fd["filament_retraction_length"] = ["2"]      # ① 0819 一般流量：繼承 1.3 → 明寫 2
         if json.dumps(fd, sort_keys=True) != before:
             jdump(fp_path, fd); rt_touched += 1
     if rt_touched:
-        print("  線材回抽統一（長度收斂＋額外回填流量律＋四項；Classic 豁免）：%d 支" % rt_touched)
+        print("  線材回抽統一（0819 一般流量 2/30/30＋額外回填取消勾選；照片磚零回抽）：%d 支" % rt_touched)
 
     # 4b-2f. ★ 一般流量 PA 0.08（Eric 2026-07-28 三輪裁「材料如果不是高流量跟火山口或四料，
     # 它的壓力提前是 0.08」）：非高流量／非火山口(PA-CF)／非四料(含 3in1) 的一般流量硬料
