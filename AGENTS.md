@@ -1,3 +1,5 @@
+<!-- NO-CLAUDE-BRIDGE: 本檔是 OrcaSlicer 上游的通用 repo 指南（Build／Coding Style／Testing／Commit）。PING 的正本是同目錄 CLAUDE.md（10 KB）；本檔唯一的在地教訓（Windows 別加 --parallel／PCH 吃爆 C3859）該檔已收錄，橋接只會把 3.4 KB 重複塞進每個 session 的 context。（2026-08-20 Eric 裁，牌 x-0820-PM-05） -->
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization
