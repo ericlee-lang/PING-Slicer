@@ -58,6 +58,8 @@ _vigildata/
 # --- PING 內部治理文件：正本在 D:\dev\2026claude\20260604 ORCA客製\00治理文件\ ---
 # 2026-08-10 從公開 repo 全歷史清除（認領牌 c-0810-SEC-01）；檔案留在工作樹供取用，但永不入版
 PING_HANDOFF.md
+# 2026-08-20 拆檔（牌 c-0820-SPL-01）：歸檔檔同屬內部治理文件，一併永不入版
+PING_HANDOFF_*.md
 PING_CLOUD_PLAN.md
 PING_CUSTOMIZATION.md
 PING_UPGRADE_PLAYBOOK.md
