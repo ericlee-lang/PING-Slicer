@@ -210,7 +210,10 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     // 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
     const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
     const std::string printer_model = pm != nullptr ? pm->value : std::string();
-    const bool tongjin = printer_model.find("同進") != std::string::npos;
+    // PING(2026-08-22 Eric 令)：照片磚機排除在外。上面的照片磚分支只擋「配方完整的照片磚專案」，
+    // 在照片磚機上開一個普通模型會落到這條路——GUI 已經把混色整組藏起來，但 AppConfig 那個開關
+    // 可能還是上一台同進機留下的 1 ⇒ 不在這裡擋，就會有看不見的曲線插進 G-code。
+    const bool tongjin = PingMix::printer_supports_color_mix(printer_model);
     const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
     // Classic 前代 DUAL（printer_model 以「DUAL」開頭＝Marlin 韌體，Eric 2026-07-26 裁）：
     // 逐層混色用 M6050 S 舊格式——前代韌體無 M6051；兩者同為 S 單參數同構，

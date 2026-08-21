@@ -13608,6 +13608,18 @@ bool Plater::is_ping_tongjin_selected(bool* is_quad) const
     return true;
 }
 
+// PING(2026-08-22 Eric 令「照片磚的混色功能拿掉」)：混色 UI 的單一判準。
+// 照片磚機也是同進機（printer_model＝「FD300 同進照片磚」等），所以 is_ping_tongjin_selected()
+// 對它是 true——但它帶的是逐零件配方（T→M605x），跟隨高度變化的混色曲線互斥，
+// 兩者同時出現在畫面上只會讓人以為要自己調混色。⇒ 混色相關的顯示一律走這裡。
+bool Plater::is_ping_mix_available(bool* is_quad) const
+{
+    if (!is_ping_tongjin_selected(is_quad))
+        return false;
+    const Preset& printer = wxGetApp().preset_bundle->printers.get_selected_preset();
+    return !PingMix::is_photo_tile_printer(printer.config.opt_string("printer_model"));
+}
+
 void Plater::set_ping_mix_state(const PingMixState& state)
 {
     p->ping_mix_state = state;

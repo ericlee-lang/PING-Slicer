@@ -231,7 +231,7 @@
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
       <div class="row" id="p2aRow" style="display:none"><label>縫遮罩</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn"> 實驗 P2A：正/背面標禁縫區（blocker；驗證期預設關閉）</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
       </details>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
@@ -308,7 +308,18 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
-               p2aBlock:false };                  // P2A 正/背面禁縫 blocker（2026-07-29 原型；P1 驗證通過前預設關閉）
+               p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
+/* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
+   ①0729 gcode 量化定讞——磚縫點 5,460，合法集合 100%（交界 99.9%＋側窄面 fallback 0.1%）、
+     正面 0／背面 0／連續疤 0，交界縫距深度中央偏移中位 0.10mm＝縫釘在接觸面正中央；Eric 切片預覽眼驗過。
+   ②0818 色彩校正塊已無條件採同一套規則（接著面 enforcer／最外側不標／正背面 blocker，
+     `照片磚_色彩校正/make_calib_3mf.py`，沒有開關）並端到端 A/B 驗證：舊檔 2,400 縫點 100% 落正／背面格角，
+     新檔 100% 落接著面、y 僅 ±0.20mm，正面白色縱向縫疤消失。⇒ 校正塊藏好了、本體卻沒開＝不一致。
+   實錄（Eric 2026-08-22 回報的那顆）：`PING_photo_tile_188d-a5ee-ada3.3mf` 有 enforcer 137,220 個、
+   blocker 0 個——因為這個旗標預設關，而勾選框收在垂直模式才出現、且預設**收合**的
+   「進階／實驗選項」`<details>` 裡（:1133-1135 依模式開關那一區）＝要自己展開才找得到、沒人會去開。
+   勾選框的可見性不動（Q2 裁 A）＝留一條關得掉的後路給工程端對照實驗；只把標籤的「實驗」字樣拿掉，
+   因為它現在是正式預設、不是實驗項。 */
 let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}

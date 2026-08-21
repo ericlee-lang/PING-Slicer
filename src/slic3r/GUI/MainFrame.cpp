@@ -1226,14 +1226,15 @@ void MainFrame::update_ping_mix_side_button()
 {
     if (m_mix_panel == nullptr || m_mix_btn == nullptr)
         return;
-    const bool tongjin = (m_plater != nullptr) && m_plater->is_ping_tongjin_selected();
+    // 照片磚機也是同進機，但它有自己的配方＝這顆鈕對它沒有意義（Eric 2026-08-22 令整組隱藏）
+    const bool mix_ok  = (m_plater != nullptr) && m_plater->is_ping_mix_available();
     const bool on      = (m_plater != nullptr) && m_plater->is_ping_mix_enabled();
 
     const wxString want = wxString::FromUTF8(on ? "混色啟用" : "混色停用");
     if (m_mix_btn->GetLabel() != want)
         m_mix_btn->SetLabel(want);
 
-    const bool show = tongjin && m_side_tools_shown;
+    const bool show = mix_ok && m_side_tools_shown;
     if (m_mix_panel->IsShown() != show) {
         m_mix_panel->Show(show);
         Layout();

@@ -123,6 +123,26 @@ std::string recipe_to_string(const Recipe& recipe);
 // 失敗（格式壞）回 false、recipe 不動；kind 由呼叫端先設好（決定解析 stops 或 qstops）
 bool recipe_from_string(const std::string& s, Recipe& recipe);
 
+// —— 機型判準（GUI 與 worker 共用同一把尺；純字串比對、無 Orca 依賴）——
+// 照片磚機（FD300／FF600／FF800 同進照片磚）本身就帶整套逐零件配方（T→M605x，見
+// build_photo_tile_gcode），跟「隨高度變化的混色曲線」是兩套互斥的東西。
+// Eric 2026-08-22 令「照片磚的混色功能拿掉，因為它本身就有特殊的配置」。
+// 字串判準沿用既有先例（GUI_App.cpp 照片磚自動選機也是認 printer_model 含「同進照片磚」）。
+// ⚠ 同字串另住 GUI_App.cpp 的 ping_resolve_photo_tile_printer()——判準要改就兩處一起改。
+//   （開發線已把這類判定收斂成 PhotoTileCapability 模組；出貨線沒有那支，故落在這裡。）
+inline bool is_photo_tile_printer(const std::string& printer_model)
+{
+    return printer_model.find("同進照片磚") != std::string::npos;
+}
+
+// 混色曲線適用的機型＝同進、且不是照片磚機。
+// ⚠ GUI 藏鈕不等於功能關掉：worker 端也要用這把尺，否則在照片磚機上開一個「非照片磚」模型
+//    （沒有零件配方＝走原混色路徑）時，看不見的 AppConfig 開關仍會讓曲線插進 G-code。
+inline bool printer_supports_color_mix(const std::string& printer_model)
+{
+    return printer_model.find("同進") != std::string::npos && !is_photo_tile_printer(printer_model);
+}
+
 } // namespace PingMix
 } // namespace Slic3r
 

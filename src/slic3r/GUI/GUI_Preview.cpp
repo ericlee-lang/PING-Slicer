@@ -309,15 +309,16 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
     return true;
 }
 
-// PING: 依機型與混色開關排版——非同進或已停用：編輯器藏；同進＋啟用：編輯器展開。
-// 2026-08-19 起開關本身在上方列（MainFrame），本函式順便刷新那顆鈕＝兩邊共用同一組判定。
+// PING: 依機型與混色開關排版——混色不適用（非同進、或照片磚機）或已停用：編輯器藏；
+// 適用＋啟用：編輯器展開。2026-08-19 起開關本身在上方列（MainFrame），本函式順便刷新那顆鈕
+// ＝兩邊共用同一組判定（判準本體＝Plater::is_ping_mix_available()）。
 void Preview::update_ping_mix_editor()
 {
     if (m_ping_mix_editor == nullptr)
         return;
-    const bool tongjin  = m_ping_mix_editor->update_from_plater();
+    const bool mix_ok   = m_ping_mix_editor->update_from_plater();
     const bool expanded = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_mix_enabled();
-    const bool show_editor = tongjin && expanded;
+    const bool show_editor = mix_ok && expanded;
     if (show_editor != m_ping_mix_editor->IsShown()) {
         m_ping_mix_editor->Show(show_editor);
         Layout();
