@@ -136,7 +136,8 @@ void PrintHostSendDialog::init()
     //   「傳送」鈕根本不會建立 ⇒ SendToPrinterDialog 在 PING Slicer 走不到。
     if (Plater* plater = wxGetApp().plater()) {
         bool is_quad = false;
-        if (plater->is_ping_tongjin_selected(&is_quad)) {
+        // 照片磚機不顯示這一行：它的 G-code 本來就帶逐零件 M605x，寫「不含混色指令」是假訊息
+        if (plater->is_ping_mix_available(&is_quad)) {
             const bool mix_on   = plater->is_ping_mix_enabled();
             auto*      mix_text = new wxStaticText(this, wxID_ANY,
                 mix_on ? (is_quad ? wxString::FromUTF8("混色：啟用（四料）")

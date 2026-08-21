@@ -1035,9 +1035,9 @@ void GCodeViewer::update_by_mode(ConfigOptionMode mode)
     view_type_items.push_back(libvgcode::EViewType::Summary);
     view_type_items.push_back(libvgcode::EViewType::FeatureType);
     view_type_items.push_back(libvgcode::EViewType::ColorPrint);
-    // PING: 同進機型＋混色開啟才顯示「混色」檢視。注意 init 有 m_gl_data_initialized 早退、
-    // 本函式不隨機型/開關重跑——不一致時的清單重建由 refresh_ping_mix_state() 負責
-    if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_tongjin_selected()
+    // PING: 混色適用機型（同進、非照片磚）＋混色開啟才顯示「混色」檢視。注意 init 有
+    // m_gl_data_initialized 早退、本函式不隨機型/開關重跑——不一致時的清單重建由 refresh_ping_mix_state() 負責
+    if (wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_mix_available()
         && wxGetApp().plater()->is_ping_mix_enabled())
         view_type_items.push_back(libvgcode::EViewType::PingColorMix);
     view_type_items.push_back(libvgcode::EViewType::Speed);
@@ -1084,7 +1084,7 @@ void GCodeViewer::update_ping_mix_colors()
         return;
     bool is_quad = false;
     const size_t layers_count = m_viewer.get_layers_count();
-    if (!plater->is_ping_tongjin_selected(&is_quad) || !plater->is_ping_mix_enabled() || layers_count == 0) {
+    if (!plater->is_ping_mix_available(&is_quad) || !plater->is_ping_mix_enabled() || layers_count == 0) {
         if (!m_viewer.get_ping_mix_layer_colors().empty())
             m_viewer.set_ping_mix_layer_colors(libvgcode::Palette());
         return;
@@ -1127,7 +1127,7 @@ void GCodeViewer::refresh_ping_mix_state()
 {
     update_ping_mix_colors();
     Plater* plater = wxGetApp().plater();
-    const bool mix_ui = plater != nullptr && plater->is_ping_tongjin_selected() && plater->is_ping_mix_enabled();
+    const bool mix_ui = plater != nullptr && plater->is_ping_mix_available() && plater->is_ping_mix_enabled();
     const bool has_mix = std::find(view_type_items.begin(), view_type_items.end(), libvgcode::EViewType::PingColorMix) != view_type_items.end();
     if (mix_ui != has_mix) {
         update_by_mode(m_user_mode);
@@ -3824,7 +3824,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
         Plater* plater = wxGetApp().plater();
         const size_t layers_count = m_viewer.get_layers_count();
         bool legend_is_quad = false;
-        if (plater != nullptr && plater->is_ping_tongjin_selected(&legend_is_quad) && layers_count > 0) {
+        if (plater != nullptr && plater->is_ping_mix_available(&legend_is_quad) && layers_count > 0) {
             const Plater::PingMixState& st = plater->get_ping_mix_state();
             int cols[4][3];
             for (int i = 0; i < 4; ++i)

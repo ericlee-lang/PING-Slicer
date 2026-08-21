@@ -343,6 +343,10 @@ public:
     void set_ping_mix_state(const PingMixState& state);
     // 目前選中印表機是否同進機型；is_quad 回傳 FF（四料）與否
     bool is_ping_tongjin_selected(bool* is_quad = nullptr) const;
+    // 混色功能對目前機型是否適用＝同進 AND 非照片磚機（Eric 2026-08-22 令）。
+    // 所有混色 UI 一律問這一把尺，不要直接問 is_ping_tongjin_selected()——照片磚機也是同進，
+    // 但它有自己的逐零件配方，混色曲線對它沒有意義。照片磚判準走 PhotoTileCapability 單一來源。
+    bool is_ping_mix_available(bool* is_quad = nullptr) const;
     // 依目前配方重烘 GCodeViewer 的 per-layer 混色色表（gcode 已載入時）
     void refresh_ping_mix_preview();
     // 混色開關（B 案：＝編輯器面板展開狀態）。關閉時輸出 gcode 完全不動、預覽不染色

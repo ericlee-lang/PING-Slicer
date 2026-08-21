@@ -315,9 +315,9 @@ void Preview::update_ping_mix_editor()
 {
     if (m_ping_mix_editor == nullptr)
         return;
-    const bool tongjin  = m_ping_mix_editor->update_from_plater();
+    const bool mix_ok   = m_ping_mix_editor->update_from_plater();   // 同進 AND 非照片磚
     const bool expanded = wxGetApp().plater() != nullptr && wxGetApp().plater()->is_ping_mix_enabled();
-    const bool show_editor = tongjin && expanded;
+    const bool show_editor = mix_ok && expanded;
     if (show_editor != m_ping_mix_editor->IsShown()) {
         m_ping_mix_editor->Show(show_editor);
         Layout();

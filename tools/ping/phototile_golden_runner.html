@@ -110,7 +110,9 @@ async function waitNewExport(prevRef, what){
 function baseReq(mode, over){
   return Object.assign({ jobId:'golden-'+mode+'-'+(over&&over.tag||''), mode, nozzle:0.4,
     size:{widthMm:100,heightMm:75,thickMm:6}, klevels:8, noiseMm:2.0,
-    pillar:{enabled:true,xyMm:25}, seam:{p2aBlock:false,teeth:false}, slots:null }, over||{});
+    /* seam 的預設要跟著工作室的 params 走，否則 A/B 兩邊起點就不同、每一案都會假紅。
+       p2aBlock 於 2026-08-22 由 Eric 裁為預設開（index.html:333／engine.js），這裡同步。 */
+    pillar:{enabled:true,xyMm:25}, seam:{p2aBlock:true,teeth:false}, slots:null }, over||{});
 }
 const CASES=[
   { label:'dual-default',
@@ -123,10 +125,12 @@ const CASES=[
       frame.contentDocument.querySelector('#modeSeg button[data-n="4"]').click();
       await waitNewExport(prev,'quad sim'); await waitFor(()=>st().lastExport.mode==='quad',5000,'mode quad'); },
     req:()=>baseReq('quad',{tag:'default'}) },
-  { label:'quad-p2a',
-    async configure(){ const cb=el('p2aOn'); cb.checked=true; cb.dispatchEvent(new Event('change')); },
-    async cleanup(){ const cb=el('p2aOn'); cb.checked=false; cb.dispatchEvent(new Event('change')); },
-    req:()=>baseReq('quad',{tag:'p2a', seam:{p2aBlock:true,teeth:false}}) },
+  /* 2026-08-22：P2A 改預設開後，這一案的方向反過來——原本測「打開」，現在測「關掉」，
+     否則它跟 quad-default 變成同一個輸入、blocker 那條路就沒人走過了。 */
+  { label:'quad-p2a-off',
+    async configure(){ const cb=el('p2aOn'); cb.checked=false; cb.dispatchEvent(new Event('change')); },
+    async cleanup(){ const cb=el('p2aOn'); cb.checked=true; cb.dispatchEvent(new Event('change')); },
+    req:()=>baseReq('quad',{tag:'p2aoff', seam:{p2aBlock:false,teeth:false}}) },
   { label:'quad-nopillar',
     async configure(){ const prev=st().lastExport;
       const cb=el('pillarOn'); cb.checked=false; cb.dispatchEvent(new Event('change'));   // 觸發 suggest→sim
@@ -141,7 +145,7 @@ const CASES=[
       await waitNewExport(prev,'back to dual'); await waitFor(()=>st().lastExport.mode==='dual',5000,'mode dual');
       const cb=el('teethOn'); cb.checked=true; cb.dispatchEvent(new Event('change')); },
     async cleanup(){ const cb=el('teethOn'); cb.checked=false; cb.dispatchEvent(new Event('change')); },
-    req:()=>baseReq('dual',{tag:'teeth', seam:{p2aBlock:false,teeth:true}}) },
+    req:()=>baseReq('dual',{tag:'teeth', seam:{p2aBlock:true,teeth:true}}) },   // p2a 維持工作室現值（預設開）
   { label:'dual-noise0',
     async configure(){ const prev=st().lastExport;
       const ni=el('noiseIn'); ni.value='0'; ni.dispatchEvent(new Event('change'));        // queue() 60ms 防抖

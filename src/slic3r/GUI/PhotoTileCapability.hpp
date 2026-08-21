@@ -36,6 +36,11 @@ namespace GUI {
 struct PhotoTileCapability
 {
     bool        is_photo_tile = false;   // 這台機是不是照片磚機（marker＋家族＋口徑全合法）
+    /* 只看機型名有沒有「同進照片磚」，不管家族／口徑合不合法。
+       誰該用它：**排除性**的判斷（例如混色 UI 要不要藏——Eric 2026-08-22 令照片磚機不給混色）。
+       為什麼不能用 is_photo_tile：那是「這台機能不能拿來產照片磚」的能力判定，口徑不合法時是 false；
+       但一台名字叫「同進照片磚」、口徑被改壞的機器，依然不該冒出混色曲線 UI ⇒ 排除要看 marker。 */
+    bool        has_photo_tile_marker = false;
     bool        is_mixing     = false;   // 同進混色機（照片磚機是它的子集）
     bool        is_classic    = false;   // Classic 前代（DUAL 開頭、Marlin）＝照片磚不支援
     std::string mode;                    // "dual"｜"quad"（非同進機＝空）

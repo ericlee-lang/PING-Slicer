@@ -42,6 +42,7 @@ PhotoTileCapability photo_tile_capability_of_config(const DynamicPrintConfig& co
     cap.printer_model = pm->value;
 
     cap.is_mixing  = pm->value.find(MIXING_MARKER) != std::string::npos;
+    cap.has_photo_tile_marker = pm->value.find(PHOTO_TILE_MARKER) != std::string::npos;
     cap.is_classic = pm->value.rfind(CLASSIC_PREFIX, 0) == 0;
     // 家族：FD＝雙料同進（M6051）／FF＝四料同進（M6052）。與自動選機同準。
     if (pm->value.rfind("FD", 0) == 0)      { cap.family = "FD"; cap.mode = "dual"; }
@@ -56,7 +57,7 @@ PhotoTileCapability photo_tile_capability_of_config(const DynamicPrintConfig& co
         if (const auto* pv = config.option<ConfigOptionString>("printer_variant"))
             try { cap.nozzle_mm = std::stod(pv->value); } catch (...) {}
 
-    if (pm->value.find(PHOTO_TILE_MARKER) == std::string::npos)
+    if (!cap.has_photo_tile_marker)
         return cap;                                    // 連 marker 都沒有＝不是照片磚機，不必給理由
 
     // 有 marker 之後，家族與口徑都必須合法才算數（Codex #10）

@@ -790,15 +790,17 @@ bool PingMixEditor::update_from_plater()
     if (plater == nullptr)
         return false;
     bool is_quad = false;
-    const bool tongjin = plater->is_ping_tongjin_selected(&is_quad);
+    // 照片磚機也是同進機，但混色對它不適用 ⇒ 這裡問「混色可不可用」而不是「是不是同進」，
+    // 曲線面板才不會在照片磚機上被展開（Eric 2026-08-22 令）。
+    const bool mix_ok = plater->is_ping_mix_available(&is_quad);
     // 拖曳中不覆寫狀態（切片完成事件可能插隊；未 commit 的編輯不能被吃掉），只回傳顯示判定
     if (m_canvas != nullptr && m_canvas->is_dragging())
-        return tongjin;
+        return mix_ok;
     m_is_quad = is_quad;
     m_state = plater->get_ping_mix_state();
     sync_controls();
     refresh_canvas();
-    return tongjin;
+    return mix_ok;
 }
 
 void PingMixEditor::sync_controls()

@@ -101,7 +101,10 @@ function normalizeRequest(req){
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 25)), // index.html:1029-1031
     teeth:   !!(req.seam && req.seam.teeth),
-    p2aBlock:!!(req.seam && req.seam.p2aBlock),
+    /* p2aBlock 預設 true（Eric 2026-08-22 裁「預設開」，同值住 index.html:333）。
+       引擎的預設一律跟著工作室走——否則「seam 欄缺席＝與工作室輸出位元組全等」這條契約會破：
+       沒帶 seam 的宿主會拿到沒 blocker 的磚，縫又回到正／背面。teeth 同理（工作室預設 false）。 */
+    p2aBlock:(req.seam && req.seam.p2aBlock !== undefined) ? !!req.seam.p2aBlock : true,
     slots:   Array.isArray(req.slots) && req.slots.length ? req.slots.map(s=>({...s})) : null, // null＝自動建議
     image:   req.image,
     /* C-1：低規機保護。gridMax 預設＝工作室現值 3200（不填＝與工作室全等）；

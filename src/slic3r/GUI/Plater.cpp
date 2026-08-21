@@ -74,6 +74,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "PhotoTileCapability.hpp"
 #include "GuiColor.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_Utils.hpp"
@@ -13589,6 +13590,18 @@ bool Plater::is_ping_tongjin_selected(bool* is_quad) const
     if (is_quad != nullptr)
         *is_quad = (pm.rfind("FF", 0) == 0); // FF 開頭＝四進一出
     return true;
+}
+
+// PING(2026-08-22 Eric 令「照片磚的混色功能拿掉」)：混色 UI 的單一判準。
+// 照片磚機也是同進機（printer_model＝「FD300 同進照片磚」等），所以 is_ping_tongjin_selected()
+// 對它是 true——但它帶的是逐零件配方（T→M605x），跟隨高度變化的混色曲線互斥，
+// 兩者同時出現在畫面上只會讓人以為要自己調混色。⇒ 混色相關的顯示一律走這裡。
+// 照片磚的判準不自己比字串，走 PhotoTileCapability 單一來源（見該檔檔頭「判準漂移＝鬼故事」）。
+bool Plater::is_ping_mix_available(bool* is_quad) const
+{
+    if (!is_ping_tongjin_selected(is_quad))
+        return false;
+    return !photo_tile_capability_of_selected_printer().has_photo_tile_marker;
 }
 
 void Plater::set_ping_mix_state(const PingMixState& state)
