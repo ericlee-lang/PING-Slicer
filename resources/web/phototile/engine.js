@@ -232,18 +232,36 @@ function filterLabels(labels, img, P, paletteSize, strategy){
 /* ================= 雙料量化（index.html:474-521 計算部；畫布/metric 拿掉） =================
    C-1：hooks.tick(frac) 為選配的「階段內進度＋讓步」鉤（見 §量化進度分塊）；
    雙料的逐格迴圈只有一次距離計算（實測 ≤0.1s），整段跑完回報一次即可。 */
-async function quantizeDual(img, P, slots, hooks){
-  const K=P.klevels;
-  const A=hexLin(slots[0].color), B=hexLin(slots[1].color);
-  const labF=t=> t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
-  const labFinv=fy=> fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
+/* 雙料色階梯：在感知亮度 L* 上均分、反解各階混比 t（t＝料B 比例；M6051 的 S＝1-t）。
+   B案，Eric 2026-07-19 定——均分 S 的階梯亮端擠、暗端整段空洞。
+   🔴 **這條梯子本來有兩份**：本檔的 quantizeDual（＝實際產 3MF 的那份）與
+   index.html 的 simulateVertical（＝畫面預覽的那份）。兩份同義但各自實作，
+   任何一邊改了另一邊沒跟，就會變成「預覽的和印出來的不是同一把尺」——
+   那個坑 simulateVertical 的註解裡已經記過一次（分箱與顯色用了不同的尺）。
+   ⇒ 2026-08-22 收成本函式一份，並經 `PhotoTileEngine.dualLadder` 匯出給頁面用。
+   出貨線的同名函式在 index.html（該線沒有 engine.js），值與本函式逐格相同。 */
+function dualLadder(hexA, hexB, K){
+  const A=hexLin(hexA), B=hexLin(hexB);
+  const labF   = t  => t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  const labFinv= fy => fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
   const YA=lum709(...A), YB=lum709(...B);
   const LA=116*labF(YA)-16, LB=116*labF(YB)-16;
-  const levels=[];
+  const t=[];
   for(let i=0;i<K;i++){
     const Lt=K<2?LA:LA+(LB-LA)*i/(K-1);
     const Yt=labFinv((Lt+16)/116);
-    const t=Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB)));
+    t.push(Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB))));
+  }
+  return {t, A, B, LA, LB};
+}
+
+async function quantizeDual(img, P, slots, hooks){
+  const K=P.klevels;
+  const ladder=dualLadder(slots[0].color, slots[1].color, K);
+  const A=ladder.A, B=ladder.B, LA=ladder.LA, LB=ladder.LB;
+  const levels=[];
+  for(let i=0;i<K;i++){
+    const t=ladder.t[i];
     const lin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
     levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin)});
   }
@@ -897,7 +915,7 @@ async function generate(request, options){
   }
 }
 
-return { generate, cancel, suggestSlots, gridDims, sha256Hex, ERR,
+return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },

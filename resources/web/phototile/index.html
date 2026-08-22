@@ -286,7 +286,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260804"></script>
+<script src="engine.js?v=20260822"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -583,23 +583,37 @@ function simulateVerticalQuad(){
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
 }
-function simulateVertical(){
-  if(slotCount===4){ simulateVerticalQuad(); return; }
-  const K=params.klevels;
-  const A=hexLin(slots[0].color), B=hexLin(slots[1].color);
-  /* 感知均勻取階（B案，Eric 2026-07-19 定）：K 階不再均分混比 S——均分 S 的階梯
-     亮端擠、暗端整段空洞（6 階時 sRGB 122→0 之間沒有階，深灰全塌黑）。改成在
-     感知亮度 L* 上均分、反解各階混比：線性混色下 Y 對 t 線性、L* 只依賴 Y，
-     t 有解析解；S 本來就是連續值，M6051 吃小數（C++ 端 is_num_token 收 0~1）。 */
-  const labF=t=> t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
-  const labFinv=fy=> fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
+/* engine.js 沒載到時的 fallback（與 engine.js 的 dualLadder 逐字同式）。
+   正常路徑一律走引擎那份——這裡只是不讓頁面整個掛掉。 */
+function dualLadderFallback(hexA, hexB, K){
+  const A=hexLin(hexA), B=hexLin(hexB);
+  const labF   = t  => t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  const labFinv= fy => fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
   const YA=lum709(...A), YB=lum709(...B);
   const LA=116*labF(YA)-16, LB=116*labF(YB)-16;
-  const levels=[];
+  const t=[];
   for(let i=0;i<K;i++){
     const Lt=K<2?LA:LA+(LB-LA)*i/(K-1);
     const Yt=labFinv((Lt+16)/116);
-    const t=Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB)));
+    t.push(Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB))));
+  }
+  return {t, A, B, LA, LB};
+}
+function simulateVertical(){
+  if(slotCount===4){ simulateVerticalQuad(); return; }
+  const K=params.klevels;
+  /* 🔴 色階梯**只有一份**，在 engine.js（＝實際產 3MF 的那支）並由它匯出。
+     本頁曾自己算一份同義的梯子——那是「預覽的尺」與「輸出的尺」各一把，
+     任一邊改了另一邊沒跟，畫面就會開始說謊。2026-08-22 收斂成單一來源。
+     ⚠ 引擎沒載到時 fallback 回本地實作（值與引擎逐格相同），只為讓頁面不整個掛掉，
+       並在 console 明講——**不要把 fallback 當成正常路徑**。 */
+  const ladder=(window.PhotoTileEngine && PhotoTileEngine.dualLadder)
+    ? PhotoTileEngine.dualLadder(slots[0].color, slots[1].color, K)
+    : (console.warn('PING 照片磚：engine.js 未載入，色階梯改用頁面 fallback'), dualLadderFallback(slots[0].color, slots[1].color, K));
+  const A=ladder.A, B=ladder.B, LA=ladder.LA, LB=ladder.LB;
+  const levels=[];
+  for(let i=0;i<K;i++){
+    const t=ladder.t[i];
     const lin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
     levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin)});
   }
