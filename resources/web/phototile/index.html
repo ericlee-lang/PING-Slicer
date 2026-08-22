@@ -408,6 +408,7 @@ slotList.addEventListener('input', e=>{
   if(k==='start'){ slots[i].start=+e.target.value;
     const lv=slotList.querySelector(`[data-lv="${i}"]`); if(lv) lv.textContent='第'+slots[i].start+'層';
   }
+  if(k==='color') refreshCalibUI();   // 校正塊的規格行吃料色，改了要立刻跟上（規格行是回讀時抄標稱色的依據）
   queue();
 });
 
@@ -1714,9 +1715,18 @@ function calibSpecText(){
   return `　${slots.slice(0,slotCount).map(s=>s.color).join(' · ')}｜${cells} 格（${rows} 對 × ${CALIB_K} 階）`
         +`｜正面 ${w}×${h} mm，厚 ${CALIB_THICK} mm${params.pillar?`，含洗料柱共 ${cells+1} 支零件`:`，${cells} 支零件`}`;
 }
+/* 產出當下的料色。產完又改料色 ⇒ 舊摘要會被讀成「這組料已經校正過」，那是假的。 */
+let calibMadeColors=null;
 function refreshCalibUI(){
   const spec=document.getElementById('calibSpec');
   if(spec) spec.textContent=calibSpecText();
+  const sum=document.getElementById('calibSummary');
+  if(sum && calibMadeColors){
+    const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
+    sum.textContent = (now===calibMadeColors)
+      ? `已產出校正塊（${calibMadeColors}），尚未回讀`
+      : `⚠ 料色已改（現在是 ${now}）——先前那顆校正塊是 ${calibMadeColors}，要重產`;
+  }
 }
 document.getElementById('btnCalib').onclick=async()=>{
   const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
@@ -1752,8 +1762,9 @@ document.getElementById('btnCalib').onclick=async()=>{
       a.href=URL.createObjectURL(blob); a.download=fname; a.click();
       st.textContent=`　已輸出 ${fname}（${c.cells} 格＋${params.pillar?'洗料柱':'無柱'}、${(blob.size/1024).toFixed(0)} KB）。`;
     }
+    calibMadeColors=c.colors.join(' · ');
     document.getElementById('calibSummary').textContent=
-      `已產出校正塊（${c.colors.join(' · ')}），尚未回讀`;
+      `已產出校正塊（${calibMadeColors}），尚未回讀`;
   }catch(e){
     st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`;
   }finally{ b.disabled=false; }
