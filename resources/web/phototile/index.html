@@ -649,6 +649,11 @@ function simulateVertical(){
   lastDeltaE=de;
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（垂直混色＝雙色色階呈現，彩圖色差偏大屬正常，看色階順不順就好）　<span class="sub">重算 ${ms} ms</span>`;
+  /* 甲案（c-0822-PT-06）：風格化要在「料色與色階都定好之後」才發，而 suggest() 是
+     setTimeout 非同步、又有多個 return 出口 ⇒ 不在 suggest 裡掛鉤，改在這裡掛一次性鉤。
+     這裡的好處是 levels 就是**這一次真的要用的那組色階**，直接拿它當漸層送出去，
+     不必在別處再算一次（再算一次＝第三份梯子）。 */
+  if(ptStylePending){ const job=ptStylePending; ptStylePending=null; ptStylizeSend(job, levels); }
 }
 function listVertical(levels){
   const lines=[];
@@ -848,6 +853,51 @@ window.PINGPhotoTile={
     finally{ nativeImageMeta=null; nativeImageChunks=[]; }
   },
   imageError(message){ document.getElementById('srcStat').textContent=message; },
+  /* ── 甲案：C++ 回送風格化結果（鏡像上面那條收圖鏈，方向相反） ──────────────
+     四項驗證與收圖鏈同套：jobId 對得上／連號／塊數／總長度。任一不過就整批作廢並明講，
+     **絕不半套**——半套會讓畫面是風格化、輸出是原圖，正是本案要避免的那件事。 */
+  styleBegin(meta){
+    if(!meta || meta.jobId!==ptStyleJob) return;          // 後發蓋先發：舊 job 的回送一律丟棄
+    ptStyleMeta=meta; ptStyleChunks=[];
+  },
+  styleChunk(c){
+    if(!ptStyleMeta || !c || c.jobId!==ptStyleJob || !ptStyleChunks) return;
+    if(c.index!==ptStyleChunks.length){                   // 連號
+      ptStyleChunks=null; ptStyleMeta=null;
+      ptStyleStat('⚠ 風格化結果傳輸中斷，已維持未風格化的結果。');
+      return;
+    }
+    ptStyleChunks.push(c.base64||'');
+  },
+  async styleEnd(m){
+    if(!ptStyleMeta || !m || m.jobId!==ptStyleJob || !ptStyleChunks) return;
+    const meta=ptStyleMeta, parts=ptStyleChunks;
+    ptStyleMeta=null; ptStyleChunks=null;
+    if(parts.length!==meta.chunks){                        // 塊數
+      ptStyleStat('⚠ 風格化結果不完整，已維持未風格化的結果。');
+      return;
+    }
+    try{
+      const blob=await (await fetch('data:image/png;base64,'+parts.join(''))).blob();
+      if(blob.size!==meta.size){                           // 總長度
+        ptStyleStat('⚠ 風格化結果長度不符，已維持未風格化的結果。');
+        return;
+      }
+      const bmp=await createImageBitmap(blob);
+      /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它結尾會跑 suggest()，
+         那會拿「已經套好料色的風格化圖」再建議一次料色 ⇒ 顏色會自己漂走。
+         只換來源、重建格點、重算——尺寸與料色一律不動。 */
+      srcBitmap=bmp; buildGrid(); simulate();
+      ptStyleStat('已風格化（'+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。');
+    }catch(e){
+      ptStyleStat('⚠ 風格化結果讀不進來，已維持未風格化的結果。');
+    }
+  },
+  styleError(jobId, message){
+    if(jobId && jobId!==ptStyleJob) return;
+    ptStyleMeta=null; ptStyleChunks=null;
+    ptStyleStat('⚠ '+(message||'風格化失敗')+'——目前顯示的是未風格化的結果。');
+  },
   /* ── 2026-08-15：宿主告知「使用者已加入哪些照片磚機」──────────────────
      為什麼要有：ping_resolve_photo_tile_printer() 是去 bundle->printers 找符合的
      system preset，**沒加入的機器不在 bundle 裡** ⇒ 選了四色卻沒有四料機 ⇒ 解析不到
@@ -1626,6 +1676,41 @@ function ptTones(s){
 /* 套用＝把款式那組**已驗證過的**設定寫進參數並鎖住料色。
    ⚠ 與原型的差別（刻意）：原型是自動選就自動反映；產品**要點一下才套**——
    否則一進垂直模式就會靜默蓋掉使用者手調的料色與色階數。自動的只有「推薦哪一張」。 */
+/* ══════════════ 甲案：本地風格化（c-0822-PT-06） ══════════════
+   為什麼要有：ptApply() 原本只設料數／料色／色階數，款式庫那行 pipeline 產品從沒跑過
+   ⇒「本地款式」實質是一組預設參數、不是一種畫風（↳ 規格 R6-9）。
+   做法：C++（OpenCV）跑 bilateral→mean-shift→k-means→medianBlur，
+   **結果回送本頁當新的來源影像** ⇒ 預覽與輸出自動共用同一張。
+   🔴 不可以只在生成時做——那會變成預覽跑原圖、輸出跑風格化圖＝兩把尺。 */
+let ptStylePending=null;               // {styleId, tones} —— 等下一次 simulateVertical 拿到 levels 再發
+let ptStyleJob=null, ptStyleChunks=null, ptStyleMeta=null;
+const PT_STYLE_CW=800;                 // 工作寬度。實測：400/600/800/1200 的最終標籤一致率 97.3/98.4/99.0/100%
+                                       // 耗時 0.75/0.96/2.14/4.34 s ⇒ 800 是品質與速度的平衡點
+
+function ptStyleStat(text){ const el=document.getElementById('styleWhy'); if(el) el.innerHTML=text||''; }
+
+function ptStylizeSend(job, levels){
+  if(!slicerBridgeReady()){
+    /* 誠實：瀏覽器直開沒有 C++ ⇒ 風格化做不到。**明講**，不靜默降級——
+       與 ptAiReady() 的 fail-closed 同一個原則：標得出來比裝得出來重要。 */
+    ptStyleStat('⚠ 此環境無法風格化（需要在 PING Slicer 裡開工作室）——目前顯示的是未風格化的結果。');
+    return;
+  }
+  if(slotCount!==2 || !levels || levels.length!==job.tones){
+    ptStyleStat('⚠ 目前只有雙料款式支援風格化，這一款維持原本的處理。');
+    return;
+  }
+  ptStyleJob='sty-'+Date.now();
+  ptStyleChunks=null; ptStyleMeta=null;
+  ptStyleStat('風格化中…（約 1~2 秒）');
+  sendSlicerMessage('phototile_stylize',{
+    jobId:ptStyleJob, workWidth:PT_STYLE_CW, tones:job.tones,
+    /* ramp[0]＝最亮端、[K-1]＝最暗端，與 C++ 端的約定一致。
+       直接送 levels 算好的顏色＝色階梯仍然只有一份（engine.js 那份）。 */
+    ramp:levels.map(l=>rgbHex(...l.rgb).toUpperCase())
+  });
+}
+
 function ptApply(s){
   const want=s.mode==='quad'?4:2;
   if(want===4 && !ptQuadOk()){
@@ -1652,6 +1737,13 @@ function ptApply(s){
   }else{
     renderSlots(); simulate();
   }
+  /* 甲案：只有「宣告了 pipeline 的款式」才要風格化（目前＝本地款式）。
+     AI 款式不走這條——它們的圖是生出來的，不是把原照壓成色塊。
+     這裡只排隊；真正發送在 simulateVertical 尾端（那時料色與色階才定案）。 */
+  if(Array.isArray(s.pipeline) && s.pipeline.length && params.orient==='vertical')
+    ptStylePending={styleId:s.id, tones:tones};
+  else
+    ptStyleStat('');
   ptApplied=s.id;
   return true;
 }
