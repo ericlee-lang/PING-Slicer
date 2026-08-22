@@ -172,6 +172,12 @@
       <canvas id="coreCanvas" width="800" height="36"></canvas>
     </div>
     <div class="metric" id="metric">—</div>
+    <!-- 影像管線每一步的產物（Eric 2026-08-22）。預設不顯示；勾了「管線檢視」才出現。
+         這裡畫的是**真正跑過的那份標籤陣列**，不是另外重算一次 ⇒ 看到什麼就是切片會吃到什麼。 -->
+    <div id="stageWrap" style="display:none; margin-top:10px">
+      <div class="sub" style="margin-bottom:6px">影像管線：每一步的產物（左→右依序）。<b>格</b>＝與上一步相比被改掉的取樣格數。</div>
+      <div id="stageRow" style="display:flex; gap:10px; flex-wrap:wrap"></div>
+    </div>
   </section>
 
   <!-- 控制 -->
@@ -230,13 +236,16 @@
       <div class="row" id="teethRow" style="display:none"><label>邊界</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
+      <div class="row" id="stageRowCtl" style="display:none"><label>管線檢視</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="stageOn"> 顯示每一步的產物（診斷用；會多畫幾張圖，重算稍慢）</label>
+      </div>
       <div class="row" id="p2aRow" style="display:none"><label>縫遮罩</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
       </details>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 25×4 全料同出柱（防久未用料空燒）</label>
-        柱寬 <input type="number" id="pillarXY" value="25" min="5" max="60" step="1" style="width:64px"> mm
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 15×4 全料同出柱（防久未用料空燒）</label>
+        柱寬 <input type="number" id="pillarXY" value="15" min="5" max="60" step="1" style="width:64px"> mm
         <span class="sub" id="pillarInfo"></span>
       </div>
       <div class="row" id="mapRow"><label>對色方式</label>
@@ -338,7 +347,7 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
-               pillar:true, pillarXY:25,          // 洗料柱（Eric 2026-07-06：取代換料塔，25×4 全料同出；25mm 方柱、只設 XY——層高歸切片器）
+               pillar:true, pillarXY:15,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
                p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
@@ -471,6 +480,13 @@ function filterVerticalLabels(labels,paletteSize,strategy){
     Math.max(1,Math.round(minWidthMm/sx)));
   const result=PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,params.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
+  /* 管線檢視（Eric 2026-08-22）：把**這一次真的跑過的**四份標籤留著，等 sim 完成後畫出來。
+     刻意不另外重算——重算的東西不保證等於切片會吃到的東西，那種圖看了會做錯判斷。
+     沒勾就不留（不佔記憶體）。 */
+  window.__stages = stageView
+    ? {raw:new Uint8Array(labels), smooth:new Uint8Array(smooth.labels),
+       wide:new Uint8Array(wide.labels), final:new Uint8Array(result.labels), w:img.w, h:img.h}
+    : null;
   let changedPixels=0;
   for(let i=0;i<labels.length;i++) if(result.labels[i]!==labels[i]) changedPixels++;
   const stats={removedComponents:result.removedComponents, changedPixels,
@@ -481,6 +497,45 @@ function filterVerticalLabels(labels,paletteSize,strategy){
   updateNoiseStat(stats);
   updateNozzleStat(stats);
   return result.labels;
+}
+/* 管線檢視渲染（Eric 2026-08-22）。getRGB(k)→[r,g,b]＝該色階實際會印出來的顏色，
+   由呼叫端（雙料／四料兩條 sim）提供，確保這裡畫的顏色與模擬圖同源。 */
+let stageView=false;
+function renderStages(getRGB){
+  const wrap=document.getElementById('stageWrap'), row=document.getElementById('stageRow');
+  if(!wrap||!row) return;
+  const S=window.__stages;
+  if(!stageView||!S){ wrap.style.display='none'; row.innerHTML=''; return; }
+  const diff=(a,b)=>{ let n=0; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) n++; return n; };
+  const steps=[
+    ['① L* 分箱',      S.raw,    null,     '把每個取樣格的亮度 L* 對到最近的色階。此時還帶著照片全部的細節與雜點。'],
+    ['② 雜訊平滑',      S.smooth, S.raw,    '「雜訊濾除」那個 mm 值：視窗內取中位數，把孤點與毛邊抹掉。調大＝細節掉得多。'],
+    ['③ 口徑最小寬',    S.wide,   S.smooth, '窄於 2×口徑的水平細條併入鄰色（噴頭進得去、繞不出來＝白縫）。恆開，跟著口徑走。'],
+    ['④ 小色塊移除',    S.final,  S.wide,   '面積小於門檻的獨立色塊整塊併掉、不留空洞。這一份就是切片與 3MF 實際吃的標籤。'],
+  ];
+  const px=Math.min(220, Math.max(120, Math.round(760/steps.length)-12));
+  /* 顯示用畫布縮到 px 寬即可——全解析度存 4 張的代價很real：Eric 的貓 720,530 格，
+     4 張全尺寸 ImageData ≈ 幾十 MB。作法＝共用一張全尺寸離屏畫布把標籤畫出來，
+     再 drawImage 縮進小畫布；縮放只影響「看」，統計數字仍然來自全解析度標籤陣列。 */
+  const full=document.createElement('canvas'); full.width=S.w; full.height=S.h;
+  const fc=full.getContext('2d');
+  const sh=Math.max(1,Math.round(px*S.h/S.w));
+  row.innerHTML='';
+  for(const [name,lab,prev,why] of steps){
+    const box=document.createElement('div'); box.style.cssText='width:'+px+'px';
+    const cv=document.createElement('canvas'); cv.width=px; cv.height=sh;
+    cv.style.cssText='width:100%; height:auto; display:block; border:1px solid var(--gray); background:#fff';
+    const im=fc.createImageData(S.w,S.h); const d=im.data;
+    for(let i=0;i<lab.length;i++){ const rgb=getRGB(lab[i]);
+      d[i*4]=rgb[0]; d[i*4+1]=rgb[1]; d[i*4+2]=rgb[2]; d[i*4+3]=255; }
+    fc.putImageData(im,0,0);
+    cv.getContext('2d').drawImage(full,0,0,px,sh);
+    const cap=document.createElement('div');
+    cap.className='sub'; cap.style.cssText='margin-top:4px; line-height:1.5';
+    cap.innerHTML=`<b>${name}</b>　`+(prev?`改了 ${diff(lab,prev).toLocaleString()} 格`:'（起點）')+`<br>${why}`;
+    box.appendChild(cv); box.appendChild(cap); row.appendChild(box);
+  }
+  wrap.style.display='';
 }
 function updateNozzleStat(stats){
   const el=document.getElementById('nozzleInfo'); if(!el) return;
@@ -551,6 +606,7 @@ function simulateVerticalQuad(){
     usageF.fill(0);
     for(let p=0;p<n;p++) usageF[labArr[p]]++;
   }else updateNoiseStat(null);
+  renderStages(k=>palette[Math.min(palette.length-1,k)].rgb);   // 四料：色由調色盤來，與模擬圖同源
   const W=coreCanvas.width,H=coreCanvas.height,bw=W/palette.length;
   for(let i=0;i<palette.length;i++){ coreCtx.fillStyle=rgbHex(...palette[i].rgb); coreCtx.fillRect(i*bw,0,Math.ceil(bw),H); }
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
@@ -643,6 +699,7 @@ function simulateVertical(){
   lastExport={labels:labArr, palette:levels, mode:'dual', noiseMm:params.noiseMm,
     noiseStats:window.__noiseStats};                         // 3MF 輸出用（與預覽同一份已濾除標籤）
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
+  renderStages(k=>levels[Math.min(levels.length-1,k)].rgb);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   lastDeltaE=de;
   document.getElementById('metric').innerHTML =
@@ -1167,6 +1224,8 @@ function syncOrientUI(){
   document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
   document.getElementById('p2aRow').style.display=v?'':'none';
+  document.getElementById('stageRowCtl').style.display=v?'':'none';  // 管線檢視＝垂直模式限定
+  if(!v){ const sw=document.getElementById('stageWrap'); if(sw) sw.style.display='none'; }
   document.getElementById('advDetails').style.display=v?'':'none'; // 實驗選項容器同進退      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
   /* 色彩校正＝垂直模式限定（Eric 2026-08-22）：平躺是「疊色」（靠透光疊出顏色），
@@ -1235,11 +1294,12 @@ noiseIn.onchange=e=>{
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
 document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
+document.getElementById('stageOn').onchange=e=>{ stageView=e.target.checked; simulate(); };
 /* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64），
    原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
 document.getElementById('pillarXY').onchange=e=>{
-  params.pillarXY=Math.max(5,Math.min(60,+e.target.value||25)); e.target.value=params.pillarXY;
+  params.pillarXY=Math.max(5,Math.min(60,+e.target.value||15)); e.target.value=params.pillarXY;
   updateSizeInfo();
 };
 document.getElementById('viewSeg').addEventListener('click',e=>{
@@ -1387,8 +1447,9 @@ async function build3mf(){
   });
   window.__meshStats={parts:meshStats,totalComponents:collected.components,totalRuns:collected.totalRuns,totalTiles,totalVertices,totalTriangles};
   /* 3.5) 洗料柱（v1.9 加入、v2.0 改固定 XY——Eric 定：取代換料塔）：獨立方柱零件、
-     25×4（雙料 S0.5）全料同出，每層都會被印到一次 → 四支料每層都動、不空燒。
-     只設 XY（預設 25mm 方柱、100% 填充）；層高歸切片器管、原型不碰＝不會 Double。
+     四料 A25 B25 C25 D25（雙料 S0.5）全料同出，每層都會被印到一次 → 每支料每層都動、不空燒。
+     只設 XY（**預設 15mm 方柱**——Eric 2026-08-22 令 25→15；100% 填充）；
+     層高歸切片器管、原型不碰＝不會 Double。
      擺在磚右側 15mm；extruder = 零件數+1（調色盤上限已讓 1 支）。 */
   let pillarOid=0;
   if(params.pillar){
