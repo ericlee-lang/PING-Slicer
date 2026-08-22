@@ -305,6 +305,14 @@
         "landscape",
         "pet_short"
       ],
+      "tonesBySubject": {
+        "portrait_closeup": 6,
+        "person_full": 6,
+        "pet_long": 6,
+        "pet_short": 6,
+        "landscape": 4
+      },
+      "_tonesBySubject": "題材相依的色階數（Eric 2026-08-22 裁「乙」）。tones 的 4 是當初用 **dev 端風格化管線** （bilateral→mean-shift→k-means）調出來的，但**產品沒有跑那條管線**（ptApply 只設料數/料色/色階數）⇒ 等於用 A 條件調的值套在 B 條件上。原始照片直接量化時 4 階太粗：陰影與五官會落進同一階而黏成一塊（實測 Eric 的黃金獵犬，100mm／白×#6B4C32：4 階時左眼與左耳陰影併成一大塊，改 6 階即分離）。風景維持 4——階數多反而讓山脊糊在一起（見 ridge_layers 的 verified 註記：色階預算被天空吃光時山會併成一塊）。沒列到的題材 fallback 回 tones。",
       "tones": 4,
       "mode": "dual",
       "slots": [
