@@ -79,5 +79,6 @@
     ],
     "overhang_fan_threshold": [
         "25%"
-    ]
+    ],
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

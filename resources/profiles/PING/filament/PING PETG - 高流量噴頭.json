@@ -84,5 +84,6 @@
     "filament_deretraction_speed": [
         "30"
     ],
-    "alias": "PING PETG - 高流量噴頭"
+    "alias": "PING PETG - 高流量噴頭",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }
