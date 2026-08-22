@@ -252,10 +252,12 @@
            （比照隔壁「進階／實驗選項」「換料清單」同樣是 details，不另創第三種樣式）。
            規格＝照片磚_核心規格.md §6；幾何/命名/接縫＝照片磚_色彩校正/make_calib_quad_3mf.py。 -->
       <details id="calibDetails">
-        <summary style="font-weight:700; cursor:pointer; display:flex; justify-content:space-between; gap:10px">
-          <span>色彩校正</span>
-          <span class="sub" id="calibSummary" style="font-weight:400; text-align:right">尚未校正（用理論色）</span>
-        </summary>
+        <!-- ⚠ summary 不可設 display:flex——那會讓瀏覽器**收掉展開三角形**（display 一離開 list-item
+             就沒有 ::marker），元件明明可以點卻看不出可以點。實錄：2026-08-22 第一版就是這樣，
+             Eric 看到後問「沒有載入圖檔是看不到嗎？」。隔壁「進階／實驗選項」「換料清單」都是
+             預設的 list-item ⇒ 這裡也維持預設，右側狀態改用 float（LAY-12 同類元件長一樣）。 -->
+        <summary style="font-weight:700; cursor:pointer">色彩校正<span class="sub" id="calibSummary"
+          style="font-weight:400; float:right">尚未校正（用理論色）</span></summary>
         <div class="sub" style="margin:4px 0 8px">
           量出這幾支料<b>實際印出來</b>的顏色，取代理論推算。校正資料只綁線材，換機型／口徑／層高不必重做。
         </div>
