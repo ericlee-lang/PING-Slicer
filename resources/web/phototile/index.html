@@ -247,6 +247,36 @@
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="invChk"> 反過來</label>
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
+      <!-- 色彩校正（Eric 2026-08-22 裁 Q1 B「放進工作室右欄」＋走完原型後裁 甲／A／A）。
+           落點與形狀＝LAY-21（工作室類管理性功能預設收合、摺疊標題帶現態摘要）＋LAY-12
+           （比照隔壁「進階／實驗選項」「換料清單」同樣是 details，不另創第三種樣式）。
+           規格＝照片磚_核心規格.md §6；幾何/命名/接縫＝照片磚_色彩校正/make_calib_quad_3mf.py。 -->
+      <details id="calibDetails">
+        <summary style="font-weight:700; cursor:pointer; display:flex; justify-content:space-between; gap:10px">
+          <span>色彩校正</span>
+          <span class="sub" id="calibSummary" style="font-weight:400; text-align:right">尚未校正（用理論色）</span>
+        </summary>
+        <div class="sub" style="margin:4px 0 8px">
+          量出這幾支料<b>實際印出來</b>的顏色，取代理論推算。校正資料只綁線材，換機型／口徑／層高不必重做。
+        </div>
+        <ol style="margin:0; padding-left:18px; line-height:1.9">
+          <li><b>產生校正塊</b><span class="sub" id="calibSpec"></span>
+            <div style="margin:4px 0 8px">
+              <button class="btn" id="btnCalib">產生校正塊並載入列印板</button>
+              <span class="sub" id="calibStat"></span>
+            </div>
+          </li>
+          <li><b>印出來，拍一張正面照</b>
+            <div class="sub" style="margin-bottom:6px">整塊拍進去、四個角都要在畫面裡；順光，避免反光與陰影。</div>
+          </li>
+          <li><b>讀照片，量出實際顏色</b>
+            <div class="sub" style="margin-bottom:4px">
+              到主程式的 <b>說明</b> 選單 →「<b>色彩校正</b>」開啟讀取頁：上傳照片 → 點整塊的四個外角 → 自動切格 → 匯出校正表。
+            </div>
+          </li>
+        </ol>
+      </details>
+      <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
            （空間不夠先砍間距與裝飾、絕不砍可操作區）收成 details，功能一個沒少。 -->
       <details id="swapDetails">
@@ -1121,6 +1151,7 @@ document.getElementById('modeSeg').addEventListener('click',e=>{
   /* 【0805 規格 §2.2】切雙料/四色不重新建議：slots 恆有 4 格（SLOT_DEFAULT），
      切換不需要靠 suggest() 生槽位，原本這樣做只是順手把使用者的配色洗掉。 */
   renderSlots(); simulate();
+  refreshCalibUI();   // 料數變了＝校正塊的格陣與零件數都變了，規格行要跟著講實話
 });
 function syncOrientUI(){
   const v=params.orient==='vertical';
@@ -1136,6 +1167,9 @@ function syncOrientUI(){
   document.getElementById('p2aRow').style.display=v?'':'none';
   document.getElementById('advDetails').style.display=v?'':'none'; // 實驗選項容器同進退      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
+  /* 色彩校正＝垂直模式限定（Eric 2026-08-22）：平躺是「疊色」（靠透光疊出顏色），
+     校正塊量的是混色比例對應的實際色 ⇒ 對疊色沒有意義，跟著垂直模式一起進退。 */
+  document.getElementById('calibDetails').style.display=v?'':'none';
   document.getElementById('btnExport').style.display=v?'':'none';   // 3MF 輸出＝垂直模式限定
   if(!v) document.getElementById('exportStat').style.display='none';
   if(!img) updateNoiseStat(null);
@@ -1156,6 +1190,7 @@ function updateSizeInfo(){
   if(pe) pe.textContent=params.pillar
     ? `→ ${params.pillarXY}×${params.pillarXY} mm 實心方柱（磚右側 15mm）`
     : '';
+  refreshCalibUI();   // 校正塊的規格行吃料色／料數／洗料柱 ⇒ 掛同一個漏斗，不另設一套刷新
 }
 document.getElementById('orientSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
@@ -1443,12 +1478,16 @@ function bytesToBase64(bytes){
     binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));
   return btoa(binary);
 }
-async function send3mfToSlicer(r,st){
+/* opts＝{name,mode}，缺席時完全等於原行為（照片磚匯出）。色彩校正塊沿用同一條路（Eric 2026-08-22 裁二 A）。 */
+async function send3mfToSlicer(r,st,opts){
+  const o=opts||{};
+  const fname=o.name||'照片磚_連通網格版.3mf';
+  const fmode=o.mode!==undefined?o.mode:((lastExport&&lastExport.mode)||'');
   const bytes=new Uint8Array(await r.blob.arrayBuffer());
   const rawChunkSize=96*1024;                    // 可被 3 整除，不會在中段產生 base64 padding
   const chunks=Math.ceil(bytes.length/rawChunkSize);
   sendSlicerMessage('phototile_export_begin',{
-    name:'照片磚_連通網格版.3mf',size:bytes.length,chunks
+    name:fname,size:bytes.length,chunks
   });
   for(let i=0;i<chunks;i++){
     const raw=bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize));
@@ -1458,10 +1497,185 @@ async function send3mfToSlicer(r,st){
   }
   /* mode/nozzle＝供 C++ 在載入前自動切對應「同進照片磚」機（Eric 2026-07-29 裁 A 案）：
      dual→FD 家族、quad→FF 家族，口徑對 printer_variant；值與 3MF 配方同源（lastExport／params）。 */
-  sendSlicerMessage('phototile_export_end',{name:'照片磚_連通網格版.3mf',
-    mode:(lastExport&&lastExport.mode)||'',
+  sendSlicerMessage('phototile_export_end',{name:fname,
+    mode:fmode,
     nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
 }
+/* ══════════════ 色彩校正塊產生器（Eric 2026-08-22 裁 甲／A／A）══════════════
+   規格正本＝照片磚_核心規格.md §6；幾何／命名／接縫規則 **port 自**
+   照片磚_色彩校正/make_calib_quad_3mf.py——那支跑完會自我驗證（49 支零件逐條複驗
+   id 四處一致／零件名尾端配方／預覽色／Z 貼板），是本實作的參考正本，改這裡要回頭對它。
+
+   ⚠ 三件不可隨手改的（原因見 python 檔頭）：
+   ① **階數固定 8**：§6 R6-2／R6-6 都寫 8，也是引擎 klevels 上限。不跟畫面上的「色階數」走——
+      校正資料只綁線材（R6-1），一條 8 點的曲線可以內插到任何階數；跟著畫面走反而會產出
+      「只對這一次設定有效」的校正表。
+   ② **一定要有洗料柱，而且高度＝整塊高**：同一層要換 k 次比例，柱矮於某層 ⇒ 那層以上沒被洗過，
+      量到的是殘料污染色、整組作廢。
+   ③ **保留純色端點**（每對第 1 格與最後 1 格）：純色是整條曲線的錨點，也是「同一支料的純色格
+      彼此必須相同」這個對位/打光自檢的依據（回讀端靠它擋掉點錯角）。 */
+const CALIB_TRI=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,7,6],[3,6,2],[0,4,7],[0,7,3],[1,2,6],[1,6,5]];
+const CALIB_PAIRS4=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];   // A/B A/C A/D B/C B/D C/D（§6 R6-2 順序）
+const CALIB_K=8, CALIB_CELL=10, CALIB_THICK=10, CALIB_GAP=15;
+const CALIB_LETTER='ABCD';
+
+function calibFmt(v){ return (Math.round(v*1000)/1000).toFixed(3).replace(/0+$/,'').replace(/\.$/,''); }
+function calibMix(colsLin,w){                       // 與 simulateVerticalQuad 的 mixLin 同式：線性空間加權平均
+  const lin=[0,1,2].map(ch=>colsLin.reduce((a,c,i)=>a+w[i]*c[ch],0)/100);
+  return '#'+lin.map(c=>l2s(c).toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+/* 接縫標記（§7＋0818 校正塊定案，與 build3mf 的照片磚規則同一套語意）：
+   X 等值面＝格與格的接著面 → enforcer 4（縫藏進去）；最外側端面不標（縫退回內側接著面）；
+   Y 等值面＝正／背面 → blocker 8。正面就是要拍照回讀顏色的那一面，縫疤會直接污染量到的色值。
+   ⚠ 洗料柱不套本規則（0720 c-0720-PT-01 定案）。 */
+function calibSeam(width){
+  const eps=1e-9, tol=0.01;
+  return (a,b,c)=>{
+    if(Math.abs(a[0]-b[0])<eps && Math.abs(a[0]-c[0])<eps)
+      return (a[0]<tol || a[0]>width-tol) ? 0 : 4;
+    if(Math.abs(a[1]-b[1])<eps && Math.abs(a[1]-c[1])<eps) return 8;
+    return 0;                                        // Z 等值面（上／下）不標
+  };
+}
+function calibBox(x0,y0,z0,x1,y1,z1,seam){
+  const vs=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  const v=vs.map(p=>`<vertex x="${calibFmt(p[0])}" y="${calibFmt(p[1])}" z="${calibFmt(p[2])}"/>`).join('');
+  const f=CALIB_TRI.map(t=>{                         // 面的分類由頂點座標推導，不寫死索引
+    const s=seam?seam(vs[t[0]],vs[t[1]],vs[t[2]]):0;
+    return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${s?` paint_seam="${s}"`:''}/>`;
+  }).join('');
+  return {v,f};
+}
+/* 回傳 {model,cfg,palTxt,rows,cols,cells,width,height,names}。quad＝6 對、dual＝1 對。 */
+function buildCalibParts(){
+  const quad=slotCount===4;
+  const cols=CALIB_K, pairs=quad?CALIB_PAIRS4:[[0,1]];
+  const colors=slots.slice(0,slotCount).map(s=>s.color.toUpperCase());
+  const colsLin=colors.map(hexLin);
+  const names=quad?['料1','料2','料3','料4']:['料1','料2'];
+  /* 階梯＝引擎量化式 round((1-s/(k-1))*100)。dual 的零件名走 S<0~1>（M6051），
+     值＝Math.round((1-t)*100)/100，與 build3mf 的 dual 命名逐字同源（否則量到的比例引擎不會吐）。 */
+  const ws=[...Array(cols)].map((_,s)=>Math.round((1-s/(cols-1))*100));
+  const width=CALIB_CELL*cols, height=CALIB_CELL*pairs.length, thick=CALIB_THICK;
+  const seam=calibSeam(width);
+  const objs=[],parts=[],pal=[]; let oid=0;
+  const mkPart=(id,nm,extra)=>
+`    <part id="${id}" subtype="normal_part">
+      <metadata key="name" value="${xmlEsc(nm)}"/>
+      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>
+      <metadata key="extruder" value="${id}"/>${extra||''}
+    </part>`;
+  pairs.forEach((pr,r)=>{
+    const [i,j]=pr, z0=r*CALIB_CELL;
+    ws.forEach((wi,c)=>{
+      oid++;
+      const w=[0,0,0,0]; w[i]=wi; w[j]=100-wi;
+      const x0=c*CALIB_CELL;
+      const {v,f}=calibBox(x0,0,z0,x0+CALIB_CELL,thick,z0+CALIB_CELL,seam);
+      objs.push(`<object id="${oid}" type="model"><mesh><vertices>${v}</vertices><triangles>${f}</triangles></mesh></object>`);
+      const prev=calibMix(colsLin,w);   // dual 時 pairs=[[0,1]] ⇒ w[0]=wi、w[1]=100-wi，calibMix 只走 colsLin 長度
+      /* 零件名尾端就是配方，C++ parse_photo_part_name 只認尾端：
+         quad＝A.. B.. C.. D..（和＝100）、dual＝S<0~1>；前面至少要再有一個 token。 */
+      const nm=quad ? `校正R${r+1}C${c+1} ${prev} A${w[0]} B${w[1]} C${w[2]} D${w[3]}`
+                    : `校正C${c+1} ${prev} S${Math.round(wi)/100}`;
+      parts.push(mkPart(oid,nm));
+      pal.push(`extruder ${oid}  R${r+1}C${c+1}  ${names[i]}／${names[j]} = ${wi}／${100-wi} %  預覽色 ${prev}`
+              +`  （X ${x0}~${x0+CALIB_CELL}、Z ${z0}~${z0+CALIB_CELL} mm）`);
+    });
+  });
+  const cells=oid;
+  let pillarOid=0;
+  if(params.pillar){
+    pillarOid=++oid;
+    const pxy=params.pillarXY, x0=width+CALIB_GAP, y0=thick/2-pxy/2;
+    const {v,f}=calibBox(x0,y0,0,x0+pxy,y0+pxy,height,null);   // 洗料柱不標接縫
+    objs.push(`<object id="${pillarOid}" type="model"><mesh><vertices>${v}</vertices><triangles>${f}</triangles></mesh></object>`);
+    const pw=quad?[25,25,25,25]:[50,50,0,0];
+    const pcol=calibMix(colsLin,pw);
+    const pnm=quad?`洗料柱 ${pcol} A25 B25 C25 D25`:`洗料柱 ${pcol} S0.5`;
+    parts.push(mkPart(pillarOid,pnm,`\n      <metadata key="sparse_infill_density" value="100%"/>`));
+    pal.push(`extruder ${pillarOid}  洗料柱 ${pxy}×${pxy}×${height} mm 實心  預覽色 ${pcol}`);
+  }
+  const MID=1000, nObjs=cells+(pillarOid?1:0);
+  const totalW=width+(pillarOid?CALIB_GAP+params.pillarXY:0);   // 置中要含洗料柱，否則整體重心偏一邊
+  const comps=[...Array(nObjs)].map((_,i)=>`<component objectid="${i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
+  const title=`照片磚色彩校正 ${quad?'四料 48 格':'雙料 8 格'}`;
+  const model=`<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+ <metadata name="Application">PING-PhotoTile-ColorCalib</metadata>
+ <resources>
+${objs.map(o=>'  '+o).join('\n')}
+  <object id="${MID}" type="model"><components>${comps}</components></object>
+ </resources>
+ <build><item objectid="${MID}" transform="1 0 0 0 1 0 0 0 1 ${calibFmt(-totalW/2)} ${calibFmt(-thick/2)} 0" printable="1"/></build>
+</model>`;
+  const cfg=`<?xml version="1.0" encoding="UTF-8"?>
+<config>
+  <object id="${MID}">
+    <metadata key="name" value="${xmlEsc(title)}"/>
+${parts.join('\n')}
+  </object>
+</config>`;
+  const palTxt=`${title}
+口徑 ${params.nozzle} mm／${quad?'四料 M6052（A/B/C/D ＝ 各料佔比 %）':'雙料 M6051（S ＝ 料1 佔比）'}
+尺寸 ${totalW}×${thick}×${height} mm（正面 ${width}×${height}）｜${cells} 格＝${pairs.length} 對 × ${cols} 階｜每格 ${CALIB_CELL}×${CALIB_CELL} mm｜零件 ${nObjs} 支
+料色：${colors.join('、')}
+接縫：格與格的接著面 paint_seam="4"、最外側端面不標、正／背面 paint_seam="8" 禁縫（正面是要拍照回讀的那一面）
+${pal.join('\n')}`;
+  return {model,cfg,palTxt,rows:pairs.length,cols,cells,objs:nObjs,width,height,thick,totalW,colors,names,title};
+}
+function calibSpecText(){
+  const quad=slotCount===4;
+  const rows=quad?6:1, cells=rows*CALIB_K;
+  const w=CALIB_CELL*CALIB_K, h=CALIB_CELL*rows;
+  return `　${slots.slice(0,slotCount).map(s=>s.color).join(' · ')}｜${cells} 格（${rows} 對 × ${CALIB_K} 階）`
+        +`｜正面 ${w}×${h} mm，厚 ${CALIB_THICK} mm${params.pillar?`，含洗料柱共 ${cells+1} 支零件`:`，${cells} 支零件`}`;
+}
+function refreshCalibUI(){
+  const spec=document.getElementById('calibSpec');
+  if(spec) spec.textContent=calibSpecText();
+}
+document.getElementById('btnCalib').onclick=async()=>{
+  const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
+  b.disabled=true; st.textContent='　產生中…';
+  try{
+    const c=buildCalibParts();
+    const blob=await makeZip([
+      {name:'[Content_Types].xml', data:
+`<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+ <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+ <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>
+ <Default Extension="config" ContentType="text/xml"/>
+ <Default Extension="txt" ContentType="text/plain"/>
+</Types>`},
+      {name:'_rels/.rels', data:
+`<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+ <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>
+</Relationships>`},
+      {name:'3D/3dmodel.model', data:c.model},
+      {name:'Metadata/model_settings.config', data:c.cfg},
+      {name:'Metadata/ping_palette.txt', data:c.palTxt},
+    ]);
+    const fname=`色彩校正_${slotCount===4?'四料48格':'雙料8格'}.3mf`;
+    if(slicerBridgeReady()){
+      /* 裁二 A：與隔壁「產生並載入列印板」同一個出口（既有 phototile_export_* 三段式），
+         mode/nozzle 讓 C++ 在載入前自動切到對應的同進照片磚機。 */
+      await send3mfToSlicer({blob},st,{name:fname, mode:slotCount===4?'quad':'dual'});
+      st.textContent='　已送入列印板。接著切片列印，印完拍照，再到「說明 → 色彩校正」讀照片。';
+    }else{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+      st.textContent=`　已輸出 ${fname}（${c.cells} 格＋${params.pillar?'洗料柱':'無柱'}、${(blob.size/1024).toFixed(0)} KB）。`;
+    }
+    document.getElementById('calibSummary').textContent=
+      `已產出校正塊（${c.colors.join(' · ')}），尚未回讀`;
+  }catch(e){
+    st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`;
+  }finally{ b.disabled=false; }
+};
+
 document.getElementById('btnExport').onclick=async()=>{
   const st=document.getElementById('exportStat');
   st.style.display=''; st.textContent='產生中…';
