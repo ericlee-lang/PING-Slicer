@@ -285,6 +285,17 @@
               到主程式的 <b>說明</b> 選單 →「<b>色彩校正</b>」開啟讀取頁：上傳照片 → 點整塊的四個外角 → 自動切格 → 匯出校正表。
             </div>
           </li>
+          <li><b>把校正表匯回來</b>
+            <div class="sub" style="margin-bottom:6px">
+              匯入後，模擬圖與下面的色條改用<b>實際量到的顏色</b>，不再用理論推算。
+              此步<b>不改變列印內容</b>——混色比例仍是原本那一組。
+            </div>
+            <div style="margin-bottom:4px">
+              <input type="file" id="calibFile" accept=".json,application/json" style="font-size:12px">
+              <button class="btn" id="btnCalibClear" style="display:none">清除</button>
+            </div>
+            <div class="sub" id="calibTableStat">尚未匯入校正表</div>
+          </li>
         </ol>
       </details>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
@@ -678,6 +689,7 @@ function simulateVertical(){
      亮端擠、暗端整段空洞（6 階時 sRGB 122→0 之間沒有階，深灰全塌黑）。改成在
      感知亮度 L* 上均分、反解各階混比：線性混色下 Y 對 t 線性、L* 只依賴 Y，
      t 有解析解；S 本來就是連續值，M6051 吃小數（C++ 端 is_num_token 收 0~1）。 */
+  const calibApplies=calibTableMatches();
   const labF=t=> t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
   const labFinv=fy=> fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
   const YA=lum709(...A), YB=lum709(...B);
@@ -687,8 +699,12 @@ function simulateVertical(){
     const Lt=K<2?LA:LA+(LB-LA)*i/(K-1);
     const Yt=labFinv((Lt+16)/116);
     const t=Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB)));
-    const lin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
-    levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin)});
+    /* ④-1（Eric 2026-08-22 裁「開 ④」）：有校正表且料色相符時，顯示色改用**實測曲線**上的值。
+       🔴 **t 不動**——t 就是 M6051 的 S 值，動它就會改變印出來的東西（那是 ④-2）。
+       這裡換掉的只有 rgb（模擬圖／色條／3MF 預覽色）與 lab（ΔE 的比較基準，換成實測才誠實）。 */
+    const theoryLin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
+    const lin = calibApplies ? calibLookupLin(Math.round((1-t)*100)/100) : theoryLin;
+    levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin), theoryLin});
   }
   const W=coreCanvas.width,H=coreCanvas.height,bw=W/K;
   for(let i=0;i<K;i++){ coreCtx.fillStyle=rgbHex(...levels[i].rgb); coreCtx.fillRect(i*bw,0,Math.ceil(bw),H); }
@@ -1708,6 +1724,81 @@ ${parts.join('\n')}
 ${pal.join('\n')}`;
   return {model,cfg,palTxt,rows:pairs.length,cols,cells,objs:nObjs,width,height,thick,totalW,colors,names,title};
 }
+/* ══════════ ④-1 校正表回饋（顯示層）══════════
+   Eric 2026-08-22 裁「開 ④」。本段**只改顯示**：模擬圖／色條／3MF 預覽色改用實測顏色，
+   **不動 S 值** ⇒ 印出來的東西與匯入前逐位元組相同。改 S 值（讓 8 階在實測 L* 上均分）
+   是 ④-2，會變更列印內容，另外裁。
+   ⚠ 只支援雙料表（1 對 × K 階）。四料是 6 對 × K 階、結構不同，等有 48 格實測資料再做。
+   儲存：試 localStorage，失敗就只活這個 session——全庫沒有 localStorage 用例，
+   WebView2 的 file:// 能不能持久化未經證實，所以**用它但不依賴它**，並在畫面誠實標示。 */
+const CALIB_LS_KEY='ping_phototile_calib_dual_v0';
+let calibTable=null;                                   // {slots:[hexA,hexB], pts:[{S, lin:[r,g,b]}...]}
+
+function calibParseTable(json){
+  if(!json || json['料數']!==2) throw new Error('目前只支援雙料校正表（這張是 '+(json&&json['料數'])+' 料）');
+  const rows=json['量測'];
+  if(!Array.isArray(rows) || !rows.length) throw new Error('找不到「量測」資料');
+  const pts=rows.map(r=>{
+    const S=r['配方'] && r['配方'].S;
+    const hex=r['量到色'];
+    if(typeof S!=='number' || !/^#[0-9a-fA-F]{6}$/.test(hex||''))
+      throw new Error('第 '+(r['格']||'?')+' 格的配方或量到色不合法');
+    return {S, lin:hexLin(hex), hex};
+  }).sort((a,b)=>b.S-a.S);                              // S 由大到小＝料A 多 → 少
+  const slotsDecl=(json['料']||[]).map(x=>String(x['色']||'').toUpperCase());
+  return {slots:slotsDecl, pts, src:json['校正塊種類']||''};
+}
+/* 在實測曲線上取 S 對應的顏色（線性空間內插；超出範圍夾到端點）。 */
+function calibLookupLin(S){
+  const P=calibTable.pts;
+  if(S>=P[0].S) return P[0].lin;
+  if(S<=P[P.length-1].S) return P[P.length-1].lin;
+  for(let i=0;i<P.length-1;i++){
+    const a=P[i], b=P[i+1];
+    if(S<=a.S && S>=b.S){
+      const f=(a.S-S)/(a.S-b.S||1);
+      return [0,1,2].map(c=>a.lin[c]+(b.lin[c]-a.lin[c])*f);
+    }
+  }
+  return P[P.length-1].lin;
+}
+/* 這張表適用於目前的料嗎？校正只綁線材（§6 R6-1）⇒ 料色不同就是別組料的表，不可套用。 */
+function calibTableMatches(){
+  if(!calibTable || slotCount!==2) return false;
+  const now=slots.slice(0,2).map(s=>s.color.toUpperCase());
+  return calibTable.slots.length>=2 &&
+         calibTable.slots[0]===now[0] && calibTable.slots[1]===now[1];
+}
+function calibTableStat(){
+  const el=document.getElementById('calibTableStat'); if(!el) return;
+  const btn=document.getElementById('btnCalibClear');
+  if(!calibTable){ el.textContent='尚未匯入校正表'; if(btn) btn.style.display='none'; return; }
+  if(btn) btn.style.display='';
+  const now=slots.slice(0,2).map(s=>s.color.toUpperCase()).join(' · ');
+  if(slotCount!==2)
+    el.innerHTML='已匯入雙料校正表，但目前是<b>四色</b>模式 —— 未套用。';
+  else if(!calibTableMatches())
+    el.innerHTML=`⚠ 已匯入的校正表是 <b>${calibTable.slots.slice(0,2).join(' · ')}</b> 這組料，`
+      +`目前料色是 <b>${now}</b> —— <b>未套用</b>。校正資料只綁線材，換了料就要重新校正。`;
+  else
+    el.innerHTML=`✅ 已套用（${calibTable.pts.length} 點，${calibTable.slots.slice(0,2).join(' · ')}）`
+      +` —— 模擬圖與色條顯示的是<b>實測</b>顏色。${calibTable.persisted?'':'<br><span class="sub">⚠ 這次無法存進瀏覽器，關掉工作室後要重新匯入。</span>'}`;
+}
+function calibSetTable(tbl, persist){
+  calibTable=tbl;
+  if(tbl && persist!==false){
+    try{ localStorage.setItem(CALIB_LS_KEY, JSON.stringify(tbl.raw||tbl)); tbl.persisted=true; }
+    catch(e){ tbl.persisted=false; }
+  }
+  calibTableStat(); simulate();
+}
+(function calibRestore(){
+  try{
+    const s=localStorage.getItem(CALIB_LS_KEY);
+    if(s){ const tbl=calibParseTable(JSON.parse(s)); tbl.persisted=true; tbl.raw=JSON.parse(s); calibTable=tbl; }
+  }catch(e){ calibTable=null; }
+})();
+
 function calibSpecText(){
   const quad=slotCount===4;
   const rows=quad?6:1, cells=rows*CALIB_K;
@@ -1720,6 +1811,7 @@ let calibMadeColors=null;
 function refreshCalibUI(){
   const spec=document.getElementById('calibSpec');
   if(spec) spec.textContent=calibSpecText();
+  calibTableStat();
   const sum=document.getElementById('calibSummary');
   if(sum && calibMadeColors){
     const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
@@ -1728,6 +1820,31 @@ function refreshCalibUI(){
       : `⚠ 料色已改（現在是 ${now}）——先前那顆校正塊是 ${calibMadeColors}，要重產`;
   }
 }
+document.getElementById('calibFile').onchange=e=>{
+  const f=e.target.files && e.target.files[0];
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const raw=JSON.parse(rd.result);
+      const tbl=calibParseTable(raw); tbl.raw=raw;
+      calibSetTable(tbl);
+    }catch(err){
+      calibTable=null;
+      document.getElementById('calibTableStat').innerHTML=
+        '⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
+      document.getElementById('btnCalibClear').style.display='none';
+    }
+  };
+  rd.readAsText(f);
+  e.target.value='';
+};
+document.getElementById('btnCalibClear').onclick=()=>{
+  calibTable=null;
+  try{ localStorage.removeItem(CALIB_LS_KEY); }catch(e){}
+  calibTableStat(); simulate();
+};
+
 document.getElementById('btnCalib').onclick=async()=>{
   const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
   b.disabled=true; st.textContent='　產生中…';
