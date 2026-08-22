@@ -91,5 +91,6 @@
     ],
     "filament_deretraction_speed": [
         "30"
-    ]
+    ],
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

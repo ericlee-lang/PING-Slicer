@@ -87,5 +87,6 @@
     "filament_soluble": [
         "0"
     ],
-    "alias": "PING SupABS - Classic"
+    "alias": "PING SupABS - Classic",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

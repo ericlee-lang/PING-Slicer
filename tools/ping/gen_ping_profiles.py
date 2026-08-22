@@ -151,6 +151,9 @@ machine_models, process_list = [], [
     {"name": "fdm_process_ping_common", "sub_path": "process/fdm_process_ping_common.json"}]
 machine_list = [{"name": "fdm_machine_common", "sub_path": "machine/fdm_machine_common.json"},
                 {"name": "fdm_ping_common", "sub_path": "machine/fdm_ping_common.json"}]
+# 照片磚機的排除（2026-08-22 甲）——與 verify_profiles.py 的 _PHOTOTILE_COND 同字串，改要一起改
+PHOTOTILE_MARK = "PHOTOTILE"
+PHOTOTILE_EXCLUDE_COND = "printer_notes!~/.*%s.*/" % PHOTOTILE_MARK
 all_machines = []
 DEF_MAT = "PING PLA;PING PolyABS;PING SupABS;PING SupPLA;PING PETG;PING ABS;PING PA-CF"
 gm = gp = 1
@@ -213,6 +216,9 @@ for (model, dia, hgt, nozzles, mv, ma, feeds, bed) in MODELS:
             "seam_slope_start_height": "10%", "seam_slope_min_length": "8"})
         gp += 1
 
+# 照片磚機不進通用料的相容清單（見下方 compatible_printers 註解）
+all_machines_no_phototile = [m for m in all_machines if "照片磚" not in m]
+
 # filaments (3.0-style minimal)
 filament_list = [{"name": "fdm_filament_common", "sub_path": "filament/fdm_filament_common.json"}]
 for fn in FIL_BASE[1:]:
@@ -228,7 +234,12 @@ for (nm, base, nt, bt, fan, ftype, issup, fid) in FILS:
          "cool_plate_temp": [str(bt)], "cool_plate_temp_initial_layer": [str(bt)],
          "fan_max_speed": [str(fan)], "fan_min_speed": [str(fan)],
          "filament_retraction_length": ["2"],
-         "compatible_printers": all_machines}
+         # 🔴 照片磚機排除（Eric 2026-08-22 裁「甲」）：照片磚的零回抽只寫在機器層，任何
+         #    filament_retraction_length 非 nil 的料掛上去都會**靜默覆蓋**掉它（0730 已付過一次
+         #    學費）。C++ 端 `compatible_printers`（明列）優先於 `compatible_printers_condition`
+         #    ⇒ 這裡若照舊寫 all_machines，會把葉檔上的排除條件整個蓋掉、regen 一次就還原成壞的。
+         "compatible_printers": all_machines_no_phototile,
+         "compatible_printers_condition": PHOTOTILE_EXCLUDE_COND}
     if issup:
         d["filament_is_support"] = ["1"]
     # 換料塔最小清理量(2026-06-10 二修)：倍數=0 停用矩陣，每料此值控制——SupPLA=30、其餘(含SupABS)=15(最佳ABS 15/15 實證)

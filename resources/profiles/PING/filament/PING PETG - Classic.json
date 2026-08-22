@@ -66,5 +66,6 @@
     "filament_soluble": [
         "0"
     ],
-    "alias": "PING PETG - Classic"
+    "alias": "PING PETG - Classic",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

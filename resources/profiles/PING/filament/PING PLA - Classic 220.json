@@ -234,5 +234,6 @@
     "default_filament_colour": [
         "#EA4E16"
     ],
-    "alias": "PING PLA - Classic 220"
+    "alias": "PING PLA - Classic 220",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

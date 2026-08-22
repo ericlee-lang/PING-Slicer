@@ -889,11 +889,22 @@ for _mn, (_mk, _md) in presets.items():
         _dmt = (_md.get("default_materials", "") or "").split(";")
         if "PING PLA" in _dmt:
             err(f"[default_materials 舊名未改 0728] {_mn}")
-        # ⓘ 0807 全族補齊後，default_materials＝「可勾清單」而非「預設是誰」：照片磚同時看得到
-        #    210 與 220 是正常的。「預設指誰」的把關已在上面 machine 分支的 default_filament_profile。
-        #    本條只保留 0728 意旨：照片磚機的可勾清單必須含 PLA - 210。
-        if _mn == "FD300 同進照片磚" and "PING PLA - 210" not in _dmt:
-            err(f"[照片磚 model 可勾含 210 0728v2·0807 調整] {_mn}: {_md.get('default_materials')!r}")
+        # 🔁 **被 Eric 2026-08-22「甲」取代**（原條文：照片磚 model 的可勾清單必須含 PLA - 210）。
+        #    為什麼取代：0728v2 那條寫在「通用料本來就會出現在照片磚機上」的世界裡（因為它們
+        #    compatible_printers 空＝跟誰都相容，再被 0807 rule ② 強制補進可勾清單）。
+        #    但那些料的 filament_retraction_length 非 nil，會覆蓋掉機器層的零回抽——與上面
+        #    0819 那條「FD300 照片磚機必為照片磚專用支」是同一個理由，只是 0819 只鎖了
+        #    default_filament_profile（預設指誰），沒鎖可勾清單（使用者仍選得到）。
+        #    Eric 2026-08-22 裁「甲」＝照片磚機的下拉只剩照片磚專用料 ⇒ 210 依定義不可能還在清單裡。
+        #    新條文＝可勾清單必須**恰好**是該機型的照片磚專用支，與 0819 對齊成同一把尺。
+        _PT_MODEL_FIL = {"FD300 同進照片磚": "PING PLA(照片磚 FD300)",
+                         "FF600 同進照片磚": "PING PLA(照片磚)",
+                         "FF800 同進照片磚": "PING PLA(照片磚)"}
+        if _mn in _PT_MODEL_FIL:
+            _want_dmt = {_PT_MODEL_FIL[_mn]}
+            if {x for x in _dmt if x} != _want_dmt:
+                err(f"[照片磚 model 可勾清單必為專用支 0822甲] {_mn}: "
+                    f"{_md.get('default_materials')!r}（應為 {sorted(_want_dmt)!r}）")
 
 # ★ 預勾線材全族補齊護欄（Eric 2026-08-07 裁）——對應 embed_params.py 的
 #   apply_default_materials() post-pass。三條斷言：
@@ -909,6 +920,33 @@ _ping_fils = {n: (d.get("compatible_printers") if isinstance(d.get("compatible_p
                   and d.get("compatible_printers") else None)
               for n, (k, d) in presets.items()
               if k == "filament" and n.startswith("PING ") and d.get("instantiation") == "true"}
+
+# ★ 照片磚機的線材收斂（Eric 2026-08-22 裁「甲」）——本節是 0807 rule ② 的必要例外。
+#   起因：0807 rule ② 要求「每台機型必須涵蓋所有與它相容的 PING 線材」，而通用料的
+#   compatible_printers 是空的＝跟誰都相容 ⇒ **照片磚機被這條規則強制預勾了 13 支通用料**。
+#   那些料的 filament_retraction_length 非 nil（例：PETG 高流量＝3），會**覆蓋掉機器層的
+#   零回抽**（照片磚的硬需求）——正是 0730「FF 照片磚支被掃成 3、零回抽破了 20 天沒人發現」
+#   那個坑的另一個入口：這次不是值被寫錯，是不該出現的料能合法待在那台機上。
+#   解法＝照片磚機掛 printer_notes 標記 PHOTOTILE，通用料加 compatible_printers_condition
+#   把它們排除（C++ 端 Preset.cpp:710 只在「沒有明列 compatible_printers」時才求值條件）。
+#   ⚠ 這裡刻意只認**這一條已知條件字串**：出現任何其他條件式就顯性報錯，不要靜默忽略——
+#     驗證器看不懂的條件如果被當成「沒有限制」，rule ② 會反過來要求把料加回去。
+_PHOTOTILE_MARK = "PHOTOTILE"
+_PHOTOTILE_COND = "printer_notes!~/.*%s.*/" % _PHOTOTILE_MARK
+_fil_cond = {}
+for _n, (_k, _d) in presets.items():
+    if _k != "filament" or not _n.startswith("PING ") or _d.get("instantiation") != "true":
+        continue
+    _c = (_d.get("compatible_printers_condition") or "").strip()
+    if not _c:
+        continue
+    if _c != _PHOTOTILE_COND:
+        err(f"[未知的 compatible_printers_condition] {_n}: {_c!r}；"
+            f"驗證器只認識 {_PHOTOTILE_COND!r}，請先更新本檔再加新條件")
+    _fil_cond[_n] = _c
+# 哪些 machine preset 掛了 PHOTOTILE 標記
+_phototile_machines = {n for n, (k, d) in presets.items()
+                       if k == "machine" and _PHOTOTILE_MARK in (d.get("printer_notes") or "")}
 _model_variants = {}
 for _n, (_k, _d) in presets.items():
     if _k == "machine" and _d.get("instantiation") == "true" and _d.get("printer_model"):
@@ -929,8 +967,11 @@ for _mn, (_mk, _md) in presets.items():
     if _dead:
         err(f"[default_materials 死名 0807] {_mn}: {'、'.join(_dead)} 不在 bundle 線材清單內")
     # 族群雙向隔離（Eric 0807 二裁）：Classic 機只預勾 Classic 料、Fast 機只預勾非 Classic 料
+    # 條件式排除（0822 甲）：機型的所有 variant 都掛了 PHOTOTILE ⇒ 帶排除條件的料不算相容
+    _all_photo = bool(_vs) and _vs <= _phototile_machines
     _want = {n for n, cp in _ping_fils.items()
-             if (cp is None or (set(cp) & _vs)) and (("Classic" in n) == _is_classic)}
+             if (cp is None or (set(cp) & _vs)) and (("Classic" in n) == _is_classic)
+             and not (_all_photo and n in _fil_cond)}
     _missing = sorted(_want - set(_have))
     if _missing:
         err(f"[預勾漏勾 0807] {_mn}: 相容卻沒進 default_materials — {'、'.join(_missing)}")
