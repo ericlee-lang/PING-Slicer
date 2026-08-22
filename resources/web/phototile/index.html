@@ -287,14 +287,17 @@
           </li>
           <li><b>把校正表匯回來</b>
             <div class="sub" style="margin-bottom:6px">
-              匯入後，模擬圖與下面的色條改用<b>實際量到的顏色</b>，不再用理論推算。
-              此步<b>不改變列印內容</b>——混色比例仍是原本那一組。
+              匯入後，模擬圖與下面的色條改用<b>實際量到的顏色</b>，不再用理論推算（④-1）。
             </div>
             <div style="margin-bottom:4px">
               <input type="file" id="calibFile" accept=".json,application/json" style="font-size:12px">
               <button class="btn" id="btnCalibClear" style="display:none">清除</button>
             </div>
             <div class="sub" id="calibTableStat">尚未匯入校正表</div>
+            <!-- ④-2：這個勾選會改變「印出來的東西」，所以獨立成一個看得見的開關，不藏在進階區。 -->
+            <label style="display:block; margin-top:8px"><input type="checkbox" id="calibGenChk" checked>
+              <b>用校正值決定色階</b> <span class="sub">（會改變列印內容：色階改在<b>實測</b>亮度上均分）</span></label>
+            <div class="sub" id="calibGenStat" style="margin-left:20px"></div>
           </li>
         </ol>
       </details>
@@ -343,6 +346,28 @@ function lin2lab(r,g,b){
   return [116*fy-16, 500*(fx-fy), 200*(fy-fz)];
 }
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;   // 線性亮度
+/* 雙料色階梯：在感知亮度 L* 上均分、反解各階混比 t（t＝料B 比例；M6051 的 S＝1-t＝料A 比例）。
+   B案，Eric 2026-07-19 定——均分 S 的階梯亮端擠、暗端整段空洞（6 階時 sRGB 122→0 之間沒有階）。
+   線性混色下 Y 對 t 線性、L* 只依賴 Y ⇒ t 有解析解；S 本來就是連續值，M6051 吃小數。
+   🔴 **這條梯子有兩個消費者**：照片磚本體 simulateVertical() 與色彩校正塊 buildCalibParts()。
+   放成共用函式是因為它們分叉過——0822 之前校正塊自己用引擎量化式 round((1-s/(k-1))*100)
+   （1／0.86／0.71…）而本體用 L*（1／0.84／0.69…），差 ≤0.02，違反 make_calib_quad_3mf.py 檔頭
+   那條原則「校正表的鍵必須跟引擎**實際會吐**的比例逐字相同，否則量了 70% 而引擎永遠只印 71%＝白量」。
+   Eric 2026-08-22 裁「改」⇒ 統一走本函式。要改階梯只改這裡。 */
+function dualLadder(hexA, hexB, K){
+  const A=hexLin(hexA), B=hexLin(hexB);
+  const labF   = t  => t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
+  const labFinv= fy => fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
+  const YA=lum709(...A), YB=lum709(...B);
+  const LA=116*labF(YA)-16, LB=116*labF(YB)-16;
+  const t=[];
+  for(let i=0;i<K;i++){
+    const Lt=K<2?LA:LA+(LB-LA)*i/(K-1);
+    const Yt=labFinv((Lt+16)/116);
+    t.push(Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB))));
+  }
+  return {t, A, B, LA, LB};
+}
 
 /* ================= 狀態 ================= */
 const SLOT_DEFAULT = [
@@ -360,7 +385,8 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:15,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
-               p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
+               p2aBlock:true,                     // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
+               calibGen:true };                   // ④-2：用校正值決定色階（Eric 2026-08-22 裁 C＝開＋給開關；資料可疑時自動不套，見 calibGenLadder）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
    ①0729 gcode 量化定讞——磚縫點 5,460，合法集合 100%（交界 99.9%＋側窄面 fallback 0.1%）、
      正面 0／背面 0／連續疤 0，交界縫距深度中央偏移中位 0.10mm＝縫釘在接觸面正中央；Eric 切片預覽眼驗過。
@@ -684,21 +710,20 @@ function simulateVerticalQuad(){
 function simulateVertical(){
   if(slotCount===4){ simulateVerticalQuad(); return; }
   const K=params.klevels;
-  const A=hexLin(slots[0].color), B=hexLin(slots[1].color);
-  /* 感知均勻取階（B案，Eric 2026-07-19 定）：K 階不再均分混比 S——均分 S 的階梯
-     亮端擠、暗端整段空洞（6 階時 sRGB 122→0 之間沒有階，深灰全塌黑）。改成在
-     感知亮度 L* 上均分、反解各階混比：線性混色下 Y 對 t 線性、L* 只依賴 Y，
-     t 有解析解；S 本來就是連續值，M6051 吃小數（C++ 端 is_num_token 收 0~1）。 */
+  /* 色階梯＝共用的 dualLadder()（同一份給校正塊吃，見該函式的註解）。 */
+  const ladder=dualLadder(slots[0].color, slots[1].color, K);
+  const A=ladder.A, B=ladder.B;
+  let LA=ladder.LA, LB=ladder.LB, tArr=ladder.t;
   const calibApplies=calibTableMatches();
-  const labF=t=> t>0.008856 ? Math.cbrt(t) : (7.787*t + 16/116);
-  const labFinv=fy=> fy**3>0.008856 ? fy**3 : (fy-16/116)/7.787;
-  const YA=lum709(...A), YB=lum709(...B);
-  const LA=116*labF(YA)-16, LB=116*labF(YB)-16;
+  /* ④-2：有校正表、使用者沒關掉、且四道護欄都過 ⇒ 梯子改用實測曲線解出來的混比。
+     LA/LB 一起換成**實測**端點——下面的分箱用的就是它們，只換梯子不換分箱＝兩把尺對不上
+     （這個坑在本函式下方註解裡已經記過一次，不要再犯）。 */
+  const calibGen = (calibApplies && params.calibGen) ? calibGenLadder(K) : null;
+  if(calibGen && calibGen.ok){ tArr=calibGen.t; LA=calibGen.LA; LB=calibGen.LB; }
+  window.__calibGen=calibGen;                            // 狀態列據此講實話（套了沒／為什麼沒套）
   const levels=[];
   for(let i=0;i<K;i++){
-    const Lt=K<2?LA:LA+(LB-LA)*i/(K-1);
-    const Yt=labFinv((Lt+16)/116);
-    const t=Math.abs(YA-YB)<1e-9 ? 0 : Math.min(1,Math.max(0,(YA-Yt)/(YA-YB)));
+    const t=tArr[i];
     /* ④-1（Eric 2026-08-22 裁「開 ④」）：有校正表且料色相符時，顯示色改用**實測曲線**上的值。
        🔴 **t 不動**——t 就是 M6051 的 S 值，動它就會改變印出來的東西（那是 ④-2）。
        這裡換掉的只有 rgb（模擬圖／色條／3MF 預覽色）與 lab（ΔE 的比較基準，換成實測才誠實）。 */
@@ -711,6 +736,7 @@ function simulateVertical(){
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
   for(let i=1;i<K;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
+  renderCalibGenStat(K);
   listVertical(levels);
   if(!img){ updateNoiseStat(null); return; }
   const t0=performance.now();
@@ -1330,6 +1356,8 @@ noiseIn.onchange=e=>{
   e.target.value=params.noiseMm.toFixed(1); queue();
 };
 document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
+/* ④-2 開關：改的是**列印內容**，所以要重算（不是只重畫）。 */
+document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
 document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
 document.getElementById('stageOn').onchange=e=>{ stageView=e.target.checked; simulate(); };
 /* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64），
@@ -1653,9 +1681,16 @@ function buildCalibParts(){
   const colors=slots.slice(0,slotCount).map(s=>s.color.toUpperCase());
   const colsLin=colors.map(hexLin);
   const names=quad?['料1','料2','料3','料4']:['料1','料2'];
-  /* 階梯＝引擎量化式 round((1-s/(k-1))*100)。dual 的零件名走 S<0~1>（M6051），
-     值＝Math.round((1-t)*100)/100，與 build3mf 的 dual 命名逐字同源（否則量到的比例引擎不會吐）。 */
-  const ws=[...Array(cols)].map((_,s)=>Math.round((1-s/(cols-1))*100));
+  /* 階梯（Eric 2026-08-22 裁「改」）：
+       · dual  ＝**共用 dualLadder()**，與照片磚本體逐字同一條 L* 梯（1／0.84／0.69…）。
+         原本這裡自己算引擎量化式 round((1-s/(k-1))*100)（1／0.86／0.71…），差 ≤0.02——
+         違反 make_calib_quad_3mf.py 檔頭原則「校正表的鍵必須跟引擎**實際會吐**的比例逐字相同」。
+       · quad ＝維持引擎量化式。四料本體走的是調色盤配比、沒有「一條梯子」可對齊，
+         強行套 dual 的 L* 梯沒有對應對象（本次不動，範圍照 Eric 的裁示只含雙料）。
+     兩者端點都是 100／0 ⇒ 純色端點保留（R6-6）不受影響。 */
+  const ws = quad
+    ? [...Array(cols)].map((_,s)=>Math.round((1-s/(cols-1))*100))
+    : dualLadder(colors[0], colors[1], cols).t.map(t=>Math.round((1-t)*100));
   const width=CALIB_CELL*cols, height=CALIB_CELL*pairs.length, thick=CALIB_THICK;
   const seam=calibSeam(width);
   const objs=[],parts=[],pal=[]; let oid=0;
@@ -1762,6 +1797,95 @@ function calibLookupLin(S){
   }
   return P[P.length-1].lin;
 }
+/* ④-2 的狀態列：套了沒、為什麼沒套，一律講清楚。
+   ⛔ 不准出現「已套用校正」這種只講好消息的字——被擋下來時使用者要知道印出來的還是理論階梯。 */
+/* 摺疊標題的現態摘要（LAY-21）。**單一來源**——原本只有「產出校正塊」那條路會寫它，
+   匯入校正表不會 ⇒ 表已套用、摘要卻還寫「尚未校正」。④-1 時那只是講不清楚，
+   ④-2 之後同一句話會變成**謊話**（列印內容已經改了，收合狀態卻說沒校正）。
+   同型前例＝3c55a70291「產後改料色的摘要會說謊」。 */
+function calibSummaryText(){
+  const g=window.__calibGen;
+  if(calibTable && calibTableMatches()){
+    if(params.calibGen && g && g.ok) return '已校正・色階用實測值（會影響列印）';
+    if(params.calibGen && g && !g.ok) return '已校正・色階未套用（護欄擋下）';
+    return '已校正・僅顯示用實測色';
+  }
+  if(calibTable) return '⚠ 校正表與目前料色不符，未套用';
+  if(calibMadeColors){
+    const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
+    return (now===calibMadeColors) ? `已產出校正塊（${calibMadeColors}），尚未回讀`
+                                   : `⚠ 料色已改（現在是 ${now}）——先前那顆校正塊是 ${calibMadeColors}，要重產`;
+  }
+  return '尚未校正（用理論色）';
+}
+function applyCalibSummary(){
+  const sum=document.getElementById('calibSummary');
+  if(sum) sum.textContent=calibSummaryText();
+}
+function renderCalibGenStat(K){
+  const el=document.getElementById('calibGenStat'); if(!el) return;
+  const chk=document.getElementById('calibGenChk');
+  if(chk) chk.checked=!!params.calibGen;
+  const g=window.__calibGen;
+  applyCalibSummary();                                   // 每條分支都要同步摘要，不能只有「已套用」那條
+  if(!calibTable){ el.textContent='（要先匯入校正表）'; return; }
+  if(!calibTableMatches()){ el.textContent='（校正表與目前料色不符，整段未套用）'; return; }
+  if(!params.calibGen){ el.textContent='已關閉：色階仍用理論推算，印出來的與匯入校正表前相同。'; return; }
+  if(!g){ el.textContent=''; return; }
+  if(!g.ok){
+    el.innerHTML='<b style="color:#b3281e">未套用</b>（護欄擋下）：'+g.blocked+
+                 '<br>⇒ 色階仍用理論推算，印出來的與匯入前相同。';
+    return;
+  }
+  el.innerHTML='<b>已套用</b>：色階改在實測亮度上均分（實測 L* 跨幅 '+g.span.toFixed(1)+'）。'+
+               '<b>印出來的東西已與匯入前不同。</b>'+
+               (g.warnOnly ? '<br>⚠ 資料有疑慮但不擋：'+g.warnOnly : '');
+}
+/* ④-2（Eric 2026-08-22 裁 C）：把校正值帶進**生成層**——8 階改在「實測」L* 上均分，
+   再從實測曲線反解每階的混比 S。⇒ **這會改變 M6051 的 S 值＝改變印出來的東西**（④-1 只動顯示）。
+   🔴 四道護欄，任一條不過就 ok=false（照舊用理論階梯），而且理由要能講給人聽：
+     ①有格子的通道貼到 250 ＝疑似拍照高光溢出，量到的顏色不可信（黃料實錄）
+     ②相鄰階量到色 ΔE<2 ＝那一段沒有有效解析度
+     ③整條實測 L* 跨幅 < K 階 ×1 L* ＝這組料本來就做不出 K 階（白×黃實測只有 4.6，8 階每階 0.6）
+     ④實測 L* 非單調 ＝反解不出唯一 S
+   ①②只警告不擋（資料髒但梯子仍可用），③④擋（結果會是錯的）。 */
+function calibGenLadder(K){
+  const P=calibTable && calibTable.pts;
+  if(!P || P.length<2) return {ok:false, why:'沒有校正表'};
+  const Lof = lin => { const y=lum709(...lin); return 116*(y>0.008856?Math.cbrt(y):(7.787*y+16/116))-16; };
+  const L=P.map(p=>Lof(p.lin));
+  const L1=L[0], L0=L[L.length-1];                       // pts 已按 S 由大到小 ⇒ [0]＝料A 純、[末]＝料B 純
+  const span=Math.abs(L1-L0);
+  const warn=[], block=[];
+  const clipped=P.filter(p=>Math.max(...hexRgb(p.hex))>=250).length;
+  if(clipped) warn.push(clipped+' 格有通道 ≥250（疑似拍照高光溢出，建議降曝光重拍）');
+  let flat=0;
+  for(let i=0;i<P.length-1;i++){
+    const a=lin2lab(...P[i].lin), b=lin2lab(...P[i+1].lin);
+    if(Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])<2) flat++;
+  }
+  if(flat) warn.push(flat+' 對相鄰階色差 <2（人眼分不出）');
+  if(span < K*1.0) block.push('實測 L* 跨幅只有 '+span.toFixed(1)+'，'+K+' 階平均每階不到 1 L*（人眼可辨下限）⇒ 換一支更暗的料B 才有救');
+  let mono=true;
+  for(let i=0;i<L.length-1;i++) if((L1>L0 ? L[i+1]-L[i] : L[i]-L[i+1]) > 0.5) mono=false;
+  if(!mono) block.push('實測 L* 不是單調的，反解不出唯一混比');
+  const t=[];
+  for(let i=0;i<K;i++){
+    const Lt = K<2 ? L1 : L1+(L0-L1)*i/(K-1);
+    let S=null;
+    for(let j=0;j<L.length-1;j++){
+      const la=L[j], lb=L[j+1];
+      if(la!==lb && (Lt-la)*(Lt-lb)<=0){ S=P[j].S+(P[j+1].S-P[j].S)*(Lt-la)/(lb-la); break; }
+    }
+    if(S===null) S = (Math.abs(Lt-L1)<Math.abs(Lt-L0)) ? P[0].S : P[P.length-1].S;
+    /* 印出去的 S 就是兩位小數（M6051 S{round((1-t)*100)/100}）⇒ 先對齊到同一格，
+       否則畫面模擬的是 0.634、機器印的是 0.63，兩把尺又對不上。 */
+    S=Math.round(Math.min(1,Math.max(0,S))*100)/100;
+    t.push(1-S);
+  }
+  return {ok:block.length===0, why:block.concat(warn).join('；'), warnOnly:warn.join('；'),
+          blocked:block.join('；'), t, LA:L1, LB:L0, span};
+}
 /* 這張表適用於目前的料嗎？校正只綁線材（§6 R6-1）⇒ 料色不同就是別組料的表，不可套用。 */
 function calibTableMatches(){
   if(!calibTable || slotCount!==2) return false;
@@ -1812,13 +1936,7 @@ function refreshCalibUI(){
   const spec=document.getElementById('calibSpec');
   if(spec) spec.textContent=calibSpecText();
   calibTableStat();
-  const sum=document.getElementById('calibSummary');
-  if(sum && calibMadeColors){
-    const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
-    sum.textContent = (now===calibMadeColors)
-      ? `已產出校正塊（${calibMadeColors}），尚未回讀`
-      : `⚠ 料色已改（現在是 ${now}）——先前那顆校正塊是 ${calibMadeColors}，要重產`;
-  }
+  applyCalibSummary();
 }
 document.getElementById('calibFile').onchange=e=>{
   const f=e.target.files && e.target.files[0];
@@ -1880,8 +1998,7 @@ document.getElementById('btnCalib').onclick=async()=>{
       st.textContent=`　已輸出 ${fname}（${c.cells} 格＋${params.pillar?'洗料柱':'無柱'}、${(blob.size/1024).toFixed(0)} KB）。`;
     }
     calibMadeColors=c.colors.join(' · ');
-    document.getElementById('calibSummary').textContent=
-      `已產出校正塊（${calibMadeColors}），尚未回讀`;
+    applyCalibSummary();
   }catch(e){
     st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`;
   }finally{ b.disabled=false; }
