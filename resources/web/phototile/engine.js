@@ -189,71 +189,9 @@ function buildGridData(bmp, widthMm, heightMm, gridMax){
   return { w:gw, h:gh, data:d.data, lab, lum, thumbLab:tl };
 }
 
-/* ================= 最小可印寬度：2-D 形態學開運算（2026-08-15 新增・Eric 裁 P0） =========
-   為什麼需要：`enforceMinHorizontalWidth` 只守水平、`filterSmallComponents` 只殺孤島，
-   於是「附著在大塊上的細長突起」兩關都過（實錄：杜賓剪影的耳緣碎塊、尾巴細線、
-   腿部斑紋鋸齒邊）。開運算 erode→dilate 才是「窄於 N 就消失」的正確語意。
-
-   ⚠ 先前試過的錯解：把標籤圖轉置後重跑 enforceMinHorizontalWidth。那支函式併掉的是
-      「短於門檻的**段**」，而圓形色塊的上下左右邊緣天生就是短段 ⇒ 兩向各跑一次＝
-      從四面侵蝕，**杜賓的眼睛整個被磨掉**。兩道 1-D 掃描 ≠ 2-D 開運算，而且比它兇。
-
-   做法（**與色數無關**，四料最多 64 色也不會變慢）：
-     ① 逐格算「以它為中心的矩形窗內有沒有任何標籤邊界」＝ uniform（＝侵蝕的結果，
-        因為窗內無邊界 ⟺ 窗內全同一標籤）。用「水平邊界」「垂直邊界」兩張積分圖 O(1) 查詢。
-     ② survives ＝ 對 uniform 再做一次窗內求和 >0（＝膨脹）。能被任何一個 uniform 窗
-        覆蓋到的格就夠寬——而覆蓋它的窗必然與它同標籤，所以不需要逐色階分開算。
-     ③ 沒通過的格清空，再用多源 BFS 從通過的格就近回填（4-連通＝曼哈頓最近標籤）。
-   複雜度＝3 次積分圖建置＋2 次掃描，O(w·h)。 */
-function openLabelsMinWidth(labels, w, h, wx, wy){
-  const n=w*h, rx=(wx-1)>>1, ry=(wy-1)>>1;
-  if(rx<1 && ry<1) return { labels:new labels.constructor(labels), openedAway:0 };
-  const W1=w+1, IH=new Int32Array(W1*(h+1)), IV=new Int32Array(W1*(h+1));
-  for(let y=0;y<h;y++){
-    const r=y*w, o=(y+1)*W1, o0=y*W1; let rh=0, rv=0;
-    for(let x=0;x<w;x++){
-      const p=r+x;
-      if(x<w-1 && labels[p]!==labels[p+1]) rh++;
-      if(y<h-1 && labels[p]!==labels[p+w]) rv++;
-      IH[o+x+1]=IH[o0+x+1]+rh; IV[o+x+1]=IV[o0+x+1]+rv;
-    }
-  }
-  const q=(I,x0,y0,x1,y1)=> (x1<x0||y1<y0) ? 0 :
-    I[(y1+1)*W1+x1+1]-I[y0*W1+x1+1]-I[(y1+1)*W1+x0]+I[y0*W1+x0];
-  const uni=new Uint8Array(n);
-  for(let y=0;y<h;y++){
-    const y0=Math.max(0,y-ry), y1=Math.min(h-1,y+ry), r=y*w;
-    for(let x=0;x<w;x++){
-      const x0=Math.max(0,x-rx), x1=Math.min(w-1,x+rx);
-      if(q(IH,x0,y0,x1-1,y1)===0 && q(IV,x0,y0,x1,y1-1)===0) uni[r+x]=1;
-    }
-  }
-  IH.fill(0);
-  for(let y=0;y<h;y++){
-    const r=y*w, o=(y+1)*W1, o0=y*W1; let row=0;
-    for(let x=0;x<w;x++){ row+=uni[r+x]; IH[o+x+1]=IH[o0+x+1]+row; }
-  }
-  const out=new labels.constructor(labels), assigned=new Uint8Array(n);
-  const queue=new Int32Array(n); let qt=0;
-  for(let y=0;y<h;y++){
-    const y0=Math.max(0,y-ry), y1=Math.min(h-1,y+ry), r=y*w;
-    for(let x=0;x<w;x++){
-      const x0=Math.max(0,x-rx), x1=Math.min(w-1,x+rx);
-      if(q(IH,x0,y0,x1,y1)>0){ assigned[r+x]=1; queue[qt++]=r+x; }
-    }
-  }
-  const openedAway=n-qt;
-  if(qt===0) return { labels: out, openedAway: 0 };   // 全被開掉＝門檻不合理，原樣退回
-  let qh=0;
-  while(qh<qt){
-    const p=queue[qh++], c=p%w;
-    if(c>0   && !assigned[p-1]){ assigned[p-1]=1; out[p-1]=out[p]; queue[qt++]=p-1; }
-    if(c<w-1 && !assigned[p+1]){ assigned[p+1]=1; out[p+1]=out[p]; queue[qt++]=p+1; }
-    if(p>=w  && !assigned[p-w]){ assigned[p-w]=1; out[p-w]=out[p]; queue[qt++]=p-w; }
-    if(p+w<n && !assigned[p+w]){ assigned[p+w]=1; out[p+w]=out[p]; queue[qt++]=p+w; }
-  }
-  return { labels: out, openedAway };
-}
+/* openLabelsMinWidth 已於 2026-08-22 移進 `mesh_union.js`（兩線共用同一份實作）。
+   本線原本的私有複本連同三個硬傷一起退役：偶數 kernel 少一格、openedAway 恆為 0（種子數
+   在 BFS 之後才算）、全開掉時靜默退回。共用版另補「開完必須再修一次最小寬」的呼叫端契約。 */
 
 /* ================= 濾除（index.html:347-368，DOM 統計改回傳） ================= */
 function filterLabels(labels, img, P, paletteSize, strategy){
@@ -261,8 +199,10 @@ function filterLabels(labels, img, P, paletteSize, strategy){
   const sx=P.width/img.w, sz=P.height/img.h;
   const smooth=root.PhotoTileMesh.smoothLabelNoise(labels,img.w,img.h,paletteSize,sx,sz,P.noiseMm,strategy);
   const minWidthMm=2*P.nozzle;
-  const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,
-    Math.max(1,Math.round(minWidthMm/sx)));
+  /* ceil 不是 round（2026-08-22）：最小寬是硬約束，round 會放行 0.78mm 的段。 */
+  const minCells=Math.max(1,Math.ceil(minWidthMm/sx));
+  const minCellsV=Math.max(1,Math.ceil(minWidthMm/sz));
+  const wide=root.PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,minCells);
   const result=root.PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,P.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
   /* 【2026-08-15・Eric 裁 P0】補上 2-D 開運算，解掉「附著在大塊上的細長突起」
@@ -272,16 +212,21 @@ function filterLabels(labels, img, P, paletteSize, strategy){
         而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣 ⇒ 被當雜訊清掉。
         實錄：先放前面時杜賓兩隻眼睛整個消失（前後差異圖量到兩塊 41×39 格的移除）。
         放後面則雜訊濾除看到的是原本的連通性，眼睛保得住，開運算再去修細橋與毛刺。 */
-  const opened=openLabelsMinWidth(result.labels,img.w,img.h,
-    Math.max(1,Math.round(minWidthMm/sx)), Math.max(1,Math.round(minWidthMm/sz)));
+  const opened=root.PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
+  /* 🔴 開完一定要再修一次最小寬：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。
+     degenerate＝門檻對這張圖不合理（一格核心都沒有）⇒ 整步作廢，退回開運算前那份。 */
+  const finalLabels = opened.degenerate ? result.labels
+    : root.PhotoTileMesh.enforceMinHorizontalWidth(opened.labels,img.w,img.h,minCells).labels;
+  const violations = root.PhotoTileMesh.countMinWidthViolations(finalLabels,img.w,img.h,minCells);
   let changedPixels=0;
-  for(let i=0;i<labels.length;i++) if(opened.labels[i]!==labels[i]) changedPixels++;
+  for(let i=0;i<labels.length;i++) if(finalLabels[i]!==labels[i]) changedPixels++;
   const stats={removedComponents:result.removedComponents, changedPixels,
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
     widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
-    openedAwayPixels:opened.openedAway,
+    openedAwayPixels:opened.openedAway, openDegenerate:opened.degenerate,
+    minWidthViolations:violations,
     passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
-  return { labels: opened.labels, stats };
+  return { labels: finalLabels, stats };
 }
 
 /* ================= 雙料量化（index.html:474-521 計算部；畫布/metric 拿掉） =================

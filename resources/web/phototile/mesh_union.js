@@ -774,5 +774,101 @@
     return { labels: out, changedPixels: changed, mergedRuns };
   }
 
-  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh, enforceMinHorizontalWidth };
+  /* ── 2-D 最小特徵開運算（Eric 2026-08-22 裁「換」；原型出自開發線 engine.js 2026-08-15）──
+     `enforceMinHorizontalWidth` 只守水平、`filterSmallComponents` 只殺孤島，兩者都處理不了
+     「附著在大塊上的細長突起」（垂直與斜向）。這支用矩形結構元素做開運算：
+     先找出「以自己為中心、wx×wy 視窗內全同標籤」的核心格，再從核心 BFS 回填其餘格。
+
+     ⚠ **這一步會丟掉物理上印得出來的垂直細節**（垂直方向靠層高離散、不受口徑限制）。
+       它是**風格取捨**不是可印性修復——Eric 2026-08-22 看過 A/B 數據後裁定要換：
+       咬痕 22→3、邊界總長 −13.1%；代價就是垂直細節。只約束水平的版本實測等於什麼都沒做。
+
+     🔴 **呼叫端必須在本步之後再跑一次 `enforceMinHorizontalWidth`**：BFS 回填會重新製造
+       短於最小寬的水平段。實測（Codex 反審指出、本專案親驗）：開運算前違規 0 段，
+       開運算後 57 段、最短 1 格（門檻 16 格）。不補修復＝白縫回來。
+
+     🔴 **偶數 kernel 取上界**：視窗恆為 2r+1（奇數），r 取 ceil((w-1)/2) ⇒ 實際視窗 ≥ 要求值。
+       原版用 `(w-1)>>1` 會少一格（wx=16 實際只有 15；3×3 與 4×4 結果完全相同）。
+       最小寬是**硬約束**，寧可多開一格也不能少。 */
+  function openLabelsMinWidth(labels, w, h, wx, wy) {
+    const n = w * h;
+    const rx = Math.ceil((Math.max(1, wx) - 1) / 2);
+    const ry = Math.ceil((Math.max(1, wy) - 1) / 2);
+    if (rx < 1 && ry < 1)
+      return { labels: new labels.constructor(labels), openedAway: 0, degenerate: false };
+    const W1 = w + 1, IH = new Int32Array(W1 * (h + 1)), IV = new Int32Array(W1 * (h + 1));
+    for (let y = 0; y < h; y++) {
+      const r = y * w, o = (y + 1) * W1, o0 = y * W1;
+      let rh = 0, rv = 0;
+      for (let x = 0; x < w; x++) {
+        const p = r + x;
+        if (x < w - 1 && labels[p] !== labels[p + 1]) rh++;
+        if (y < h - 1 && labels[p] !== labels[p + w]) rv++;
+        IH[o + x + 1] = IH[o0 + x + 1] + rh; IV[o + x + 1] = IV[o0 + x + 1] + rv;
+      }
+    }
+    const q = (I, x0, y0, x1, y1) => (x1 < x0 || y1 < y0) ? 0 :
+      I[(y1 + 1) * W1 + x1 + 1] - I[y0 * W1 + x1 + 1] - I[(y1 + 1) * W1 + x0] + I[y0 * W1 + x0];
+    const uni = new Uint8Array(n);
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - ry), y1 = Math.min(h - 1, y + ry), r = y * w;
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - rx), x1 = Math.min(w - 1, x + rx);
+        if (q(IH, x0, y0, x1 - 1, y1) === 0 && q(IV, x0, y0, x1, y1 - 1) === 0) uni[r + x] = 1;
+      }
+    }
+    IH.fill(0);
+    for (let y = 0; y < h; y++) {
+      const r = y * w, o = (y + 1) * W1, o0 = y * W1;
+      let row = 0;
+      for (let x = 0; x < w; x++) { row += uni[r + x]; IH[o + x + 1] = IH[o0 + x + 1] + row; }
+    }
+    const out = new labels.constructor(labels), assigned = new Uint8Array(n);
+    const queue = new Int32Array(n);
+    let qt = 0;
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.max(0, y - ry), y1 = Math.min(h - 1, y + ry), r = y * w;
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.max(0, x - rx), x1 = Math.min(w - 1, x + rx);
+        if (q(IH, x0, y0, x1, y1) > 0) { assigned[r + x] = 1; queue[qt++] = r + x; }
+      }
+    }
+    /* 🔴 一格核心都沒有＝門檻對這張圖不合理。原版在這裡「原樣退回且把 openedAway 報成 0」
+       ⇒ 診斷看起來像「沒問題」，其實整步失效。改成顯性回報 degenerate，呼叫端才判得出來。 */
+    if (qt === 0)
+      return { labels: out, openedAway: 0, degenerate: true };
+    /* 🔴 種子數要在 BFS **之前**取——迴圈裡 qt 會一路長到全部格子都被指派，
+       事後再算 n-qt 恆為 0（2026-08-22 移植時我自己踩到，實測 9,410 格被改卻報 openedAway=0）。 */
+    const seeded = qt;
+    let qh = 0;
+    while (qh < qt) {
+      const p = queue[qh++], c = p % w;
+      if (c > 0     && !assigned[p - 1]) { assigned[p - 1] = 1; out[p - 1] = out[p]; queue[qt++] = p - 1; }
+      if (c < w - 1 && !assigned[p + 1]) { assigned[p + 1] = 1; out[p + 1] = out[p]; queue[qt++] = p + 1; }
+      if (p >= w    && !assigned[p - w]) { assigned[p - w] = 1; out[p - w] = out[p]; queue[qt++] = p - w; }
+      if (p + w < n && !assigned[p + w]) { assigned[p + w] = 1; out[p + w] = out[p]; queue[qt++] = p + w; }
+    }
+    return { labels: out, openedAway: n - seeded, degenerate: false };
+  }
+
+  /* 可印性斷言：數出「違反最小水平寬」的段數。貼邊段不計（它們被影像邊界截斷，不是真的細條）。
+     用途＝濾除鏈跑完後自我檢查；非 0 就是有人把保證弄壞了，要吵不要靜默。 */
+  function countMinWidthViolations(labels, w, h, minCells) {
+    if (!(minCells > 1)) return 0;
+    let bad = 0;
+    for (let y = 0; y < h; y++) {
+      const o = y * w;
+      let x = 0;
+      while (x < w) {
+        const v = labels[o + x];
+        let x2 = x + 1;
+        while (x2 < w && labels[o + x2] === v) x2++;
+        if (x2 - x < minCells && x !== 0 && x2 !== w) bad++;
+        x = x2;
+      }
+    }
+    return bad;
+  }
+
+  return { cleanIsolated, smoothLabelNoise, filterSmallComponents, collectParts, buildLabelMesh, auditMesh, enforceMinHorizontalWidth, openLabelsMinWidth, countMinWidthViolations };
 });
