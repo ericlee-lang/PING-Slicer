@@ -378,6 +378,29 @@ function diagnose(){
   }
   const sp=cells.map(c=>c.spread).sort((a,b)=>a-b);
   const med=sp[Math.floor(sp.length/2)];
+  /* 🔴 料色設定檢查（Eric 2026-08-22 實走踩到）：純色格量到的顏色若與「這塊用的料」差太多，
+     多半是**上面那幾格料色沒設成實際印的料**——而不是校正要抓的色偏。
+     實錄：他印黃料、頁面留著預設的紅 ⇒ 每一格理論色都算錯，ΔE 一路飆到 89，
+     但畫面看起來仍像「有正常讀到值」＝**又一份會被當真的錯表**（同 0807 四角那次的病）。
+     門檻 30：真實色偏（校正要量的東西）實測落在個位數到 20 出頭；換錯料是 80+，中間有很大餘裕。
+     兩種模式都適用——它只需要「每支料有 1 個純色格」，雙料也成立。 */
+  const SLOT_TH=30;
+  const wrongSlots=[];
+  for(let t2=0;t2<SLOT_N;t2++){
+    const pure=cells.find(c=>c.w[t2]===100);
+    if(!pure) continue;
+    const d=dE(labOf(pure.rgb), labOf(hx(SLOTS[t2].hex)));
+    if(d>SLOT_TH) wrongSlots.push({slot:LETTER[t2], d, want:SLOTS[t2].hex, got:pure.hex});
+  }
+  if(wrongSlots.length){
+    setMsg('<b>料色設定可能不對</b>：'+wrongSlots.map(w=>
+        `純 <b>${w.slot}</b> 料量到 <span class="chip" style="background:${w.got}"></span> <b>${w.got}</b>，`
+        +`但上面設的是 <span class="chip" style="background:${w.want}"></span> ${w.want}（ΔE <b>${w.d.toFixed(0)}</b>）`).join('；')
+      +'<br>差這麼多通常不是色偏，是<b>上面那幾格的料色還是預設值</b>。'
+      +'請先把它改成你實際印的料色——表格會即時重算，<b>不必重讀照片</b>。'
+      +'<br><span class="sub">（校正要抓的真實色偏通常在 ΔE 20 以內；超過 '+SLOT_TH+' 幾乎都是設錯料。）</span>','warn');
+    return;
+  }
   /* 🔴 雙料沒有這個判準可用（Eric 2026-08-22 裁一甲的已知代價，不是疏漏）：
      主判準靠「同一支料有 3 個純色格可以互比」，那是四料 6 對排列的副產物；
      雙料只有 1 對 ⇒ 每支料各只有 1 個純色格，上面的迴圈全被 p.length<2 跳過、worst 恆為 0
