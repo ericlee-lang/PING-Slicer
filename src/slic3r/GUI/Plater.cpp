@@ -5855,6 +5855,45 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
                                 << " recipe " << palette.recipes.at((int) i);
     }
 
+    /* PING(2026-08-22 Eric 裁「丁」)：零回抽護欄——fail loud，不要再靜默。
+       照片磚的零回抽只寫在**機器層**（retraction_length=0），而線材層的
+       filament_retraction_length 只要不是 nil 就會**覆蓋掉它**。0730 實錄：FF 照片磚支被掃成 3，
+       零回抽就這樣破了 20 天沒人發現——因為壞掉的時候什麼都不會說。
+       「甲」（照片磚機的線材下拉只剩專用支）已經堵住主要入口；這一條是背水的那道：
+       使用者自建的線材、舊專案帶進來的槽位、日後有人把專用支的回抽改掉，都還是會走到這裡。
+       ⚠ 只在**匯入照片磚時**檢查一次；之後才被改掉的不會再叫（要每次切片都驗得改切片流程，
+         那是另一件事）。寧可少叫也不要在非照片磚專案上亂叫。 */
+    {
+        std::vector<std::string> offenders;
+        for (size_t i = 0; i < material_count && i < preset_bundle->filament_presets.size(); ++i) {
+            const Preset* fp = preset_bundle->filaments.find_preset(preset_bundle->filament_presets[i], false);
+            if (fp == nullptr)
+                continue;
+            const auto* rl = dynamic_cast<const ConfigOptionFloatsNullable*>(
+                fp->config.option("filament_retraction_length"));
+            if (rl == nullptr || rl->values.empty())
+                continue;
+            if (!rl->is_nil(0) && rl->values.front() > 0.) {
+                offenders.push_back(fp->name);
+                BOOST_LOG_TRIVIAL(error) << "PING photo-tile: slot T" << i << " filament '" << fp->name
+                                         << "' overrides machine zero-retraction with "
+                                         << rl->values.front() << " mm";
+            }
+        }
+        if (!offenders.empty()) {
+            std::sort(offenders.begin(), offenders.end());
+            offenders.erase(std::unique(offenders.begin(), offenders.end()), offenders.end());
+            wxString names;
+            for (const std::string& n : offenders)
+                names += (names.empty() ? wxString() : wxString::FromUTF8("、")) + wxString::FromUTF8(n);
+            ping_notify_photo_tile_import(
+                plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
+                wxString::FromUTF8("照片磚：這些線材會覆蓋掉機台的零回抽 —— ") + names +
+                wxString::FromUTF8("。照片磚必須零回抽，否則換色處會抽出縫。請改用照片磚專用線材"
+                                   "（回抽長度為 nil＝沿用機台設定）再切片。"));
+        }
+    }
+
     if (unresolved_colors == 0) {
         ping_notify_photo_tile_import(
             plater, NotificationManager::NotificationLevel::RegularNotificationLevel,
