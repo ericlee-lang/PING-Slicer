@@ -304,7 +304,7 @@
   </section>
 </main>
 
-<script src="mesh_union.js?v=20260720b"></script>
+<script src="mesh_union.js?v=20260822"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
@@ -476,27 +476,46 @@ function filterVerticalLabels(labels,paletteSize,strategy){
   /* 口徑最小寬（Eric 2026-07-19 定，縫隙根因）：零件水平剖面窄於 2×口徑＝噴頭進得去、
      繞不出來 → 白縫。只管水平向（垂直靠層高離散不受限）；與雜訊濾除獨立、恆開。 */
   const minWidthMm=2*params.nozzle;
-  const wide=PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,
-    Math.max(1,Math.round(minWidthMm/sx)));
+  /* 🔴 ceil 不是 round（Codex 反審抓到，2026-08-22 修）：最小寬是**硬約束**。
+     round 在 0.8/sx=13.33 時取 13 ⇒ 實際只有 0.78mm 的段被放行，違反自己訂的規則。 */
+  const minCells=Math.max(1,Math.ceil(minWidthMm/sx));
+  const minCellsV=Math.max(1,Math.ceil(minWidthMm/sz));
+  const wide=PhotoTileMesh.enforceMinHorizontalWidth(smooth.labels,img.w,img.h,minCells);
   const result=PhotoTileMesh.filterSmallComponents(wide.labels,img.w,img.h,sx,sz,params.noiseMm,
     {maxPasses:Math.max(8,Math.min(24,paletteSize+2))});
+  /* ── 2-D 開運算＋修復（Eric 2026-08-22 裁「換」）──────────────────────────
+     順序鐵則（開發線 0815 已付過學費）：**必須放在 filterSmallComponents 之後**。
+     放前面會先切斷「眼睛↔眉毛」的細橋，眼睛變孤立塊後被雜訊門檻整個清掉（杜賓實錄）。
+     🔴 開完**一定要再跑一次最小寬**：BFS 回填會重新製造短段（實測 0 → 57 段、最短 1 格）。 */
+  const opened=PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
+  const repaired=opened.degenerate
+    ? result                                    // 門檻對這張圖不合理＝整步失效，退回開運算前那份
+    : {labels:PhotoTileMesh.enforceMinHorizontalWidth(opened.labels,img.w,img.h,minCells).labels};
+  /* 可印性斷言：跑完必須是 0。這正是這次抓到「開運算破壞保證」的那把尺，留在鏈上當回歸防線。 */
+  const finalLabels=repaired.labels;
+  const violations=PhotoTileMesh.countMinWidthViolations(finalLabels,img.w,img.h,minCells);
+  if(violations>0)
+    console.warn('PING 照片磚：濾除鏈跑完仍有',violations,'段違反最小可印寬（minCells='+minCells+'）');
   /* 管線檢視（Eric 2026-08-22）：把**這一次真的跑過的**四份標籤留著，等 sim 完成後畫出來。
      刻意不另外重算——重算的東西不保證等於切片會吃到的東西，那種圖看了會做錯判斷。
      沒勾就不留（不佔記憶體）。 */
   window.__stages = stageView
     ? {raw:new Uint8Array(labels), smooth:new Uint8Array(smooth.labels),
-       wide:new Uint8Array(wide.labels), final:new Uint8Array(result.labels), w:img.w, h:img.h}
+       wide:new Uint8Array(wide.labels), small:new Uint8Array(result.labels),
+       final:new Uint8Array(finalLabels), w:img.w, h:img.h}
     : null;
   let changedPixels=0;
-  for(let i=0;i<labels.length;i++) if(result.labels[i]!==labels[i]) changedPixels++;
+  for(let i=0;i<labels.length;i++) if(finalLabels[i]!==labels[i]) changedPixels++;
   const stats={removedComponents:result.removedComponents, changedPixels,
     smoothedPixels:smooth.changedPixels, changedAreaMm2:changedPixels*sx*sz,
     widthChangedPixels:wide.changedPixels, widthMergedRuns:wide.mergedRuns, minWidthMm,
+    openedAwayPixels:opened.openedAway, openDegenerate:opened.degenerate,
+    minWidthViolations:violations,
     passes:result.passes, thresholdMm:result.thresholdMm, strategy:smooth.strategy};
   window.__noiseStats=stats;
   updateNoiseStat(stats);
   updateNozzleStat(stats);
-  return result.labels;
+  return finalLabels;
 }
 /* 管線檢視渲染（Eric 2026-08-22）。getRGB(k)→[r,g,b]＝該色階實際會印出來的顏色，
    由呼叫端（雙料／四料兩條 sim）提供，確保這裡畫的顏色與模擬圖同源。 */
@@ -511,7 +530,8 @@ function renderStages(getRGB){
     ['① L* 分箱',      S.raw,    null,     '把每個取樣格的亮度 L* 對到最近的色階。此時還帶著照片全部的細節與雜點。'],
     ['② 雜訊平滑',      S.smooth, S.raw,    '「雜訊濾除」那個 mm 值：視窗內取中位數，把孤點與毛邊抹掉。調大＝細節掉得多。'],
     ['③ 口徑最小寬',    S.wide,   S.smooth, '窄於 2×口徑的水平細條併入鄰色（噴頭進得去、繞不出來＝白縫）。恆開，跟著口徑走。'],
-    ['④ 小色塊移除',    S.final,  S.wide,   '面積小於門檻的獨立色塊整塊併掉、不留空洞。這一份就是切片與 3MF 實際吃的標籤。'],
+    ['④ 小色塊移除',    S.small,  S.wide,   '外接框長邊小於門檻的獨立色塊整塊併掉、不留空洞（注意：判準是外接框不是面積）。'],
+    ['⑤ 2D 開運算＋修復', S.final, S.small,  '削掉垂直與斜向的細長突起，再補一次最小寬修復（開運算會重新製造短段）。這一份才是切片與 3MF 實際吃的標籤。'],
   ];
   const px=Math.min(220, Math.max(120, Math.round(760/steps.length)-12));
   /* 顯示用畫布縮到 px 寬即可——全解析度存 4 張的代價很real：Eric 的貓 720,530 格，
