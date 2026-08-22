@@ -99,7 +99,7 @@ function normalizeRequest(req){
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
-    pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 25)), // index.html:1029-1031
+    pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 15)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     teeth:   !!(req.seam && req.seam.teeth),
     /* p2aBlock 預設 true（Eric 2026-08-22 裁「預設開」，同值住 index.html:333）。
        引擎的預設一律跟著工作室走——否則「seam 欄缺席＝與工作室輸出位元組全等」這條契約會破：
