@@ -248,6 +248,14 @@ private:
     size_t          m_photo_tile_export_expected_chunks{ 0 };
     size_t          m_photo_tile_export_next_chunk{ 0 };
     bool            m_photo_tile_export_active{ false };
+    // VibeCAD STEP repair core 1.0.0 → ORCA 的固定版傳輸協定。
+    // 頁面只在使用者明確按「使用修補版本」後送出；宿主永不覆寫既有檔案。
+    std::vector<unsigned char> m_step_repair_export_buffer;
+    size_t          m_step_repair_export_expected_size{ 0 };
+    size_t          m_step_repair_export_expected_chunks{ 0 };
+    size_t          m_step_repair_export_next_chunk{ 0 };
+    bool            m_step_repair_export_active{ false };
+    std::string     m_step_repair_suggested_name;
     /* ── C-2 第 1 項：工作室接隱形宿主（2026-08-04） ─────────────────────────
        生成從「工作室頁自己建 3MF」改成「頁面只送參數、C++ 驅動 PhotoTileEngineHost」。
        這個宿主**刻意做成長命的**（不是每次生成 new 一顆）——它同時是 C-2 第 3 項
@@ -518,6 +526,9 @@ public:
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            open_photo_tile(const wxString& image_path = wxEmptyString);
+    void            open_step_repair();
+    void            step_repair_page_result(bool ok, const std::string& message,
+                                            const std::string& path = std::string());
     // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──
     void            photo_tile_ensure_host();                       // 建立長命宿主（含 runtime 檢測）
     void            photo_tile_shutdown_host();                     // app 收攤時收乾淨
