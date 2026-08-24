@@ -35,6 +35,20 @@ struct NamedSolid
     int tri_face_cout = 0;
 };
 
+/* 【2026-08-24】匯入前哨的判定材料：在「還沒網格化」的時候就能算出來的 BRep 普查。
+   刻意只放計數、不放幾何 —— 這一層回答的是「這個檔破了沒」，
+   「破在哪裡」需要座標，那是 VibeCAD Repair Core 1.1.0 的事（見契約 §1）。 */
+struct StepBRepCensus
+{
+    int components = 0;   // 頂層形狀展開後的總數
+    int solids     = 0;   // 其中是封閉實體的
+    int shells     = 0;   // 其中只有外殼的
+
+    // 嚴格觸發（Eric 2026-08-24 裁）：整份檔一個實體都沒有，才算「沒有實心結構」。
+    // 「有實體也有殼」的混合檔不提示 —— 那是正常設計，誤報一次就會讓提示變雜訊。
+    bool has_no_solid() const { return components > 0 && solids == 0; }
+};
+
 //BBS: Load an step file into a provided model.
 extern bool load_step(const char *path, Model *model,
                       bool& is_cancel,
@@ -98,6 +112,9 @@ public:
     Step(std::string path, ImportStepProgressFn stepFn = nullptr, StepIsUtf8Fn isUtf8Fn = nullptr);
     ~Step();
     Step_Status load();
+    /* 只走 XCAF 的形狀樹做計數，不做任何幾何運算、不網格化，
+       所以可以放在 load() 與 mesh() 之間那個空檔呼叫（Model.cpp 的 step_mesh_fn 就在那裡）。 */
+    StepBRepCensus inspect_brep() const;
     unsigned int get_triangle_num(double linear_defletion, double angle_defletion);
     unsigned int get_triangle_num_tbb(double linear_defletion, double angle_defletion);
     void clean_mesh_data();

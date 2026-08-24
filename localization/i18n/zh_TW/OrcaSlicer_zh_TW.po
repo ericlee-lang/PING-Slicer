@@ -21461,3 +21461,33 @@ msgstr "連接件超出切割輪廓"
 
 msgid "connectors is out of object"
 msgstr "連接件超出物件範圍"
+
+#. 【2026-08-24・牌 c-0824-VIBE-02】STEP 匯入前哨（BRep preflight）
+
+msgid "This file has no solid body"
+msgstr "這個檔案沒有實心結構"
+
+msgid "All %d parts inside are surfaces only - they have an outer skin, but no solid interior. Slicing this may produce holes, thin walls or wrong infill."
+msgstr "裡面的 %d 個組件全部只有外殼——有表面，但沒有定義出實心的內部。\n這樣切片可能出現破洞、薄壁或填充錯亂。"
+
+msgid "Open STEP repair tool"
+msgstr "開啟 STEP 修補工具"
+
+msgid "You can also just press OK to import it anyway."
+msgstr "也可以直接按「確定」照樣匯入。"
+
+msgid "Drag this file into the repair tool: %1%"
+msgstr "請把這個檔案拖進修補工具：%1%"
+
+msgid "%1% has no solid body; the sliced result may not be what you expect."
+msgstr "%1% 沒有實心結構，切片結果可能不如預期。"
+
+msgid "%1% and %2% other files"
+msgstr "%1% 等 %2% 個檔案"
+
+msgid "The STEP repair tool is only available on Windows in this version."
+msgstr "這個版本的 STEP 修補工具只在 Windows 上可用。"
+
+msgid "STEP repair"
+msgstr "STEP 修補"
+
