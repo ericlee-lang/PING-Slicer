@@ -139,10 +139,13 @@ std::string ping_quote_format_txt(const PingQuotePack &pack)
     if (pack.has_wall_loops)          s += "wall_loops=" + std::to_string(pack.wall_loops) + "\n";
     if (!pack.process_file.empty())   s += "process_file=" + pack.process_file + "\n";
     // restore_file 只在還原檔真的進包時才寫（代印線指出的一致性要求）。
-    // restore_size_b（v1.2 新增）與它**綁在一起輸出**：契約規定「有還原檔時必填」，
-    // 而對方明訂「宣告了 restore_file 但大小對不上就整包擋下」——所以兩行要嘛一起有、
-    // 要嘛一起沒有。size 是 0 卻宣告了檔名＝內部有 bug，此時寧可兩行都不出，
-    // 讓對方當成「這包沒有還原檔」（可用），而不是「這包的還原檔壞了」（整包被擋）。
+    // restore_size_b（v1.2 新增）與它**綁在一起輸出**：契約規定「有還原檔時必填」。
+    // 成對輸出是本端的義務（契約 v1.3 §2-1）：只給 restore_file 一行時接收端無從對帳
+    // ——它分不出「v1.1 時代的舊包」與「v1.2 的包但大小算掉了」。
+    // size 是 0 卻宣告了檔名＝內部有 bug，此時寧可兩行都不出，
+    // 讓對方當成「這包沒有還原檔」（合法的 v1.1 形狀，接收端照收且不提示）。
+    // ⚠ v1.3 起接收端遇大小不符只提示、不擋包 ⇒ 本端不得再把「會被擋」當成保護。
+    //   （v1.2 原註引用的「整包擋下」是對方從未實作的條文，2026-08-26 雙方合意廢除。）
     if (!pack.restore_file.empty() && pack.restore_size_b > 0) {
         s += "restore_file=" + pack.restore_file + "\n";
         s += "restore_size_b=" + std::to_string(pack.restore_size_b) + "\n";
