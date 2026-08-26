@@ -174,7 +174,9 @@ for name, (kind, d) in presets.items():
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",
-                "seam_position": "aligned",
+                # 🔴 Eric 2026-08-26 改裁：接縫 aligned → back（取代 0715）。照片磚維持 aligned＝
+                #    它有自己的 0720 裁定「背面→對齊（V 溝配套）」，見上一個分支。
+                "seam_position": "back",
                 # 爬坡品質（Eric 2026-07-24）：懸空降速四段＋橋接流量；照片磚特調豁免
                 # 🔴 2026-08-16 Eric 裁「A+C」**推翻上面 0724 的降速部分**（四段值本身留著當備援）：
                 #    A＝`enable_overhang_speed` 全庫關（實測：0.6 黃銅跑 75% 那階的 10 mm/s，
@@ -504,7 +506,7 @@ for _hn, (_lh, _flh, _nz) in HF_PROCS.items():
                      ("top_surface_acceleration", "800"),
                      ("outer_wall_acceleration", "1500"), ("inner_wall_acceleration", "1500"),
                      ("top_shell_thickness", "1.2"), ("bottom_shell_thickness", "1.2"),
-                     ("sparse_infill_pattern", "gyroid"), ("seam_position", "aligned"),
+                     ("sparse_infill_pattern", "gyroid"), ("seam_position", "back"),
                      ("support_threshold_angle", "35"), ("instantiation", "true"),
                      ("compatible_printers", ["FF800 同進 %s nozzle" % _nz])):
         if _hd.get(_hk) != _hw:
