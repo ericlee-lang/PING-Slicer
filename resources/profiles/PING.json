@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.01",
+    "version": "01.00.01.02",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1049,6 +1049,30 @@
         {
             "name": "0.5mm 高流量 @FF800 同進 (1.0)",
             "sub_path": "process/0.5mm 高流量 @FF800 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm PA-CF @FP300 (0.2)",
+            "sub_path": "process/0.1mm PA-CF @FP300 (0.2).json"
+        },
+        {
+            "name": "0.1mm PA-CF 樹狀 @FP300 (0.2)",
+            "sub_path": "process/0.1mm PA-CF 樹狀 @FP300 (0.2).json"
+        },
+        {
+            "name": "0.2mm PA-CF @FP300 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @FP300 (0.4).json"
+        },
+        {
+            "name": "0.2mm PA-CF 樹狀 @FP300 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @FP300 (0.4).json"
+        },
+        {
+            "name": "0.3mm PA-CF @FP300 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @FP300 (0.6).json"
+        },
+        {
+            "name": "0.3mm PA-CF 樹狀 @FP300 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @FP300 (0.6).json"
         }
     ],
     "filament_list": [
