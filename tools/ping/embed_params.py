@@ -1925,6 +1925,62 @@ def main(src_base):
     #        default_materials，故不需回寫。
     apply_default_materials(pj)
 
+    # 4d-2b. ★ 照片磚線材相容性收斂（Eric 2026-08-22 裁「甲」）——2026-08-26 **回填產生器（源頭修復）**
+    # 🔴 為什麼今天才補：0822 那批**直接改在產出檔上、從沒回產生器** ⇒ 任何一次全量 regen 都會靜默洗掉它
+    #    （printer_notes 被源檔的空值蓋掉／default_materials 被上面 4d-2 重建成全清單／線材條件式整批消失）。
+    #    2026-08-26 收漂移時實證：regen 完 verify 立刻三個 FAIL。這就是 SOP_參數入版紀律
+    #    「直改產出檔沒回產生器＝下次 regen 就被洗掉」的活教材——**改規則要回產生器，不是只改產出檔**。
+    # 三件＝0822 那顆 commit（24c1229944）的全部內容：
+    #   ①照片磚**機器**（口徑變體）printer_notes = "PHOTOTILE"：這是照片磚機的識別標記，
+    #     線材端條件式靠它認人（沒有它，下面第 ③ 條的條件式等於沒作用）。
+    #   ②照片磚 **machine_model** 的 default_materials 只留該機的照片磚專用支（FD300 系是另一支）。
+    #   ③其餘線材補 compatible_printers_condition ⇒ 照片磚機的線材下拉選不到它們。
+    #     ⚠ **明列 compatible_printers 的線材不加**——明列優先於條件式，加了也不生效；
+    #       0822 原註已載明「產生器若照舊寫 all_machines 會整個蓋掉」。四料同進/3in1/照片磚專用支都屬此類。
+    PT_NOTE = "PHOTOTILE"
+    PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
+    pt_m = pt_mm = pt_f = 0
+    for _e in mac_list:
+        if "照片磚" not in _e["name"]:
+            continue
+        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
+        if not os.path.isfile(_fp):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        if _d.get("printer_notes") != PT_NOTE:
+            _d["printer_notes"] = PT_NOTE
+            jdump(_fp, _d); pt_m += 1
+    for _e in mm_list:
+        if "照片磚" not in _e["name"]:
+            continue
+        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
+        if not os.path.isfile(_fp):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        _want = PT_FIL_PLA_FD if _e["name"].startswith("FD300") else PT_FIL_PLA
+        if _d.get("default_materials") != _want:
+            _d["default_materials"] = _want
+            jdump(_fp, _d); pt_mm += 1
+    if pt_m:   # 沒有照片磚機的分支（無範本資料夾）＝整段自然跳過，不要平白給線材加條件式
+        for _fp in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+            _d = json.load(io.open(_fp, encoding="utf-8"))
+            if _d.get("instantiation") != "true":
+                continue
+            if _d.get("compatible_printers"):
+                # 明列優先於條件式 ⇒ 不只是「不加」，而是**主動移除**。
+                # 🔴 2026-08-26 實錄：`PING PLA(照片磚 FD300)` 被加上「非照片磚機」條件式＝自我否定。
+                #    真因不在這裡——4b-1e 是「複製 PING PLA - 210 再改身分」，0822 幫 210 加的條件式
+                #    被一起抄進照片磚專用支。改成主動移除＝**自癒**，不依賴任何 emit 時序。
+                if _d.pop("compatible_printers_condition", None) is not None:
+                    jdump(_fp, _d); pt_f += 1
+                continue
+            if _d.get("compatible_printers_condition") != PT_COND:
+                _d["compatible_printers_condition"] = PT_COND
+                jdump(_fp, _d); pt_f += 1
+    if pt_m or pt_mm or pt_f:
+        print("  照片磚相容性收斂 0822（源頭回填 0826）：機器 printer_notes %d 台｜model 可勾清單 %d 支｜線材條件式 %d 支"
+              % (pt_m, pt_mm, pt_f))
+
     # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
     # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；
     # 重新啟用前需「清噴頭」等機制配套驗證通過（見 apply_deferred_heating 註記）。

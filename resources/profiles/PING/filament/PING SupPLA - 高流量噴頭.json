@@ -87,6 +87,6 @@
     "filament_deretraction_speed": [
         "30"
     ],
-    "alias": "PING SupPLA - 高流量噴頭",
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "alias": "PING SupPLA - 高流量噴頭"
 }
