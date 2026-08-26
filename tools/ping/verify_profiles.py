@@ -524,7 +524,9 @@ for name, (kind, d) in presets.items():
                 _rf = d.get("renamed_from")
                 if not isinstance(_rf, str) or _rf != _rf_expect:
                     err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
-            support_expected = {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
+            # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
+            # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
+            support_expected = set() if " PA-CF 樹狀 @" in name else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
                 err(f"[support mode ambiguous] {name}: expected candidates={sorted(support_expected)!r}")
