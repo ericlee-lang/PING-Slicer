@@ -296,7 +296,7 @@
     "name": "0.125mm PA-CF 樹狀 @DUAL 300 單料頭 (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP233",
+    "setting_id": "PINGP251",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 300 單料頭 0.25 nozzle"

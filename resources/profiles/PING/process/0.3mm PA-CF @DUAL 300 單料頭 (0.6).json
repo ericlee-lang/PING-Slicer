@@ -296,7 +296,7 @@
     "name": "0.3mm PA-CF @DUAL 300 單料頭 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP236",
+    "setting_id": "PINGP254",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 300 單料頭 0.6 nozzle"

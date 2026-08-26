@@ -296,7 +296,7 @@
     "name": "0.5mm PA-CF @DUAL 450 單料頭 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP242",
+    "setting_id": "PINGP260",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 450 單料頭 1.0 nozzle"

@@ -296,7 +296,7 @@
     "name": "0.3mm PA-CF 樹狀 @DUAL 800 單料頭 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP253",
+    "setting_id": "PINGP271",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 800 單料頭 0.6 nozzle"

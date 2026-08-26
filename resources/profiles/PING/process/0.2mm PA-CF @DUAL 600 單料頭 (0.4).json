@@ -296,7 +296,7 @@
     "name": "0.2mm PA-CF @DUAL 600 單料頭 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP244",
+    "setting_id": "PINGP262",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "DUAL 600 單料頭 0.4 nozzle"
