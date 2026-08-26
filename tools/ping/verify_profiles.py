@@ -764,7 +764,10 @@ for name in classic_filaments:
         err(f"[Classic Klipper command] {name}: filament_start_gcode")
     # 🔴 赤兔不能吃韌體回抽（Eric 2026-08-07 補充的事實）：Classic 線材**不得**在材料層覆蓋回抽，
     #    一律由 Classic machine preset 控制（_classic_filament() 會 pop 掉這些鍵）。
+    # 🔴 2026-08-26 補洞：原本只接 `filament_retract*`，**漏掉 `filament_deretraction_*`**
+    #    （裝填速度同屬回抽鍵）⇒ 9 支 Classic 線材帶著它也驗得過。與 _classic_filament 的 pop 判斷同源。
     _leak = sorted(k for k in d if k.startswith("filament_retract")
+                   or k.startswith("filament_deretraction")
                    or k in ("filament_wipe", "filament_wipe_distance",
                             "filament_z_hop", "filament_z_hop_types"))
     if _leak:

@@ -78,6 +78,6 @@
     "filament_soluble": [
         "0"
     ],
-    "alias": "PING ABS - Classic",
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "alias": "PING ABS - Classic"
 }

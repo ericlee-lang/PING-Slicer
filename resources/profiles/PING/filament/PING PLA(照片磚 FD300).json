@@ -85,14 +85,14 @@
     "filament_soluble": [
         "0"
     ],
-    "compatible_printers": [
-        "FD300 同進照片磚 0.4 nozzle",
-        "FD300 同進照片磚 0.6 nozzle"
-    ],
     "filament_retraction_speed": [
         "30"
     ],
     "filament_deretraction_speed": [
         "30"
+    ],
+    "compatible_printers": [
+        "FD300 同進照片磚 0.4 nozzle",
+        "FD300 同進照片磚 0.6 nozzle"
     ]
 }

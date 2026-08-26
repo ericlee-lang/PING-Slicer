@@ -60,12 +60,12 @@
     "filament_soluble": [
         "0"
     ],
-    "alias": "PING PA-CF - Classic",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
     "enable_pressure_advance": [
         "0"
     ],
     "pressure_advance": [
         "0"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "alias": "PING PA-CF - Classic"
 }
