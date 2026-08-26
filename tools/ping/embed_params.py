@@ -610,18 +610,23 @@ def proc_overrides(kind, base, is_single_mode):
     接縫與兩個加速度由 normalize_unified_values 集中套用，此處不再覆寫。"""
     return {}
 
-# ★ 正式製程統一值（Eric 2026-07-15 最新裁定；取代 2026-07-12 的 aligned_back／travel 20000，
-# 規格 _切片規則同步_來自orca_主線保守加速度與接縫_20260715.md）：
-# ①首層流量比 1.1（set_other_flow_ratios 開；其餘流量比維持預設 1）
-# ②接縫位置＝對齊 aligned（⚠ enum 對映：UI「對齊」=aligned；「背部對齊」=aligned_back；
-#   照片磚特調用的是 back＋seam_gap0——本函式不套照片磚，見 emit_phototile 註）
+# ★ 正式製程統一值（0715 立；①②於 2026-08-26 由 Eric 改裁上蓋，規格
+# _切片規則同步_來自orca_主線保守加速度與接縫_20260715.md 之①②已失效）：
+# ①首層流量比 **1**（🔴 Eric 2026-08-26 改裁，取代 0715 的 1.1）——原話：
+#   「之前的測試有可能是因為高度沒有校好，導致我們用增加流量來補償。現在高度的設定那邊程式有修正了…
+#     流量 1.1 反而太多了，因此我們再改回原來的 1。」⇒ 1.1 本來就是**替高度誤差做的補償**，
+#   補償對象消失後就該退場。`set_other_flow_ratios` 維持開（其餘流量比仍是預設 1）。
+# ②接縫位置＝**背面 back**（🔴 Eric 2026-08-26 改裁，取代 0715 的 aligned）
+#   ⚠ enum 對映：UI「背面」=back；「對齊」=aligned；「背部對齊」=aligned_back。
+#   ⚠ **照片磚 5 支不跟**（本函式本來就跳過照片磚）——它有自己的 0720 裁定「背面→對齊（V 溝配套）」，
+#     那是為 V 溝幾何特調的，不在本次改裁範圍。Classic 前代則跟進（見 emit_classic，承 0725「跟進 F 系」）。
 # ③空駛加速度 5000（20000 會造成馬達錯位／失步；空駛速度 250 不變）
 # 全 PING 製程套（含棧板雙生＝從已正規化的 proc 派生自然繼承）；DL1016 不在 repo 自然跳過；
 # 照片磚特調跳過（seam/換料路徑特調，已回報參數端）。
 def normalize_unified_values(proc, ff=False):
     proc["set_other_flow_ratios"] = "1"
-    proc["first_layer_flow_ratio"] = "1.1"
-    proc["seam_position"] = "aligned"
+    proc["first_layer_flow_ratio"] = "1"
+    proc["seam_position"] = "back"
     proc["travel_acceleration"] = "5000"
     # ④ jerk 對齊機器上限 7（Eric 2026-07-20 裁「jerk 改 7」）：機器檔動力學改 Klipper 實值後
     # FD/FP 上限 7、製程 40 → 每切必跳「抖動設定已超過…自動限制」警告；改 7 輸出不變
@@ -1333,7 +1338,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
                      "setting_id":"PINGP%03d" % gp, "inherits":"fdm_process_ping_common",
                      "compatible_printers":[mac_name], "layer_height":spec["layer"],
-                     "initial_layer_print_height":spec["initial"], "seam_position":"aligned",
+                     "initial_layer_print_height":spec["initial"], "seam_position":"back",
                      "support_type":"normal(auto)", "accel_to_decel_enable":"0",
                      # 檔名（Eric 2026-07-26 兩裁）：①跟進新格式 ②**取消「經典_」前綴**——
                      # 機型名本身已帶 DUAL/EDU/PING 2xx 字樣，再標「經典」對客戶無意義、他也不懂這個詞。
