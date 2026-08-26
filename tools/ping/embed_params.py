@@ -630,7 +630,7 @@ def normalize_support_recipe(proc, nozzle, easy_release=False):
 #   TPE 軟料 40/70（目前無 TPE 製程檔，故①不觸及；未來若出 TPE 製程一樣要跳過）。
 def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False):
     if is_pacf:
-        return proc   # PA-CF 火山口製程走自己的 50/80/80，見 pacf_overrides
+        return proc   # PA-CF 走自己的速度組，見 pacf_overrides（0826 起實作，值＝Eric 實印 60/60/60）
     try:
         cur_inner = float(proc.get("inner_wall_speed", "80"))
     except (TypeError, ValueError):
@@ -795,6 +795,39 @@ def combo_overrides(combo, layer_height, nozzle):
 #   ②brim：案值「20 條」係 Cura 條數制，Orca 為 mm ⇒ 20 條 × 線寬 ≒ 口徑×20
 # 未套（家規優先，刻意）：層高（案 0.35@0.6 vs 家規口徑×0.5＝0.3——層高是全庫口徑連動家規）、
 #   內牆/填充速度（案「全 60」vs 家規外60/內≤80/填100 的吞吐設計；外牆與首層本就同值）。
+# ★ PA-CF 專屬製程（Eric 2026-08-26 四裁・起因＝他提供 FP300 0.4 的 PA-CF 實測較佳組
+#   `一般參數.3mf`／`薄壁參數.3mf`，逐鍵比對出 27 項偏離標準）。
+# 🔴 為什麼到今天才有：2026-07-03 切片參數線發過《PA-CF 專屬製程（crater 火山口）規格》，
+#   Orca 線只落地了 normalize_fast_speed(is_pacf=...) 的「跳過」殼子，`pacf_overrides` 從未存在、
+#   is_pacf=True 也從未被呼叫 ⇒ FP300 印 PA-CF 一直吃通用（PLA 骨架）製程。本次補上。
+# Q1 甲：帶「材料相關」9 鍵；支撐 6 鍵一律回全庫預設——樹狀是「這個件」的選擇、不是材料特性。
+# Q2 A ：只出 FP300 三口徑（0.2/0.4/0.6）；一般版＋樹狀版各一 ⇒ 6 支。
+# ⚠ 值＝Eric 實印 ground truth（60/60/60），**刻意不採 0703 規格的 50/80/80**——後者是 Cura 線
+#   底檔搬來的紙上值、Orca 線從未實印過（確定感紀律：實測勝推導）。
+PACF_MODELS = ("FP300",)
+
+def pacf_overrides():
+    return {
+        "inner_wall_speed":           "60",    # 全庫 80 → 與外牆同速，消除內外牆速差造成的壁厚不勻
+        "sparse_infill_speed":        "60",    # 全庫 100 → CF 磨嘴、高速擠出跟不上
+        "initial_layer_speed":        "25",    # 全庫 40  → PA 系翹曲料的關鍵
+        "initial_layer_infill_speed": "30",    # 全庫 40
+        "first_layer_flow_ratio":     "1",     # 全庫 1.1 → 首層多擠 10% 會積料、刮噴頭
+        "brim_object_gap":            "0.2",   # 全庫 0.1 → PA 又硬又韌，0.1 剝不下來
+        "sparse_infill_density":      "10%",   # 全庫 15% → CF 件剛性夠，不靠填充撐
+        "only_one_wall_top":          "1",     # 全庫 0   → 頂面平坦度主旋鈕
+        "seam_position":              "back",  # 全庫 aligned → 縫固定藏背面
+    }
+
+# 樹狀版＝一般版只換支撐類型。`support_style` 必須明寫 "default"：
+#   ①ConfigManipulation.cpp:476-479 會把「snug（全庫值）＋tree」判為非法配對、自動改回 default
+#     ⇒ 不明寫的話使用者一開檔就吃到「設定已被修正」提示。
+#   ②SupportParameters.hpp:180-183「tree＋default ⇒ smsTreeOrganic」＝Eric 實印那組就是**有機樹狀**，
+#     吃既有 _organic 防呆值（直徑 2.6／角度 40），**不吃** 0725 那組 hybrid 保守配方（分屬不同鍵組）。
+#   ③支撐臨界角維持全庫 35（Eric 實測用 30＝更保守，屬 Q1 甲「支撐回全庫」的範圍，未帶）。
+PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
+
+
 def pva_overrides(nozzle):
     nz = float(nozzle)
     return {
@@ -1042,6 +1075,7 @@ def main(src_base):
     nozzles_of = {}   # model -> [nz...]
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
     pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
+    pacf_twins = []     # PA-CF 專屬製程（Eric 0826；emit 在 4a-7＝全庫最尾＝既有 id 零位移）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -1144,6 +1178,16 @@ def main(src_base):
                         pv["filename_format"] = filename_tpl("PLA+PVA")
                         pva_twins.append(pv)
 
+                    # PA-CF 專屬製程（Eric 2026-08-26 裁）：從同口徑標準製程派生一般版＋樹狀版。
+                    # 只掛 PACF_MODELS（現＝FP300）；雙料機不派生（PA-CF 只提供單料頭）。
+                    if model in PACF_MODELS and not is_dual_machine:
+                        pf = dict(proc); pf.update(pacf_overrides())
+                        pf["name"] = "%smm PA-CF @%s (%s)" % (lh, model, nz)
+                        pacf_twins.append(pf)
+                        pft = dict(pf); pft.update(PACF_TREE_OVERRIDES)
+                        pft["name"] = "%smm PA-CF 樹狀 @%s (%s)" % (lh, model, nz)
+                        pacf_twins.append(pft)
+
             # machine_model（每個 printer_model 一檔）；nozzle_diameter 併入範本收編口徑（如 FF800 0.4）
             mm_nzs = sorted(set(nzs) | set(EXTRA_MODEL_NOZZLES.get(model, [])), key=float)
             mm = {"type":"machine_model","name":model,
@@ -1216,6 +1260,15 @@ def main(src_base):
         proc_list.append({"name": hf["name"], "sub_path": "process/%s.json" % hf["name"]})
     if hf_twins:
         print("  高流量製程組：%d 支（PINGP%03d 起）" % (len(hf_twins), gp - len(hf_twins)))
+
+    # 4a-7. PA-CF 專屬製程統一 emit（Eric 2026-08-26 裁；id 接在全庫最尾＝既有＋Classic＋棧板＋
+    #        PVA＋照片磚＋高流量 全零位移。⚠ 新增製程一律排最後，別插隊——r6 撞號事故同源）
+    for pf in pacf_twins:
+        pf["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % pf["name"]), pf)
+        proc_list.append({"name": pf["name"], "sub_path": "process/%s.json" % pf["name"]})
+    if pacf_twins:
+        print("  PA-CF 專屬製程：%d 支（PINGP%03d 起）" % (len(pacf_twins), gp - len(pacf_twins)))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
@@ -1478,12 +1531,19 @@ def main(src_base):
         is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD)         # ④ 照片磚系＝零回抽
         fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
-        fd["filament_retraction_speed"] = ["30"]
-        fd["filament_deretraction_speed"] = ["30"]
+        # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF 回抽 3/40/40——**只改線材層**。
+        #    機器層一字不動、韌體回抽維持開：韌體回抽開啟時線材 start gcode 的
+        #    SET_RETRACTION 會把 3/40/40 推給 Klipper ⇒ 行為等同他關掉韌體回抽自己下 E 值，
+        #    但不會連累 FP300 上的 PLA/ABS（機器層鍵沒有材料維度）。
+        _is_pacf = ("PA-CF" in bn)
+        fd["filament_retraction_speed"] = ["40"] if _is_pacf else ["30"]
+        fd["filament_deretraction_speed"] = ["40"] if _is_pacf else ["30"]
         if is_pt:
             fd["filament_retraction_length"] = ["nil"]    # ④ 吃機器層 0,0＝零回抽
         elif "TPE" in bn or "PVA" in bn:
             pass                                          # ② 長度不動（TPE/SupTPE 0718、PVA 0724 定稿；Classic 兩支本來就沒覆蓋鍵）
+        elif _is_pacf:
+            fd["filament_retraction_length"] = ["3"]      # 🆕 0826 Eric：PA-CF 高溫滲料，1.3/2 擋不住牽絲
         elif is_hf:
             fd["filament_retraction_length"] = ["3"]      # ③ 0730 高流量家族既值
         else:
@@ -1514,6 +1574,28 @@ def main(src_base):
             jdump(fp_path, fd); pa_set += 1
     if pa_set:
         print("  一般流量 PA 0.08（高流量/火山口/四料/3in1/TPE 豁免）：%d 支" % pa_set)
+
+
+    # 4b-2f2. ★ PA-CF 壓力提前 0.4（Eric 2026-08-26 裁「PA 0.4 入版」）：
+    # 4b-2f 把 PA-CF 列為火山口豁免＝**實際上等於沒開 PA**（PING PA-CF 從來沒寫過這兩個鍵，
+    # 引擎吃 Orca 預設＝關）。Eric 實印 FP300 0.4 用 0.4 較佳 ⇒ 明寫入版＝regen-durable。
+    # ⚠ 全庫噴頭流量形式律是「高流量 0.2／四料高流量 0.4」，FP300＝火山口高流量 → 照律應落 0.2；
+    #   本值採實印結果、列為**材料特例**。PA 值本該用 PA 塔校準，已列 T 版待驗項。
+    # Classic 豁免（Marlin 無 PA，verify 有全關斷言）。冪等 sweep。
+    pa_cf = 0
+    for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+        bn = os.path.basename(fp_path)[:-5]
+        if "PA-CF" not in bn or "Classic" in bn:
+            continue
+        fd = json.load(io.open(fp_path, encoding="utf-8"))
+        if fd.get("instantiation") != "true":
+            continue
+        if fd.get("enable_pressure_advance") != ["1"] or fd.get("pressure_advance") != ["0.4"]:
+            fd["enable_pressure_advance"] = ["1"]
+            fd["pressure_advance"] = ["0.4"]
+            jdump(fp_path, fd); pa_cf += 1
+    if pa_cf:
+        print("  PA-CF 壓力提前 0.4（Eric 0826 實印裁定／材料特例）：%d 支" % pa_cf)
 
     # 4b-2c. ★ 懸空冷卻觸發閾值 25%（Eric 2026-07-24 爬坡品質批・線材側配套）：
     # 全 PING 線材統一 25%（PLA - 220／ABS - 250 既值 25% 冪等不動；PLA 210 系／SupPLA／

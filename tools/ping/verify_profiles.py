@@ -204,6 +204,10 @@ for name, (kind, d) in presets.items():
                 expected["travel_acceleration"] = "2000"
             # jerk 對齊機器上限（Eric 2026-07-20 裁）：FD/FP 系=7、FF 系=40（上限 56 不動）
             expected["default_jerk"] = "40" if "@FF" in name else "7"
+            # PA-CF 專屬製程（Eric 2026-08-26 裁）：接縫固定藏背面＝材料特例。
+            # 全庫 aligned 的斷言對這 6 支改要求 back，**閘門沒關**——寫錯值一樣會被抓。
+            if " PA-CF " in name or " PA-CF@" in name:
+                expected["seam_position"] = "back"
             for key, value in expected.items():
                 if d.get(key) != value:
                     err(f"[process safety default] {name}: {key}={d.get(key)!r}, expected {value!r}")
@@ -244,6 +248,16 @@ for name, (kind, d) in presets.items():
                                    ("independent_support_layer_height", "0"),
                                    ("support_style", "snug"),
                                    ("support_base_pattern", "rectilinear")]
+                # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：
+                # 只有帶「樹狀」token 的 3 支換支撐類型；PA-CF 一般版仍走普通支撐配方（Q1 甲）。
+                # style 必須明寫 default：ConfigManipulation.cpp:476-479 把「snug＋tree」判為非法配對、
+                # 自動退回 default（SupportParameters.hpp:180-183 ⇒ smsTreeOrganic＝Eric 實印那組），
+                # 不明寫的話使用者一開檔就吃到「設定已被修正」提示。
+                if " PA-CF 樹狀 @" in name:
+                    expected_recipe = [("support_type", "tree(auto)"),
+                                       ("independent_support_layer_height", "0"),
+                                       ("support_style", "default"),
+                                       ("support_base_pattern", "rectilinear")]
                 # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
                 # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1
                 if _ctok == COMBO_CAT_PVA:
@@ -364,10 +378,13 @@ for name, (kind, d) in presets.items():
                 if _v("filament_retract_restart_extra") != _want_extra:
                     err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
                 # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30
+                # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF＝40/40（只改線材層、機器層不動）。
+                _is_pacf = "PA-CF" in name
+                _want_spd = "40" if _is_pacf else "30"
                 for _k, _label in (("filament_retraction_speed", "回抽速度"),
                                    ("filament_deretraction_speed", "裝填速度")):
-                    if _v(_k) != "30":
-                        err(f"[回抽速度 30/30 0819] {name}: {_label}={_v(_k)!r} 應 30")
+                    if _v(_k) != _want_spd:
+                        err(f"[回抽速度 0819/0826] {name}: {_label}={_v(_k)!r} 應 {_want_spd}")
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
@@ -384,10 +401,15 @@ for name, (kind, d) in presets.items():
                 if is_hf and _v("pressure_advance") == "0.12":
                     err(f"[PA 0.12 只限一般流量 0725] {name}: 高流量/3in1 家族不得用 0.12")
                 #   ⚠ Classic 前代線材另有 PA 全關斷言（Marlin 無 PA），不受本條影響。
-                if not is_hf and "TPE" not in name and "PA-CF" not in name:
+                if not is_hf and "TPE" not in name and not _is_pacf:
                     if _v("enable_pressure_advance") != "1" or _v("pressure_advance") != "0.08":
                         err(f"[一般流量 PA 0.08 0728] {name}: enable={_v('enable_pressure_advance')!r} "
                             f"pa={_v('pressure_advance')!r}, expected 1/0.08")
+                # 🆕 Eric 2026-08-26 裁：PA-CF＝1/0.4（材料特例；0728 起它只是「豁免 0.08」＝實際沒開）
+                if _is_pacf:
+                    if _v("enable_pressure_advance") != "1" or _v("pressure_advance") != "0.4":
+                        err(f"[PA-CF PA 0.4 0826] {name}: enable={_v('enable_pressure_advance')!r} "
+                            f"pa={_v('pressure_advance')!r}, expected 1/0.4")
                 # 回抽長度四分支（🆕 0819 改寫）
                 if is_pt:
                     # 🔴 照片磚＝零回抽，且零回抽只寫在機器層（retraction_length 0,0）——
@@ -399,6 +421,10 @@ for name, (kind, d) in presets.items():
                     # 軟料/PVA 長度維持既值不動（Eric 0819「軟料回抽為 3、不改動」；PVA 0724 定稿）。
                     if _v("filament_retraction_length") != "3":
                         err(f"[TPE/PVA 回抽長度 3] {name}: {_v('filament_retraction_length')!r}")
+                elif _is_pacf:
+                    # 🆕 2026-08-26 Eric 裁：PA-CF 回抽長度 3（高溫滲料，2 擋不住牽絲）。
+                    if _v("filament_retraction_length") != "3":
+                        err(f"[PA-CF 回抽長度 3 0826] {name}: {_v('filament_retraction_length')!r} 應 3")
                 elif is_hf:   # 🔴 0816：原本是內聯複製的字串判定（漏了四料同進/照片磚），改用同一個變數
                     # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽長度 3；0819「排除不動」再確認。
                     if _v("filament_retraction_length") != "3":

@@ -13,22 +13,22 @@
         "PA"
     ],
     "nozzle_temperature": [
-        "255"
+        "245"
     ],
     "nozzle_temperature_initial_layer": [
-        "255"
+        "245"
     ],
     "hot_plate_temp": [
-        "70"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
     "cool_plate_temp": [
-        "70"
+        "60"
     ],
     "cool_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
     "fan_max_speed": [
         "30"
@@ -37,7 +37,7 @@
         "30"
     ],
     "filament_retraction_length": [
-        "2"
+        "3"
     ],
     "filament_minimal_purge_on_wipe_tower": [
         "30"
@@ -73,10 +73,16 @@
         "#EA4E16"
     ],
     "filament_retraction_speed": [
-        "30"
+        "40"
     ],
     "filament_deretraction_speed": [
-        "30"
+        "40"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "enable_pressure_advance": [
+        "1"
+    ],
+    "pressure_advance": [
+        "0.4"
+    ]
 }
