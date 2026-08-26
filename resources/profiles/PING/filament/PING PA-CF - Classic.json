@@ -13,22 +13,22 @@
         "PA"
     ],
     "nozzle_temperature": [
-        "255"
+        "245"
     ],
     "nozzle_temperature_initial_layer": [
-        "255"
+        "245"
     ],
     "hot_plate_temp": [
-        "70"
+        "60"
     ],
     "hot_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
     "cool_plate_temp": [
-        "70"
+        "60"
     ],
     "cool_plate_temp_initial_layer": [
-        "70"
+        "60"
     ],
     "fan_max_speed": [
         "30"

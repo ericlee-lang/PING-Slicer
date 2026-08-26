@@ -534,7 +534,9 @@ for name, (kind, d) in presets.items():
                 value = next(iter(support_expected))
                 if d.get("support_type") != value:
                     err(f"[support mode default] {name}: support_type={d.get('support_type')!r}, expected {value!r}")
-            if is_classic and d.get("support_type") != "normal(auto)":
+            # PA-CF 樹狀版（Eric 2026-08-26）：整支的存在意義就是換支撐類型，Classic 機同理豁免；
+            # **PA-CF 一般版仍被要求 normal(auto)**，閘門沒關（與上面 support mode default 同款處理）。
+            if is_classic and " PA-CF 樹狀 @" not in name and d.get("support_type") != "normal(auto)":
                 err(f"[Classic support mode] {name}: support_type={d.get('support_type')!r}, expected 'normal(auto)'")
         # 檢查 12（Eric 2026-07-18 裁「只做腳本」）：3in1 線材起始 gcode 必須含 T 指令。
         # 缺 T 時切片器會自動補「槽位序號」T（第2槽→T1）→機上無此巨集→Klipper 只警告不停

@@ -991,7 +991,11 @@ def combo_overrides(combo, layer_height, nozzle):
 # ⚠ 事實落差、值仍共用：**FP300＝火山口-高流量、FD300 單料頭＝一般流量**，噴頭流量形式不同；
 #    依 Q3 甲「線材維持單一支 245 全機通用」＋本裁，兩機共用同一組 pacf_overrides()。
 #    若日後 FD300 單料頭實印回報偏差，第一顆旋鈕＝在這裡改成 per-model 值。
-PACF_MODELS = ("FP300", "FD300 單料頭")
+PACF_MODELS = ("FP300", "FD300 單料頭", "FD300 Pro 單料頭")
+# 🔴 Eric 2026-08-26 四裁「FD300 Pro 單料頭跟 DUAL 單料頭也一起補上」。
+#    DUAL 四台的單料頭變體**不在這張表**——它們是 Classic 前代機、由 emit_classic 的
+#    DUAL 變體迴圈產出，不走主迴圈；掛鉤在那裡（搜 PACF_CLASSIC）。
+# ⬜ 尚未納入：FD450／FD600／FD800 Pro 單料頭（同屬單料頭機，Eric 未點名）。
 
 def pacf_overrides():
     return {
@@ -1237,7 +1241,7 @@ def _classic_filament(base_name, name, setting_id, temperature, bed_temperature,
         d["filament_is_support"] = ["1"]
     return d
 
-def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
+def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=None):
     """V3.6 Classic：由已產生且可載入的 Fast preset 複製結構，再套 V2.1 舊機參數。"""
     classic_filaments = [
         # 母檔名跟進基礎支改名（0728）：BASE_PLA_NEW＝磁碟實檔名（_classic_filament 讀檔）
@@ -1255,7 +1259,11 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
         _classic_filament("PING ABS",       CLASSIC_ABS,     "PINGFILCLASSICABS",    250, 100),
         _classic_filament("PING SupABS",    CLASSIC_SUP_ABS, "PINGFILCLASSICSUPABS", 250, 100, True),
         _classic_filament("PING PETG",      CLASSIC_PETG,    "PINGFILCLASSICPETG",   235, 75),
-        _classic_filament("PING PA-CF",     CLASSIC_PACF,    "PINGFILCLASSICPACF",   255, 70),
+        _classic_filament("PING PA-CF",     CLASSIC_PACF,    "PINGFILCLASSICPACF",   245, 60),
+        # 🔴 Eric 2026-08-26：255/70 是 2026-08-22 建這支時從當時的 `PING PA-CF` 抄來的
+        #    （值一模一樣＝抄襲痕跡，非 Classic 專屬設計）。他當天裁 PA-CF 噴溫 255→245、床溫 70→60，
+        #    當時我把 Classic 版列為「待呈」沒動；本次他要在 DUAL 單料頭（＝Classic 機）印 PA-CF，
+        #    再留著 70 等於明知故犯 ⇒ 一併對齊。噴溫/床溫是材料屬性，與 Marlin/赤兔隔離無關。
         _classic_filament("PING PVA",       CLASSIC_PVA,     "PINGFILCLASSICPVA",    210, 60, True),
         _classic_filament("PING TPE - 210", CLASSIC_TPE_210, "PINGFILCLASSICTPE",    210, 60),
         _classic_filament("PING SupTPE",    CLASSIC_SUP_TPE, "PINGFILCLASSICSUPTPE", 210, 60, True),
@@ -1491,6 +1499,18 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp):
                 jdump(os.path.join(PINGDIR, "process", "%s.json" % proc_name), proc)
                 proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
                 gp += 1; vp += 1
+                # PACF_CLASSIC — PA-CF 專屬製程（Eric 2026-08-26 四裁「DUAL 單料頭也一起補上」）。
+                # DUAL 單料頭是 Classic 前代機、不走主迴圈，故 PACF_MODELS 掃不到，掛鉤在這裡。
+                # ⚠ **不在這裡配 setting_id、也不動 gp**：統一交給 4a-7 在全庫最尾 emit ＝既有 id 零位移。
+                # 值＝同一組 pacf_overrides()（只動速度/流量/brim/填充/頂面牆/接縫），
+                # Marlin 隔離（加速度與 jerk 全 0、無韌體回抽/PA）由上面那圈 accel_keys+jerk_keys 歸 0 自然繼承。
+                if variant == "單料頭" and pacf_twins is not None:
+                    _pf = dict(proc); _pf.update(pacf_overrides())
+                    _pf["name"] = proc_name.replace("mm @", "mm PA-CF @")
+                    pacf_twins.append(_pf)
+                    _pft = dict(_pf); _pft.update(PACF_TREE_OVERRIDES)
+                    _pft["name"] = proc_name.replace("mm @", "mm PA-CF 樹狀 @")
+                    pacf_twins.append(_pft)
 
             mm = {"type":"machine_model", "name":model,
                   "model_id":"PING_" + model.replace(" ", "_"),
@@ -1770,7 +1790,7 @@ def main(src_base):
     # 4a-3b. V3.6 Classic 前代機：和 Fast 同 bundle，但用獨立 machine/process/filament，
     # 避免 Klipper 指令與高加速度滲入 Marlin 舊板。
     if not PING_ONLY:
-        gm, gp, classic_fil = emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp)
+        gm, gp, classic_fil = emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins)
     else:
         classic_fil = []
 
