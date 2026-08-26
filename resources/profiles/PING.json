@@ -929,6 +929,78 @@
         {
             "name": "0.3mm PA-CF 樹狀 @FD300 Pro 單料頭 (0.6)",
             "sub_path": "process/0.3mm PA-CF 樹狀 @FD300 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.2mm PA-CF @FD450 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @FD450 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.2mm PA-CF 樹狀 @FD450 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @FD450 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm PA-CF @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm PA-CF 樹狀 @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm PA-CF @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm PA-CF 樹狀 @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm PA-CF @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @FD600 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.2mm PA-CF 樹狀 @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @FD600 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm PA-CF @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm PA-CF 樹狀 @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm PA-CF @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm PA-CF 樹狀 @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.2mm PA-CF @FD800 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.2mm PA-CF 樹狀 @FD800 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm PA-CF @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm PA-CF 樹狀 @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm PA-CF @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm PA-CF 樹狀 @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @FD800 Pro 單料頭 (1.0).json"
         }
     ],
     "filament_list": [
