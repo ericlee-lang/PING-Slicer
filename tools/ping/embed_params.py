@@ -815,7 +815,11 @@ def combo_overrides(combo, layer_height, nozzle):
 # ⚠ 事實落差、值仍共用：**FP300＝火山口-高流量、FD300 單料頭＝一般流量**，噴頭流量形式不同；
 #    依 Q3 甲「線材維持單一支 245 全機通用」＋本裁，兩機共用同一組 pacf_overrides()。
 #    若日後 FD300 單料頭實印回報偏差，第一顆旋鈕＝在這裡改成 per-model 值。
-PACF_MODELS = ("FP300", "FD300 單料頭")
+PACF_MODELS = ("FP300", "FD300 單料頭", "FD300 Pro 單料頭")
+# 🔴 Eric 2026-08-26 四裁「FD300 Pro 單料頭跟 DUAL 單料頭也一起補上」。
+#    DUAL 四台的單料頭變體**不在這張表**——它們是 Classic 前代機、由 emit_classic 的
+#    DUAL 變體迴圈產出，不走主迴圈；掛鉤在那裡（搜 PACF_CLASSIC）。
+# ⬜ 尚未納入：FD450／FD600／FD800 Pro 單料頭（同屬單料頭機，Eric 未點名）。
 
 def pacf_overrides():
     return {
