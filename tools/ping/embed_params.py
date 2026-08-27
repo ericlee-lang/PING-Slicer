@@ -82,7 +82,9 @@ SKIP = {"from","name","version","inherits_group","different_settings_to_system",
 #    當暫時護欄（牌 c-0827-SIT-03），來源清乾淨後依約拆除，恢復原行為（走 FORCE_P → process）。
 #    它是上游 PR #9924（2025-06-22）淘汰的舊鍵，改用 solid_infill_rotate_template；現行
 #    PING Slicer 匯出不會產生它，只剩 PrintConfig.cpp 的 handle_legacy 會轉換 ⇒ 若來源檔又
-#    出現它，代表那批是舊版 slicer 匯出的，回頭查工程端 slicer 版本，不要再往 SKIP 加一次。
+#    出現它，代表那批是舊版 slicer 匯出的，回頭查工程端 slicer 版本。
+#    **不要再往 SKIP 加一次**——那是靜默的。改由下面第 3 節的 DEPRECATED 閘門有聲擋下
+#    （Eric 2026-08-27 裁「A 案」，牌 c-0827-SIT-05）。
 # 未列權威清單、需手動歸 machine 者（per-extruder/槽位類）
 FORCE_M = {"deretraction_speed","extruder_colour","extruder_offset","max_layer_height",
     "min_layer_height","nozzle_diameter","retract_before_wipe","retract_length_toolchange",
@@ -751,6 +753,71 @@ def parse_dir(src_base, dirname):
 
 DUAL_COMBOS = ["PLA+SUP", "PLA+PLA", "ABS+SUP", "ABS+ABS"]
 
+# ---------- 3b. 上游【已淘汰】鍵：有聲擋下（Eric 2026-08-27 裁「A 案」，牌 c-0827-SIT-05）----------
+# 取代 c-0827-SIT-03 那種「加進 SKIP 靜默丟掉」的做法。靜默的問題是雙向的：Eric 的裁定會被無聲
+# 還原、工程端真要開新鍵也會被無聲吃掉，而且沒有人會知道「來源那批是舊版 slicer 匯出的」。
+#
+# ⚠️ 判準【刻意寫死】，不要改成「自動從 handle_legacy 推導」——2026-08-27 實測過：
+#    handle_legacy 本體提到 66 個 opt_key，扣掉 s_Preset_*_options 權威清單後剩 38 個
+#    （濾網確實有鑑別力、篩掉 28 個），但那 38 個裡的 different_settings_to_system 會讓
+#    【現行乾淨的 98 檔 98/98 全部誤報】——它是合法的專案層鍵、本來就在 SKIP 裡。
+#    ⇒ 自動判準會讓每一次 regen 都紅，而會誤報的閘門一定被關掉，關掉的閘門等於沒有。
+#
+# 加新項＝在下面加一行 {舊鍵: 替代鍵}，並確認它不會打到現行來源（跑一次本檢查即可）。
+DEPRECATED = {
+    # 上游 PR #9924（2025-06-22）把「實心填充逐層轉向」換成 solid_infill_rotate_template
+    # （預設 "" ＝關）。舊鍵在 PrintConfig.cpp 只剩 handle_legacy 會轉換 ⇒ 來源檔再出現它，
+    # 代表那批是 2025-06-22 以前的 slicer 匯出的（該值是舊版自帶的預設，不是誰在 UI 勾出來的）。
+    "rotate_solid_infill_direction": "solid_infill_rotate_template",
+}
+
+def check_deprecated(src_base):
+    """來源含上游已淘汰的鍵 ⇒ 印出每一個檔名後中止。
+
+    🔴 必須在 main() 動任何東西【之前】呼叫：main() 第一步（4a）就把既有的 machine/process
+       JSON 全部刪掉，閘門擺在後面等於 repo 先被掏空才報錯。
+    掃描範圍＝產生器真正會讀的那些機型夾底下【所有】 *_project_settings.config，
+    含 parse_dir 會跳過的 PETG——那些雖然不出製程，但一樣是「舊版 slicer 匯出」的證據。
+    """
+    hits, seen, nfile = [], set(), 0
+    for dirname in [f[0] for f in FAMS] + ["FF800 Pro", "FF600 Pro"]:
+        if dirname in seen:
+            continue
+        seen.add(dirname)
+        d = os.path.join(src_base, dirname)
+        if not os.path.isdir(d):
+            continue
+        for fn in sorted(os.listdir(d)):
+            if not fn.endswith("_project_settings.config"):
+                continue
+            nfile += 1
+            cfg = json.load(io.open(os.path.join(d, fn), encoding="utf-8"))
+            for old in sorted(DEPRECATED):
+                if old in cfg:
+                    hits.append((dirname, fn, old))
+    # 掃不到的機型夾要講出來——不然綠燈會被讀成「整批交付都乾淨」，實際上只代表
+    # 「產生器會讀的那幾夾乾淨」。E 系列等不在 FAMS 的夾，產生器本來就不讀。
+    skipped = sorted(n for n in os.listdir(src_base)
+                     if os.path.isdir(os.path.join(src_base, n))
+                     and n not in seen and not n.startswith("_"))
+    scope = "掃 %d 夾 %d 檔" % (len(seen), nfile)
+    if skipped:
+        scope += "；未掃 %d 夾（不在 FAMS、產生器不讀）：%s" % (len(skipped), "、".join(skipped))
+    if not hits:
+        print("  已淘汰鍵檢查：無命中（%s）" % scope)
+        return
+    print("")
+    print("✗ 來源含上游【已淘汰】的參數鍵，已中止——一個檔都沒有動：")
+    for dirname, fn, old in hits:
+        print("    %s/%s" % (dirname, fn))
+        print("        %s  ⇒  改用 %s" % (old, DEPRECATED[old]))
+    print("")
+    print("  共 %d 處（%s）。這通常代表那批交付是舊版 slicer 匯出的" % (len(hits), scope))
+    print("  （舊鍵是它自帶的預設值，不是誰在 UI 勾出來的，所以「請工程師關掉」關不掉）。")
+    print("  處理順序：先確認工程端用的 slicer 版本 → 換成現行 PING Slicer 重新匯出。")
+    print("  真的要放行才把該鍵從 DEPRECATED 拿掉；不要改加進 SKIP，那會變回靜默。")
+    raise SystemExit(1)
+
 # ★ 組合製程功能歸類名（Eric 2026-07-29 裁「材料對→功能名」＋兩追裁：PVA 留第五支、字面照原話；
 # Codex gpt-5.6-sol 四輪雙審「可定稿」＝計畫 v2+v3+v4 疊加，軌跡 _審查_組合製程功能歸類改名_*）。
 # 顯示名唯一產名入口：pname()／PVA twin／Classic 母檔讀取／machine default 全走本表；
@@ -1071,6 +1138,10 @@ def apply_default_materials(pj):
 
 # ---------- 4. 主流程 ----------
 def main(src_base):
+    # 4-0. 🔴 已淘汰鍵閘門——必須是第一個敘述：下面 4a 立刻就會刪檔，
+    #      擺在後面等於 repo 先被掏空才報錯。（牌 c-0827-SIT-05）
+    check_deprecated(src_base)
+
     # 4a. 清掉舊 machine/process（保留 fdm 基底）
     for sub, keep in (("machine", ("fdm_machine_common.json","fdm_ping_common.json")),
                       ("process", ("fdm_process_common.json","fdm_process_ping_common.json"))):
