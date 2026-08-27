@@ -930,10 +930,24 @@ def check_deprecated(src_base):
 
     🔴 必須在 main() 動任何東西【之前】呼叫：main() 第一步（4a）就把既有的 machine/process
        JSON 全部刪掉，閘門擺在後面等於 repo 先被掏空才報錯。
-    掃描範圍＝產生器真正會讀的那些機型夾底下【所有】 *_project_settings.config，
-    含 parse_dir 會跳過的 PETG——那些雖然不出製程，但一樣是「舊版 slicer 匯出」的證據。
+
+    掃【兩種】來源——只掃第一種會漏，而漏掉的那種真的爆過：
+      (甲) 參數端交付＝FAMS 會讀的機型夾底下【所有】 *_project_settings.config，
+           含 parse_dir 會跳過的 PETG（不出製程，但一樣是「舊版 slicer 匯出」的證據）。
+      (乙) repo 內建範本＝tools/ping/base/**/*.json（ff_extra／phototile）。
+           這些【不經過 cat()／split()】：json.load → normalize_*（只設值、從不刪鍵）→
+           jdump（純 json.dump、零過濾）直接落進 resources/profiles/PING/ ⇒ SKIP 從未涵蓋它們。
+           實錄：0.25mm 易拆 @FF600 3in1 (0.4).json 走過 ee7db186d8(清乾淨,0819) → 
+           37bf3101da(「收 regen 漂移」帶回來,0826) → eb69a91d81(再清,0827)，清→regen→又回來。
     """
-    hits, seen, nfile = [], set(), 0
+    def _scan_json(path, where, out):
+        cfg = json.load(io.open(path, encoding="utf-8"))
+        for old in sorted(DEPRECATED):
+            if old in cfg:
+                out.append((where, old))
+
+    # ---- 甲：參數端交付 ----
+    src_hits, seen, nsrc = [], set(), 0
     for dirname in [f[0] for f in FAMS] + ["FF800 Pro", "FF600 Pro"]:
         if dirname in seen:
             continue
@@ -942,33 +956,51 @@ def check_deprecated(src_base):
         if not os.path.isdir(d):
             continue
         for fn in sorted(os.listdir(d)):
-            if not fn.endswith("_project_settings.config"):
-                continue
-            nfile += 1
-            cfg = json.load(io.open(os.path.join(d, fn), encoding="utf-8"))
-            for old in sorted(DEPRECATED):
-                if old in cfg:
-                    hits.append((dirname, fn, old))
+            if fn.endswith("_project_settings.config"):
+                nsrc += 1
+                _scan_json(os.path.join(d, fn), "%s/%s" % (dirname, fn), src_hits)
     # 掃不到的機型夾要講出來——不然綠燈會被讀成「整批交付都乾淨」，實際上只代表
     # 「產生器會讀的那幾夾乾淨」。E 系列等不在 FAMS 的夾，產生器本來就不讀。
     skipped = sorted(n for n in os.listdir(src_base)
                      if os.path.isdir(os.path.join(src_base, n))
                      and n not in seen and not n.startswith("_"))
-    scope = "掃 %d 夾 %d 檔" % (len(seen), nfile)
+
+    # ---- 乙：repo 內建範本 ----
+    tpl_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base")
+    tpl_hits, ntpl = [], 0
+    for dirpath, _dirs, files in os.walk(tpl_root):
+        for fn in sorted(files):
+            if not fn.endswith(".json"):
+                continue
+            ntpl += 1
+            rel = os.path.relpath(os.path.join(dirpath, fn), tpl_root).replace(os.sep, "/")
+            _scan_json(os.path.join(dirpath, fn), "tools/ping/base/" + rel, tpl_hits)
+
+    scope = "交付 %d 夾 %d 檔＋範本 %d 檔" % (len(seen), nsrc, ntpl)
     if skipped:
         scope += "；未掃 %d 夾（不在 FAMS、產生器不讀）：%s" % (len(skipped), "、".join(skipped))
-    if not hits:
+    if not src_hits and not tpl_hits:
         print("  已淘汰鍵檢查：無命中（%s）" % scope)
         return
+
     print("")
-    print("✗ 來源含上游【已淘汰】的參數鍵，已中止——一個檔都沒有動：")
-    for dirname, fn, old in hits:
-        print("    %s/%s" % (dirname, fn))
-        print("        %s  ⇒  改用 %s" % (old, DEPRECATED[old]))
+    print("✗ 含上游【已淘汰】的參數鍵，已中止——一個檔都沒有動：")
+    if src_hits:
+        print("  ── 參數端交付 %d 處 ──" % len(src_hits))
+        for where, old in src_hits:
+            print("    %s" % where)
+            print("        %s  ⇒  改用 %s" % (old, DEPRECATED[old]))
+        print("    這通常代表那批交付是舊版 slicer 匯出的（舊鍵是它自帶的預設值，不是誰在 UI")
+        print("    勾出來的，所以「請工程師關掉」關不掉）。先確認工程端的 slicer 版本 → 重新匯出。")
+    if tpl_hits:
+        print("  ── repo 內建範本 %d 處 ──" % len(tpl_hits))
+        for where, old in tpl_hits:
+            print("    %s" % where)
+            print("        %s  ⇒  改用 %s" % (old, DEPRECATED[old]))
+        print("    範本不經過 cat()／split()，是直接 jdump 出去的 ⇒ 要在 repo 裡把那一行刪掉，")
+        print("    不是去改交付來源。")
     print("")
-    print("  共 %d 處（%s）。這通常代表那批交付是舊版 slicer 匯出的" % (len(hits), scope))
-    print("  （舊鍵是它自帶的預設值，不是誰在 UI 勾出來的，所以「請工程師關掉」關不掉）。")
-    print("  處理順序：先確認工程端用的 slicer 版本 → 換成現行 PING Slicer 重新匯出。")
+    print("  共 %d 處（%s）。" % (len(src_hits) + len(tpl_hits), scope))
     print("  真的要放行才把該鍵從 DEPRECATED 拿掉；不要改加進 SKIP，那會變回靜默。")
     raise SystemExit(1)
 
