@@ -77,7 +77,14 @@ SKIP = {"from","name","version","inherits_group","different_settings_to_system",
         # process 層會被剝除的專案/盤面 key
         "bbl_calib_mark_logo","curr_bed_type","first_layer_print_sequence",
         "other_layers_print_sequence","other_layers_print_sequence_nums",
-        "wipe_tower_x","wipe_tower_y","has_scarf_joint_seam"}
+        "wipe_tower_x","wipe_tower_y","has_scarf_joint_seam",
+        # 🔒 暫時護欄（Eric 2026-08-27 裁，牌 c-0827-SIT-03）：實心填充逐層轉向。
+        #    工程端來源 269/269 個 *_project_settings.config 都寫著 "1"，不擋的話下次全量
+        #    regen 會把它整批帶回來，而且是靜默的（值合法，verify_profiles 只驗參照完整性）。
+        #    ⚠️ 反向也靜默：工程端日後真要開這個設定，也一樣收不到。
+        #    ⇒ 等工程端在自己的 Orca 關掉、確認來源乾淨後，把下面這一行刪掉即可回到原行為。
+        #      （FORCE_P 裡那一條刻意保留未動，正是為了讓這個開關一行可逆。）
+        "rotate_solid_infill_direction"}
 # 未列權威清單、需手動歸 machine 者（per-extruder/槽位類）
 FORCE_M = {"deretraction_speed","extruder_colour","extruder_offset","max_layer_height",
     "min_layer_height","nozzle_diameter","retract_before_wipe","retract_length_toolchange",
