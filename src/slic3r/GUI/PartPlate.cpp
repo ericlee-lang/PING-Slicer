@@ -447,6 +447,12 @@ void PartPlate::calc_exclude_triangles(const ExPolygon &poly)
 {
     m_exclude_triangles.reset();
 
+    // PING(2026-08-28)：沒有排除區是正常狀態，不是錯誤。generate_exclude_polygon 只認四點矩形，
+    // 其餘（含 bed_exclude_area 的原廠預設單點 0x0）都會產生空 poly ⇒ 每次切機型都白噴一行 error。
+    // 隔壁 calc_triangles_from_polygon 本來就有這道判斷，這裡漏了。
+    if (poly.empty())
+        return;
+
     if (!init_model_from_poly(m_exclude_triangles, poly, GROUND_Z))
 		BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ":Unable to create exclude triangles\n";
 }

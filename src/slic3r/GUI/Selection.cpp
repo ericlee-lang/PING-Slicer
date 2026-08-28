@@ -429,7 +429,13 @@ const ModelInstance *Selection::get_selected_single_intance() const
     int  object_idx;
     auto mo = get_selected_single_object(object_idx);
     if (mo) {
-        return mo->instances[get_instance_idx()];
+        // PING(2026-08-28)：多實例物件被整個選取（SingleFullObject）時 get_instance_idx() 回 -1，
+        // 舊碼直接索引 instances[-1] 取到的是垃圾指標——不是 nullptr，呼叫端因此誤判為有效實例，
+        // 解參考即當機（實錄：切「物件座標」→ GLGizmoMove3D::on_render 每幀讀它，T033 crash）。
+        // 沒有單一實例時回 nullptr 才是本函式的契約，呼叫端已備有 fallback。
+        const int inst_idx = get_instance_idx();
+        if (inst_idx >= 0 && inst_idx < (int) mo->instances.size())
+            return mo->instances[inst_idx];
     }
     return nullptr;
 }
