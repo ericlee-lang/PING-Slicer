@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.0.2",
+  "protocolVersion": 1,
+  "owner": "聯造實業有限公司 / VibeCAD",
+  "artifact": "step-repair-browser-release",
+  "files": [
+    {
+      "path": "NOTICE.md",
+      "bytes": 390,
+      "sha256": "c1442fe995b6b5a8bb5e6f5d4525f2e9e99fbacf71e66589d944d449be919c47"
+    },
+    {
+      "path": "assets/replicad_single.wasm",
+      "bytes": 10855736,
+      "sha256": "2e07c45b83267b38d3102ec411fad11e7ce2ed71854084e461c5ab5fee94aaff"
+    },
+    {
+      "path": "assets/step-repair.js",
+      "bytes": 316712,
+      "sha256": "01f6cdf138e5076644db06d08df089d60d7e2f8751455e59fad263a139c32d35"
+    },
+    {
+      "path": "index.html",
+      "bytes": 4512,
+      "sha256": "54e62ce8927eb50135eb34f2ee340e65ba19c6e251f4c250f57a5aa11d1fa128"
+    },
+    {
+      "path": "licenses/replicad-MIT.txt",
+      "bytes": 1063,
+      "sha256": "7a3c098c1cf5d8de05efa0b930e7c8398c221da2a59032b617057fb7f122cf70"
+    },
+    {
+      "path": "licenses/replicad-opencascadejs-MIT.txt",
+      "bytes": 1063,
+      "sha256": "7a3c098c1cf5d8de05efa0b930e7c8398c221da2a59032b617057fb7f122cf70"
+    }
+  ]
+}

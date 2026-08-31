@@ -42,6 +42,8 @@ public:
     void load_url(wxString& url);
     void ShowHomepage();
     void ShowPhotoTile(const wxString& image_path = wxEmptyString);
+    void ShowStepRepair();
+    bool IsStepRepairPage() const;
 
     void UpdateState();
     void OnIdle(wxIdleEvent& evt);

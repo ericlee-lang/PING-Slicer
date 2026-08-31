@@ -41,6 +41,7 @@
 #include <wx/display.h>
 #include <wx/menu.h>
 #include <wx/menuitem.h>
+#include <wx/file.h>
 #include <wx/filedlg.h>
 #include <wx/progdlg.h>
 #include <wx/busyinfo.h>
@@ -80,6 +81,7 @@
 #include <wx/timer.h>               // C-2 第 3 項：閒置預熱 timer（原本靠傳遞式引入，改成顯式）
 #include "PhotoTileCapability.hpp"
 #include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
+#include "libslic3r/PingPhotoStylize.hpp"   // 甲案（c-0822-PT-06）：本地風格化（OpenCV，已是本 repo 相依）
 #include "PhotoTileGateJson.hpp"     // C-2 第 2 項：env 快照組字（#14 真 JSON writer——中文機名/反斜線路徑都要正確跳脫）
 
 #include <boost/uuid/uuid.hpp>
@@ -4767,6 +4769,17 @@ static std::string ping_js_escape(const std::string& s)
     return out;
 }
 
+void GUI_App::step_repair_page_result(bool ok, const std::string& message, const std::string& path)
+{
+    const std::string js = std::string("window.PINGStepRepair && window.PINGStepRepair.hostResult({ok:")
+        + (ok ? "true" : "false") + ",message:\"" + ping_js_escape(message)
+        + "\",path:\"" + ping_js_escape(path) + "\"});";
+    CallAfter([this, js] {
+        if (mainframe && mainframe->m_webview && mainframe->m_webview->IsStepRepairPage())
+            mainframe->m_webview->RunScript(from_u8(js));
+    });
+}
+
 std::string GUI_App::handle_web_request(std::string cmd)
 {
     try {
@@ -4827,6 +4840,175 @@ std::string GUI_App::handle_web_request(std::string cmd)
             }
             else if (command_str.compare("homepage_phototile") == 0) {
                 CallAfter([this] { open_photo_tile(); });
+            }
+            else if (command_str.compare("homepage_step_repair") == 0) {
+                CallAfter([this] { open_step_repair(); });
+            }
+            else if (command_str.compare("step_repair_home") == 0) {
+                if (!mainframe || !mainframe->m_webview || !mainframe->m_webview->IsStepRepairPage())
+                    return "";
+                m_step_repair_export_buffer.clear();
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+                CallAfter([this] {
+                    if (mainframe && mainframe->m_webview)
+                        mainframe->m_webview->ShowHomepage();
+                });
+            }
+            else if (command_str.compare("step_repair_export_begin") == 0) {
+                constexpr size_t max_step_repair_bytes = 256ULL * 1024ULL * 1024ULL;
+                constexpr size_t max_step_repair_chunks = 8192;
+                const size_t expected_size = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+                const int protocol_version = root.get<int>("data.protocol_version", 0);
+                const std::string core_version = root.get<std::string>("data.core_version", "");
+                const std::string decision = root.get<std::string>("data.decision", "");
+                const std::string proposed_name = root.get<std::string>("data.filename", "");
+
+                m_step_repair_export_buffer.clear();
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+
+                if (!mainframe || !mainframe->m_webview || !mainframe->m_webview->IsStepRepairPage()) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected STEP repair export outside its pinned page";
+                    return "";
+                }
+                if (protocol_version != 1 || core_version != "1.0.2" || decision != "repair-accepted" ||
+                    expected_size == 0 || expected_size > max_step_repair_bytes ||
+                    expected_chunks == 0 || expected_chunks > max_step_repair_chunks || proposed_name.size() > 240) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected invalid STEP repair export: core=" << core_version
+                                               << ", protocol=" << protocol_version << ", size=" << expected_size
+                                               << ", chunks=" << expected_chunks << ", decision=" << decision;
+                    step_repair_page_result(false, "修補檔的版本或大小不符合安全規則，原始檔未變更。");
+                    return "";
+                }
+
+                wxFileName safe_name(from_u8(proposed_name));
+                wxString stem = safe_name.GetName();
+                if (stem.IsEmpty())
+                    stem = "model";
+                if (!stem.EndsWith("_修補"))
+                    stem += "_修補";
+                safe_name.Assign(stem + ".step");
+                m_step_repair_suggested_name = into_u8(safe_name.GetFullName());
+                m_step_repair_export_buffer.reserve(expected_size);
+                m_step_repair_export_expected_size = expected_size;
+                m_step_repair_export_expected_chunks = expected_chunks;
+                m_step_repair_export_active = true;
+            }
+            else if (command_str.compare("step_repair_export_chunk") == 0) {
+                if (!m_step_repair_export_active || !mainframe || !mainframe->m_webview ||
+                    !mainframe->m_webview->IsStepRepairPage())
+                    return "";
+
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.payload", "");
+                if (index != m_step_repair_export_next_chunk || encoded.empty() || encoded.size() > 300ULL * 1024ULL) {
+                    BOOST_LOG_TRIVIAL(warning) << "STEP repair chunk out of sequence or oversized: expected="
+                                               << m_step_repair_export_next_chunk << ", got=" << index;
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔傳輸不完整，原始檔未變更。");
+                    return "";
+                }
+
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(result.first);
+                const size_t trailing_padding = encoded.size() - result.second;
+                const bool valid_padding = encoded.size() % 4 == 0 && trailing_padding <= 2 &&
+                    std::all_of(encoded.begin() + result.second, encoded.end(), [](char value) { return value == '='; }) &&
+                    (trailing_padding == 0 || index + 1 == m_step_repair_export_expected_chunks);
+                if (!valid_padding || decoded.empty() ||
+                    m_step_repair_export_buffer.size() + decoded.size() > m_step_repair_export_expected_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔資料無法驗證，原始檔未變更。");
+                    return "";
+                }
+                m_step_repair_export_buffer.insert(m_step_repair_export_buffer.end(), decoded.begin(), decoded.end());
+                ++m_step_repair_export_next_chunk;
+            }
+            else if (command_str.compare("step_repair_export_end") == 0) {
+                if (!m_step_repair_export_active || !mainframe || !mainframe->m_webview ||
+                    !mainframe->m_webview->IsStepRepairPage() ||
+                    m_step_repair_export_next_chunk != m_step_repair_export_expected_chunks ||
+                    m_step_repair_export_buffer.size() != m_step_repair_export_expected_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔傳輸尚未完成，原始檔未變更。");
+                    return "";
+                }
+
+                static constexpr char step_signature[] = "ISO-10303-21;";
+                const size_t prefix_size = std::min<size_t>(m_step_repair_export_buffer.size(), 256);
+                const auto signature = std::search(
+                    m_step_repair_export_buffer.begin(), m_step_repair_export_buffer.begin() + prefix_size,
+                    std::begin(step_signature), std::end(step_signature) - 1);
+                if (signature == m_step_repair_export_buffer.begin() + prefix_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補結果不是有效的 STEP 交換檔，原始檔未變更。");
+                    return "";
+                }
+
+                std::vector<unsigned char> step_bytes;
+                step_bytes.swap(m_step_repair_export_buffer);
+                const std::string suggested_name = m_step_repair_suggested_name;
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+
+                CallAfter([this, step_bytes = std::move(step_bytes), suggested_name]() mutable {
+                    if (!plater() || plater()->is_background_process_slicing()) {
+                        step_repair_page_result(false, "切片進行中，暫時不能載入修補版本；檔案尚未寫入。");
+                        return;
+                    }
+
+                    wxFileDialog dialog(GetTopWindow(), "另存並使用修補 STEP",
+                        from_u8(app_config->get_last_dir()), from_u8(suggested_name),
+                        "STEP files (*.step)|*.step", wxFD_SAVE);
+                    if (dialog.ShowModal() != wxID_OK) {
+                        step_repair_page_result(false, "已取消；原始檔未變更。");
+                        return;
+                    }
+
+                    wxFileName output_name(dialog.GetPath());
+                    output_name.SetExt("step");
+                    const wxString output_path = output_name.GetFullPath();
+                    if (wxFileExists(output_path)) {
+                        step_repair_page_result(false, "為避免覆寫原始檔或既有檔案，請改用一個尚不存在的新檔名。");
+                        return;
+                    }
+
+                    wxFile output_file;
+                    if (!output_file.Create(output_path, false)) {
+                        step_repair_page_result(false, "無法建立修補檔，請改用有寫入權限的位置。");
+                        return;
+                    }
+                    const auto written = output_file.Write(step_bytes.data(), step_bytes.size());
+                    output_file.Close();
+                    if (written != step_bytes.size()) {
+                        wxRemoveFile(output_path); // 僅移除本次剛建立且寫入失敗的殘檔。
+                        step_repair_page_result(false, "修補檔沒有完整寫入，殘檔已清除；原始檔未變更。");
+                        return;
+                    }
+
+                    app_config->set("last_dir", into_u8(output_name.GetPath()));
+                    wxArrayString input_files;
+                    input_files.Add(output_path);
+                    plater()->load_files(input_files);
+                    BOOST_LOG_TRIVIAL(info) << "STEP repair 1.0.0 saved and queued for import: " << into_u8(output_path);
+                    step_repair_page_result(true, "修補版本已另存並載入。", into_u8(output_path));
+                });
             }
             else if (command_str.compare("phototile_query_capability") == 0) {
                 /* 【2026-08-15】頁面主動要料數。DocumentLoaded 那次推送保留當備援，
@@ -5033,6 +5215,119 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 if (!job_id.empty() && m_photo_tile_host)
                     m_photo_tile_host->cancel(job_id);
             }
+            /* ── 甲案（c-0822-PT-06）：本地風格化 ────────────────────────────────
+               把 dev 端 pipeline.py 的 bilateral→mean-shift→k-means→medianBlur 跑在 C++，
+               結果**回送頁面當新的來源影像**——不是只在生成時做。
+               🔴 只在生成時做＝預覽跑原圖、輸出跑風格化圖＝兩把尺，正是本專案一再付學費的
+                  失效形態（分箱vs顯色、④-2 梯子vs分箱、開發線的兩份梯子）。規格＝R6-9／R6-11。
+               ⚠ 800px 約 2 秒 ⇒ 一定要背景執行緒；UI 執行緒只負責推 chunk。
+               ℹ️ 這條「C++ 給頁面一張圖」的回送鏈，日後丙案（AI 生圖）回圖走同一條。 */
+            else if (command_str.compare("phototile_stylize") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const auto style_fail = [this](const std::string& job, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.styleError && "
+                        "window.PINGPhotoTile.styleError(\"") + ping_js_escape(job) + "\",\"" +
+                        ping_js_escape(msg) + "\");");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_stylize 缺 jobId，忽略";
+                    return "";
+                }
+                if (m_photo_tile_source_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_source_path))) {
+                    style_fail(job_id, "沒有可用的影像來源，請重新載入圖片再試。");
+                    return "";
+                }
+                /* 🔴 輸入一律取「原圖」，不是取目前來源——否則第二次風格化會拿
+                   已經風格化過的圖再風格化一次，色塊越滾越大。第一次風格化時把當下的
+                   來源記成原圖；換圖時那個記錄會被作廢（見 image_end／set_photo_tile_source）。 */
+                if (m_photo_tile_origin_path.empty())
+                    m_photo_tile_origin_path = m_photo_tile_source_path;
+                PhotoStylizeParams sp;
+                sp.src_path   = m_photo_tile_origin_path;
+                sp.work_width = static_cast<int>(std::lround(root.get<double>("data.workWidth", 800.0)));
+                sp.tones      = static_cast<int>(std::lround(root.get<double>("data.tones", 4.0)));
+                for (const auto& kv : root.get_child("data.ramp", pt::ptree()))
+                    sp.ramp_hex.push_back(kv.second.get_value<std::string>());
+                if (static_cast<int>(sp.ramp_hex.size()) != sp.tones) {
+                    style_fail(job_id, "色階資料不完整，請重開工作室再試。");
+                    return "";
+                }
+                /* 後發蓋先發：使用者連點款式時只認最後一次。舊 job 的結果回來會被
+                   下面的 job_id 比對丟掉——不清 active 會出現「畫面已經是新款式、
+                   圖卻換成上一款」這種靜默錯配。 */
+                m_photo_tile_style_job = job_id;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：分派 job=" << job_id
+                                        << ", cw=" << sp.work_width << ", K=" << sp.tones;
+                std::thread([this, sp, job_id]() {
+                    PhotoStylizeResult r = ping_photo_stylize(sp);
+                    wxTheApp->CallAfter([this, r, job_id]() {
+                        if (m_photo_tile_style_job != job_id)      // 已被更新的請求取代
+                            return;
+                        m_photo_tile_style_job.clear();
+                        const auto fail = [this, &job_id](const std::string& msg) {
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.styleError && "
+                                "window.PINGPhotoTile.styleError(\"") + ping_js_escape(job_id) + "\",\"" +
+                                ping_js_escape(msg) + "\");");
+                        };
+                        if (!r.ok || r.png.empty()) {
+                            fail(r.error.empty() ? std::string("風格化失敗，請重試。") : r.error);
+                            return;
+                        }
+                        /* 🔴 風格化的結果要成為**生成時真正吃的那張**。
+                           只把圖回送頁面而不換來源，會變成「畫面看到風格化、印出來是原圖」——
+                           這正是本案一開始就決定要避免的那件事，漏這一步等於整個白做。
+                           原圖路徑留在 m_photo_tile_origin_path，重新風格化時還吃得到。 */
+                        {
+                            const boost::filesystem::path styled_path =
+                                boost::filesystem::temp_directory_path() /
+                                boost::filesystem::unique_path("PING_photo_tile_styled_%%%%-%%%%-%%%%.png");
+                            boost::nowide::ofstream out(styled_path.string(), std::ios::binary);
+                            out.write(reinterpret_cast<const char*>(r.png.data()),
+                                      static_cast<std::streamsize>(r.png.size()));
+                            out.close();
+                            if (!out.good()) {
+                                /* fail-honest：寫不成就別換來源，並誠實告訴頁面——
+                                   保留舊來源＝預覽會換、輸出不會換，那比失敗更糟。 */
+                                BOOST_LOG_TRIVIAL(warning) << "風格化暫存檔寫入失敗：" << styled_path.string();
+                                fail("風格化結果寫入失敗，請重試。");
+                                return;
+                            }
+                            m_photo_tile_source_path = styled_path.string();
+                            BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：來源已切換為 " << m_photo_tile_source_path;
+                        }
+                        /* 分塊回送：96 KB 原始塊（可被 3 整除 ⇒ base64 無中段 padding，
+                           與頁面回送圖片那條鏈同法）。chunk 大小改了兩邊都要改。 */
+                        constexpr size_t raw_chunk = 96 * 1024;
+                        const size_t total  = r.png.size();
+                        const size_t chunks = (total + raw_chunk - 1) / raw_chunk;
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.styleBegin && "
+                            "window.PINGPhotoTile.styleBegin({jobId:\"") + ping_js_escape(job_id) +
+                            "\",size:" + std::to_string(total) + ",chunks:" + std::to_string(chunks) +
+                            ",w:" + std::to_string(r.width) + ",h:" + std::to_string(r.height) +
+                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) + "});");
+                        for (size_t i = 0; i < chunks; ++i) {
+                            const size_t off = i * raw_chunk;
+                            const size_t len = std::min(raw_chunk, total - off);
+                            std::string b64;
+                            b64.resize(boost::beast::detail::base64::encoded_size(len));
+                            b64.resize(boost::beast::detail::base64::encode(b64.data(), r.png.data() + off, len));
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.styleChunk && "
+                                "window.PINGPhotoTile.styleChunk({jobId:\"") + ping_js_escape(job_id) +
+                                "\",index:" + std::to_string(i) + ",base64:\"" + b64 + "\"});");
+                        }
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.styleEnd && "
+                            "window.PINGPhotoTile.styleEnd({jobId:\"") + ping_js_escape(job_id) + "\"});");
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：回送完成 job=" << job_id
+                                                << ", bytes=" << total << ", chunks=" << chunks
+                                                << ", " << r.elapsed_ms << " ms";
+                    });
+                }).detach();
+            }
             /* 頁內「開啟圖片」與 Ctrl+V 的圖只存在頁面裡（C++ 沒有路徑），而宿主吃檔案路徑
                ⇒ 頁面回送原始位元組、這裡落成暫存檔（鏡像 export 鏈的四項驗證：連號/塊數/總長度/上限）。 */
             else if (command_str.compare("phototile_image_begin") == 0) {
@@ -5146,6 +5441,9 @@ std::string GUI_App::handle_web_request(std::string cmd)
                    現役 job 可能還在讀舊檔（冷啟動排隊窗，🟡覆審）＝那就不刪、留給 %TEMP%（寧漏勿誤）。 */
                 const std::string previous_owned = m_photo_tile_owned_temp;
                 m_photo_tile_source_path = image_path.string();
+                /* 甲案：換圖＝風格化原圖記錄作廢。不清的話，下一次風格化會拿**上一張圖**
+                   當輸入，而畫面上是新圖——又是「預覽一張、輸出另一張」那型。 */
+                m_photo_tile_origin_path.clear();
                 m_photo_tile_owned_temp  = image_path.string();
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送落檔 " << m_photo_tile_source_path;
                 if (!previous_owned.empty() && previous_owned != m_photo_tile_source_path) {
@@ -5380,6 +5678,7 @@ void GUI_App::open_photo_tile(const wxString& image_path)
        記在這裡；頁內選檔/貼上由 phototile_image_begin|chunk|end 落暫存檔後更新。
        空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
     m_photo_tile_source_path = image_path.IsEmpty() ? std::string() : into_u8(image_path);
+    m_photo_tile_origin_path.clear();          // 甲案：同上，換圖即作廢風格化原圖記錄
 
     /* 覆審 I-7（記帳制順手清，🟡「覆蓋不刪」）：來源已改指別處＝記帳那顆暫存檔沒人用了。
        只刪自己記過帳的；上面剛清掉 active（真實路徑永不入帳＝這裡刪不到使用者的檔）。 */
@@ -5398,6 +5697,23 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
     mainframe->m_webview->ShowPhotoTile(image_path);
+}
+
+void GUI_App::open_step_repair()
+{
+    if (!mainframe || !mainframe->m_webview)
+        return;
+
+    m_step_repair_export_buffer.clear();
+    m_step_repair_export_expected_size = 0;
+    m_step_repair_export_expected_chunks = 0;
+    m_step_repair_export_next_chunk = 0;
+    m_step_repair_export_active = false;
+    m_step_repair_suggested_name.clear();
+
+    BOOST_LOG_TRIVIAL(info) << "Opening vendored VibeCAD STEP repair core 1.0.0";
+    mainframe->select_tab(size_t(MainFrame::tpHome));
+    mainframe->m_webview->ShowStepRepair();
 }
 
 void GUI_App::request_remove_project(std::string project_id)

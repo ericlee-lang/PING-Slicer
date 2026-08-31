@@ -317,6 +317,15 @@ function OnClickPhotoTile()
 	SendWXMessage( JSON.stringify(tSend) );
 }
 
+function OnClickStepRepair()
+{
+	var tSend={};
+	tSend['sequence_id']=Math.round(new Date() / 1000);
+	tSend['command']="homepage_step_repair";
+
+	SendWXMessage( JSON.stringify(tSend) );
+}
+
 function OnOpenRecentFile( strPath )
 {
 	var tSend={};

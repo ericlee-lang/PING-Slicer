@@ -1,6 +1,7 @@
 #include "WebView.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/Utils/MacDarkMode.hpp"
+#include "libslic3r/Utils.hpp"
 
 #include <boost/log/trivial.hpp>
 
@@ -126,6 +127,33 @@ public:
         return true;
     }
 
+    /* 【2026-08-23・Eric 裁「甲」】把 resources 目錄映成虛擬主機。
+       為什麼需要：STEP 修補工具的 Emscripten 核心是用 XHR 抓 10.8 MB 的 .wasm，
+       而 file:// origin 的 XHR 會被瀏覽器核心以 CORS 擋死（實錄：net::ERR_FAILED
+       → failed to asynchronously prepare wasm → Aborted）。1.0.0／1.0.2 A/B 同樣壞
+       ⇒ 不是版本問題，是載入方式與 file:// 不相容。
+       映到 resources **根**（不是單一子夾），URL 仍長成 /web/xxx/index.html，
+       既有的 IsStepRepairPage() 與導航白名單字串比對一字不用改。
+       暴露面：resources 本來就被 WebView 以 file:// 讀得到，改走虛擬主機不新增可讀範圍。 */
+    bool SetVirtualHostMapping(const wxString &host, const wxString &folder)
+    {
+        ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
+        if (webView2) {
+            ICoreWebView2_3 *webView2_3;
+            HRESULT          hr = webView2->QueryInterface(&webView2_3);
+            if (hr == S_OK) {
+                hr = webView2_3->SetVirtualHostNameToFolderMapping(
+                    host.wc_str(), folder.wc_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+                webView2_3->Release();
+                return hr == S_OK;
+            }
+            return false;
+        }
+        pendingVirtualHost   = host;
+        pendingVirtualFolder = folder;
+        return true;
+    }
+
     bool SetColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME colorScheme)
     {
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
@@ -156,6 +184,14 @@ public:
             thiz->pendingUserAgent.clear();
             thiz->SetUserAgent(userAgent);
         }
+        if (!pendingVirtualHost.empty()) {
+            auto thiz   = const_cast<WebViewEdge *>(this);
+            auto host   = std::move(thiz->pendingVirtualHost);
+            auto folder = std::move(thiz->pendingVirtualFolder);
+            thiz->pendingVirtualHost.clear();
+            thiz->pendingVirtualFolder.clear();
+            thiz->SetVirtualHostMapping(host, folder);
+        }
         if (pendingColorScheme) {
             auto thiz      = const_cast<WebViewEdge *>(this);
             auto colorScheme = pendingColorScheme;
@@ -166,6 +202,8 @@ public:
     };
 private:
     wxString pendingUserAgent;
+    wxString pendingVirtualHost;
+    wxString pendingVirtualFolder;
     COREWEBVIEW2_PREFERRED_COLOR_SCHEME pendingColorScheme = COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO;
 };
 
@@ -256,7 +294,12 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, wxString const & url)
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << url2.ToUTF8();
 
 #ifdef __WIN32__
-    wxWebView* webView = new WebViewEdge;
+    WebViewEdge* webViewEdge = new WebViewEdge;
+    /* 【2026-08-23】resources → 虛擬主機（理由見 SetVirtualHostMapping 註解）。
+       此時原生後端通常還沒建好，走 pending、由 DoGetClientSize 勾子補套用。 */
+    webViewEdge->SetVirtualHostMapping(WebView::virtual_host(),
+                                       wxString::FromUTF8(Slic3r::resources_dir().c_str()));
+    wxWebView* webView = webViewEdge;
 #elif defined(__WXOSX__)
     wxWebView *webView = new WebViewWebKit;
 #else

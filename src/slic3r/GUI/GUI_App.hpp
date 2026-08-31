@@ -248,6 +248,14 @@ private:
     size_t          m_photo_tile_export_expected_chunks{ 0 };
     size_t          m_photo_tile_export_next_chunk{ 0 };
     bool            m_photo_tile_export_active{ false };
+    // VibeCAD STEP repair core 1.0.0 → ORCA 的固定版傳輸協定。
+    // 頁面只在使用者明確按「使用修補版本」後送出；宿主永不覆寫既有檔案。
+    std::vector<unsigned char> m_step_repair_export_buffer;
+    size_t          m_step_repair_export_expected_size{ 0 };
+    size_t          m_step_repair_export_expected_chunks{ 0 };
+    size_t          m_step_repair_export_next_chunk{ 0 };
+    bool            m_step_repair_export_active{ false };
+    std::string     m_step_repair_suggested_name;
     /* ── C-2 第 1 項：工作室接隱形宿主（2026-08-04） ─────────────────────────
        生成從「工作室頁自己建 3MF」改成「頁面只送參數、C++ 驅動 PhotoTileEngineHost」。
        這個宿主**刻意做成長命的**（不是每次生成 new 一顆）——它同時是 C-2 第 3 項
@@ -271,6 +279,15 @@ private:
        一顆。刪舊來源只刪記過帳的，**絕不憑檔名長相刪**——substring 比對會誤刪使用者
        留存的真實照片（拖放／開檔進來的真實路徑永遠不寫進這個成員）。空＝沒有待清的。 */
     std::string     m_photo_tile_owned_temp;
+    /* 甲案（c-0822-PT-06）：目前這一次風格化的 jobId。
+       用途只有一個——**後發蓋先發**：使用者連點款式時只認最後一次，
+       舊 job 的結果從背景執行緒回來會被比對丟掉。不做這件事會出現
+       「畫面已經是新款式、圖卻換成上一款」那種靜默錯配。空＝沒有進行中的風格化。 */
+    std::string     m_photo_tile_style_job;
+    /* 甲案：**風格化之前**的那張圖。風格化會把 m_photo_tile_source_path 換成結果，
+       所以要另外記著原圖——否則第二次風格化（例如使用者改了料色）會拿已經風格化過的
+       圖再跑一次，色塊越滾越大。換圖時作廢。空＝目前的來源就是原圖。 */
+    std::string     m_photo_tile_origin_path;
     /* ── C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A） ───────────────────────────
        C-1 閘門①實錄：「app 一開就拖照片」＝引擎冷啟動撞 app 初始化 ⇒ 首輪 6,579ms、
        UI 漂移 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額全在「建 WebView2 環境
@@ -518,6 +535,9 @@ public:
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            open_photo_tile(const wxString& image_path = wxEmptyString);
+    void            open_step_repair();
+    void            step_repair_page_result(bool ok, const std::string& message,
+                                            const std::string& path = std::string());
     // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──
     void            photo_tile_ensure_host();                       // 建立長命宿主（含 runtime 檢測）
     void            photo_tile_shutdown_host();                     // app 收攤時收乾淨

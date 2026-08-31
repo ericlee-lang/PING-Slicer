@@ -5,6 +5,7 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
 #include "slic3r/GUI/PhotoTileCapability.hpp"
+#include "slic3r/GUI/Widgets/WebView.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
@@ -41,6 +42,16 @@ namespace GUI {
     wxString photo_tile_url()
     {
         return wxString::Format("file://%s/web/phototile/index.html?mode=vertical&embedded=1", from_u8(resources_dir()));
+    }
+
+    wxString step_repair_url()
+    {
+        /* 【2026-08-23・Eric 裁「甲」】改走虛擬主機，不再用 file://。
+           理由：修補核心以 XHR 取 .wasm，file:// origin 會被 CORS 擋死（見 WebView.cpp 註解）。
+           映射目標是 resources 根，所以路徑仍是 /web/step-repair/index.html
+           ⇒ IsStepRepairPage() 與 OnNavigationRequest 的字串比對不受影響。
+           照片磚與首頁**維持 file://**（它們只用 <script>、不需要 XHR），本次不動。 */
+        return wxString::Format("https://%s/web/step-repair/index.html?embedded=1", WebView::virtual_host());
     }
     }
 
@@ -283,6 +294,18 @@ void WebViewPanel::ShowPhotoTile(const wxString& image_path)
     m_pending_photo_tile_image = image_path;
     wxString url = photo_tile_url();
     load_url(url);
+}
+
+void WebViewPanel::ShowStepRepair()
+{
+    m_pending_photo_tile_image.clear();
+    wxString url = step_repair_url();
+    load_url(url);
+}
+
+bool WebViewPanel::IsStepRepairPage() const
+{
+    return m_browser != nullptr && m_browser->GetCurrentURL().Contains("/web/step-repair/index.html");
 }
 
 /* 【2026-08-15・Eric 裁 A 案】把「使用者已加入哪些照片磚機」告訴工作室頁面，
@@ -670,7 +693,9 @@ void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetURL().ToUTF8().data();
     const wxString &url = evt.GetURL();
     if (url.StartsWith("File://") || url.StartsWith("file://")) {
-        if (!url.Contains("/web/homepage/index.html") && !url.Contains("/web/phototile/index.html")) {
+        if (!url.Contains("/web/homepage/index.html") &&
+            !url.Contains("/web/phototile/index.html") &&
+            !url.Contains("/web/step-repair/index.html")) {
             auto file = wxURL::Unescape(wxURL(url).GetPath());
 #ifdef _WIN32
             if (file.StartsWith('/'))
