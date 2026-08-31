@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.0.2",
+  "coreVersion": "1.1.0-alpha.1",
   "protocolVersion": 1,
-  "owner": "聯造實業有限公司 / VibeCAD",
+  "owner": "聯造實業有限公司 / PING Slicer",
   "artifact": "step-repair-browser-release",
   "files": [
     {
@@ -17,13 +17,13 @@
     },
     {
       "path": "assets/step-repair.js",
-      "bytes": 316712,
-      "sha256": "01f6cdf138e5076644db06d08df089d60d7e2f8751455e59fad263a139c32d35"
+      "bytes": 330369,
+      "sha256": "8ec7b2d449b69447d9c7c64c3ea9497f249bf2f0a799a527f23d5e4dabb23599"
     },
     {
       "path": "index.html",
-      "bytes": 4512,
-      "sha256": "54e62ce8927eb50135eb34f2ee340e65ba19c6e251f4c250f57a5aa11d1fa128"
+      "bytes": 6029,
+      "sha256": "5afa2f5b7906b1bb3165cd739be0b1541d9d70e34d37f5bf135d25b8aee60f4e"
     },
     {
       "path": "licenses/replicad-MIT.txt",

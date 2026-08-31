@@ -1,5 +1,2 @@
-# 固定 vendor release：一律逐位元組保存，禁止換行轉換。
-# 理由：repo 根的 .gitattributes 是 `* text=auto`＋core.autocrlf=true，
-# 這些檔全是 LF；不擋的話 clone 出來會變 CRLF，6 檔有 5 檔對不上
-# release-manifest.json 的 SHA-256，完整性保證當場失效（2026-08-23 實測）。
+# Immutable browser release: bytes must survive clone (autocrlf would break the manifest).
 * -text

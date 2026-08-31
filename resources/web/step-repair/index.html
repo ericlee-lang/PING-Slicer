@@ -74,6 +74,41 @@
         </div>
         <p id="actionStatus" class="action-status" role="status"></p>
 
+        <!-- B-3 失敗報告：檢查不起來時，講清楚卡在哪一階段、為什麼、下一步做什麼 -->
+        <section id="failureBlock" class="failure-block" hidden>
+          <h3 id="failureTitle"></h3>
+          <p id="failureStage" class="failure-stage"></p>
+          <div class="failure-cols">
+            <div>
+              <h4>可能原因</h4>
+              <ul id="failureCauses"></ul>
+            </div>
+            <div>
+              <h4>可以怎麼做</h4>
+              <ul id="failureAdvice"></ul>
+            </div>
+          </div>
+          <div class="failure-notchecked">
+            <h4>本次<strong>沒有</strong>檢查到的項目</h4>
+            <ul id="failureNotChecked"></ul>
+          </div>
+          <details class="failure-tech">
+            <summary>技術細節</summary>
+            <dl id="failureEvidence" class="metrics"></dl>
+          </details>
+        </section>
+
+        <!-- 破洞位置：座標是**顯示網格**層的，不是 STEP 的 BRep 實體編號 -->
+        <section id="defectLocations" class="defect-locations" hidden>
+          <h3>破洞位置</h3>
+          <p class="defect-caveat">
+            以下座標是<strong>顯示網格</strong>上量到的破洞位置（模型座標，單位 mm），
+            用來幫你在 CAD 裡找到大概的地方；它<strong>不是</strong> STEP 的曲面編號，
+            數量也不等於 STEP 的破面數。
+          </p>
+          <div id="defectGroups"></div>
+        </section>
+
         <details id="reportDetails" class="report-details">
           <summary>
             <span>查看檢查詳情</span>
