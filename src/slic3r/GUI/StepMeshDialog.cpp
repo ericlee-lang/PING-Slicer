@@ -69,7 +69,8 @@ bool StepMeshDialog:: validate_number_range(const wxString& value, double min, d
     return (num >= min && num <= max);
 }
 
-StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double linear_init, double angle_init)
+StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double linear_init, double angle_init,
+                               const Slic3r::StepBRepCensus& census)
     : DPIDialog(parent ? parent : static_cast<wxWindow *>(wxGetApp().mainframe),
                 wxID_ANY,
                 _(L("Step file import parameters")),
@@ -113,6 +114,70 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
     //                                                             overlay_panel->GetSize().GetHeight() * 2.8 / 3));
 
     // bSizer->Add(overlay_panel, 0, wxALIGN_CENTER | wxALL, 10);
+
+    /* 【2026-08-24・牌 c-0824-VIBE-02】BRep 匯入前哨（Eric 裁：變體 1，按鈕放在警示帶裡）。
+       時機＝OCCT 文件已讀入、但還沒網格化，所以破圖檔不必先花掉整趟網格化才知道白做。
+       🔴 這裡**只提示、不擋路**：底部按鈕列一顆都沒動、預設焦點仍在「確定」，
+          按 Enter 就是照樣匯入；匯入之後盤面不留任何旗標，切片與列印完全不受影響。
+       文案刻意避開 Solid／Shell／BRep／流形這些字（ping-ux 七律#4 講人話）；
+       也刻意寫「可能」而不是「常會」——目前只有一顆語料，還沒有資料支持更強的說法。 */
+    if (census.has_no_solid()) {
+        auto* alert_panel = new wxPanel(this, wxID_ANY);
+        alert_panel->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#EFEFEF")));
+
+        auto* alert_inner = new wxBoxSizer(wxVERTICAL);
+
+        auto* alert_title = new wxStaticText(alert_panel, wxID_ANY, _L("This file has no solid body"));
+        alert_title->SetFont(::Label::Head_14);
+        alert_title->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#202221")));
+        alert_inner->Add(alert_title, 0, wxALIGN_LEFT);
+
+        wxString alert_body = wxString::Format(
+            _L("All %d parts inside are surfaces only - they have an outer skin, but no solid interior. "
+               "Slicing this may produce holes, thin walls or wrong infill."),
+            census.shells);
+        auto* alert_text = new wxStaticText(alert_panel, wxID_ANY, alert_body);
+        alert_text->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+        alert_text->Wrap(FromDIP(390));
+        alert_inner->Add(alert_text, 0, wxALIGN_LEFT | wxTOP, FromDIP(6));
+
+        /* 非 Windows 上修補工具跑不起來（虛擬主機映射只在 WebView.cpp 的 __WIN32__ 分支，契約 §7）。
+           那裡就只留警示、不給按鈕 —— 警示本身仍然有用（檔案確實破了），
+           但給一顆按下去只會跳「本平台不支援」的按鈕，是騙人走一趟。 */
+#ifdef __WIN32__
+        auto* alert_act = new wxBoxSizer(wxHORIZONTAL);
+        auto* repair_btn = new Button(alert_panel, _L("Open STEP repair tool"));
+        repair_btn->SetStyle(ButtonStyle::Regular, ButtonType::Window);
+        // CIS：PING 專屬功能入口用品牌橘當 accent（SetStyle 會覆寫顏色，所以要放在它後面）。
+        repair_btn->SetTextColorNormal(wxColour("#EA4E16"));
+        repair_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            stop_task();
+            m_repair_requested = true;
+            EndModal(wxID_CANCEL);
+        });
+        alert_act->Add(repair_btn, 0, wxALIGN_CENTER_VERTICAL);
+
+        auto* alert_hint = new wxStaticText(alert_panel, wxID_ANY, _L("You can also just press OK to import it anyway."));
+        alert_hint->SetFont(::Label::Body_12);
+        alert_hint->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+        alert_act->Add(alert_hint, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(10));
+
+        alert_inner->Add(alert_act, 0, wxALIGN_LEFT | wxTOP, FromDIP(10));
+#endif // __WIN32__
+
+        /* 左側 3px 品牌橘細條：整個畫面的橘色就只有這條與修補按鈕的字，其餘是白與炭黑，
+           第一眼落在標題而不是色塊（CIS：橘色僅 accent、不可大面積填滿）。
+           不套 darkModeColorFor —— 品牌色在深色模式也是同一個橘。 */
+        auto* alert_row  = new wxBoxSizer(wxHORIZONTAL);
+        auto* alert_rule = new wxPanel(alert_panel, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(3), -1));
+        alert_rule->SetBackgroundColour(wxColour("#EA4E16"));
+        alert_row->Add(alert_rule, 0, wxEXPAND);
+        alert_row->Add(alert_inner, 1, wxEXPAND | wxALL, FromDIP(12));
+        alert_panel->SetSizer(alert_row);
+        alert_row->Fit(alert_panel);
+
+        bSizer->Add(alert_panel, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, LEFT_RIGHT_PADING);
+    }
 
     wxBoxSizer* tips_sizer = new wxBoxSizer(wxVERTICAL);
     wxStaticText* info = new wxStaticText(this, wxID_ANY, _L("Smaller linear and angular deflections result in higher-quality transformations but increase the processing time."));

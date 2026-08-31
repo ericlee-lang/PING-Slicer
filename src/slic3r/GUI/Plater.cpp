@@ -161,7 +161,7 @@
 #include "DailyTips.hpp"
 #include "CreatePresetsDialog.hpp"
 #include "FileArchiveDialog.hpp"
-#include "StepMeshDialog.hpp"
+#include "StepPreflight.hpp"
 #include "FilamentMapDialog.hpp"
 #include "CloneDialog.hpp"
 
@@ -5913,6 +5913,8 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     bool dlg_cont = true;
     bool is_user_cancel = false;
     bool translate_old = false;
+    // 【2026-08-24・牌 c-0824-VIBE-02】STEP 匯入前哨的結果，在函式尾統一善後。
+    StepPreflightResult step_preflight;
     int current_width = 0, current_depth = 0, current_height = 0, project_filament_count = 1;
 
     if (input_files.empty())
@@ -6584,23 +6586,11 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                                 }
                             }
                         },
-                        [this, &path, &is_user_cancel, &linear, &angle, &split_compound](Slic3r::Step& file, double& linear_value, double& angle_value, bool& is_split)-> int {
-                            if (wxGetApp().app_config->get_bool("enable_step_mesh_setting")) {
-                                StepMeshDialog mesh_dlg(nullptr, file, linear, angle);
-                                if (mesh_dlg.ShowModal() == wxID_OK) {
-                                    linear_value = mesh_dlg.get_linear_defletion();
-                                    angle_value  = mesh_dlg.get_angle_defletion();
-                                    is_split     = mesh_dlg.get_split_compound_value();
-                                    return 1;
-                                }
-                            }else {
-                                linear_value = linear;
-                                angle_value = angle;
-                                is_split = split_compound;
-                                return 1;
-                            }
-                            is_user_cancel = true;
-                            return -1;
+                        [&path, &is_user_cancel, &step_preflight](Slic3r::Step& file, double& linear_value, double& angle_value, bool& is_split)-> int {
+                            const int gate = step_import_gate(file, path.string(), linear_value, angle_value, is_split, step_preflight);
+                            if (gate != 1)
+                                is_user_cancel = true;
+                            return gate;
                         }, linear, angle, split_compound);
                 }else {
                     model = Slic3r::Model:: read_from_file(
@@ -7001,12 +6991,16 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
     if (tolal_model_count <= 0 && !q->m_exported_file) {
         dlg.Hide();
-        if (!is_user_cancel) {
+        /* 【2026-08-24】前哨中止的那條路不算「檔案沒有幾何資料」——
+           使用者是自己選擇去修補的，跳這個框會讓他以為檔案又壞了一次。 */
+        if (!is_user_cancel && !step_preflight.repair_requested) {
             MessageDialog msg(wxGetApp().mainframe, _L("The file does not contain any geometry data."), _L("Warning"), wxYES | wxICON_WARNING);
             if (msg.ShowModal() == wxID_YES) {}
         }
     }
     q->schedule_background_process(true);
+    // 放在最後：開修補頁會切換主畫面分頁，不能在還握著匯入進度對話框的時候做。
+    step_preflight_followup(step_preflight);
     return obj_idxs;
 }
 
@@ -8235,28 +8229,21 @@ bool Plater::priv::replace_volume_with_stl(int object_idx, int volume_idx, const
             double angle = std::max(0.5, string_to_double_decimal_point(config->get("angle_defletion")));
             bool split_compound = config->get_bool("is_split_compound");
             bool is_user_cancel = false;
+            StepPreflightResult step_preflight;
 
-            auto callback = [&is_user_cancel, linear, angle, split_compound](Slic3r::Step &file, double &linear_value, double &angle_value, bool &is_split) -> int {
-                if (wxGetApp().app_config->get_bool("enable_step_mesh_setting")) {
-                    StepMeshDialog mesh_dlg(nullptr, file, linear, angle);
-                    if (mesh_dlg.ShowModal() == wxID_OK) {
-                        linear_value = mesh_dlg.get_linear_defletion();
-                        angle_value  = mesh_dlg.get_angle_defletion();
-                        is_split     = mesh_dlg.get_split_compound_value();
-                        return 1;
-                    }
-                } else {
-                    linear_value = linear;
-                    angle_value  = angle;
-                    is_split     = split_compound;
-                    return 1;
-                }
-                is_user_cancel = true;
-                return -1;
+            auto callback = [&is_user_cancel, &step_preflight, &path](Slic3r::Step &file, double &linear_value, double &angle_value, bool &is_split) -> int {
+                const int gate = step_import_gate(file, path, linear_value, angle_value, is_split, step_preflight);
+                if (gate != 1)
+                    is_user_cancel = true;
+                return gate;
             };
 
             new_model = Model::read_from_step(path, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel, nullptr, nullptr, callback, linear, angle, split_compound);
-            if (is_user_cancel) return false;
+            if (is_user_cancel) {
+                step_preflight_followup(step_preflight);
+                return false;
+            }
+            step_preflight_followup(step_preflight);
         } else {
             new_model = Model::read_from_file(path, nullptr, nullptr, LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel);
         }

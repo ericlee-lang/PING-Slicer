@@ -535,7 +535,8 @@ public:
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            open_photo_tile(const wxString& image_path = wxEmptyString);
-    void            open_step_repair();
+    // 回傳是否真的開起來了：平台 guard 擋掉時回 false，呼叫端才不會接著講「請拖檔進去」。
+    bool            open_step_repair();
     void            step_repair_page_result(bool ok, const std::string& message,
                                             const std::string& path = std::string());
     // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──

@@ -134,7 +134,10 @@ public:
        ⇒ 不是版本問題，是載入方式與 file:// 不相容。
        映到 resources **根**（不是單一子夾），URL 仍長成 /web/xxx/index.html，
        既有的 IsStepRepairPage() 與導航白名單字串比對一字不用改。
-       暴露面：resources 本來就被 WebView 以 file:// 讀得到，改走虛擬主機不新增可讀範圍。 */
+       暴露面（2026-08-23 Codex 反審修正）：用 **DENY_CORS** 不是 ALLOW——
+       ALLOW 會讓「載在同一個 WebView 裡的其他來源頁面」也能跨來源讀這批資源，
+       那才是真的擴大可讀範圍；DENY_CORS 只放行虛擬主機自己那個來源，
+       正好夠這張頁面用 XHR 抓自己的 wasm。 */
     bool SetVirtualHostMapping(const wxString &host, const wxString &folder)
     {
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
@@ -143,7 +146,7 @@ public:
             HRESULT          hr = webView2->QueryInterface(&webView2_3);
             if (hr == S_OK) {
                 hr = webView2_3->SetVirtualHostNameToFolderMapping(
-                    host.wc_str(), folder.wc_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
+                    host.wc_str(), folder.wc_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS);
                 webView2_3->Release();
                 return hr == S_OK;
             }

@@ -193,6 +193,79 @@ namespace GUI {
 
 class MainFrame;
 
+/* 【2026-08-24・牌 c-0824-VIBE-02】STEP 修補核心的版本釘住，改由 vendor manifest 決定。
+
+   為什麼要改：原本這裡把期望版本硬編成字串（`core_version != "1.0.2"`）。
+   那表示 VibeCAD 每出一個 patch 版，ORCA 都得改 C++ 並重新編譯一次整包才吃得到——
+   0823 那棒就是栽在這裡：升到 1.0.2 之後，被釘死的 "1.0.0" 把另存整個 fail-closed 擋掉。
+   VibeCAD 已於 2026-08-24 正式同意改讀 manifest（契約第三題），本函式即契約 §3 的六步驗證。
+
+   🔴 fail closed：讀不到、解析不了、欄位缺失、版本不符、依賴旗標不對 —— 一律不放行匯出，
+      而且**不自動降版**去遷就頁面回報的版本。 */
+namespace {
+
+struct StepRepairPin
+{
+    bool        valid = false;
+    std::string core_version;
+    int         protocol_version = 0;
+};
+
+const StepRepairPin& step_repair_pin()
+{
+    namespace bfs = boost::filesystem;
+    // 固定 release 在執行期不會變，讀一次就好；讀失敗也要記住失敗（不要每次重試出不同結果）。
+    static const StepRepairPin pin = [&]() -> StepRepairPin {
+        StepRepairPin   out;
+        const bfs::path vendor_dir    = bfs::path(resources_dir()) / "web" / "step-repair";
+        const bfs::path manifest_path = vendor_dir / "vendor-manifest.json";
+        try {
+            boost::nowide::ifstream ifs(manifest_path.string());
+            if (!ifs.good()) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest not readable: " << manifest_path.string();
+                return out;
+            }
+            json j;
+            ifs >> j;
+
+            // ①～③ 契約 §3：只讀自己 vendor 目錄的 manifest，並確認 schema／component／兩個依賴旗標。
+            if (j.value("schemaVersion", 0) != 1 ||
+                j.value("component", std::string()) != "@linkin-factory/step-repair-core" ||
+                j.value("runtimeDependencyOnSourceCheckout", true) != false ||
+                j.value("buildDependencyOnSourceCheckout", true) != false) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest failed contract checks";
+                return out;
+            }
+
+            // ⑤ integrityManifest 必須指向同一個 vendor 目錄（不得指到工作樹或別處）。
+            const std::string integrity = j.value("integrityManifest", std::string());
+            if (integrity.empty() || integrity.find('/') != std::string::npos ||
+                integrity.find('\\') != std::string::npos ||
+                !bfs::exists(vendor_dir / integrity)) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair integrityManifest missing or outside the vendor dir: " << integrity;
+                return out;
+            }
+
+            out.core_version     = j.value("coreVersion", std::string());
+            out.protocol_version = j.value("protocolVersion", 0);
+            if (out.core_version.empty() || out.protocol_version <= 0) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest has no usable version fields";
+                return out;
+            }
+            out.valid = true;
+            BOOST_LOG_TRIVIAL(info) << "STEP repair pinned by manifest: core=" << out.core_version
+                                    << ", protocol=" << out.protocol_version;
+        } catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest unreadable: " << e.what();
+            return StepRepairPin{};
+        }
+        return out;
+    }();
+    return pin;
+}
+
+} // anonymous namespace
+
 void start_ping_test()
 {
     return;
@@ -4879,7 +4952,11 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     BOOST_LOG_TRIVIAL(warning) << "Rejected STEP repair export outside its pinned page";
                     return "";
                 }
-                if (protocol_version != 1 || core_version != "1.0.2" || decision != "repair-accepted" ||
+                /* ④ 契約 §3：頁面回報的 core／protocol 必須與 manifest 完全相同。
+                   manifest 本身不合格（pin.valid == false）就直接不放行——不自動降版、不猜。 */
+                const StepRepairPin& pin = step_repair_pin();
+                if (!pin.valid || protocol_version != pin.protocol_version || core_version != pin.core_version ||
+                    decision != "repair-accepted" ||
                     expected_size == 0 || expected_size > max_step_repair_bytes ||
                     expected_chunks == 0 || expected_chunks > max_step_repair_chunks || proposed_name.size() > 240) {
                     BOOST_LOG_TRIVIAL(warning) << "Rejected invalid STEP repair export: core=" << core_version
@@ -5006,7 +5083,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     wxArrayString input_files;
                     input_files.Add(output_path);
                     plater()->load_files(input_files);
-                    BOOST_LOG_TRIVIAL(info) << "STEP repair 1.0.0 saved and queued for import: " << into_u8(output_path);
+                    BOOST_LOG_TRIVIAL(info) << "STEP repair 1.0.2 saved and queued for import: " << into_u8(output_path);
                     step_repair_page_result(true, "修補版本已另存並載入。", into_u8(output_path));
                 });
             }
@@ -5699,10 +5776,25 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     mainframe->m_webview->ShowPhotoTile(image_path);
 }
 
-void GUI_App::open_step_repair()
+bool GUI_App::open_step_repair()
 {
     if (!mainframe || !mainframe->m_webview)
-        return;
+        return false;
+
+    /* 【2026-08-24・牌 c-0824-VIBE-02】平台 guard（契約 §7）。
+       修補頁靠虛擬主機 https://ping-resources.invalid 供應 10.8MB 的 wasm，
+       而那個映射只在 WebView.cpp 的 __WIN32__ 分支裡設（SetVirtualHostMapping）。
+       非 Windows 上這個頁面會走進 0823 查到的同一條死路：頁面開得起來、
+       wasm 抓不到、任何檔一秒就回「無法自動修補」——**壞得像功能有問題，不像平台不支援**。
+       與其讓人再查一次那個坑，不如在入口就說清楚。 */
+#ifndef __WIN32__
+    MessageDialog dlg(mainframe,
+                      _L("The STEP repair tool is only available on Windows in this version."),
+                      _L("STEP repair"), wxOK | wxICON_INFORMATION);
+    dlg.ShowModal();
+    BOOST_LOG_TRIVIAL(info) << "STEP repair blocked: virtual host mapping is Windows-only";
+    return false;
+#endif
 
     m_step_repair_export_buffer.clear();
     m_step_repair_export_expected_size = 0;
@@ -5711,9 +5803,10 @@ void GUI_App::open_step_repair()
     m_step_repair_export_active = false;
     m_step_repair_suggested_name.clear();
 
-    BOOST_LOG_TRIVIAL(info) << "Opening vendored VibeCAD STEP repair core 1.0.0";
+    BOOST_LOG_TRIVIAL(info) << "Opening vendored VibeCAD STEP repair core " << step_repair_pin().core_version;
     mainframe->select_tab(size_t(MainFrame::tpHome));
     mainframe->m_webview->ShowStepRepair();
+    return true;
 }
 
 void GUI_App::request_remove_project(std::string project_id)

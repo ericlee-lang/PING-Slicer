@@ -305,7 +305,16 @@ void WebViewPanel::ShowStepRepair()
 
 bool WebViewPanel::IsStepRepairPage() const
 {
-    return m_browser != nullptr && m_browser->GetCurrentURL().Contains("/web/step-repair/index.html");
+    /* 【2026-08-23・Codex 反審修正】必須是**精確來源比對**，不能用子字串。
+       原本 Contains("/web/step-repair/index.html") 在 file:// 時代還說得過去，
+       改走 https 虛擬主機之後就不行了——任何 URL 只要路徑含這串就會被當成修補頁，
+       而這個判斷正是「可以叫 C++ 寫檔」的信任邊界。比對時去掉 query，
+       只認 scheme+host+path 與 step_repair_url() 完全相等。 */
+    if (m_browser == nullptr)
+        return false;
+    const wxString current  = m_browser->GetCurrentURL().BeforeFirst('?');
+    const wxString expected = step_repair_url().BeforeFirst('?');
+    return !expected.IsEmpty() && current.IsSameAs(expected, false);
 }
 
 /* 【2026-08-15・Eric 裁 A 案】把「使用者已加入哪些照片磚機」告訴工作室頁面，
