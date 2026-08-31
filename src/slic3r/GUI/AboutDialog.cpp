@@ -130,7 +130,7 @@ wxString CopyrightsDialog::get_html_text()
         _L("License"),
         _L("PING Slicer is licensed under "),
         "https://www.gnu.org/licenses/agpl-3.0.html",_L("GNU Affero General Public License, version 3"),
-        _L("PING Slicer is based on OrcaSlicer, PrusaSlicer and BambuStudio"),   // PING: 出處補上游（AGPL fork 溯源）
+        _L("PING Slicer is based on OrcaSlicer"),   // PING: 出處補上游（AGPL fork 溯源）
         _L("Libraries"),
         _L("This software uses open source components whose copyright and other proprietary rights belong to their respective owners"));
 
@@ -252,12 +252,13 @@ AboutDialog::AboutDialog()
     text_sizer_horiz->Add( 0, 0, 0, wxLEFT, FromDIP(20));
 
     std::vector<wxString> text_list;
-    text_list.push_back(_L("Open-source slicing stands on a tradition of collaboration and attribution. Slic3r, created by Alessandro Ranellucci and the RepRap community, laid the foundation. PrusaSlicer by Prusa Research built on that work, Bambu Studio forked from PrusaSlicer, and SuperSlicer extended it with community-driven enhancements. Each project carried the work of its predecessors forward, crediting those who came before."));
-    text_list.push_back(_L("OrcaSlicer began in that same spirit, drawing from PrusaSlicer, BambuStudio, SuperSlicer, and CuraSlicer. But it has since grown far beyond its origins — introducing advanced calibration tools, precise wall and seam control and hundreds of other features."));
-    text_list.push_back(_L("Today, OrcaSlicer is the most widely used and actively developed open-source slicer in the 3D printing community. Many of its innovations have been adopted by other slicers, making it a driving force for the entire industry."));
+    text_list.push_back(_L("PING Slicer is developed and published by LINKIN FACTORY Co., Ltd. in Taiwan. Built on the open-source slicer OrcaSlicer and deeply customized for PING 3D printers, every release is customized, compiled, verified, packaged and maintained by us."));
+    text_list.push_back(_L("Our customization covers profiles for the full PING printer range, slicing parameters tuned for our high-flow and multi-material toolheads, and features developed in Taiwan such as color mixing and photo tiles."));
+    text_list.push_back(_L("PING Slicer is released under the GNU Affero General Public License v3. Its complete source code is publicly available, so anyone may inspect, modify and redistribute it under the same license. We thank every upstream open-source project and contributor whose work made this possible."));
 
     text_sizer->Add( 0, 0, 0, wxTOP, FromDIP(33));
-    bool is_zh = wxGetApp().app_config->get("language") == "zh_CN";
+    // PING: 放寬到全部 zh_*（原僅認 zh_CN）：zh_TW 走 Wrap() 會裁掉中文，wxWidgets 的 Wrap 靠空白斷行
+    bool is_zh = wxGetApp().app_config->get("language").rfind("zh", 0) == 0;
     for (int i = 0; i < text_list.size(); i++)
     {
         auto staticText = new wxStaticText( this, wxID_ANY, wxEmptyString,wxDefaultPosition,wxSize(FromDIP(520), -1), wxALIGN_LEFT );

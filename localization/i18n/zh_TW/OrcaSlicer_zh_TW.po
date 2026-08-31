@@ -21461,3 +21461,21 @@ msgstr "連接件超出切割輪廓"
 
 msgid "connectors is out of object"
 msgstr "連接件超出物件範圍"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Our customization covers profiles for the full PING printer range, slicing parameters tuned for our high-flow and multi-material toolheads, and features developed in Taiwan such as color mixing and photo tiles."
+msgstr "客製內容包含 PING 全系列機型設定、為高流量與多料噴頭調校的切片參數，以及混色列印與照片磚等臺灣自行研發的功能。"
+
+msgid "PING Slicer is based on OrcaSlicer"
+msgstr "PING Slicer 基於 OrcaSlicer 開發"
+
+msgid "PING Slicer is developed and published by LINKIN FACTORY Co., Ltd. in Taiwan. Built on the open-source slicer OrcaSlicer and deeply customized for PING 3D printers, every release is customized, compiled, verified, packaged and maintained by us."
+msgstr "PING Slicer 由臺灣聯造實業有限公司開發與發行，以開源切片軟體 OrcaSlicer 為基礎，針對 PING 3D 印表機深度客製。從客製、編譯、驗證、封裝到後續維護，全部由本公司自行完成。"
+
+msgid "PING Slicer is released under the GNU Affero General Public License v3. Its complete source code is publicly available, so anyone may inspect, modify and redistribute it under the same license. We thank every upstream open-source project and contributor whose work made this possible."
+msgstr "PING Slicer 依 GNU Affero 通用公共授權條款第 3 版（AGPL-3.0）發行，完整原始碼公開於 GitHub，任何人皆可查驗、修改並以相同授權再散布。謹向所有上游開源專案與貢獻者致謝。"
