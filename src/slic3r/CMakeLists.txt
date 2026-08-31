@@ -449,6 +449,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/StatusPanel.hpp
     GUI/StepMeshDialog.cpp
     GUI/StepMeshDialog.hpp
+    GUI/StepPreflight.cpp
+    GUI/StepPreflight.hpp
     GUI/SurfaceDrag.cpp
     GUI/SurfaceDrag.hpp
     GUI/Tabbook.cpp

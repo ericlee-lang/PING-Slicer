@@ -9,6 +9,7 @@
 #include <boost/nowide/cstdio.hpp>
 #include <boost/nowide/iostream.hpp>
 #include <boost/nowide/fstream.hpp>
+#include <boost/log/trivial.hpp>
 
 #include <tbb/blocked_range.h>
 #include <tbb/parallel_for.h>
@@ -505,7 +506,38 @@ Step::Step_Status Step::load()
     }else {
         return Step_Status::LOAD_ERROR;
     }
-    
+
+}
+
+/* 【2026-08-24・牌 c-0824-VIBE-02】匯入前哨的普查。
+   刻意**不重用 getNamedSolids()**：它的輸出受 isSplitCompound 影響，兩個方向都會算錯——
+   關著的時候整個 COMPOUND 只算一筆（裡面有實體也會被當成沒有實體，誤報），
+   開著的時候只探 TopAbs_SOLID（整包都是殼的檔會一筆都不剩，漏報）。
+   這裡直接用 TopExp_Explorer 走原始形狀，不管組件怎麼包都算得對。
+   關鍵在第二個參數：TopExp_Explorer(shape, TopAbs_SHELL, TopAbs_SOLID) 會略過
+   「隸屬於某個實體的殼」，剩下的才是真正的自由殼 —— 否則每個實體都會把自己的殼算進去。 */
+StepBRepCensus Step::inspect_brep() const
+{
+    StepBRepCensus census;
+    if (m_shape_tool.IsNull())
+        return census;
+
+    TDF_LabelSequence topLevelShapes;
+    m_shape_tool->GetFreeShapes(topLevelShapes);
+    for (Standard_Integer i = 1; i <= topLevelShapes.Length(); ++i) {
+        TopoDS_Shape shape;
+        if (!m_shape_tool->GetShape(topLevelShapes.Value(i), shape) || shape.IsNull())
+            continue;
+        for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next())
+            ++census.solids;
+        for (TopExp_Explorer it(shape, TopAbs_SHELL, TopAbs_SOLID); it.More(); it.Next())
+            ++census.shells;
+    }
+    census.components = census.solids + census.shells;
+
+    BOOST_LOG_TRIVIAL(info) << "STEP BRep census: components=" << census.components
+                            << ", solids=" << census.solids << ", shells=" << census.shells;
+    return census;
 }
 
 Step::Step_Status Step::mesh(Model* model,

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "vendor": "ORCA",
+  "ownerProject": "VibeCAD",
+  "company": "聯造實業有限公司",
+  "component": "@linkin-factory/step-repair-core",
+  "coreVersion": "1.0.2",
+  "protocolVersion": 1,
+  "sourceRelease": "app/packages/step-repair-core/release/1.0.2",
+  "integrityManifest": "release-manifest.json",
+  "runtimeDependencyOnSourceCheckout": false,
+  "buildDependencyOnSourceCheckout": false,
+  "distributionScope": "internal-test"
+}
