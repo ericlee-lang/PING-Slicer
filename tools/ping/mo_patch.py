@@ -187,6 +187,18 @@ NEW_ENTRIES = {
     "The Hostname/IP/URL could not be parsed, please check it and try again.": "無法解析主機名稱／IP／URL，請檢查後再試一次。",
     # src/slic3r/Utils/PrintHost.cpp:88
     "File/data transfer interrupted. Please check the printer and network, then try it again.": "檔案／資料傳輸中斷。請檢查列印設備與網路後再試一次。",
+    # ---- PING(2026-08-31，牌 c-0831-ABT-01)：About 對話框改乙案 ----
+    # Eric 裁定：主畫面三段改成 PING 自述、不做上游族譜敘述（動機＝非紅供應鏈）；
+    # 保護清單 rebrand-protect-list §5 已同步縮小範圍。⚠ 這幾條是單行長字串，
+    # 不要改成括號串接——msgid 必須與 C++ _L() byte-for-byte 一致，串接空格錯一格就斷鏈。
+    # src/slic3r/GUI/AboutDialog.cpp（CopyrightsDialog License 區）
+    "PING Slicer is based on OrcaSlicer": "PING Slicer 基於 OrcaSlicer 開發",
+    # src/slic3r/GUI/AboutDialog.cpp（AboutDialog 主畫面第 1 段）
+    "PING Slicer is developed and published by LINKIN FACTORY Co., Ltd. in Taiwan. Built on the open-source slicer OrcaSlicer and deeply customized for PING 3D printers, every release is customized, compiled, verified, packaged and maintained by us.": "PING Slicer 由臺灣聯造實業有限公司開發與發行，以開源切片軟體 OrcaSlicer 為基礎，針對 PING 3D 印表機深度客製。從客製、編譯、驗證、封裝到後續維護，全部由本公司自行完成。",
+    # src/slic3r/GUI/AboutDialog.cpp（AboutDialog 主畫面第 2 段）
+    "Our customization covers profiles for the full PING printer range, slicing parameters tuned for our high-flow and multi-material toolheads, and features developed in Taiwan such as color mixing and photo tiles.": "客製內容包含 PING 全系列機型設定、為高流量與多料噴頭調校的切片參數，以及混色列印與照片磚等臺灣自行研發的功能。",
+    # src/slic3r/GUI/AboutDialog.cpp（AboutDialog 主畫面第 3 段）
+    "PING Slicer is released under the GNU Affero General Public License v3. Its complete source code is publicly available, so anyone may inspect, modify and redistribute it under the same license. We thank every upstream open-source project and contributor whose work made this possible.": "PING Slicer 依 GNU Affero 通用公共授權條款第 3 版（AGPL-3.0）發行，完整原始碼公開於 GitHub，任何人皆可查驗、修改並以相同授權再散布。謹向所有上游開源專案與貢獻者致謝。",
 }
 
 
