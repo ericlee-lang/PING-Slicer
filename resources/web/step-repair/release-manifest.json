@@ -17,13 +17,13 @@
     },
     {
       "path": "assets/step-repair.js",
-      "bytes": 875339,
-      "sha256": "00630d3c30694e81f5b6f7546c02c7f011508be468c5ac582b3219752af09550"
+      "bytes": 875306,
+      "sha256": "4f1f8f77817b4ba020b750b4eb4244e8ead8d478c7a2d8295e5b9f601f345436"
     },
     {
       "path": "index.html",
-      "bytes": 6983,
-      "sha256": "9cdd1cab4a85ae148c5cbe8ee31c5c581e02b7e909af56652c8b50cdeb892006"
+      "bytes": 6931,
+      "sha256": "6fe54f30dc95977ab92c3279fe6cd3005da330172208fc004716be7b5d23911b"
     },
     {
       "path": "licenses/replicad-MIT.txt",
