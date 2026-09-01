@@ -1289,6 +1289,38 @@
         {
             "name": "0.5mm PA-CF 樹狀 @DUAL 800 單料頭 (1.0)",
             "sub_path": "process/0.5mm PA-CF 樹狀 @DUAL 800 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 (0.25).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 (0.6).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 (1.0).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 (1.0).json"
         }
     ],
     "filament_list": [
@@ -1881,6 +1913,38 @@
         {
             "name": "FF600 同進照片磚 1.0 nozzle",
             "sub_path": "machine/FF600 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 1.0 nozzle.json"
         }
     ]
 }

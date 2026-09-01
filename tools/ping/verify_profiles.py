@@ -156,10 +156,20 @@ CLASSIC_VARIANT_NOZZLES = {
 }
 CLASSIC_VARIANTS = ("同進", "單料頭")
 
+def classic_base_nozzles(model, spec):
+    """
+    base 機的口徑集合。2026-09-01（牌 c-0901-CLS-01・Eric 裁「四台一起」）之前，
+    四台 DUAL base 各只有一個口徑；補齊後與它們的變體同一組口徑，故直接共用同一張表。
+    非 DUAL 的 Classic（EDU 200／PING 2xx／300+）維持單一口徑。
+    """
+    return CLASSIC_VARIANT_NOZZLES.get(model, (spec["nozzle"],))
+
+
 def classic_model_for_machine(name):
     for model, spec in CLASSIC.items():
-        if name == f"{model} {spec['nozzle']} nozzle":
-            return model
+        for base_nz in classic_base_nozzles(model, spec):
+            if name == f"{model} {base_nz} nozzle":
+                return model
         for variant in CLASSIC_VARIANTS:
             for nz in CLASSIC_VARIANT_NOZZLES.get(model, ()):
                 if name == f"{model} {variant} {nz} nozzle":
@@ -266,6 +276,19 @@ for name, (kind, d) in presets.items():
                 values = d.get(key, []) or []
                 if not values or any(v != value for v in values):
                     err(f"[Classic retraction] {name}: {key}={values!r}, expected all {value!r}")
+            # 🔴 擠出模式與層變 G92 E0 是綁在一起的（`libslic3r/Print.cpp:1602-1620`，PrusaSlicer 來的檢查）：
+            #    絕對擠出 + 層變有 G92 E0 → 切片直接被擋；相對擠出 + Marlin flavor + 沒有 G92 E0 → 也被擋。
+            #    2026-09-01 Eric 實機撞到前者（Classic 32 支從 2026-07-15 加進來就切不了，一直沒人選到）。
+            #    ⇒ 在這裡把「切片器的規則」寫成斷言，下次再有人把它設錯就當場有聲擋下。
+            layer_reset = "G92 E0" in (d.get("before_layer_change_gcode") or "") \
+                or "G92 E0" in (d.get("layer_change_gcode") or "")
+            rel_e = d.get("use_relative_e_distances")
+            if rel_e != "1":
+                err(f"[Classic 擠出模式] {name}: use_relative_e_distances={rel_e!r}, expected '1'"
+                    f"（絕對擠出配層變 G92 E0 會被 Print.cpp 擋下切片）")
+            if not layer_reset:
+                err(f"[Classic 擠出模式] {name}: 層變 G-code 缺 G92 E0"
+                    f"（相對擠出＋Marlin 反而要求它存在，防浮點精度流失）")
             start = d.get("machine_start_gcode", "")
             if "SET_RETRACTION" in start or "M204" in start:
                 err(f"[Classic Klipper/acceleration command] {name}: machine_start_gcode")

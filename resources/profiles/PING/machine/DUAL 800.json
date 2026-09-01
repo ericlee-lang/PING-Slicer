@@ -2,7 +2,7 @@
     "type": "machine_model",
     "name": "DUAL 800",
     "model_id": "PING_DUAL_800",
-    "nozzle_diameter": "0.6",
+    "nozzle_diameter": "0.4;0.6;1.0",
     "machine_tech": "FFF",
     "family": "Classic",
     "bed_model": "PING_FD800_buildplate_model.stl",

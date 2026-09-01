@@ -397,6 +397,38 @@ CLASSIC_SPECS = [
 ]
 CLASSIC_MODELS = [s["name"] for s in CLASSIC_SPECS]
 
+# 口徑 → **FD 母檔**的層高／首層高（實查 FD300／FD450 Pro／FD600 Pro／FD800 Pro 的預設製程，2026-09-01）。
+# Eric 2026-09-01 裁 Q1＝丙「直接跟 FD 來源的 0.4／1.0 走」⇒ 新補的口徑用這張表，不自己發明數字。
+# ⚠ 既有口徑**不套這張表**：DUAL 450／600／800 的 0.6 現況是 layer 0.25／initial 0.3（Classic 專屬值，
+#   與 FD 的 0.3／0.35 不同），那是已出貨的值，本棒不動它（要不要對齊另裁）。
+SRC_LAYER_BY_NOZZLE = {"0.25": "0.125", "0.4": "0.2", "0.6": "0.3", "1.0": "0.5"}
+SRC_INITIAL_BY_NOZZLE = {"0.25": "0.15", "0.4": "0.25", "0.6": "0.35", "1.0": "0.55"}
+
+
+def _nozzles_of_spec(spec):
+    """該台 Classic 的所有口徑（既有 + 補的），依數值排序。"""
+    nzs = [spec["nozzle"]] + [e["nozzle"] for e in spec.get("extra_nozzles", [])]
+    return sorted(dict.fromkeys(nzs), key=float)
+
+
+# ★ Eric 2026-09-01 裁 Q2＝「四台一起」：四台 DUAL base 目前各只有一個口徑
+#   （300＝0.4；450／600／800＝0.6），但它們的同進／單料頭變體都有三個 ⇒ 照 FD 來源補齊。
+#   口徑取自對應 FD 母機實有者：FD300＝0.25/0.4/0.6；FD450/600/800 Pro＝0.4/0.6/1.0。
+_CLASSIC_EXTRA_NOZZLES = {
+    "DUAL 300": ["0.25", "0.6"],
+    "DUAL 450": ["0.4", "1.0"],
+    "DUAL 600": ["0.4", "1.0"],
+    "DUAL 800": ["0.4", "1.0"],
+}
+for _s in CLASSIC_SPECS:
+    _extra = _CLASSIC_EXTRA_NOZZLES.get(_s["name"])
+    if not _extra:
+        continue
+    _s["extra_nozzles"] = [{"nozzle": _n, "src_nozzle": _n,
+                            "layer": SRC_LAYER_BY_NOZZLE[_n],
+                            "initial": SRC_INITIAL_BY_NOZZLE[_n]} for _n in _extra]
+del _s, _extra
+
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
     s = (target_diameter / 2.0) / 150.0
@@ -1385,22 +1417,36 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
     jerk_keys = ("default_jerk", "outer_wall_jerk", "inner_wall_jerk", "infill_jerk",
                  "top_surface_jerk", "initial_layer_jerk", "travel_jerk")
 
-    for spec in CLASSIC_SPECS:
-        name, nz = spec["name"], spec["nozzle"]
-        src_mac_name = "%s %s nozzle" % (spec["src_model"], spec["src_nozzle"])
+    def _classic_defaults(spec):
+        return ([CLASSIC_PLA_220, CLASSIC_SUP_PLA] if spec["dual"] else
+                [CLASSIC_EDU_PLA] if not spec["heated_bed"] else [CLASSIC_PLA_210])
+
+    # ★ Classic base 補口徑（Eric 2026-09-01 裁：Q1＝丙〔跟 FD 來源走〕、Q2＝四台一起）。
+    #   把「一台一個口徑」的 emit 主體抽成本函式：**既有口徑照舊由下面第一段迴圈呼叫，順序一字未動
+    #   ⇒ PINGM/PINGP id 零位移**；新補的口徑放到所有既有 Classic（含 0726 那批變體）之後才呼叫，
+    #   完全比照當時「變體放在既有 8 台迴圈之後＝既有 id 零位移」的作法。
+    def _emit_one(spec, nz, src_nz, layer, initial):
+        nonlocal gm, gp
+        name = spec["name"]
+        src_mac_name = "%s %s nozzle" % (spec["src_model"], src_nz)
         src_mac = os.path.join(PINGDIR, "machine", "%s.json" % src_mac_name)
         mac = json.load(io.open(src_mac, encoding="utf-8"))
         mac_name = "%s %s nozzle" % (name, nz)
-        proc_name = "%smm @%s (%s)" % (spec["layer"], name, nz)
-        defaults = ([CLASSIC_PLA_220, CLASSIC_SUP_PLA] if spec["dual"] else
-                    [CLASSIC_EDU_PLA] if not spec["heated_bed"] else [CLASSIC_PLA_210])
+        proc_name = "%smm @%s (%s)" % (layer, name, nz)
+        defaults = _classic_defaults(spec)
 
         mac.update({"type":"machine", "name":mac_name, "alias":name, "from":"system",
                     "instantiation":"true", "setting_id":"PINGM%03d" % gm,
                     "printer_model":name, "printer_variant":nz,
                     "default_print_profile":proc_name, "default_filament_profile":defaults,
                     "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
-                    "use_firmware_retraction":"0", "use_relative_e_distances":"0",
+                    # 🔴 相對擠出（2026-09-01・牌 c-0901-EXT-01／c-0901-CLS-01）：原本這裡寫死 "0"＝絕對擠出，
+                    #   但機器檔的 before_layer_change_gcode 帶 G92 E0 ⇒ Print.cpp:1602-1620 直接擋下切片
+                    #  （「G92 E0 was found in before_layer_gcode, which is incompatible with absolute
+                    #    extruder addressing」）。Classic 從 2026-07-15 加進來那天起就切不了，0901 Eric 實機撞到。
+                    #   同一段規則反向也成立：**相對擠出＋Marlin flavor 反而「要求」層變要有 G92 E0**（防浮點精度流失）
+                    #   ⇒ 正解是改擠出模式，G92 E0 一行都不要刪。Eric 0901 裁「這個要勾起來」。
+                    "use_firmware_retraction":"0", "use_relative_e_distances":"1",
                     "machine_pause_gcode":"M0", "disable_m73":"1",
                     "printable_height":spec["height"],
                     "single_extruder_multi_material":"1" if spec["dual"] else "0"})
@@ -1445,19 +1491,21 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         mac_list.append({"name":mac_name, "sub_path":"machine/%s.json" % mac_name})
         gm += 1
 
-        src_proc_name = (combo_pname("0.2" if nz == "0.4" else "0.3", "PLA+SUP",
-                                     spec["src_model"], spec["src_nozzle"])
+        # 來源製程的檔名帶的是 **FD 母檔自己的層高**（不是 Classic 的），所以要用 src_nz 去查。
+        # 原本寫死 `"0.2" if nz=="0.4" else "0.3"`＝只涵蓋 0.4／0.6 兩種；0901 補 0.25 與 1.0
+        # 之後那個寫法會去找不存在的檔（例：`0.3mm … (1.0)`），故改成完整對照表。
+        src_layer = SRC_LAYER_BY_NOZZLE[src_nz]
+        src_proc_name = (combo_pname(src_layer, "PLA+SUP", spec["src_model"], src_nz)
                          if spec["dual"] else
-                         ("%smm @%s (%s)" %
-                          ("0.2" if nz == "0.4" else "0.3", spec["src_model"], spec["src_nozzle"])))
+                         ("%smm @%s (%s)" % (src_layer, spec["src_model"], src_nz)))
         proc = json.load(io.open(os.path.join(PINGDIR, "process", "%s.json" % src_proc_name), encoding="utf-8"))
         # 0730 改名批：Fast 母檔帶 renamed_from（易拆(Z0) 的舊名）——複製時必剝，否則 Classic
         # 製程冒領同一舊名＝重複認領地雷（0728 _classic_filament 線材版同族坑、verify 首跑實抓）。
         proc.pop("renamed_from", None)
         proc.update({"type":"process", "name":proc_name, "from":"system", "instantiation":"true",
                      "setting_id":"PINGP%03d" % gp, "inherits":"fdm_process_ping_common",
-                     "compatible_printers":[mac_name], "layer_height":spec["layer"],
-                     "initial_layer_print_height":spec["initial"], "seam_position":"back",
+                     "compatible_printers":[mac_name], "layer_height":layer,
+                     "initial_layer_print_height":initial, "seam_position":"back",
                      "support_type":"normal(auto)", "accel_to_decel_enable":"0",
                      # 檔名（Eric 2026-07-26 兩裁）：①跟進新格式 ②**取消「經典_」前綴**——
                      # 機型名本身已帶 DUAL/EDU/PING 2xx 字樣，再標「經典」對客戶無意義、他也不懂這個詞。
@@ -1506,15 +1554,25 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         proc_list.append({"name":proc_name, "sub_path":"process/%s.json" % proc_name})
         gp += 1
 
+    def _emit_model(spec):
+        """machine_model 一台只出一份，`nozzle_diameter` 聚合該台所有口徑（`a;b;c`）。"""
+        name = spec["name"]
+        nzs = _nozzles_of_spec(spec)
         mm = {"type":"machine_model", "name":name,
               "model_id":"PING_" + name.replace(" ", "_").replace("+", "Plus"),
-              "nozzle_diameter":nz, "machine_tech":"FFF", "family":"Classic",
+              "nozzle_diameter":";".join(nzs), "machine_tech":"FFF", "family":"Classic",
               "bed_model":"" if spec["diameter"] in (200, 270) else bed_for(spec["src_model"]),
               "bed_texture":BED_TEXTURE, "hotend_model":"",
-              "default_materials":";".join(defaults)}
+              "default_materials":";".join(_classic_defaults(spec))}
         jdump(os.path.join(PINGDIR, "machine", "%s.json" % name), mm)
-        mm_list.append({"name":name, "sub_path":"machine/%s.json" % name})
-        nozzles_of[name] = [nz]
+        if not any(e["name"] == name for e in mm_list):
+            mm_list.append({"name":name, "sub_path":"machine/%s.json" % name})
+        nozzles_of[name] = list(nzs)
+
+    # 第一段：既有口徑（順序與內容一字未動 ⇒ id 零位移）
+    for spec in CLASSIC_SPECS:
+        _emit_one(spec, spec["nozzle"], spec["src_nozzle"], spec["layer"], spec["initial"])
+        _emit_model(spec)
 
     print("  Classic V3.6 併入：machine=%d + machine_model=%d，process=%d，filament=%d" %
           (len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(CLASSIC_SPECS), len(classic_fil_list)))
@@ -1554,7 +1612,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                             #（與 FD 連動同邏輯；DUAL 本體雙料維持 Classic 220 見 emit_classic defaults）
                             "default_filament_profile":[CLASSIC_PLA_210],
                             "gcode_flavor":"marlin", "emit_machine_limits_to_gcode":"0",
-                            "use_firmware_retraction":"0", "use_relative_e_distances":"0",
+                            # 🔴 同上（牌 c-0901-EXT-01）：變體也一樣，絕對擠出＋層變 G92 E0 會被擋下切片。
+                            "use_firmware_retraction":"0", "use_relative_e_distances":"1",
                             "machine_pause_gcode":"M0", "disable_m73":"1",
                             "printable_height":spec["height"],
                             "single_extruder_multi_material":"0"})
@@ -1628,7 +1687,36 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
             vmm += 1
 
     print("  Classic DUAL 變體併入：machine=%d，process=%d，machine_model=%d" % (vm, vp, vmm))
-    return gm, gp, classic_fil_list
+
+    def _emit_extras(_gm, _gp):
+        """
+        Classic base 補口徑（Eric 2026-09-01 裁 Q1＝丙／Q2＝四台一起）。
+
+        🔴 **由 main() 在「全庫最尾」呼叫**（4a-8，接在 PA-CF twins 之後），不是在這裡就地跑。
+        理由＝`PINGM`／`PINGP` 是流水號：插在中間會讓後面所有 preset 的 setting_id 整批位移
+        （實測會動到 124 支既有 preset）。這條紀律是這支檔一路守著的——0726 變體那批放在
+        既有 8 台之後、0826 PA-CF twins 統一在最尾 emit，都是同一個理由。
+
+        層高／首層高取 FD 母檔同口徑值（`SRC_LAYER_BY_NOZZLE`／`SRC_INITIAL_BY_NOZZLE`）＝Eric 裁的丙案。
+        🔴 **速度**：既有 base 用 Classic 專屬 speed_class（dual04／dual06），0.4 直接對到 dual04；
+           **1.0 沒有對應的 Classic class** ⇒ 沿用該台既有的 speed_class，不自己發明第三組數字。
+           要改成「照 FD 字面」講一句就換。
+        """
+        nonlocal gm, gp
+        gm, gp = _gm, _gp
+        en = ep = 0
+        for spec in CLASSIC_SPECS:
+            extras = spec.get("extra_nozzles") or []
+            if not extras:
+                continue
+            for nrow in extras:
+                _emit_one(spec, nrow["nozzle"], nrow["src_nozzle"], nrow["layer"], nrow["initial"])
+                en += 1; ep += 1
+            _emit_model(spec)   # 重出一次，nozzle_diameter 聚合成 `a;b;c`
+        print("  Classic base 補口徑：machine=%d，process=%d（machine_model 就地聚合）" % (en, ep))
+        return gm, gp
+
+    return gm, gp, classic_fil_list, _emit_extras
 
 # ---------- 3z. 預勾線材（default_materials）post-pass ----------
 # ★ Eric 2026-08-07 裁「全族補齊」：每台機型的 default_materials ＝「所有與它相容的 PING 線材」。
@@ -1898,8 +1986,10 @@ def main(src_base):
         ff_fil, ff_models, hf_twins = [], [], []
     # 4a-3b. V3.6 Classic 前代機：和 Fast 同 bundle，但用獨立 machine/process/filament，
     # 避免 Klipper 指令與高加速度滲入 Marlin 舊板。
+    emit_classic_extras = None
     if not PING_ONLY:
-        gm, gp, classic_fil = emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins)
+        gm, gp, classic_fil, emit_classic_extras = emit_classic(
+            mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins)
     else:
         classic_fil = []
 
@@ -1970,6 +2060,12 @@ def main(src_base):
         proc_list.append({"name": pf["name"], "sub_path": "process/%s.json" % pf["name"]})
     if pacf_twins:
         print("  PA-CF 專屬製程：%d 支（PINGP%03d 起）" % (len(pacf_twins), gp - len(pacf_twins)))
+
+    # 4a-8. Classic base 補口徑（Eric 2026-09-01 裁 Q1＝丙／Q2＝四台一起）。
+    #        接在 4a-7 之後＝**真正的全庫最尾** ⇒ 既有 preset 的 setting_id 全零位移。
+    #        （第一版寫在 emit_classic 裡就地跑，實測位移了 124 支既有 preset，故改成延後 emit。）
+    if emit_classic_extras is not None:
+        gm, gp = emit_classic_extras(gm, gp)
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
