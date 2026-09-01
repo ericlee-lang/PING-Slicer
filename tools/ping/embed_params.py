@@ -1816,6 +1816,103 @@ def apply_default_materials(pj):
 
 
 # ---------- 4. 主流程 ----------
+
+def apply_printer_family_gates(mac_list, mm_list):
+    """把「哪一家族的機器看得到哪一批線材」的閘門寫進產出檔。
+
+    抽成獨立函式的理由（2026-09-01・牌 c-0901-GATE-01）：這段是**冪等的 post-pass**，
+    只碰 `printer_notes`／`default_materials`／`compatible_printers_condition` 三個欄位。
+    抽出來之後就能「只跑這一段」把規則套到現有產出，不必為了一條相容性規則跑全量 regen
+    （全量 regen 會重建機型/製程/PING.json，0901 才因為新口徑的 emit 位置害 124 支 id 位移）。
+    main() 照樣呼叫它，所以日後任何一次全量 regen 都會帶上這條規則、不會被洗掉。
+    """
+    PT_NOTE = "PHOTOTILE"
+    PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
+
+    # 4d-2c. ★ Classic 前代機 × 標準線材 **雙向隔離**（Eric 2026-09-01 裁，牌 c-0901-GATE-01）
+    # 起因：Eric 在 FD300 的線材下拉看到 Classic 材料。實查根因＝那幾支 PLA **完全沒有機型閘門**，
+    # 唯一的條件式是上面那條「非照片磚機」⇒ Classic 材料對所有非照片磚機都可見。
+    # 🔴 **反向才是會印壞東西的那一邊**：Classic 機同樣看得到標準線材，而標準線材的
+    #    `filament_start_gcode` 送的是 `SET_RETRACTION`（**Klipper 指令**）——Classic 是 **Marlin**，吃不到。
+    # ⚠️ 為什麼不是把兩組線材合併成一支（Eric 原本的提議）：`Classic 210` 與 `210` 差 **12 項**
+    #    （start gcode 換成「machine retraction only」／六個回抽鍵設 `nil` 交給機器端／
+    #    `pressure_advance` 0.08→0 且 PA 關），`Classic 220` 差 17 項、`EDU Classic` 差 18 項（床溫全 0）。
+    #    合併＝把 Klipper 指令灌進 Marlin 機並把 PA 打開。
+    # ℹ️ 與 0807「族群雙向隔離」**互補不重複**：那條管 wizard 的**預勾**（`default_materials`），
+    #    這條管**下拉選單的可見性**（`compatible_printers_condition`）。
+    CLASSIC_NOTE = "CLASSIC"
+
+    # 🔴 用「這批機器存不存在」當閘門，**不要用下面那些 *_m 計數器**：計數器是「本次改了幾支」，
+    #    第二次跑時 notes 早就對了 ⇒ 計數 0 ⇒ 條件式整段被跳過。舊寫法 `if pt_m:` 就是這個形狀，
+    #    它只在「第一次跑」正確；現在條件式由兩個家族共同決定，那個形狀會變成靜默漏掛。
+    _pt_any = any("照片磚" in _e["name"] for _e in mac_list)
+    _cl_any = any(_is_classic_model(_e["name"]) for _e in mac_list)
+
+    def _want_filament_cond(_name):
+        """線材該吃的條件式：兩個家族各出一條，用 `and` 併。
+        文法支援已實查：`PlaceholderParser.cpp:2137` 的 `(kw["and"] | "&&")`。"""
+        _parts = []
+        if _pt_any:
+            _parts.append(PT_COND)
+        if _cl_any:
+            _parts.append(("printer_notes=~/.*%s.*/" if "Classic" in _name
+                           else "printer_notes!~/.*%s.*/") % CLASSIC_NOTE)
+        return " and ".join(_parts)
+
+    pt_m = pt_mm = pt_f = cl_m = 0
+    for _e in mac_list:
+        _is_pt = "照片磚" in _e["name"]
+        _is_cl = _is_classic_model(_e["name"])
+        if not (_is_pt or _is_cl):
+            continue
+        # 兩個家族本應互斥（照片磚機是 FD300／FF；Classic 是 EDU/DUAL/PING 2/PING 3 前綴）。
+        # 真的同時命中＝命名出事了，寧可當場爆掉也不要靜默把 notes 寫成其中一邊。
+        assert not (_is_pt and _is_cl), "機器同時被判為照片磚與 Classic：%s" % _e["name"]
+        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
+        if not os.path.isfile(_fp):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        _note = PT_NOTE if _is_pt else CLASSIC_NOTE
+        if _d.get("printer_notes") != _note:
+            _d["printer_notes"] = _note
+            jdump(_fp, _d)
+            if _is_pt:
+                pt_m += 1
+            else:
+                cl_m += 1
+    for _e in mm_list:
+        if "照片磚" not in _e["name"]:
+            continue
+        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
+        if not os.path.isfile(_fp):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        _want = PT_FIL_PLA_FD if _e["name"].startswith("FD300") else PT_FIL_PLA
+        if _d.get("default_materials") != _want:
+            _d["default_materials"] = _want
+            jdump(_fp, _d); pt_mm += 1
+    if _pt_any or _cl_any:   # 兩個家族都不存在＝整段自然跳過，不要平白給線材加條件式
+        for _fp in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
+            _d = json.load(io.open(_fp, encoding="utf-8"))
+            if _d.get("instantiation") != "true":
+                continue
+            if _d.get("compatible_printers"):
+                # 明列優先於條件式 ⇒ 不只是「不加」，而是**主動移除**。
+                # 🔴 2026-08-26 實錄：`PING PLA(照片磚 FD300)` 被加上「非照片磚機」條件式＝自我否定。
+                #    真因不在這裡——4b-1e 是「複製 PING PLA - 210 再改身分」，0822 幫 210 加的條件式
+                #    被一起抄進照片磚專用支。改成主動移除＝**自癒**，不依賴任何 emit 時序。
+                if _d.pop("compatible_printers_condition", None) is not None:
+                    jdump(_fp, _d); pt_f += 1
+                continue
+            _want_cond = _want_filament_cond(_d.get("name") or os.path.splitext(os.path.basename(_fp))[0])
+            if _d.get("compatible_printers_condition") != _want_cond:
+                _d["compatible_printers_condition"] = _want_cond
+                jdump(_fp, _d); pt_f += 1
+    if pt_m or pt_mm or pt_f or cl_m:
+        print("  線材機型閘門（照片磚 0822／Classic 0901）：照片磚 notes %d 台｜Classic notes %d 台｜model 可勾清單 %d 支｜線材條件式 %d 支"
+              % (pt_m, cl_m, pt_mm, pt_f))
+
+
 def main(src_base):
     # 4-0. 🔴 已淘汰鍵閘門——必須是第一個敘述：下面 4a 立刻就會刪檔，
     #      擺在後面等於 repo 先被掏空才報錯。（牌 c-0827-SIT-05）
@@ -2833,49 +2930,7 @@ def main(src_base):
     #   ③其餘線材補 compatible_printers_condition ⇒ 照片磚機的線材下拉選不到它們。
     #     ⚠ **明列 compatible_printers 的線材不加**——明列優先於條件式，加了也不生效；
     #       0822 原註已載明「產生器若照舊寫 all_machines 會整個蓋掉」。四料同進/3in1/照片磚專用支都屬此類。
-    PT_NOTE = "PHOTOTILE"
-    PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
-    pt_m = pt_mm = pt_f = 0
-    for _e in mac_list:
-        if "照片磚" not in _e["name"]:
-            continue
-        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
-        if not os.path.isfile(_fp):
-            continue
-        _d = json.load(io.open(_fp, encoding="utf-8"))
-        if _d.get("printer_notes") != PT_NOTE:
-            _d["printer_notes"] = PT_NOTE
-            jdump(_fp, _d); pt_m += 1
-    for _e in mm_list:
-        if "照片磚" not in _e["name"]:
-            continue
-        _fp = os.path.join(PINGDIR, _e["sub_path"].replace("machine/", "machine" + os.sep))
-        if not os.path.isfile(_fp):
-            continue
-        _d = json.load(io.open(_fp, encoding="utf-8"))
-        _want = PT_FIL_PLA_FD if _e["name"].startswith("FD300") else PT_FIL_PLA
-        if _d.get("default_materials") != _want:
-            _d["default_materials"] = _want
-            jdump(_fp, _d); pt_mm += 1
-    if pt_m:   # 沒有照片磚機的分支（無範本資料夾）＝整段自然跳過，不要平白給線材加條件式
-        for _fp in glob.glob(os.path.join(PINGDIR, "filament", "PING*.json")):
-            _d = json.load(io.open(_fp, encoding="utf-8"))
-            if _d.get("instantiation") != "true":
-                continue
-            if _d.get("compatible_printers"):
-                # 明列優先於條件式 ⇒ 不只是「不加」，而是**主動移除**。
-                # 🔴 2026-08-26 實錄：`PING PLA(照片磚 FD300)` 被加上「非照片磚機」條件式＝自我否定。
-                #    真因不在這裡——4b-1e 是「複製 PING PLA - 210 再改身分」，0822 幫 210 加的條件式
-                #    被一起抄進照片磚專用支。改成主動移除＝**自癒**，不依賴任何 emit 時序。
-                if _d.pop("compatible_printers_condition", None) is not None:
-                    jdump(_fp, _d); pt_f += 1
-                continue
-            if _d.get("compatible_printers_condition") != PT_COND:
-                _d["compatible_printers_condition"] = PT_COND
-                jdump(_fp, _d); pt_f += 1
-    if pt_m or pt_mm or pt_f:
-        print("  照片磚相容性收斂 0822（源頭回填 0826）：機器 printer_notes %d 台｜model 可勾清單 %d 支｜線材條件式 %d 支"
-              % (pt_m, pt_mm, pt_f))
+    apply_printer_family_gates(mac_list, mm_list)
 
     # 4e. ★ 預擠點升溫 post-pass——【2026-07-20 Eric 裁回退・停用，勿重新接上】
     # start gcode 回到 header 升溫舊制（base 排放即舊制，停用後 regen 自然還原）；

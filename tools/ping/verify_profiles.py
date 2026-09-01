@@ -992,6 +992,13 @@ _ping_fils = {n: (d.get("compatible_printers") if isinstance(d.get("compatible_p
 #     驗證器看不懂的條件如果被當成「沒有限制」，rule ② 會反過來要求把料加回去。
 _PHOTOTILE_MARK = "PHOTOTILE"
 _PHOTOTILE_COND = "printer_notes!~/.*%s.*/" % _PHOTOTILE_MARK
+# Classic 前代機 × 標準線材雙向隔離（Eric 2026-09-01 裁，牌 c-0901-GATE-01）。
+# 產生器（embed_params.apply_printer_family_gates）把兩個家族各出一條、用 `and` 併，
+# 所以這裡登記的是「兩個家族的所有合法組合」，而不是單一字串。
+# ⚠ 沿用上面那條紀律：**認不得的條件式一律顯性報錯**，不要靜默當成「沒有限制」。
+_CLASSIC_MARK = "CLASSIC"
+_CLASSIC_YES = "printer_notes=~/.*%s.*/" % _CLASSIC_MARK   # 只有 Classic 機看得到
+_CLASSIC_NO = "printer_notes!~/.*%s.*/" % _CLASSIC_MARK    # Classic 機看不到
 _fil_cond = {}
 for _n, (_k, _d) in presets.items():
     if _k != "filament" or not _n.startswith("PING ") or _d.get("instantiation") != "true":
@@ -999,9 +1006,14 @@ for _n, (_k, _d) in presets.items():
     _c = (_d.get("compatible_printers_condition") or "").strip()
     if not _c:
         continue
-    if _c != _PHOTOTILE_COND:
-        err(f"[未知的 compatible_printers_condition] {_n}: {_c!r}；"
-            f"驗證器只認識 {_PHOTOTILE_COND!r}，請先更新本檔再加新條件")
+    _want_parts = [_PHOTOTILE_COND, _CLASSIC_YES if "Classic" in _n else _CLASSIC_NO]
+    _allowed = {_PHOTOTILE_COND, " and ".join(_want_parts)}
+    if _c not in _allowed:
+        # 方向講出來：Classic 料掛成 `!~CLASSIC`（或反過來）＝這支料在自己家的機器上會消失，
+        # 而那正是使用者最不會想到要來這裡查的症狀。
+        err(f"[未知或方向相反的 compatible_printers_condition] {_n}: {_c!r}；"
+            f"依線材名稱應為 {' and '.join(_want_parts)!r}（或僅照片磚那條），"
+            f"請先更新本檔再加新條件")
     _fil_cond[_n] = _c
 # 哪些 machine preset 掛了 PHOTOTILE 標記
 _phototile_machines = {n for n, (k, d) in presets.items()

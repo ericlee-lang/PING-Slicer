@@ -60,7 +60,7 @@
     "filament_soluble": [
         "0"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/",
     "enable_pressure_advance": [
         "0"
     ],

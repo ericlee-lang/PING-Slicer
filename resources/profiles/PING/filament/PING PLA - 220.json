@@ -276,5 +276,5 @@
     "default_filament_colour": [
         "#EA4E16"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/"
 }
