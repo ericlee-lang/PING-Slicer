@@ -11,8 +11,13 @@ class Button;
 class StepMeshDialog : public Slic3r::GUI::DPIDialog
 {
 public:
-    StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double linear_init, double angle_init);
+    /* 【2026-08-24・牌 c-0824-VIBE-02】census 帶預設值＝fail-open：
+       任何沒經過前哨閘門、直接 new 這個對話框的路徑，行為與改動前完全相同（不顯示警示帶）。 */
+    StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double linear_init, double angle_init,
+                   const Slic3r::StepBRepCensus& census = Slic3r::StepBRepCensus{});
     ~StepMeshDialog() override;
+    // 使用者按了「開啟 STEP 修補工具」。對話框以 wxID_CANCEL 收掉（Eric 2026-08-24 裁：取消這次匯入）。
+    inline bool repair_requested() const { return m_repair_requested; }
     void on_dpi_changed(const wxRect& suggested_rect) override;
     inline double get_linear_defletion() {
         double value;
@@ -35,6 +40,7 @@ public:
     }
 private:
     Slic3r::Step& m_file;
+    bool m_repair_requested = false;
     wxCheckBox* m_checkbox = nullptr;
     wxCheckBox* m_split_compound_checkbox = nullptr;
     wxString m_linear_last;

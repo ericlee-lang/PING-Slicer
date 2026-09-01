@@ -1,0 +1,2 @@
+# Immutable browser release: bytes must survive clone (autocrlf would break the manifest).
+* -text

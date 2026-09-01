@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "coreVersion": "1.1.0-alpha.3",
+  "protocolVersion": 1,
+  "owner": "聯造實業有限公司 / PING Slicer",
+  "artifact": "step-repair-browser-release",
+  "files": [
+    {
+      "path": "NOTICE.md",
+      "bytes": 390,
+      "sha256": "c1442fe995b6b5a8bb5e6f5d4525f2e9e99fbacf71e66589d944d449be919c47"
+    },
+    {
+      "path": "assets/replicad_single.wasm",
+      "bytes": 10855736,
+      "sha256": "2e07c45b83267b38d3102ec411fad11e7ce2ed71854084e461c5ab5fee94aaff"
+    },
+    {
+      "path": "assets/step-repair.js",
+      "bytes": 875306,
+      "sha256": "4f1f8f77817b4ba020b750b4eb4244e8ead8d478c7a2d8295e5b9f601f345436"
+    },
+    {
+      "path": "index.html",
+      "bytes": 6931,
+      "sha256": "6fe54f30dc95977ab92c3279fe6cd3005da330172208fc004716be7b5d23911b"
+    },
+    {
+      "path": "licenses/replicad-MIT.txt",
+      "bytes": 1063,
+      "sha256": "7a3c098c1cf5d8de05efa0b930e7c8398c221da2a59032b617057fb7f122cf70"
+    },
+    {
+      "path": "licenses/replicad-opencascadejs-MIT.txt",
+      "bytes": 1063,
+      "sha256": "7a3c098c1cf5d8de05efa0b930e7c8398c221da2a59032b617057fb7f122cf70"
+    }
+  ]
+}

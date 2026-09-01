@@ -23,6 +23,7 @@
 #include "Widgets/ProgressDialog.hpp"
 #include "SingleChoiceDialog.hpp"
 #include "StepMeshDialog.hpp"
+#include "StepPreflight.hpp"
 
 
 #include <vector>
@@ -2243,28 +2244,20 @@ void ObjectList::load_modifier(const wxArrayString& input_files, ModelObject& mo
                 double angle = string_to_double_decimal_point(wxGetApp().app_config->get("angle_defletion"));
                 if (angle <= 0) angle = 0.5;
                 bool split_compound = wxGetApp().app_config->get_bool("is_split_compound");
+                StepPreflightResult step_preflight;
                 model = Model::read_from_step(
                     input_file, LoadStrategy::LoadModel, nullptr, nullptr,
-                    [this, &is_user_cancel, &linear, &angle, &split_compound](Slic3r::Step& file, double& linear_value,
-                                                                                     double& angle_value, bool& is_split) -> int {
-                        if (wxGetApp().app_config->get_bool("enable_step_mesh_setting")) {
-                            StepMeshDialog mesh_dlg(nullptr, file, linear, angle);
-                            if (mesh_dlg.ShowModal() == wxID_OK) {
-                                linear_value = mesh_dlg.get_linear_defletion();
-                                angle_value  = mesh_dlg.get_angle_defletion();
-                                is_split     = mesh_dlg.get_split_compound_value();
-                                return 1;
-                            }
-                        } else {
-                            linear_value = linear;
-                            angle_value  = angle;
-                            is_split     = split_compound;
-                            return 1;
-                        }
-                        is_user_cancel = true;
-                        return -1;
+                    [&is_user_cancel, &step_preflight, &input_file](Slic3r::Step& file, double& linear_value,
+                                                                    double& angle_value, bool& is_split) -> int {
+                        const int gate = step_import_gate(file, input_file, linear_value, angle_value, is_split, step_preflight);
+                        if (gate != 1)
+                            is_user_cancel = true;
+                        return gate;
                     },
                     linear, angle, split_compound);
+                step_preflight_followup(step_preflight);
+                if (step_preflight.repair_requested)
+                    return;
             } else {
                 model = Model::read_from_file(input_file, nullptr, nullptr, LoadStrategy::LoadModel);
             }

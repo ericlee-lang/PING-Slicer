@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>STEP 破面檢查</title>
+    <script defer src="./assets/step-repair.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <button id="backButton" class="icon-button" type="button" aria-label="返回 ORCA">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m14.5 5-7 7 7 7" />
+        </svg>
+      </button>
+      <div class="title-group">
+        <span class="product-context">ORCA 工具</span>
+        <h1>STEP 破面檢查</h1>
+      </div>
+      <span id="versionLabel" class="version" aria-label="檢查核心版本"></span>
+    </header>
+
+    <main class="repair-shell">
+      <section id="intakePanel" class="card intake-card" aria-labelledby="intakeTitle">
+        <div class="section-heading">
+          <div>
+            <h2 id="intakeTitle">選擇要檢查的 STEP 檔</h2>
+            <p>選檔後會自動檢查破面，並標出位置。原始檔全程唯讀，不會被改動。</p>
+          </div>
+        </div>
+
+        <div id="dropZone" class="drop-zone">
+          <svg class="upload-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M14 4h14l10 10v26a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4Z" />
+            <path d="M28 4v10h10M24 35V21m-6 6 6-6 6 6" />
+          </svg>
+          <strong>拖入 STEP 檔</strong>
+          <span>或從這台電腦選擇檔案</span>
+          <button id="chooseFileButton" class="primary" type="button">選擇 STEP 檔</button>
+          <input id="stepFile" type="file" accept=".step,.stp,model/step,application/step" hidden />
+          <small>支援 .step、.stp</small>
+        </div>
+
+        <p id="fileMeta" class="file-meta" role="status">檔案只在這台電腦處理，原始檔不會被覆寫。</p>
+      </section>
+
+      <section id="workingPanel" class="card working-card" aria-live="polite" aria-busy="true" hidden>
+        <span class="spinner" aria-hidden="true"></span>
+        <div>
+          <strong id="workingTitle">正在準備檢查…</strong>
+          <p id="workingFile"></p>
+          <small>處理期間不會改寫原始檔。</small>
+        </div>
+      </section>
+
+      <section id="resultPanel" class="card result-card" aria-live="polite" aria-labelledby="resultTitle" hidden>
+        <div class="status-hero">
+          <span id="statusSymbol" class="status-symbol" aria-hidden="true"></span>
+          <div class="status-copy">
+            <span id="statusBadge" class="status-badge"></span>
+            <h2 id="resultTitle"></h2>
+            <p id="resultSummary"></p>
+            <p class="preserve-note">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>
+              原始檔保持不變
+            </p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="useRepairButton" class="primary" type="button" hidden>使用修補版本</button>
+          <button id="finishButton" class="primary" type="button" hidden>完成，返回 ORCA</button>
+          <button id="chooseAnotherButton" class="secondary" type="button">檢查其他檔案</button>
+        </div>
+        <p id="actionStatus" class="action-status" role="status"></p>
+
+        <!-- B-3 失敗報告：檢查不起來時，講清楚卡在哪一階段、為什麼、下一步做什麼 -->
+        <section id="failureBlock" class="failure-block" hidden>
+          <h3 id="failureTitle"></h3>
+          <p id="failureStage" class="failure-stage"></p>
+          <div class="failure-cols">
+            <div>
+              <h4>可能原因</h4>
+              <ul id="failureCauses"></ul>
+            </div>
+            <div>
+              <h4>可以怎麼做</h4>
+              <ul id="failureAdvice"></ul>
+            </div>
+          </div>
+          <div class="failure-notchecked">
+            <h4>本次<strong>沒有</strong>檢查到的項目</h4>
+            <ul id="failureNotChecked"></ul>
+          </div>
+          <details class="failure-tech">
+            <summary>技術細節</summary>
+            <dl id="failureEvidence" class="metrics"></dl>
+          </details>
+        </section>
+
+        <!-- 3D 標示（PING 2026-09-01・牌 c-0901-STEP-01）：Eric 看過 VibeCAD 後裁「直接標出位置」。
+             編號與下方清單共用同一組流水號，順序契約在 topologyPolicy.topologyMarkerData。 -->
+        <section id="viewerBlock" class="viewer-block" hidden>
+          <div class="viewer-head">
+            <h3>破面位置（3D）</h3>
+            <button id="viewerResetButton" class="ghost" type="button">重設視角</button>
+          </div>
+          <p class="defect-caveat">
+            拖曳可旋轉、滾輪縮放。橘色標記是<strong>顯示網格</strong>上量到的破洞；
+            小十字是精確落點，編號用引線連到旁邊，與下方清單同號。
+          </p>
+          <div id="viewerCanvas" class="viewer-canvas"></div>
+          <p id="viewerNote" class="defect-hint"></p>
+        </section>
+
+        <!-- 破洞位置：座標是**顯示網格**層的，不是 STEP 的 BRep 實體編號 -->
+        <section id="defectLocations" class="defect-locations" hidden>
+          <h3>破洞位置</h3>
+          <p class="defect-caveat">
+            以下座標是<strong>顯示網格</strong>上量到的破洞位置（模型座標，單位 mm），
+            用來幫你在 CAD 裡找到大概的地方；它<strong>不是</strong> STEP 的曲面編號。
+          </p>
+          <div id="defectGroups"></div>
+        </section>
+
+        <details id="reportDetails" class="report-details">
+          <summary>
+            <span>查看檢查詳情</span>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+          </summary>
+          <div class="report-body">
+            <section class="decision-block" aria-labelledby="decisionTitle">
+              <h3 id="decisionTitle">判定依據</h3>
+              <ul id="decisionReasons"></ul>
+            </section>
+
+            <div class="report-grid">
+              <article>
+                <h3>原始檔</h3>
+                <dl id="beforeMetrics" class="metrics"></dl>
+              </article>
+              <article id="afterArticle">
+                <h3>修補版本</h3>
+                <dl id="afterMetrics" class="metrics"></dl>
+              </article>
+            </div>
+
+            <aside class="limits-note">
+              <strong>目前的安全邊界</strong>
+              <p>只回報破面位置，不改動幾何：不重建遺失曲面、不猜測設計意圖，也不處理自交或實體互穿。座標是顯示網格上量到的，不是 STEP 的曲面編號。</p>
+            </aside>
+          </div>
+        </details>
+      </section>
+    </main>
+  </body>
+</html>

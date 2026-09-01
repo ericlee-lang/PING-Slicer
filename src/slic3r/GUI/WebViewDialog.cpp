@@ -40,6 +40,16 @@ namespace GUI {
     {
         return wxString::Format("file://%s/web/phototile/index.html?mode=vertical&embedded=1", from_u8(resources_dir()));
     }
+
+    wxString step_repair_url()
+    {
+        /* 【2026-08-23・Eric 裁「甲」】改走虛擬主機，不再用 file://。
+           理由：修補核心以 XHR 取 .wasm，file:// origin 會被 CORS 擋死（見 WebView.cpp 註解）。
+           映射目標是 resources 根，所以路徑仍是 /web/step-repair/index.html
+           ⇒ IsStepRepairPage() 與 OnNavigationRequest 的字串比對不受影響。
+           照片磚與首頁**維持 file://**（它們只用 <script>、不需要 XHR），本次不動。 */
+        return wxString::Format("https://%s/web/step-repair/index.html?embedded=1", WebView::virtual_host());
+    }
     }
 
     wxDECLARE_EVENT(EVT_RESPONSE_MESSAGE, wxCommandEvent);
@@ -281,6 +291,27 @@ void WebViewPanel::ShowPhotoTile(const wxString& image_path)
     m_pending_photo_tile_image = image_path;
     wxString url = photo_tile_url();
     load_url(url);
+}
+
+void WebViewPanel::ShowStepRepair()
+{
+    m_pending_photo_tile_image.clear();
+    wxString url = step_repair_url();
+    load_url(url);
+}
+
+bool WebViewPanel::IsStepRepairPage() const
+{
+    /* 【2026-08-23・Codex 反審修正】必須是**精確來源比對**，不能用子字串。
+       原本 Contains("/web/step-repair/index.html") 在 file:// 時代還說得過去，
+       改走 https 虛擬主機之後就不行了——任何 URL 只要路徑含這串就會被當成修補頁，
+       而這個判斷正是「可以叫 C++ 寫檔」的信任邊界。比對時去掉 query，
+       只認 scheme+host+path 與 step_repair_url() 完全相等。 */
+    if (m_browser == nullptr)
+        return false;
+    const wxString current  = m_browser->GetCurrentURL().BeforeFirst('?');
+    const wxString expected = step_repair_url().BeforeFirst('?');
+    return !expected.IsEmpty() && current.IsSameAs(expected, false);
 }
 
 void WebViewPanel::SendPendingPhotoTileImage()
@@ -638,7 +669,9 @@ void WebViewPanel::OnNavigationRequest(wxWebViewEvent& evt)
     BOOST_LOG_TRIVIAL(trace) << __FUNCTION__ << ": " << evt.GetURL().ToUTF8().data();
     const wxString &url = evt.GetURL();
     if (url.StartsWith("File://") || url.StartsWith("file://")) {
-        if (!url.Contains("/web/homepage/index.html") && !url.Contains("/web/phototile/index.html")) {
+        if (!url.Contains("/web/homepage/index.html") &&
+            !url.Contains("/web/phototile/index.html") &&
+            !url.Contains("/web/step-repair/index.html")) {
             auto file = wxURL::Unescape(wxURL(url).GetPath());
 #ifdef _WIN32
             if (file.StartsWith('/'))

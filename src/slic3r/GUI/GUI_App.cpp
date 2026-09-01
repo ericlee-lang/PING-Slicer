@@ -42,6 +42,7 @@
 #include <wx/menu.h>
 #include <wx/menuitem.h>
 #include <wx/filedlg.h>
+#include <wx/file.h>
 #include <wx/progdlg.h>
 #include <wx/busyinfo.h>
 #include <wx/dir.h>
@@ -182,6 +183,79 @@ namespace Slic3r {
 namespace GUI {
 
 class MainFrame;
+
+/* 【2026-08-24・牌 c-0824-VIBE-02】STEP 修補核心的版本釘住，改由 vendor manifest 決定。
+
+   為什麼要改：原本這裡把期望版本硬編成字串（`core_version != "1.0.2"`）。
+   那表示 VibeCAD 每出一個 patch 版，ORCA 都得改 C++ 並重新編譯一次整包才吃得到——
+   0823 那棒就是栽在這裡：升到 1.0.2 之後，被釘死的 "1.0.0" 把另存整個 fail-closed 擋掉。
+   VibeCAD 已於 2026-08-24 正式同意改讀 manifest（契約第三題），本函式即契約 §3 的六步驗證。
+
+   🔴 fail closed：讀不到、解析不了、欄位缺失、版本不符、依賴旗標不對 —— 一律不放行匯出，
+      而且**不自動降版**去遷就頁面回報的版本。 */
+namespace {
+
+struct StepRepairPin
+{
+    bool        valid = false;
+    std::string core_version;
+    int         protocol_version = 0;
+};
+
+const StepRepairPin& step_repair_pin()
+{
+    namespace bfs = boost::filesystem;
+    // 固定 release 在執行期不會變，讀一次就好；讀失敗也要記住失敗（不要每次重試出不同結果）。
+    static const StepRepairPin pin = [&]() -> StepRepairPin {
+        StepRepairPin   out;
+        const bfs::path vendor_dir    = bfs::path(resources_dir()) / "web" / "step-repair";
+        const bfs::path manifest_path = vendor_dir / "vendor-manifest.json";
+        try {
+            boost::nowide::ifstream ifs(manifest_path.string());
+            if (!ifs.good()) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest not readable: " << manifest_path.string();
+                return out;
+            }
+            json j;
+            ifs >> j;
+
+            // ①～③ 契約 §3：只讀自己 vendor 目錄的 manifest，並確認 schema／component／兩個依賴旗標。
+            if (j.value("schemaVersion", 0) != 1 ||
+                j.value("component", std::string()) != "@linkin-factory/step-repair-core" ||
+                j.value("runtimeDependencyOnSourceCheckout", true) != false ||
+                j.value("buildDependencyOnSourceCheckout", true) != false) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest failed contract checks";
+                return out;
+            }
+
+            // ⑤ integrityManifest 必須指向同一個 vendor 目錄（不得指到工作樹或別處）。
+            const std::string integrity = j.value("integrityManifest", std::string());
+            if (integrity.empty() || integrity.find('/') != std::string::npos ||
+                integrity.find('\\') != std::string::npos ||
+                !bfs::exists(vendor_dir / integrity)) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair integrityManifest missing or outside the vendor dir: " << integrity;
+                return out;
+            }
+
+            out.core_version     = j.value("coreVersion", std::string());
+            out.protocol_version = j.value("protocolVersion", 0);
+            if (out.core_version.empty() || out.protocol_version <= 0) {
+                BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest has no usable version fields";
+                return out;
+            }
+            out.valid = true;
+            BOOST_LOG_TRIVIAL(info) << "STEP repair pinned by manifest: core=" << out.core_version
+                                    << ", protocol=" << out.protocol_version;
+        } catch (const std::exception& e) {
+            BOOST_LOG_TRIVIAL(error) << "STEP repair vendor manifest unreadable: " << e.what();
+            return StepRepairPin{};
+        }
+        return out;
+    }();
+    return pin;
+}
+
+} // anonymous namespace
 
 void start_ping_test()
 {
@@ -4753,6 +4827,39 @@ static PingPhotoTileInstallResult ping_install_photo_tile_printers()
     return out;
 }
 
+/* C-2：回推工作室頁的 JS 字串跳脫（值會被拼進 RunScript 的單行腳本）。
+   UTF-8 位元組原樣保留；'<' 也跳脫＝保守擋 </script> 類序列。 */
+static std::string ping_js_escape(const std::string& s)
+{
+    std::string out;
+    out.reserve(s.size() + 8);
+    for (const char ch : s) {
+        const unsigned char c = (unsigned char) ch;
+        switch (c) {
+        case '"':  out += "\\\"";  break;
+        case '\\': out += "\\\\";  break;
+        case '\n': out += "\\n";   break;
+        case '\r': out += "\\r";   break;
+        case '<':  out += "\\x3c"; break;
+        default:
+            if (c < 0x20) { char buf[8]; ::snprintf(buf, sizeof(buf), "\\u%04x", c); out += buf; }
+            else          out += ch;
+        }
+    }
+    return out;
+}
+
+void GUI_App::step_repair_page_result(bool ok, const std::string& message, const std::string& path)
+{
+    const std::string js = std::string("window.PINGStepRepair && window.PINGStepRepair.hostResult({ok:")
+        + (ok ? "true" : "false") + ",message:\"" + ping_js_escape(message)
+        + "\",path:\"" + ping_js_escape(path) + "\"});";
+    CallAfter([this, js] {
+        if (mainframe && mainframe->m_webview && mainframe->m_webview->IsStepRepairPage())
+            mainframe->m_webview->RunScript(from_u8(js));
+    });
+}
+
 std::string GUI_App::handle_web_request(std::string cmd)
 {
     try {
@@ -4813,6 +4920,179 @@ std::string GUI_App::handle_web_request(std::string cmd)
             }
             else if (command_str.compare("homepage_phototile") == 0) {
                 CallAfter([this] { open_photo_tile(); });
+            }
+            else if (command_str.compare("homepage_step_repair") == 0) {
+                CallAfter([this] { open_step_repair(); });
+            }
+            else if (command_str.compare("step_repair_home") == 0) {
+                if (!mainframe || !mainframe->m_webview || !mainframe->m_webview->IsStepRepairPage())
+                    return "";
+                m_step_repair_export_buffer.clear();
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+                CallAfter([this] {
+                    if (mainframe && mainframe->m_webview)
+                        mainframe->m_webview->ShowHomepage();
+                });
+            }
+            else if (command_str.compare("step_repair_export_begin") == 0) {
+                constexpr size_t max_step_repair_bytes = 256ULL * 1024ULL * 1024ULL;
+                constexpr size_t max_step_repair_chunks = 8192;
+                const size_t expected_size = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+                const int protocol_version = root.get<int>("data.protocol_version", 0);
+                const std::string core_version = root.get<std::string>("data.core_version", "");
+                const std::string decision = root.get<std::string>("data.decision", "");
+                const std::string proposed_name = root.get<std::string>("data.filename", "");
+
+                m_step_repair_export_buffer.clear();
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+
+                if (!mainframe || !mainframe->m_webview || !mainframe->m_webview->IsStepRepairPage()) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected STEP repair export outside its pinned page";
+                    return "";
+                }
+                /* ④ 契約 §3：頁面回報的 core／protocol 必須與 manifest 完全相同。
+                   manifest 本身不合格（pin.valid == false）就直接不放行——不自動降版、不猜。 */
+                const StepRepairPin& pin = step_repair_pin();
+                if (!pin.valid || protocol_version != pin.protocol_version || core_version != pin.core_version ||
+                    decision != "repair-accepted" ||
+                    expected_size == 0 || expected_size > max_step_repair_bytes ||
+                    expected_chunks == 0 || expected_chunks > max_step_repair_chunks || proposed_name.size() > 240) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected invalid STEP repair export: core=" << core_version
+                                               << ", protocol=" << protocol_version << ", size=" << expected_size
+                                               << ", chunks=" << expected_chunks << ", decision=" << decision;
+                    step_repair_page_result(false, "修補檔的版本或大小不符合安全規則，原始檔未變更。");
+                    return "";
+                }
+
+                wxFileName safe_name(from_u8(proposed_name));
+                wxString stem = safe_name.GetName();
+                if (stem.IsEmpty())
+                    stem = "model";
+                if (!stem.EndsWith("_修補"))
+                    stem += "_修補";
+                safe_name.Assign(stem + ".step");
+                m_step_repair_suggested_name = into_u8(safe_name.GetFullName());
+                m_step_repair_export_buffer.reserve(expected_size);
+                m_step_repair_export_expected_size = expected_size;
+                m_step_repair_export_expected_chunks = expected_chunks;
+                m_step_repair_export_active = true;
+            }
+            else if (command_str.compare("step_repair_export_chunk") == 0) {
+                if (!m_step_repair_export_active || !mainframe || !mainframe->m_webview ||
+                    !mainframe->m_webview->IsStepRepairPage())
+                    return "";
+
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.payload", "");
+                if (index != m_step_repair_export_next_chunk || encoded.empty() || encoded.size() > 300ULL * 1024ULL) {
+                    BOOST_LOG_TRIVIAL(warning) << "STEP repair chunk out of sequence or oversized: expected="
+                                               << m_step_repair_export_next_chunk << ", got=" << index;
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔傳輸不完整，原始檔未變更。");
+                    return "";
+                }
+
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(result.first);
+                const size_t trailing_padding = encoded.size() - result.second;
+                const bool valid_padding = encoded.size() % 4 == 0 && trailing_padding <= 2 &&
+                    std::all_of(encoded.begin() + result.second, encoded.end(), [](char value) { return value == '='; }) &&
+                    (trailing_padding == 0 || index + 1 == m_step_repair_export_expected_chunks);
+                if (!valid_padding || decoded.empty() ||
+                    m_step_repair_export_buffer.size() + decoded.size() > m_step_repair_export_expected_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔資料無法驗證，原始檔未變更。");
+                    return "";
+                }
+                m_step_repair_export_buffer.insert(m_step_repair_export_buffer.end(), decoded.begin(), decoded.end());
+                ++m_step_repair_export_next_chunk;
+            }
+            else if (command_str.compare("step_repair_export_end") == 0) {
+                if (!m_step_repair_export_active || !mainframe || !mainframe->m_webview ||
+                    !mainframe->m_webview->IsStepRepairPage() ||
+                    m_step_repair_export_next_chunk != m_step_repair_export_expected_chunks ||
+                    m_step_repair_export_buffer.size() != m_step_repair_export_expected_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補檔傳輸尚未完成，原始檔未變更。");
+                    return "";
+                }
+
+                static constexpr char step_signature[] = "ISO-10303-21;";
+                const size_t prefix_size = std::min<size_t>(m_step_repair_export_buffer.size(), 256);
+                const auto signature = std::search(
+                    m_step_repair_export_buffer.begin(), m_step_repair_export_buffer.begin() + prefix_size,
+                    std::begin(step_signature), std::end(step_signature) - 1);
+                if (signature == m_step_repair_export_buffer.begin() + prefix_size) {
+                    m_step_repair_export_active = false;
+                    m_step_repair_export_buffer.clear();
+                    step_repair_page_result(false, "修補結果不是有效的 STEP 交換檔，原始檔未變更。");
+                    return "";
+                }
+
+                std::vector<unsigned char> step_bytes;
+                step_bytes.swap(m_step_repair_export_buffer);
+                const std::string suggested_name = m_step_repair_suggested_name;
+                m_step_repair_export_expected_size = 0;
+                m_step_repair_export_expected_chunks = 0;
+                m_step_repair_export_next_chunk = 0;
+                m_step_repair_export_active = false;
+                m_step_repair_suggested_name.clear();
+
+                CallAfter([this, step_bytes = std::move(step_bytes), suggested_name]() mutable {
+                    if (!plater() || plater()->is_background_process_slicing()) {
+                        step_repair_page_result(false, "切片進行中，暫時不能載入修補版本；檔案尚未寫入。");
+                        return;
+                    }
+
+                    wxFileDialog dialog(GetTopWindow(), "另存並使用修補 STEP",
+                        from_u8(app_config->get_last_dir()), from_u8(suggested_name),
+                        "STEP files (*.step)|*.step", wxFD_SAVE);
+                    if (dialog.ShowModal() != wxID_OK) {
+                        step_repair_page_result(false, "已取消；原始檔未變更。");
+                        return;
+                    }
+
+                    wxFileName output_name(dialog.GetPath());
+                    output_name.SetExt("step");
+                    const wxString output_path = output_name.GetFullPath();
+                    if (wxFileExists(output_path)) {
+                        step_repair_page_result(false, "為避免覆寫原始檔或既有檔案，請改用一個尚不存在的新檔名。");
+                        return;
+                    }
+
+                    wxFile output_file;
+                    if (!output_file.Create(output_path, false)) {
+                        step_repair_page_result(false, "無法建立修補檔，請改用有寫入權限的位置。");
+                        return;
+                    }
+                    const auto written = output_file.Write(step_bytes.data(), step_bytes.size());
+                    output_file.Close();
+                    if (written != step_bytes.size()) {
+                        wxRemoveFile(output_path); // 僅移除本次剛建立且寫入失敗的殘檔。
+                        step_repair_page_result(false, "修補檔沒有完整寫入，殘檔已清除；原始檔未變更。");
+                        return;
+                    }
+
+                    app_config->set("last_dir", into_u8(output_name.GetPath()));
+                    wxArrayString input_files;
+                    input_files.Add(output_path);
+                    plater()->load_files(input_files);
+                    BOOST_LOG_TRIVIAL(info) << "STEP repair 1.0.2 saved and queued for import: " << into_u8(output_path);
+                    step_repair_page_result(true, "修補版本已另存並載入。", into_u8(output_path));
+                });
             }
             else if (command_str.compare("phototile_home") == 0) {
                 CallAfter([this] {
@@ -5152,6 +5432,39 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
     mainframe->m_webview->ShowPhotoTile(image_path);
+}
+
+bool GUI_App::open_step_repair()
+{
+    if (!mainframe || !mainframe->m_webview)
+        return false;
+
+    /* 【2026-08-24・牌 c-0824-VIBE-02】平台 guard（契約 §7）。
+       修補頁靠虛擬主機 https://ping-resources.invalid 供應 10.8MB 的 wasm，
+       而那個映射只在 WebView.cpp 的 __WIN32__ 分支裡設（SetVirtualHostMapping）。
+       非 Windows 上這個頁面會走進 0823 查到的同一條死路：頁面開得起來、
+       wasm 抓不到、任何檔一秒就回「無法自動修補」——**壞得像功能有問題，不像平台不支援**。
+       與其讓人再查一次那個坑，不如在入口就說清楚。 */
+#ifndef __WIN32__
+    MessageDialog dlg(mainframe,
+                      _L("The STEP repair tool is only available on Windows in this version."),
+                      _L("STEP repair"), wxOK | wxICON_INFORMATION);
+    dlg.ShowModal();
+    BOOST_LOG_TRIVIAL(info) << "STEP repair blocked: virtual host mapping is Windows-only";
+    return false;
+#endif
+
+    m_step_repair_export_buffer.clear();
+    m_step_repair_export_expected_size = 0;
+    m_step_repair_export_expected_chunks = 0;
+    m_step_repair_export_next_chunk = 0;
+    m_step_repair_export_active = false;
+    m_step_repair_suggested_name.clear();
+
+    BOOST_LOG_TRIVIAL(info) << "Opening vendored VibeCAD STEP repair core " << step_repair_pin().core_version;
+    mainframe->select_tab(size_t(MainFrame::tpHome));
+    mainframe->m_webview->ShowStepRepair();
+    return true;
 }
 
 void GUI_App::request_remove_project(std::string project_id)

@@ -244,6 +244,14 @@ private:
     size_t          m_photo_tile_export_expected_chunks{ 0 };
     size_t          m_photo_tile_export_next_chunk{ 0 };
     bool            m_photo_tile_export_active{ false };
+    // VibeCAD STEP repair core 1.0.0 → ORCA 的固定版傳輸協定。
+    // 頁面只在使用者明確按「使用修補版本」後送出；宿主永不覆寫既有檔案。
+    std::vector<unsigned char> m_step_repair_export_buffer;
+    size_t          m_step_repair_export_expected_size{ 0 };
+    size_t          m_step_repair_export_expected_chunks{ 0 };
+    size_t          m_step_repair_export_next_chunk{ 0 };
+    bool            m_step_repair_export_active{ false };
+    std::string     m_step_repair_suggested_name;
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -481,6 +489,10 @@ public:
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            open_photo_tile(const wxString& image_path = wxEmptyString);
+    // 回傳是否真的開起來了：平台 guard 擋掉時回 false，呼叫端才不會接著講「請拖檔進去」。
+    bool            open_step_repair();
+    void            step_repair_page_result(bool ok, const std::string& message,
+                                            const std::string& path = std::string());
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);

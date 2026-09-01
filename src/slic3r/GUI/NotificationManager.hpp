@@ -161,6 +161,11 @@ enum class NotificationType
 	BBLBedFilamentIncompatible,
     BBLMixUsePLAAndPETG,
 	BBLNozzleFilamentIncompatible,
+    /* 【2026-08-24・牌 c-0824-VIBE-02】STEP 匯入前哨。兩種用途共用同一型別：
+       ①使用者關掉了匯入參數對話框時，改用通知條講「這個檔沒有實心結構」；
+       ②使用者按了「開啟修補工具」之後，講「要拖哪一個檔進去」。
+       給它一個專屬型別是為了可以在推新的之前把舊的關掉，連續匯入才不會疊一排。 */
+    PINGStepNoSolid,
     NotificationTypeCount
 
 };
