@@ -1425,7 +1425,7 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
     #   把「一台一個口徑」的 emit 主體抽成本函式：**既有口徑照舊由下面第一段迴圈呼叫，順序一字未動
     #   ⇒ PINGM/PINGP id 零位移**；新補的口徑放到所有既有 Classic（含 0726 那批變體）之後才呼叫，
     #   完全比照當時「變體放在既有 8 台迴圈之後＝既有 id 零位移」的作法。
-    def _emit_one(spec, nz, src_nz, layer, initial):
+    def _emit_one(spec, nz, src_nz, layer, initial, keep_src_speeds=False):
         nonlocal gm, gp
         name = spec["name"]
         src_mac_name = "%s %s nozzle" % (spec["src_model"], src_nz)
@@ -1516,6 +1516,12 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                      "filename_format": filename_tpl("PLA+SUP" if spec["dual"] else "單料")})
         for key in accel_keys + jerk_keys:
             proc[key] = "0"
+        # 🔴 速度來源（Eric 2026-09-01 裁「照 FD 字面」）：
+        #   既有口徑沿用 Classic 專屬 speed_class（dual04／dual06 等，出貨中的值不動）；
+        #   **2026-09-01 新補的口徑則保留 FD 母檔的速度、不覆寫**——與 Eric 0727 對同進／單料頭
+        #   變體的裁定同一條（「參數繼承照 FD＝速度/層高/支撐全 FD 值」）。
+        #   ⚠ Marlin 隔離不受影響：加速度／jerk 仍在上面全部歸 0、不送 machine limits、
+        #     無韌體回抽／PA，回抽用 Classic 值——那幾項與速度是分開的兩件事。
         sc = spec["speed_class"]
         if sc == "single":
             speeds = {"outer_wall_speed":"40", "inner_wall_speed":"40", "sparse_infill_speed":"40",
@@ -1532,7 +1538,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
                       "internal_solid_infill_speed":"60", "top_surface_speed":"40", "gap_infill_speed":"40",
                       "support_speed":"25", "support_interface_speed":"25", "bridge_speed":"40",
                       "initial_layer_speed":"25", "initial_layer_infill_speed":"25", "travel_speed":"250"}
-        proc.update(speeds)
+        if not keep_src_speeds:
+            proc.update(speeds)
         for key in ("line_width", "outer_wall_line_width", "inner_wall_line_width",
                     "sparse_infill_line_width", "internal_solid_infill_line_width",
                     "top_surface_line_width", "support_line_width"):
@@ -1698,9 +1705,10 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
         既有 8 台之後、0826 PA-CF twins 統一在最尾 emit，都是同一個理由。
 
         層高／首層高取 FD 母檔同口徑值（`SRC_LAYER_BY_NOZZLE`／`SRC_INITIAL_BY_NOZZLE`）＝Eric 裁的丙案。
-        🔴 **速度**：既有 base 用 Classic 專屬 speed_class（dual04／dual06），0.4 直接對到 dual04；
-           **1.0 沒有對應的 Classic class** ⇒ 沿用該台既有的 speed_class，不自己發明第三組數字。
-           要改成「照 FD 字面」講一句就換。
+        🔴 **速度＝照 FD 字面**（Eric 2026-09-01 裁）：新補的口徑保留 FD 母檔速度、不套 Classic 的
+           speed_class。起因＝既有 base 的 dual04／dual06 是按口徑分的，而 **1.0 沒有對應的
+           Classic class**；與其發明第三組數字，不如照 Eric 0727 對變體的同一條裁定走。
+           既有口徑不受影響（仍用各自的 speed_class）。
         """
         nonlocal gm, gp
         gm, gp = _gm, _gp
@@ -1710,7 +1718,8 @@ def emit_classic(mm_list, mac_list, proc_list, nozzles_of, gm, gp, pacf_twins=No
             if not extras:
                 continue
             for nrow in extras:
-                _emit_one(spec, nrow["nozzle"], nrow["src_nozzle"], nrow["layer"], nrow["initial"])
+                _emit_one(spec, nrow["nozzle"], nrow["src_nozzle"], nrow["layer"], nrow["initial"],
+                          keep_src_speeds=True)   # Eric 2026-09-01 裁「照 FD 字面」
                 en += 1; ep += 1
             _emit_model(spec)   # 重出一次，nozzle_diameter 聚合成 `a;b;c`
         print("  Classic base 補口徑：machine=%d，process=%d（machine_model 就地聚合）" % (en, ep))
