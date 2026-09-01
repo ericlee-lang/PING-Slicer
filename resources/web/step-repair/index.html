@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>STEP 檢查與修補</title>
+    <title>STEP 破面檢查</title>
     <script defer src="./assets/step-repair.js"></script>
   </head>
   <body>
@@ -15,9 +15,9 @@
       </button>
       <div class="title-group">
         <span class="product-context">ORCA 工具</span>
-        <h1>STEP 檢查與修補</h1>
+        <h1>STEP 破面檢查</h1>
       </div>
-      <span id="versionLabel" class="version" aria-label="修補核心版本"></span>
+      <span id="versionLabel" class="version" aria-label="檢查核心版本"></span>
     </header>
 
     <main class="repair-shell">
@@ -25,7 +25,7 @@
         <div class="section-heading">
           <div>
             <h2 id="intakeTitle">選擇要檢查的 STEP 檔</h2>
-            <p>選檔後會自動檢查；只有確認安全時，才會提供修補版本。</p>
+            <p>選檔後會自動檢查破面，並標出位置。原始檔全程唯讀，不會被改動。</p>
           </div>
         </div>
 
@@ -98,6 +98,21 @@
           </details>
         </section>
 
+        <!-- 3D 標示（PING 2026-09-01・牌 c-0901-STEP-01）：Eric 看過 VibeCAD 後裁「直接標出位置」。
+             編號與下方清單共用同一組流水號，順序契約在 topologyPolicy.topologyMarkerData。 -->
+        <section id="viewerBlock" class="viewer-block" hidden>
+          <div class="viewer-head">
+            <h3>破面位置（3D）</h3>
+            <button id="viewerResetButton" class="ghost" type="button">重設視角</button>
+          </div>
+          <p class="defect-caveat">
+            拖曳可旋轉、滾輪縮放。橘色標記是<strong>顯示網格</strong>上量到的破洞；
+            小十字是精確落點，編號用引線連到旁邊，與下方清單同號。
+          </p>
+          <div id="viewerCanvas" class="viewer-canvas"></div>
+          <p id="viewerNote" class="defect-hint"></p>
+        </section>
+
         <!-- 破洞位置：座標是**顯示網格**層的，不是 STEP 的 BRep 實體編號 -->
         <section id="defectLocations" class="defect-locations" hidden>
           <h3>破洞位置</h3>
@@ -133,7 +148,7 @@
 
             <aside class="limits-note">
               <strong>目前的安全邊界</strong>
-              <p>不重建遺失曲面、不猜測設計意圖，也不處理自交或實體互穿；無法證明安全時會停止自動修補。</p>
+              <p>只回報破面位置，不改動幾何：不重建遺失曲面、不猜測設計意圖，也不處理自交或實體互穿。座標是顯示網格上量到的，不是 STEP 的曲面編號。</p>
             </aside>
           </div>
         </details>
