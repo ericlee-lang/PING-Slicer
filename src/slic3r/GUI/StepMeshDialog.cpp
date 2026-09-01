@@ -146,7 +146,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
            但給一顆按下去只會跳「本平台不支援」的按鈕，是騙人走一趟。 */
 #ifdef __WIN32__
         auto* alert_act = new wxBoxSizer(wxHORIZONTAL);
-        auto* repair_btn = new Button(alert_panel, _L("Open STEP repair tool"));
+        auto* repair_btn = new Button(alert_panel, _L("Open STEP defect check"));
         repair_btn->SetStyle(ButtonStyle::Regular, ButtonType::Window);
         // CIS：PING 專屬功能入口用品牌橘當 accent（SetStyle 會覆寫顏色，所以要放在它後面）。
         repair_btn->SetTextColorNormal(wxColour("#EA4E16"));

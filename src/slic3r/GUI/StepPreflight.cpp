@@ -95,7 +95,7 @@ void step_preflight_followup(const StepPreflightResult& out)
         notify->push_notification(
             NotificationType::PINGStepNoSolid,
             NotificationManager::NotificationLevel::ImportantNotificationLevel,
-            (boost::format(_u8L("Drag this file into the repair tool: %1%")) % out.file_name).str());
+            (boost::format(_u8L("Drag this file into the defect check tool: %1%")) % out.file_name).str());
         return;
     }
 
@@ -107,7 +107,7 @@ void step_preflight_followup(const StepPreflightResult& out)
         NotificationType::PINGStepNoSolid,
         NotificationManager::NotificationLevel::WarningNotificationLevel,
         (boost::format(_u8L("%1% has no solid body; the sliced result may not be what you expect.")) % subject).str(),
-        _u8L("Open STEP repair tool"),
+        _u8L("Open STEP defect check"),
         [](wxEvtHandler*) {
             wxGetApp().open_step_repair();
             return true;

@@ -21508,3 +21508,15 @@ msgstr "這個版本的 STEP 修補工具只在 Windows 上可用。"
 
 msgid "STEP repair"
 msgstr "STEP 修補"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "Drag this file into the defect check tool: %1%"
+msgstr "請把這個檔案拖進破面檢查工具：%1%"
+
+msgid "Open STEP defect check"
+msgstr "開啟 STEP 破面檢查"

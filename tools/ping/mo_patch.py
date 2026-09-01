@@ -15,6 +15,10 @@ MAGIC_LE = 0x950412DE
 
 # 新增字串：msgid（必須與 C++ L() 字串 byte-for-byte 一致）→ 繁中翻譯
 NEW_ENTRIES = {
+    # PING(2026-09-01・牌 c-0901-STEP-01)：STEP 工具收成「只檢查」，文案不得再承諾修補
+    #（Eric 裁：修補不見得有效、不承擔那個責任）。舊 msgid 留在 .mo 當死條目，不移除。
+    "Open STEP defect check": "開啟 STEP 破面檢查",
+    "Drag this file into the defect check tool: %1%": "請把這個檔案拖進破面檢查工具：%1%",
     # PING(2026-07-09)：新增實例 tooltip 補說明（Eric 給的文案）
     (
         "Creates a linked copy of the object. Unlike a plain copy, instances stay in sync "
