@@ -3,7 +3,12 @@
 #include "PingAiKeyDialog.hpp"
 
 #include "slic3r/Utils/PingAiKeyStore.hpp"
+#include "slic3r/Utils/PingAiImage.hpp"
+#include "libslic3r/AppConfig.hpp"
 #include "slic3r/Utils/Http.hpp"
+#include "slic3r/GUI/GUI_App.hpp"
+#include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/WebViewDialog.hpp"
 
 #include <wx/app.h>
 #include <wx/button.h>
@@ -16,7 +21,9 @@
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cstdio>
 #include <memory>
 #include <string>
 
@@ -29,6 +36,21 @@ namespace {
    卻能同時回答兩件事：金鑰對不對（401）、連不連得上（逾時／DNS）。
    ⚠ P3「丑」要接產品內生圖時，供應商與端點請從這裡延伸，不要各處各寫一份。 */
 const char* PING_AI_PROBE_URL = "https://api.openai.com/v1/models";
+
+/* 用量計數（Eric 2026-09-02 裁「只做計數＋金額」「累計不歸零＋一顆歸零鈕」）。
+   ⚠ 放 AppConfig 是刻意的，且**與金鑰存取層無關**——閘門 C4 禁的是「存取層碰 AppConfig」
+     （金鑰會被備份／同步／打包），張數不是機密，放設定檔正好能跨重啟活著。 */
+const char* PING_AI_COUNT_KEY = "ping_ai_image_count";
+
+int ping_ai_image_count()
+{
+    if (AppConfig* cfg = wxGetApp().app_config) {
+        try { return std::max(0, std::stoi(cfg->get(PING_AI_COUNT_KEY))); }
+        catch (...) { return 0; }          // 沒設過／被人手改壞 ⇒ 當 0，不要讓它變成崩潰點
+    }
+    return 0;
+}
+
 const long  PING_AI_PROBE_TIMEOUT_S = 10;
 
 wxString u8(const std::string& s) { return wxString::FromUTF8(s.c_str()); }
@@ -53,6 +75,8 @@ private:
 
     wxStaticText* m_state_line = nullptr;   // 已存：遮罩；未存：欄位說明
     wxStaticText* m_note       = nullptr;   // 錯誤／結果訊息（FBK-11：要講缺什麼）
+    wxStaticText* m_usage      = nullptr;   // 這台電腦生了幾張／花了多少（Eric 2026-09-02 令）
+    wxButton*     m_reset      = nullptr;   // 歸零（Eric 裁「累計不歸零＋一顆歸零鈕」）
     wxTextCtrl*   m_input      = nullptr;
     wxCheckBox*   m_show       = nullptr;
     wxButton*     m_save       = nullptr;
@@ -100,6 +124,14 @@ void PingAiKeyDialog::build()
     m_note->Wrap(FromDIP(420));
     root->Add(m_note, 0, wxALL, pad);
 
+    /* 用量：Eric 2026-09-02「提醒他使用了多少的數量」。
+       🔴 文案只能講「**這台電腦**生了幾張」——我們數的是自己的呼叫點，
+          數不到他 OpenAI 帳號的實際用量（同一把金鑰可能在別處用；查帳號用量要
+          admin 等級金鑰，我們拿的是專案金鑰）。寫成「你已用掉」就是另一種說謊。 */
+    m_usage = new wxStaticText(this, wxID_ANY, wxEmptyString);
+    m_usage->Wrap(FromDIP(420));
+    root->Add(m_usage, 0, wxLEFT | wxRIGHT | wxBOTTOM, pad);
+
     root->Add(new wxStaticLine(this), 0, wxEXPAND | wxLEFT | wxRIGHT, pad);
 
     wxBoxSizer* btns = new wxBoxSizer(wxHORIZONTAL);
@@ -111,6 +143,8 @@ void PingAiKeyDialog::build()
     btns->Add(m_test, 0, wxRIGHT, FromDIP(6));
     btns->Add(m_change, 0, wxRIGHT, FromDIP(6));
     btns->Add(m_remove, 0, wxRIGHT, FromDIP(6));
+    m_reset = new wxButton(this, wxID_ANY, u8("用量歸零"));
+    btns->Add(m_reset, 0, wxRIGHT, FromDIP(6));
     btns->AddStretchSpacer(1);
     btns->Add(m_save, 0, wxRIGHT, FromDIP(6));
     btns->Add(m_close, 0);
@@ -142,6 +176,14 @@ void PingAiKeyDialog::build()
     m_save->Bind(wxEVT_BUTTON,   [this](wxCommandEvent&) { on_save(); });
     m_test->Bind(wxEVT_BUTTON,   [this](wxCommandEvent&) { on_test(); });
     m_remove->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { on_remove(); });
+    m_reset->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        /* 歸零只動我們自己的計數器，**不會影響你 OpenAI 帳號上的任何東西**——
+           那邊的帳單由 OpenAI 自己算，我們碰不到，也不該讓使用者以為碰得到。 */
+        if (AppConfig* cfg = wxGetApp().app_config)
+            cfg->set(PING_AI_COUNT_KEY, "0");
+        set_note(u8("用量已歸零（只歸零本程式的計數，OpenAI 帳號那邊不受影響）。"), false);
+        refresh();
+    });
     m_change->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         m_entry_mode = true;
         set_note(wxEmptyString, false);
@@ -181,6 +223,20 @@ void PingAiKeyDialog::refresh()
     m_show->Show(entry);
     m_save->Show(entry);
     m_test->Show(!entry);
+    /* 用量行：張數是精確的，金額也是——`gpt-image-2` 固定級距計費（R9-6：單價講死）。
+       單價正本＝款式庫 JSON，C++ 這份由款式庫閘門比對，對不上會紅。 */
+    {
+        const int n = ping_ai_image_count();
+        if (n <= 0) {
+            m_usage->SetLabel(u8("這台電腦還沒有用這個功能生過圖。"));
+        } else {
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "%.1f", n * PingAiImage::UNIT_COST_NTD_LOW);
+            m_usage->SetLabel(u8("這台電腦已生 " + std::to_string(n) + " 張，共 NT$" + buf
+                                 + "（只計本程式生的，不含你在別處用同一把金鑰的用量）"));
+        }
+        if (m_reset) m_reset->Show(n > 0);
+    }
     m_change->Show(!entry);
     m_remove->Show(!entry);
 
@@ -191,6 +247,19 @@ void PingAiKeyDialog::refresh()
     }
     Layout();
     Fit();
+}
+
+/* 🔴 存／刪金鑰之後**要當場告訴照片磚工作室**（2026-09-02 實測踩到）。
+   失效形狀：使用者在工作室頁面已經開著的狀態下去填金鑰，填完回到工作室，
+   AI 款式**還是鎖著**——因為「有沒有金鑰」那個布林只在頁面載入時推一次，
+   而填金鑰不會讓頁面重載。使用者看到的是「我明明填了」，找不到原因。
+   ⚠ 這裡只推一個布林，明文一個位元組都沒有過去（同 WebViewPanel 那支的紀律）。
+   ℹ️ 工作室沒開著時 m_webview 仍在（它是首頁那顆 WebView），推過去不會有人接，無害。 */
+static void notify_photo_tile_ai_availability()
+{
+    if (MainFrame* mf = wxGetApp().mainframe)
+        if (mf->m_webview != nullptr)
+            mf->m_webview->SendPhotoTileAiAvailability();
 }
 
 void PingAiKeyDialog::on_save()
@@ -205,6 +274,7 @@ void PingAiKeyDialog::on_save()
     m_input->SetValue(wxEmptyString);
     set_note(u8("已儲存。可以按「測試連線」當場確認這把金鑰能不能用。"), false);
     refresh();
+    notify_photo_tile_ai_availability();   // 工作室若開著，AI 款式當場解鎖
 }
 
 void PingAiKeyDialog::on_test()
@@ -266,6 +336,7 @@ void PingAiKeyDialog::on_remove()
     m_entry_mode = false;
     set_note(u8("已移除。需要 AI 的款式現在是鎖住的。"), false);
     refresh();
+    notify_photo_tile_ai_availability();   // 同上，反向：當場鎖回去
 }
 
 } // namespace

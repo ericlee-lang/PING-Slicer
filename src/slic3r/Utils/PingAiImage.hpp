@@ -78,6 +78,13 @@ struct Result
     std::string                error;        // 白話中文，可直接顯示給使用者
 };
 
+/* 每張的單價（新台幣）。R9-6：`gpt-image-2` 是固定級距計費 ⇒ 這是**精確值不是估計**，
+   文案要寫「每張 NT$0.3」不要寫「約」。
+   🔴 **資料正本＝`resources/web/phototile/款式庫_照片磚.json` 的 `constants.aiImage.unitCostNtd`**
+      （頁面從那裡讀）。這裡是 C++ 側的第二份 ⇒ 已把兩者的一致性接進
+      `tools/ping/verify_phototile_stylelib.py`：對不上就變紅。**改價只改 JSON，然後照閘門的話改這裡。** */
+constexpr double UNIT_COST_NTD_LOW = 0.3;
+
 // 這台機器上「現在能不能生圖」＝有沒有存金鑰。不取明文，可以隨便呼叫。
 bool available();
 

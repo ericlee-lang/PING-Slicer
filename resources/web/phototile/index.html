@@ -939,8 +939,13 @@ window.PINGPhotoTile={
          那會拿「已經照款式鎖好料色的生成圖」再建議一次料色，顏色會自己漂走。
          AI 款式的料色是款式設計的一部分（lockSlots），不該被自動配色改掉。 */
       srcBitmap=bmp; buildGrid(); simulate();
+      /* 用量：張數由宿主帶過來（它才有跨重啟的計數），金額在這裡用款式庫的單價算
+         ——單價正本只有款式庫 JSON 一份，C++ 那份由款式庫閘門盯著一致。 */
+      const q=PT_AI.quality||'low', unit=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[q]);
+      const used=(typeof meta.count==='number' && meta.count>0 && typeof unit==='number')
+        ? '　這台電腦累計 '+meta.count+' 張／NT$'+(Math.round(meta.count*unit*10)/10) : '';
       ptStyleStat('已生圖（'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。'
-                 +'不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）');
+                 +'不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）'+used);
     }catch(e){
       ptStyleStat('⚠ 生圖結果讀不進來，已維持原本的照片。');
     }
@@ -1820,7 +1825,7 @@ function ptAiGenerate(s, tones){
     return;
   }
   if(!ptAiReady()){
-    ptStyleStat('⚠ 尚未設定 AI 生圖金鑰——請到「說明 → 設定 AI 生圖服務金鑰」填一把。');
+    ptStyleStat('⚠ 尚未設定 AI 生圖金鑰——請到「幫助 → 設定 AI 生圖服務金鑰」填一把。');
     return;
   }
   if(!img){
@@ -1945,7 +1950,7 @@ function ptRender(){
             +'所以做不出來——在「選擇 3D 列印機」的照片磚分頁加入 FF600／FF800 就選得到。'
           : u.kind==='ai'
             ? '這款要靠 AI 重畫你的照片，需要一把 AI 生圖金鑰（費用算在你自己的 AI 帳號上）。'+nl
-              +'填法：主視窗上方「說明 → 設定 AI 生圖服務金鑰」，貼上後按「測試連線」確認，回到這裡就會解鎖。'+nl
+              +'填法：主視窗上方「幫助 → 設定 AI 生圖服務金鑰」，貼上後按「測試連線」確認，回到這裡就會解鎖。'+nl
               +'不想用 AI 也可以——標「本地」的款式不需要金鑰。'
             : '把寬度放大到 '+ptMinTile(s)+' mm 以上就可以選。';
         ptNotice('「'+s.name+'」目前不能選——'+u.why+nl+tail);
@@ -1986,7 +1991,7 @@ function ptRender(){
     why.textContent = ptStyle ? '' :
       (ptAiReady() ? '把尺寸放大，或換一個題材。'
                    /* 2026-09-02：生圖已進產品 ⇒ 缺的是金鑰不是功能，講缺的那件事。 */
-                   : '這個題材目前沒有本地款式可用；AI 款式要先填金鑰（說明 → 設定 AI 生圖服務金鑰）。');
+                   : '這個題材目前沒有本地款式可用；AI 款式要先填金鑰（幫助 → 設定 AI 生圖服務金鑰）。');
   }
 }
 

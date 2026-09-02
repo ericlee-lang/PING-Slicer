@@ -5508,6 +5508,18 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         m_photo_tile_source_path = ai_path.string();
                         BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：來源已切換為 " << m_photo_tile_source_path;
 
+                        /* 用量計數（Eric 2026-09-02「提醒他使用了多少的數量」）。
+                           🔴 **只在真的拿到圖時才加**——失敗的呼叫（401／429／逾時）不計費，
+                              把它們算進去會讓使用者看到一個比帳單大的數字，那比不顯示更糟。
+                           落點＝AppConfig（張數不是機密；金鑰存取層碰 AppConfig 才是閘門 C4 禁的事）。 */
+                        int ai_count = 0;
+                        if (app_config != nullptr) {
+                            try { ai_count = std::max(0, std::stoi(app_config->get("ping_ai_image_count"))); }
+                            catch (...) { ai_count = 0; }
+                            ++ai_count;
+                            app_config->set("ping_ai_image_count", std::to_string(ai_count));
+                        }
+
                         // 分塊回送：與甲案同規格（96 KB 可被 3 整除 ⇒ base64 無中段 padding）。
                         constexpr size_t raw_chunk = 96 * 1024;
                         const size_t total  = r.png.size();
@@ -5516,7 +5528,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                             "window.PINGPhotoTile && window.PINGPhotoTile.aiBegin && "
                             "window.PINGPhotoTile.aiBegin({jobId:\"") + ping_js_escape(job_id) +
                             "\",size:" + std::to_string(total) + ",chunks:" + std::to_string(chunks) +
-                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) + "});");
+                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) +
+                            ",count:" + std::to_string(ai_count) + "});");   // 累計張數：金額由頁面用款式庫的單價算
                         for (size_t i = 0; i < chunks; ++i) {
                             const size_t off = i * raw_chunk;
                             const size_t len = std::min(raw_chunk, total - off);

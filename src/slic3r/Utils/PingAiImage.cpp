@@ -82,7 +82,7 @@ FailKind kind_of_status(unsigned status)
 std::string message_of_status(unsigned status, const std::string& error)
 {
     if (status == 401 || status == 403)
-        return "這把 AI 金鑰不被接受（可能貼錯或已失效）。請到「說明 → 設定 AI 生圖服務金鑰」換一把。";
+        return "這把 AI 金鑰不被接受（可能貼錯或已失效）。請到「幫助 → 設定 AI 生圖服務金鑰」換一把。";
     if (status == 429)
         return "AI 服務回覆額度用完或被限流——金鑰本身是對的，稍後再試。";
     if (status >= 500)
@@ -144,7 +144,7 @@ Result generate(const Params& params)
     if (!PingAiKey::load(secret)) {   // ⚠ 全專案第二個明文取用點（閘門白名單管的就是這裡）
         wipe(secret);
         return fail_with(FailKind::NoKey,
-                         "還沒有設定 AI 生圖金鑰。請到「說明 → 設定 AI 生圖服務金鑰」填一把再試。",
+                         "還沒有設定 AI 生圖金鑰。請到「幫助 → 設定 AI 生圖服務金鑰」填一把再試。",
                          ms_since());
     }
 
