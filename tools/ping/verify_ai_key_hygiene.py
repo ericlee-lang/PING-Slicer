@@ -36,6 +36,11 @@ STORE_HDR      = "src/slic3r/Utils/PingAiKeyStore.hpp"
 #    而改這裡會逼你回頭讀 PingAiKeyStore.hpp 檔頭第 3 條。這是刻意的摩擦。
 PLAINTEXT_READERS = [
     "src/slic3r/GUI/PingAiKeyDialog.cpp",   # 測試連線（Eric 裁二＝乙）
+    # 丙案生圖（P3「丑」，2026-09-02）：打 OpenAI images API 的那一層。
+    # 🔴 為什麼是這個檔而不是 GUI_App.cpp：GUI_App 是全專案最大、最多人改的檔，
+    #    明文取用點放進去等於把這道摩擦力歸零。生圖那段獨立成 Utils/PingAiImage.cpp
+    #    （200 行、檔頭寫著三條紀律）＝要拿明文就得先走進那個檔。
+    "src/slic3r/Utils/PingAiImage.cpp",
 ]
 
 WEB_ROOT       = "resources/web"

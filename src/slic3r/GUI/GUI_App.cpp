@@ -82,6 +82,7 @@
 #include "PhotoTileCapability.hpp"
 #include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
 #include "libslic3r/PingPhotoStylize.hpp"   // 甲案（c-0822-PT-06）：本地風格化（OpenCV，已是本 repo 相依）
+#include "slic3r/Utils/PingAiImage.hpp"     // 丙案（P3「丑」）：AI 生圖。⚠ 金鑰明文只在那個檔裡，本檔不碰
 #include "PhotoTileGateJson.hpp"     // C-2 第 2 項：env 快照組字（#14 真 JSON writer——中文機名/反斜線路徑都要正確跳脫）
 
 #include <boost/uuid/uuid.hpp>
@@ -5091,8 +5092,12 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 /* 【2026-08-15】頁面主動要料數。DocumentLoaded 那次推送保留當備援，
                    但這條才是可靠的一條——頁面開口時一定已經 ready。 */
                 CallAfter([this] {
-                    if (mainframe != nullptr && mainframe->m_webview != nullptr)
+                    if (mainframe != nullptr && mainframe->m_webview != nullptr) {
                         mainframe->m_webview->SendPhotoTileMachineCapability();
+                        /* 丙案：同一個開口一起回。金鑰是使用者隨時可以在說明選單改的東西
+                           ⇒ 每次頁面開口都重問一次，不要只在 app 啟動時問一次。 */
+                        mainframe->m_webview->SendPhotoTileAiAvailability();
+                    }
                 });
             }
             else if (command_str.compare("phototile_home") == 0) {
@@ -5402,6 +5407,132 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：回送完成 job=" << job_id
                                                 << ", bytes=" << total << ", chunks=" << chunks
                                                 << ", " << r.elapsed_ms << " ms";
+                    });
+                }).detach();
+            }
+            /* ── 丙案（P3「丑」）：AI 生圖 ──────────────────────────────────────
+               規格＝`照片磚_核心規格.md` §9（Eric 2026-08-22 一輪八題）。
+               走的是甲案那條「C++ 給頁面一張圖」的回送鏈（當初就是照這個打算蓋的），
+               差別只有兩件：①圖是跟 OpenAI 要的，不是本機算的 ②失敗要分類（R9-5）。
+
+               🔴 **金鑰明文一步都不進這個檔**：prompt 從頁面來、圖回頁面去，中間那段
+                  （load 金鑰／打 API）整段在 `Utils/PingAiImage.cpp`——那是白名單管制的檔。
+                  這裡連 `PingAiKeyStore.hpp` 都沒有 include，是刻意的。
+               🔴 **回送的結果會成為新的來源影像**，與甲案同一個理由：只給頁面看不換來源＝
+                  預覽是 AI 圖、輸出是原照片＝兩把尺。順帶把甲案的「風格化原圖」記錄作廢——
+                  AI 生的圖就是新的原圖，之後要本地風格化要從它開始。 */
+            else if (command_str.compare("phototile_ai_generate") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const auto ai_fail = [this](const std::string& job, const std::string& kind, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.aiError && "
+                        "window.PINGPhotoTile.aiError(\"") + ping_js_escape(job) + "\",\"" +
+                        ping_js_escape(kind) + "\",\"" + ping_js_escape(msg) + "\");");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_ai_generate 缺 jobId，忽略";
+                    return "";
+                }
+                PingAiImage::Params ap;
+                ap.prompt = root.get<std::string>("data.prompt", "");
+                /* 🔴 輸入一律是**使用者那張真照片**：origin 有值＝目前的 source 已經是
+                   風格化或上一輪 AI 的產物，拿它再生成一次會在生成物上再生成、越滾越遠
+                   （與甲案同一條紀律，↳ 規格 R6-9）。 */
+                ap.src_path = m_photo_tile_origin_path.empty() ? m_photo_tile_source_path
+                                                               : m_photo_tile_origin_path;
+                /* R9-8：尺寸由磚體長寬比決定、**不讓使用者選**。
+                   **決定權在頁面**，不是這裡——因為 prompt 裡的 `{minPx}` 要用生圖寬度去算
+                   （minPx = 2×口徑 ÷ 磚寬 × 生圖解析度），頁面若不知道自己會拿到哪個尺寸，
+                   那個數字就會失準（而使用者沒有判斷依據）。這裡只當**守門的**：
+                   收到的不是三種合法值之一（舊頁面／被改壞）就自己按長寬比補一個，
+                   絕不把非法值送進 API 換一個看不懂的 400。 */
+                ap.size = root.get<std::string>("data.size", "");
+                if (ap.size != "1024x1024" && ap.size != "1536x1024" && ap.size != "1024x1536")
+                    ap.size = PingAiImage::size_for_tile(root.get<double>("data.widthMm", 0.0),
+                                                         root.get<double>("data.heightMm", 0.0));
+                ap.quality = root.get<std::string>("data.quality", "low");
+                if (ap.prompt.empty()) {
+                    ai_fail(job_id, "response", "這個款式沒有可用的生圖描述，請換一個款式。");
+                    return "";
+                }
+                // 後發蓋先發：同甲案。使用者連點款式時只認最後一次，舊 job 的結果回來會被丟掉。
+                m_photo_tile_ai_job = job_id;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：分派 job=" << job_id
+                                        << ", size=" << ap.size << ", quality=" << ap.quality;
+                std::thread([this, ap, job_id]() {
+                    PingAiImage::Result r = PingAiImage::generate(ap);
+                    wxTheApp->CallAfter([this, r, job_id]() {
+                        if (m_photo_tile_ai_job != job_id)      // 已被更新的請求取代
+                            return;
+                        m_photo_tile_ai_job.clear();
+                        /* 內層自己的回報 helper——外層那顆在 UI 執行緒的 lambda 裡捕獲不到
+                           （同甲案：那邊也是在 CallAfter 內另立一顆 fail）。 */
+                        const auto ai_fail_page = [this, &job_id](const std::string& kind, const std::string& msg) {
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.aiError && "
+                                "window.PINGPhotoTile.aiError(\"") + ping_js_escape(job_id) + "\",\"" +
+                                ping_js_escape(kind) + "\",\"" + ping_js_escape(msg) + "\");");
+                        };
+                        if (!r.ok || r.png.empty()) {
+                            /* R9-5：把「重試有沒有意義」交給頁面決定，所以要把種類送過去。
+                               只回一句錯誤字串的話，頁面唯一能做的就是無差別重試＝重複燒錢。 */
+                            const char* kind = "response";
+                            switch (r.fail) {
+                            case PingAiImage::FailKind::NoKey:   kind = "nokey";   break;
+                            case PingAiImage::FailKind::Auth:    kind = "auth";    break;
+                            case PingAiImage::FailKind::Quota:   kind = "quota";   break;
+                            case PingAiImage::FailKind::Network: kind = "network"; break;
+                            default: break;
+                            }
+                            ai_fail_page(kind, r.error.empty() ? std::string("AI 生圖失敗，請重試。") : r.error);
+                            return;
+                        }
+                        /* 落成暫存檔並換成新的來源——與甲案同一段邏輯、同一個 fail-honest：
+                           寫不成就不要換來源，並誠實回報（換一半＝預覽與輸出不同源）。 */
+                        const boost::filesystem::path ai_path =
+                            boost::filesystem::temp_directory_path() /
+                            boost::filesystem::unique_path("PING_photo_tile_ai_%%%%-%%%%-%%%%.png");
+                        boost::nowide::ofstream out(ai_path.string(), std::ios::binary);
+                        out.write(reinterpret_cast<const char*>(r.png.data()),
+                                  static_cast<std::streamsize>(r.png.size()));
+                        out.close();
+                        if (!out.good()) {
+                            BOOST_LOG_TRIVIAL(warning) << "AI 生圖暫存檔寫入失敗：" << ai_path.string();
+                            ai_fail_page("response", "生成的圖片寫入失敗，請重試。");
+                            return;
+                        }
+                        /* 換來源前先把「真照片」記下來（第一次才記）——之後不論再生一次、
+                           或改跑本地風格化，輸入都還是那張真照片，不會疊在生成物上。
+                           換圖時這個記錄會被作廢（image_end／open_photo_tile 都有清）。 */
+                        if (m_photo_tile_origin_path.empty())
+                            m_photo_tile_origin_path = m_photo_tile_source_path;
+                        m_photo_tile_source_path = ai_path.string();
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：來源已切換為 " << m_photo_tile_source_path;
+
+                        // 分塊回送：與甲案同規格（96 KB 可被 3 整除 ⇒ base64 無中段 padding）。
+                        constexpr size_t raw_chunk = 96 * 1024;
+                        const size_t total  = r.png.size();
+                        const size_t chunks = (total + raw_chunk - 1) / raw_chunk;
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.aiBegin && "
+                            "window.PINGPhotoTile.aiBegin({jobId:\"") + ping_js_escape(job_id) +
+                            "\",size:" + std::to_string(total) + ",chunks:" + std::to_string(chunks) +
+                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) + "});");
+                        for (size_t i = 0; i < chunks; ++i) {
+                            const size_t off = i * raw_chunk;
+                            const size_t len = std::min(raw_chunk, total - off);
+                            std::string b64;
+                            b64.resize(boost::beast::detail::base64::encoded_size(len));
+                            b64.resize(boost::beast::detail::base64::encode(b64.data(), r.png.data() + off, len));
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.aiChunk && "
+                                "window.PINGPhotoTile.aiChunk({jobId:\"") + ping_js_escape(job_id) +
+                                "\",index:" + std::to_string(i) + ",base64:\"" + b64 + "\"});");
+                        }
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.aiEnd && "
+                            "window.PINGPhotoTile.aiEnd({jobId:\"") + ping_js_escape(job_id) + "\"});");
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：回送完成 job=" << job_id
+                                                << ", bytes=" << total << ", chunks=" << chunks;
                     });
                 }).detach();
             }

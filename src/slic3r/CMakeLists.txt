@@ -631,6 +631,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/OrcaCloudServiceAgent.hpp
     Utils/PingAiKeyStore.cpp
     Utils/PingAiKeyStore.hpp
+    Utils/PingAiImage.cpp
+    Utils/PingAiImage.hpp
     Utils/OrcaPrinterAgent.cpp
     Utils/OrcaPrinterAgent.hpp
     Utils/QidiPrinterAgent.cpp

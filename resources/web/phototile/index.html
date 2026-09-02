@@ -290,7 +290,7 @@
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
-<script id="ptStyleLib" type="application/json">{"_說明":"照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。","version":"0.1","updated":"2026-08-17","constants":{"minWidthFactor":2,"_minWidthFactor":"最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。","nozzles":[0.4,0.6,1.0],"_nozzles":"引擎 NOZZLES 白名單；沒有 0.8。","kMax":8,"gridMax":3200,"defaultThickMm":10,"_defaultThickMm":"厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。"},"policies":{"slotSelection":{"rule":"AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）","why":"原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"},"aiRedrawBoundary":{"case":"中間案","rule":"AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。","why":"低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。","ruledBy":"Eric 2026-08-15"},"outOfScope":{"商品照":"Eric 2026-08-15 裁「先不考慮」，暫不列入。"}},"_minTileMm說明":"只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。","subjects":[{"id":"portrait_closeup","name":"人像特寫","keyFeature":"眼睛","detect":"偵測到臉且臉寬 ≥ 畫面 35%"},{"id":"person_full","name":"人物全身","keyFeature":"姿勢與輪廓","detect":"偵測到臉且 8% ≤ 臉寬 < 畫面 20%"},{"id":"landscape","name":"風景","keyFeature":"相鄰山脊的分離度","detect":"偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"},{"id":"pet_short","name":"寵物・短毛高對比","keyFeature":"輪廓與耳形","detect":"人工指定；動態範圍 ≥ 120"},{"id":"pet_long","name":"寵物・長毛低對比","keyFeature":"輪廓＋大塊毛色分區","detect":"人工指定；動態範圍 < 120"}],"styles":[{"id":"stencil2","name":"模板風","requiresAI":true,"subjects":["portrait_closeup"],"tones":2,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","五官"],"drops":["明暗結構","髮絲","衣服圖案"],"composition":{"faceFillMin":0.85,"_why":"臉不填滿畫面時 100mm 印不出眼睛"},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.29,"note":"需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.","priority":1,"deltaEBySubject":{"portrait_closeup":5.29},"lockSlots":true},{"id":"silhouette","name":"純剪影","requiresAI":true,"subjects":["person_full","pet_short","landscape"],"tones":3,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","姿勢","耳形","大塊斑紋"],"drops":["五官","毛髮質感","明暗結構"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":10.07,"note":"目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.","priority":1,"deltaEBySubject":{"pet_short":10.07,"landscape":10.64},"lockSlots":true},{"id":"flat_warm","name":"平色塊（暖）","requiresAI":true,"subjects":["pet_long"],"tones":4,"mode":"quad","slots":["#f2f0eb","#e6b072","#c26a1c","#3a2416"],"slotsDualFallback":["#f2f0eb","#6b3f22"],"preserves":["輪廓","毛色分區","眼鼻位置"],"drops":["毛髮質感","絨毛邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.49,"note":"四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster using a warm ramp. No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"pet_long":5.49},"lockSlots":true},{"id":"ridge_layers","name":"山巒分層","requiresAI":true,"subjects":["landscape"],"tones":5,"mode":"dual","slots":["#f2ead6","#1e2a33"],"preserves":["山脊分層","天際線"],"drops":["細桿","電線","樹葉細節","天空漸層"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.55,"note":"原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"landscape":6.55},"lockSlots":true},{"id":"screenprint","name":"絹印撞色","requiresAI":true,"subjects":["portrait_closeup"],"tones":5,"mode":"quad","slots":["#f2f0eb","#022561","#44a1dc","#0e1418"],"preserves":["輪廓","五官","明暗結構"],"drops":["衣服細格紋","髮絲"],"composition":{"faceFillMin":0.85},"minTileMm":{"0.4":320,"0.6":480,"1.0":800},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":7.86,"note":"最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":2,"deltaEBySubject":{"portrait_closeup":7.86},"lockSlots":true},{"id":"local_flat","name":"本地款式","requiresAI":false,"subjects":["portrait_closeup","person_full","pet_long","landscape","pet_short"],"tonesBySubject":{"portrait_closeup":6,"person_full":6,"pet_long":6,"pet_short":6,"landscape":4},"_tonesBySubject":"題材相依的色階數（Eric 2026-08-22 裁「乙」）。tones 的 4 是當初用 **dev 端風格化管線** （bilateral→mean-shift→k-means）調出來的，但**產品沒有跑那條管線**（ptApply 只設料數/料色/色階數）⇒ 等於用 A 條件調的值套在 B 條件上。原始照片直接量化時 4 階太粗：陰影與五官會落進同一階而黏成一塊（實測 Eric 的黃金獵犬，100mm／白×#6B4C32：4 階時左眼與左耳陰影併成一大塊，改 6 階即分離）。風景維持 4——階數多反而讓山脊糊在一起（見 ridge_layers 的 verified 註記：色階預算被天空吃光時山會併成一塊）。沒列到的題材 fallback 回 tones。","tones":4,"mode":"dual","slots":["#f2f0eb","#784430"],"preserves":["輪廓","大塊明暗分區"],"drops":["細節質感","銳利邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.12,"note":"沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"pipeline":["bilateral x3","pyrMeanShiftFiltering(sp=18,sr=32)","kmeans(Lab,K=4)","medianBlur(5,7)","ramp by luminance"],"promptTemplate":null,"priority":9,"deltaEBySubject":{"portrait_closeup":6.12,"landscape":11.69,"pet_short":5.04,"pet_long":13.22},"lockSlots":false,"_subjects註":"pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"}],"selection":{"_說明":"自動挑款式的順序","steps":["1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值","2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度","3. 偵測主體 → 判 subject（見 subjects.detect）","4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數","5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false","6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗","7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸","8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"]},"acceptance":{"deltaE":{"warn":12,"fail":20,"_note":"ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"},"keyRegion":{"status":"未實作","_note":"依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"}}}</script>
+<script id="ptStyleLib" type="application/json">{"_說明":"照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。","version":"0.1","updated":"2026-08-17","constants":{"aiImage":{"sizes":["1024x1024","1536x1024","1024x1536"],"quality":"low","maxRetry":2,"unitCostNtd":{"low":0.3,"medium":1.3,"high":5.5},"_sizes":"R9-8：gpt-image-2 只有這三種尺寸，照磚體長寬比自動挑、不讓使用者選——選錯會讓 prompt 裡的 {minPx} 失準，而使用者沒有判斷依據。","_quality":"R9-8：預設 low。理由不是省錢——生出來的圖接下來會被壓成 4~8 個平色階再過三道濾除，high 多出來的細節在量化那一步就沒了。但這條尚未用數據定案：驗收時要用同一張照片跑 low vs medium 比 keyRegion 的關鍵區色階數（成本 NT$1.6）。","_maxRetry":"R9-5：只在『自動驗沒過』時重試，最多 2 次；逾時／網路錯／401 一律不重試（那只是重複燒錢）。","_unitCostNtd":"R9-6：單價講死、總額講上限。每張固定級距計費 ⇒ 單張寫「NT$0.3」不要寫「約」；總額因為允許重試 2 次 ⇒ 寫「最多 NT$0.9」。兩個都用『約』是懶惰，兩個都寫死是說謊。"},"minWidthFactor":2,"_minWidthFactor":"最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。","nozzles":[0.4,0.6,1.0],"_nozzles":"引擎 NOZZLES 白名單；沒有 0.8。","kMax":8,"gridMax":3200,"defaultThickMm":10,"_defaultThickMm":"厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。"},"policies":{"slotSelection":{"rule":"AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）","why":"原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"},"aiRedrawBoundary":{"case":"中間案","rule":"AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。","why":"低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。","ruledBy":"Eric 2026-08-15"},"outOfScope":{"商品照":"Eric 2026-08-15 裁「先不考慮」，暫不列入。"}},"_minTileMm說明":"只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。","subjects":[{"id":"portrait_closeup","name":"人像特寫","keyFeature":"眼睛","detect":"偵測到臉且臉寬 ≥ 畫面 35%"},{"id":"person_full","name":"人物全身","keyFeature":"姿勢與輪廓","detect":"偵測到臉且 8% ≤ 臉寬 < 畫面 20%"},{"id":"landscape","name":"風景","keyFeature":"相鄰山脊的分離度","detect":"偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"},{"id":"pet_short","name":"寵物・短毛高對比","keyFeature":"輪廓與耳形","detect":"人工指定；動態範圍 ≥ 120"},{"id":"pet_long","name":"寵物・長毛低對比","keyFeature":"輪廓＋大塊毛色分區","detect":"人工指定；動態範圍 < 120"}],"styles":[{"id":"stencil2","name":"模板風","requiresAI":true,"subjects":["portrait_closeup"],"tones":2,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","五官"],"drops":["明暗結構","髮絲","衣服圖案"],"composition":{"faceFillMin":0.85,"_why":"臉不填滿畫面時 100mm 印不出眼睛"},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.29,"note":"需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.","priority":1,"deltaEBySubject":{"portrait_closeup":5.29},"lockSlots":true},{"id":"silhouette","name":"純剪影","requiresAI":true,"subjects":["person_full","pet_short","landscape"],"tones":3,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","姿勢","耳形","大塊斑紋"],"drops":["五官","毛髮質感","明暗結構"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":10.07,"note":"目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.","priority":1,"deltaEBySubject":{"pet_short":10.07,"landscape":10.64},"lockSlots":true},{"id":"flat_warm","name":"平色塊（暖）","requiresAI":true,"subjects":["pet_long"],"tones":4,"mode":"quad","slots":["#f2f0eb","#e6b072","#c26a1c","#3a2416"],"slotsDualFallback":["#f2f0eb","#6b3f22"],"preserves":["輪廓","毛色分區","眼鼻位置"],"drops":["毛髮質感","絨毛邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.49,"note":"四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster using a warm ramp. No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"pet_long":5.49},"lockSlots":true},{"id":"ridge_layers","name":"山巒分層","requiresAI":true,"subjects":["landscape"],"tones":5,"mode":"dual","slots":["#f2ead6","#1e2a33"],"preserves":["山脊分層","天際線"],"drops":["細桿","電線","樹葉細節","天空漸層"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.55,"note":"原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"landscape":6.55},"lockSlots":true},{"id":"screenprint","name":"絹印撞色","requiresAI":true,"subjects":["portrait_closeup"],"tones":5,"mode":"quad","slots":["#f2f0eb","#022561","#44a1dc","#0e1418"],"preserves":["輪廓","五官","明暗結構"],"drops":["衣服細格紋","髮絲"],"composition":{"faceFillMin":0.85},"minTileMm":{"0.4":320,"0.6":480,"1.0":800},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":7.86,"note":"最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":2,"deltaEBySubject":{"portrait_closeup":7.86},"lockSlots":true},{"id":"local_flat","name":"本地款式","requiresAI":false,"subjects":["portrait_closeup","person_full","pet_long","landscape","pet_short"],"tonesBySubject":{"portrait_closeup":6,"person_full":6,"pet_long":6,"pet_short":6,"landscape":4},"_tonesBySubject":"題材相依的色階數（Eric 2026-08-22 裁「乙」）。tones 的 4 是當初用 **dev 端風格化管線** （bilateral→mean-shift→k-means）調出來的，但**產品沒有跑那條管線**（ptApply 只設料數/料色/色階數）⇒ 等於用 A 條件調的值套在 B 條件上。原始照片直接量化時 4 階太粗：陰影與五官會落進同一階而黏成一塊（實測 Eric 的黃金獵犬，100mm／白×#6B4C32：4 階時左眼與左耳陰影併成一大塊，改 6 階即分離）。風景維持 4——階數多反而讓山脊糊在一起（見 ridge_layers 的 verified 註記：色階預算被天空吃光時山會併成一塊）。沒列到的題材 fallback 回 tones。","tones":4,"mode":"dual","slots":["#f2f0eb","#784430"],"preserves":["輪廓","大塊明暗分區"],"drops":["細節質感","銳利邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.12,"note":"沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"pipeline":["bilateral x3","pyrMeanShiftFiltering(sp=18,sr=32)","kmeans(Lab,K=4)","medianBlur(5,7)","ramp by luminance"],"promptTemplate":null,"priority":9,"deltaEBySubject":{"portrait_closeup":6.12,"landscape":11.69,"pet_short":5.04,"pet_long":13.22},"lockSlots":false,"_subjects註":"pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"}],"selection":{"_說明":"自動挑款式的順序","steps":["1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值","2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度","3. 偵測主體 → 判 subject（見 subjects.detect）","4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數","5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false","6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗","7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸","8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"]},"acceptance":{"deltaE":{"warn":12,"fail":20,"_note":"ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"},"keyRegion":{"status":"未實作","_note":"依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"}}}</script>
 <script>
 "use strict";
 const startupQuery=new URLSearchParams(location.search);
@@ -897,6 +897,62 @@ window.PINGPhotoTile={
     if(jobId && jobId!==ptStyleJob) return;
     ptStyleMeta=null; ptStyleChunks=null;
     ptStyleStat('⚠ '+(message||'風格化失敗')+'——目前顯示的是未風格化的結果。');
+  },
+  /* ── 丙案：宿主告知「這台機器能不能生圖」（＝有沒有存金鑰，2026-09-02）──────
+     過來的只有一個布林；金鑰明文永遠不進這一層。狀態變了要重畫款式卡，
+     否則使用者剛填完金鑰、卡片還鎖著（他會以為沒生效）。 */
+  setAiAvailable(v){
+    const was=ptAiAvail;
+    ptAiAvail = (v===true);
+    if(was!==ptAiAvail && typeof ptRender==='function') ptRender();
+  },
+  /* ── 丙案：C++ 回送生圖結果（與甲案 style* 同一條鏈、同四項驗證） ────────── */
+  aiBegin(meta){
+    if(!meta || meta.jobId!==ptAiJob) return;            // 後發蓋先發
+    ptAiMeta=meta; ptAiChunks=[];
+  },
+  aiChunk(c){
+    if(!ptAiMeta || !c || c.jobId!==ptAiJob || !ptAiChunks) return;
+    if(c.index!==ptAiChunks.length){                     // 連號
+      ptAiChunks=null; ptAiMeta=null;
+      ptStyleStat('⚠ 生圖結果傳輸中斷，已維持原本的照片。');
+      return;
+    }
+    ptAiChunks.push(c.base64||'');
+  },
+  async aiEnd(m){
+    if(!ptAiMeta || !m || m.jobId!==ptAiJob || !ptAiChunks) return;
+    const meta=ptAiMeta, parts=ptAiChunks;
+    ptAiMeta=null; ptAiChunks=null;
+    if(parts.length!==meta.chunks){                      // 塊數
+      ptStyleStat('⚠ 生圖結果不完整，已維持原本的照片。');
+      return;
+    }
+    try{
+      const blob=await (await fetch('data:image/png;base64,'+parts.join(''))).blob();
+      if(blob.size!==meta.size){                         // 總長度
+        ptStyleStat('⚠ 生圖結果長度不符，已維持原本的照片。');
+        return;
+      }
+      const bmp=await createImageBitmap(blob);
+      /* 🔴 同甲案：刻意**不呼叫 loadBitmap()**——它結尾會跑 suggest()，
+         那會拿「已經照款式鎖好料色的生成圖」再建議一次料色，顏色會自己漂走。
+         AI 款式的料色是款式設計的一部分（lockSlots），不該被自動配色改掉。 */
+      srcBitmap=bmp; buildGrid(); simulate();
+      ptStyleStat('已生圖（'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。'
+                 +'不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）');
+    }catch(e){
+      ptStyleStat('⚠ 生圖結果讀不進來，已維持原本的照片。');
+    }
+  },
+  /* kind＝重試策略用的分類（nokey／auth／quota／network／response），不是給人看的；
+     人看的是 message。R9-5：這幾種**一律不自動重生**——重試只是重複燒錢。 */
+  aiError(jobId, kind, message){
+    if(jobId && jobId!==ptAiJob) return;
+    ptAiMeta=null; ptAiChunks=null;
+    if(kind==='nokey') ptAiAvail=false;                  // 金鑰被移除了 ⇒ 把卡片鎖回去
+    ptStyleStat('⚠ '+(message||'生圖失敗')+'　目前顯示的是原本的照片。');
+    if(kind==='nokey' && typeof ptRender==='function') ptRender();
   },
   /* ── 2026-08-15：宿主告知「使用者已加入哪些照片磚機」──────────────────
      為什麼要有：ping_resolve_photo_tile_printer() 是去 bundle->printers 找符合的
@@ -1628,13 +1684,16 @@ let ptApplied=null;
 function ptInvalidateApplied(){ if(ptApplied){ ptApplied=null;
   if(typeof ptRender==='function') ptRender(); } }
 
-/* 🔴 階段 A 對 AI 款式 fail-closed。**理由不是保守，是誠實**：產品內還沒有任何生圖路徑
-   （那是階段 B 的 phototile_ai_generate），而「有沒有填金鑰」頁面也還不知道
-   （Eric 0816 裁 C 案＝明文不進網頁層，連布林通道都還沒開）。
-   ⚠ 刻意與 machineCap 的 fail-open 不同：fail-open 是「資訊缺就別擋」，
-   這裡是「功能真的不存在」——標得出來比裝得出來重要（FBK-11）。
-   階段 B 開了宿主布林之後，只要把這支改成讀那個值。 */
-function ptAiReady(){ return false; }
+/* 🔴 AI 款式的閘門＝宿主告知「這台機器有沒有存金鑰」（2026-09-02 接上，丙案 P3「丑」）。
+   頁面**永遠只拿得到這個布林**，拿不到金鑰本身（Eric 0816 裁 C 案＝明文不進網頁層；
+   ⚠ 這裡刻意不寫出那支閘門的檔名——**檔名本身就含被禁的識別字**，寫了會讓本檔被自己判紅
+     （實測過）。它在 tools/ping/ 底下，名字裡有「金鑰衛生」那支；C3 那條盯的就是
+     resources/web/ 不准出現金鑰識別字）。
+   ⚠ 維持 fail-closed，刻意與 machineCap 的 fail-open 不同：舊版宿主不呼叫 setAiAvailable
+   ⇒ 這裡維持 false ⇒ AI 款式鎖著。fail-open 是「資訊缺就別擋」，這裡是「功能可能真的不在」
+   ——標得出來比裝得出來重要（FBK-11）。 */
+let ptAiAvail=false;
+function ptAiReady(){ return ptAiAvail; }
 
 /* ── 兩線相容 shim ────────────────────────────────────────────────────────
    出貨線沒有 quadAvailable／showModeNotice（0815 的料數閘門與頁內橫幅是開發線專屬），
@@ -1654,7 +1713,9 @@ function ptStyleById(id){ return STYLE_LIB.styles.find(s=>s.id===id); }
 function ptUsable(s){
   /* 四料：雙料的每一階都落在兩支料的連線上（規格硬約束⑤）⇒ 要第二個色相就一定得四料。 */
   if(s.mode==='quad' && !ptQuadOk()) return {ok:false, kind:'quad', why:'需要四料機台'};
-  if(s.requiresAI && !ptAiReady()) return {ok:false, kind:'ai', why:'需要 AI 生圖（尚未開放）'};
+  /* 2026-09-02：生圖已進產品 ⇒ 擋下的理由改成**真正缺的那件事**（缺金鑰），
+     不再寫「尚未開放」——那句現在是假的，而假的理由會讓人去找錯方向。 */
+  if(s.requiresAI && !ptAiReady()) return {ok:false, kind:'ai', why:'需要先設定 AI 生圖金鑰'};
   if(params.width < ptMinTile(s)) return {ok:false, kind:'size', why:'需放大到 '+ptMinTile(s)+' mm'};
   return {ok:true, kind:'ok', why:''};
 }
@@ -1711,6 +1772,74 @@ function ptStylizeSend(job, levels){
   });
 }
 
+
+/* ══════════════ 丙案：AI 生圖（P3「丑」，2026-09-02） ══════════════
+   規格＝`照片磚_核心規格.md` §9（Eric 2026-08-22 一輪八題全裁）。
+   分工：**這一層決定生什麼、花多少錢怎麼講**；C++（Utils/PingAiImage.cpp）只負責
+   「拿 prompt ＋原圖去換一張 PNG」。回圖走的是甲案那條鏈（styleBegin/Chunk/End 的鏡像）。
+   🔴 回來的圖會**取代來源影像**，與甲案同一個理由：只給頁面看不換來源＝預覽是 AI 圖、
+      輸出是原照片＝兩把尺。原照片留在 C++ 的 origin，重生時還是從它出發。 */
+const PT_AI=(STYLE_LIB.constants&&STYLE_LIB.constants.aiImage)||{};
+let ptAiJob=null, ptAiChunks=null, ptAiMeta=null;
+let ptAiPending=null;                  // {styleId,tones}：等 ptRender() 畫完才發（見 ptApply 的說明）
+/* 🔴 R9-4 的自動驗（keyRegion）目前只在 dev 端 harness，**產品裡沒有** ⇒ 自動重生不能開。
+   R9-5 說「只在自動驗沒過時重試」；沒有驗就沒有「沒過」這個訊號，無條件重試＝重複燒錢，
+   正是那條要擋的事。自動驗進產品之後，把這個改 true、費用文案會自動改口。 */
+const PT_AI_AUTO_VERIFY=false;
+
+/* R9-8：尺寸照磚體長寬比挑，**不讓使用者選**。決定權在頁面（C++ 只當守門的）——
+   因為 prompt 的 {minPx} 要用生圖寬度去算，頁面若不知道自己會拿到哪個尺寸就會算錯。 */
+function ptAiSize(){
+  const w=+params.width||0, h=+params.height||0;
+  if(!(w>0)||!(h>0)) return '1024x1024';
+  const r=w/h;
+  return r>=1.2 ? '1536x1024' : (r<=1/1.2 ? '1024x1536' : '1024x1024');
+}
+/* minPx＝2×口徑 ÷ 磚寬 × 生圖解析度（R9-8）。這是「印得出來的最細線」換算到生圖像素，
+   寫進 prompt 是要模型別畫比這更細的東西——它管的是**可印性**，不是美感。 */
+function ptAiMinPx(size){
+  const w=+params.width||100;
+  const f=(STYLE_LIB.constants&&STYLE_LIB.constants.minWidthFactor)||2;
+  return Math.max(1, Math.round(f*(+params.nozzle||0.4)/w*(parseInt(size,10)||1024)));
+}
+/* R9-6：**單價講死、總額講上限**。兩個都用「約」是懶惰，兩個都寫死是說謊。
+   自動驗還沒進產品時沒有自動重生 ⇒ 這裡就只講單價，不去講一個不會發生的上限。 */
+function ptAiCostText(){
+  const q=PT_AI.quality||'low', unit=PT_AI.unitCostNtd&&PT_AI.unitCostNtd[q];
+  if(typeof unit!=='number') return '';
+  /* 不帶句號：這句會被塞進括號、句中、行尾三種位置，標點交給呼叫端。 */
+  if(!PT_AI_AUTO_VERIFY) return '每張 NT$'+unit;
+  const max=Math.round(unit*(1+(PT_AI.maxRetry||0))*100)/100;
+  return '每張 NT$'+unit+'；驗不過會自動重生，這一次最多 NT$'+max;
+}
+
+function ptAiGenerate(s, tones){
+  if(!slicerBridgeReady()){
+    /* 誠實：瀏覽器直開沒有 C++ ⇒ 生不了圖。明講，不靜默降級（同 ptStylizeSend）。 */
+    ptStyleStat('⚠ 此環境無法生圖（需要在 PING Slicer 裡開工作室）——目前顯示的是原本的照片。');
+    return;
+  }
+  if(!ptAiReady()){
+    ptStyleStat('⚠ 尚未設定 AI 生圖金鑰——請到「說明 → 設定 AI 生圖服務金鑰」填一把。');
+    return;
+  }
+  if(!img){
+    ptStyleStat('⚠ 請先載入一張照片，AI 款式是拿你的照片去改，不是憑空生一張。');
+    return;
+  }
+  const size=ptAiSize();
+  /* 佔位代換與 dev 端 pipeline.py 逐字同法（那邊是 ground truth，別自己另發明一套）。 */
+  const prompt=String(s.promptTemplate||'')
+    .split('{minPx}').join(String(ptAiMinPx(size)))
+    .split('{tones}').join(String(tones));
+  ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
+  ptStyleStat('AI 生圖中…（約 10~40 秒）　'+ptAiCostText());
+  sendSlicerMessage('phototile_ai_generate',{
+    jobId:ptAiJob, prompt:prompt, size:size, quality:PT_AI.quality||'low',
+    widthMm:+params.width||0, heightMm:+params.height||0   // C++ 守門用的後備（頁面沒送合法 size 時）
+  });
+}
+
 function ptApply(s){
   const want=s.mode==='quad'?4:2;
   if(want===4 && !ptQuadOk()){
@@ -1742,6 +1871,13 @@ function ptApply(s){
      這裡只排隊；真正發送在 simulateVertical 尾端（那時料色與色階才定案）。 */
   if(Array.isArray(s.pipeline) && s.pipeline.length && params.orient==='vertical')
     ptStylePending={styleId:s.id, tones:tones};
+  /* 丙案：AI 款式＝套用就去生圖，但**排到 ptRender() 之後才發**（2026-09-02 實測踩到）。
+     🔴 不可以在這裡直接發：點款式的流程是 ptApply() → ptRender()，而 ptRender 會重寫
+        同一條狀態列 ⇒ 不論是「AI 生圖中…」還是「請先載入一張照片」都會被立刻蓋掉，
+        使用者按下去看起來毫無反應。與甲案排隊等 levels 的理由不同（那是等資料），
+        這裡純粹是**等畫面重畫完**。 */
+  else if(s.requiresAI && params.orient==='vertical')
+    ptAiPending={styleId:s.id, tones:tones};
   else
     ptStyleStat('');
   ptApplied=s.id;
@@ -1782,7 +1918,14 @@ function ptRender(){
         +'<div><span class="nm">'+s.name+'</span>'
         +'<span class="tag '+(s.requiresAI?'ai':'loc')+'">'+(s.requiresAI?'AI':'本地')+'</span></div>'
         +'<div class="meta">建議 '+ptTones(s)+' 色階　·　'+(s.mode==='quad'?'四料':'雙料')+'　·　'+(s.lockSlots===false?'料色自動':'料色鎖定')
-        +'<br>保留 '+s.preserves.join('、')+'</div>'
+        +'<br>保留 '+s.preserves.join('、')
+        /* R9-7：Eric 2026-08-22 裁「臉佔畫面 20%」的**限制先不做**，但**理由不准跟著消失**——
+           它防的不是品質，是**身分**：臉太小時 AI 沒有足夠像素判斷這隻狗的眼距／鼻樑／耳型，
+           會用「一般狗臉」的先驗補上，印出來好看但不是他家那隻＝**那是客訴，不是瑕疵**。
+           ⚠ 別跟 faceFillMin 混為一談：那條管可印性（臉不填滿畫面時 100mm 印不出眼睛）。
+           寫在卡片上，是為了讓將來的人看得到理由——否則它只像個沒必要的限制，會被順手拿掉。 */
+        +(s.requiresAI?('<br>AI 生圖 '+ptAiCostText()+'　臉佔畫面越小，AI 越可能自己補五官＝印出來不是本人；臉太小請先裁切再上傳。'):'')
+        +'</div>'
         +'<div class="pill '+(u.ok?'ok':'no')+'">'
         +(u.ok?(ptMinTile(s)+' mm 起可印'+(s.id===ptApplied?'　·　已套用':(s.id===ptStyle?'　·　點一下套用':''))):u.why)
         +'</div></div>';
@@ -1801,23 +1944,35 @@ function ptRender(){
           ? '這款需要四料照片磚機（FF 家族）。你的機器清單裡目前沒有四料照片磚機，'+nl
             +'所以做不出來——在「選擇 3D 列印機」的照片磚分頁加入 FF600／FF800 就選得到。'
           : u.kind==='ai'
-            ? '這款要靠 AI 重畫。產品內的生圖還沒開放（開發中），現在能用的是標「本地」的款式。'
+            ? '這款要靠 AI 重畫你的照片，需要一把 AI 生圖金鑰（費用算在你自己的 AI 帳號上）。'+nl
+              +'填法：主視窗上方「說明 → 設定 AI 生圖服務金鑰」，貼上後按「測試連線」確認，回到這裡就會解鎖。'+nl
+              +'不想用 AI 也可以——標「本地」的款式不需要金鑰。'
             : '把寬度放大到 '+ptMinTile(s)+' mm 以上就可以選。';
         ptNotice('「'+s.name+'」目前不能選——'+u.why+nl+tail);
         return;
       }
-      if(ptApply(s)){ ptStyle=s.id; ptUserPicked=true; ptRender(); }
+      if(ptApply(s)){
+        ptStyle=s.id; ptUserPicked=true; ptRender();
+        /* 🔴 一定要在 ptRender() 之後——它會重寫狀態列，先發就看不到任何回饋。 */
+        if(ptAiPending){ const j=ptAiPending; ptAiPending=null;
+          const st=ptStyleById(j.styleId); if(st) ptAiGenerate(st, j.tones); }
+      }
     });
   }
 
   /* 被尺寸擋下的款式 → 給得出來的修正動作（FBK-11）。 */
   const why=document.getElementById('styleWhy'), fix=document.getElementById('styleFix');
   if(fix) fix.innerHTML='';
+  /* 🔴 **有工作在跑的時候不准碰狀態列**（2026-09-02 實測踩到）：AI 生圖與本地風格化
+     借用同一條 #styleWhy 顯示進度，而點款式的流程是 ptApply() → ptRender()
+     ⇒ ptApply 剛寫的「AI 生圖中…」會被下一行的「某某款式放大到 N mm」立刻蓋掉，
+     使用者按下去看起來毫無反應（而它其實正在花錢生圖）。 */
+  const ptBusy = !!ptAiJob || !!ptStyleJob;
   const blocked=cands.filter(s=>ptUsable(s).kind==='size');
   if(blocked.length && fix && why){
     const cheap=blocked.slice().sort((a,b)=>ptMinTile(a)-ptMinTile(b))[0];
     const need=ptMinTile(cheap);
-    why.textContent='「'+cheap.name+'」在 '+params.width+' mm 做不出來，放大到 '+need+' mm 就可以。';
+    if(!ptBusy) why.textContent='「'+cheap.name+'」在 '+params.width+' mm 做不出來，放大到 '+need+' mm 就可以。';
     const b=document.createElement('button');
     b.className='btn ghost'; b.textContent='放大到 '+need+' mm';
     /* 走既有的寬度輸入，不自己算比例——比例鎖定的邏輯歸 applySizeChange。
@@ -1827,10 +1982,11 @@ function ptRender(){
       if(w){ w.value=need; w.dispatchEvent(new Event('change',{bubbles:true})); }
       setTimeout(ptRender,0); };
     fix.appendChild(b);
-  }else if(why){
+  }else if(why && !ptBusy){
     why.textContent = ptStyle ? '' :
       (ptAiReady() ? '把尺寸放大，或換一個題材。'
-                   : '這個題材目前沒有本地款式可用；AI 款式要等產品內建生圖。');
+                   /* 2026-09-02：生圖已進產品 ⇒ 缺的是金鑰不是功能，講缺的那件事。 */
+                   : '這個題材目前沒有本地款式可用；AI 款式要先填金鑰（說明 → 設定 AI 生圖服務金鑰）。');
   }
 }
 

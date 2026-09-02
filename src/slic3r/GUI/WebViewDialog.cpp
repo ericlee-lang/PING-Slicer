@@ -9,6 +9,7 @@
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
+#include "../Utils/PingAiImage.hpp"   // 丙案：只用它的 available()（問有沒有金鑰，不取明文）
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -343,6 +344,19 @@ void WebViewPanel::SendPhotoTileMachineCapability()
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：已加入的照片磚機 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
+}
+
+/* 丙案（P3「丑」）：告訴頁面「這台機器現在生不生得了圖」＝有沒有存金鑰。
+   🔴 過去的只有一個 bool，**明文一個位元組都不過去**（Eric 2026-08-16 裁 C 案；
+      閘門 C3 也會擋：`resources/web/` 出現任何金鑰識別字就變紅）。
+   ⚠ 與 machineCap 的 fail-open 不同，這裡維持 fail-closed：舊版宿主不呼叫 ⇒ 頁面
+      的 ptAiReady() 維持 false ⇒ AI 款式鎖著。功能真的不存在時，標得出來比裝得出來重要。 */
+void WebViewPanel::SendPhotoTileAiAvailability()
+{
+    const bool ready = PingAiImage::available();
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：AI 生圖可用＝" << (ready ? "是" : "否");
+    RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setAiAvailable(")
+              + (ready ? "true" : "false") + ");");
 }
 
 void WebViewPanel::SendPendingPhotoTileImage()
@@ -769,6 +783,7 @@ void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
     }
     if (evt.GetURL().Contains("/web/phototile/index.html")) {
         SendPhotoTileMachineCapability();   // 先告知料數，再送圖
+        SendPhotoTileAiAvailability();      // 丙案：再告知 AI 生圖可不可用
         SendPendingPhotoTileImage();
     }
     UpdateState();

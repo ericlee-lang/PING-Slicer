@@ -145,6 +145,7 @@ struct Http::priv
 	void set_timeout_connect(long timeout);
     void set_timeout_max(long timeout);
 	void form_add_file(const char *name, const fs::path &path, const char* filename, boost::filesystem::ifstream::off_type offset, size_t length);
+	void form_add_file_typed(const char *name, const fs::path &path, const char* filename, const char* content_type);
 	/* mime */
 	void mime_form_add_text(const char* name, const char* value);
 	void mime_form_add_file(const char* name, const char* path);
@@ -346,6 +347,30 @@ void Http::priv::form_add_file(const char *name, const fs::path &path, const cha
 			CURLFORM_END
 		);
 	}
+}
+
+/* 與上面那支唯一的差別＝Content-Type 由呼叫端指定（見 Http.hpp 的說明）。
+   刻意用複製而不是把上面那支參數化：那支有 5 個呼叫端、且 offset/length 分段上傳的
+   路徑與本用例無關，動它等於讓每個既有呼叫端都承擔風險。 */
+void Http::priv::form_add_file_typed(const char *name, const fs::path &path, const char* filename, const char* content_type)
+{
+	if (filename == nullptr)
+		return;
+
+	form_files.emplace_back(path, 0, 0);
+	auto &f = form_files.back();
+	f.ifs.seekg(0, std::ios::end);
+	const size_t size = static_cast<size_t>(f.ifs.tellg());   // streampos → size_t 明寫，免 MSVC C4244
+	f.ifs.seekg(0);
+
+	::curl_formadd(&form, &form_end,
+		CURLFORM_COPYNAME, name,
+		CURLFORM_FILENAME, filename,
+		CURLFORM_CONTENTTYPE, content_type,
+		CURLFORM_STREAM, static_cast<void*>(&f),
+		CURLFORM_CONTENTSLENGTH, static_cast<long>(size),
+		CURLFORM_END
+	);
 }
 
 void Http::priv::mime_form_add_text(const char* name, const char* value)
@@ -656,6 +681,12 @@ Http& Http::mime_form_add_file(std::string &name, const char* path)
 	return *this;
 }
 
+
+Http& Http::form_add_file_typed(const std::string &name, const fs::path &path, const std::string &filename, const std::string &content_type)
+{
+	if (p) { p->form_add_file_typed(name.c_str(), path, filename.c_str(), content_type.c_str()); }
+	return *this;
+}
 
 Http& Http::form_add_file(const std::wstring& name, const fs::path& path, boost::filesystem::ifstream::off_type offset, size_t length)
 {
