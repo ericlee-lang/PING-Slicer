@@ -44,6 +44,7 @@
 #include <wx/menuitem.h>
 #include <wx/file.h>
 #include <wx/filedlg.h>
+#include <wx/datetime.h>
 #include <wx/progdlg.h>
 #include <wx/busyinfo.h>
 #include <wx/dir.h>
@@ -5347,9 +5348,17 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 }
                 sp.work_width = static_cast<int>(std::lround(root.get<double>("data.workWidth", 800.0)));
                 sp.tones      = static_cast<int>(std::lround(root.get<double>("data.tones", 4.0)));
+                /* mapping（2026-09-03，Eric 裁③「四料款式也走壓平」）：
+                   rank（預設，雙料）＝ramp 是恰 K 階的梯子；nearest（四料）＝ramp 是 ≥K 個候選色（≤64）。
+                   舊頁面不送這個欄位 ⇒ 預設 rank ＝ 行為與 0902 完全相同。 */
+                const std::string mapping = root.get<std::string>("data.mapping", "rank");
+                sp.mapping = (mapping == "nearest") ? PhotoStylizeMapping::NearestDistinct
+                                                    : PhotoStylizeMapping::Rank;
                 for (const auto& kv : root.get_child("data.ramp", pt::ptree()))
                     sp.ramp_hex.push_back(kv.second.get_value<std::string>());
-                if (static_cast<int>(sp.ramp_hex.size()) != sp.tones) {
+                const int ramp_n = static_cast<int>(sp.ramp_hex.size());
+                if (sp.mapping == PhotoStylizeMapping::Rank ? (ramp_n != sp.tones)
+                                                            : (ramp_n < sp.tones || ramp_n > 64)) {
                     style_fail(job_id, "色階資料不完整，請重開工作室再試。");
                     return "";
                 }
@@ -5358,7 +5367,8 @@ std::string GUI_App::handle_web_request(std::string cmd)
                    圖卻換成上一款」這種靜默錯配。 */
                 m_photo_tile_style_job = job_id;
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：分派 job=" << job_id
-                                        << ", cw=" << sp.work_width << ", K=" << sp.tones;
+                                        << ", cw=" << sp.work_width << ", K=" << sp.tones
+                                        << ", mapping=" << mapping << ", palette=" << ramp_n;
                 std::thread([this, sp, job_id]() {
                     PhotoStylizeResult r = ping_photo_stylize(sp);
                     wxTheApp->CallAfter([this, r, job_id]() {
@@ -5524,6 +5534,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                         if (m_photo_tile_origin_path.empty())
                             m_photo_tile_origin_path = m_photo_tile_source_path;
                         m_photo_tile_source_path = ai_path.string();
+                        m_photo_tile_ai_path     = ai_path.string();   // 另存 AI 圖用（壓平後 source 會被換掉，這個不動）
                         BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：來源已切換為 " << m_photo_tile_source_path;
 
                         /* 用量計數（Eric 2026-09-02「提醒他使用了多少的數量」）。
@@ -5566,6 +5577,47 @@ std::string GUI_App::handle_web_request(std::string cmd)
                                                 << ", bytes=" << total << ", chunks=" << chunks;
                     });
                 }).detach();
+            }
+            /* ── 另存 AI 圖（Eric 2026-09-03 裁①：存**壓平前**那張＝真正花錢拿到的圖）────────
+               生圖成功時 m_photo_tile_ai_path 記著暫存檔；之後壓平會把 source 換成壓平圖，
+               但這個記錄不動，所以壓平後仍存得到原 AI 圖。換照片即作廢（與 origin_path 同步清）。
+               **複製**而不是搬移：%TEMP% 那份仍是產品內的來源影像。
+               對話框走 STEP「另存並使用修補」同一套寫法；差別是這裡允許覆寫（wxFD_OVERWRITE_PROMPT
+               由 OS 自己問）——存圖不像 STEP 那樣有「覆寫到原始檔」的風險。 */
+            else if (command_str.compare("phototile_ai_save") == 0) {
+                const std::string style_name = root.get<std::string>("data.styleName", "AI");
+                const auto ai_saved = [this](bool ok, const std::string& path, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.aiSaved && "
+                        "window.PINGPhotoTile.aiSaved({ok:") + (ok ? "true" : "false") + ",path:\"" +
+                        ping_js_escape(path) + "\",message:\"" + ping_js_escape(msg) + "\"});");
+                };
+                if (m_photo_tile_ai_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_ai_path))) {
+                    ai_saved(false, "", "目前沒有可另存的 AI 圖——先用一個 AI 款式生一張。");
+                    return "";
+                }
+                const std::string src = m_photo_tile_ai_path;
+                CallAfter([this, src, style_name, ai_saved]() {
+                    const wxString suggested = from_u8("PING照片磚_AI_") + from_u8(style_name) + "_" +
+                                               wxDateTime::Now().Format("%Y%m%d-%H%M") + ".png";
+                    wxFileDialog dialog(GetTopWindow(), from_u8("另存 AI 生成圖"),
+                        from_u8(app_config->get_last_output_dir(app_config->get_last_dir())), suggested,
+                        "PNG (*.png)|*.png", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+                    if (dialog.ShowModal() != wxID_OK) {
+                        ai_saved(false, "", "已取消，未存檔。");
+                        return;
+                    }
+                    wxFileName out(dialog.GetPath());
+                    out.SetExt("png");
+                    const wxString out_path = out.GetFullPath();
+                    if (!wxCopyFile(from_u8(src), out_path, true)) {
+                        ai_saved(false, "", "寫入失敗，請改用有寫入權限的位置。");
+                        return;
+                    }
+                    app_config->update_last_output_dir(into_u8(out.GetPath()));
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 圖另存：" << into_u8(out_path);
+                    ai_saved(true, into_u8(out_path), "");
+                });
             }
             /* 頁內「開啟圖片」與 Ctrl+V 的圖只存在頁面裡（C++ 沒有路徑），而宿主吃檔案路徑
                ⇒ 頁面回送原始位元組、這裡落成暫存檔（鏡像 export 鏈的四項驗證：連號/塊數/總長度/上限）。 */
@@ -5683,6 +5735,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 /* 甲案：換圖＝風格化原圖記錄作廢。不清的話，下一次風格化會拿**上一張圖**
                    當輸入，而畫面上是新圖——又是「預覽一張、輸出另一張」那型。 */
                 m_photo_tile_origin_path.clear();
+                m_photo_tile_ai_path.clear();      // 換圖＝上一張 AI 圖作廢（另存按鈕在頁面同步收掉）
                 m_photo_tile_owned_temp  = image_path.string();
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送落檔 " << m_photo_tile_source_path;
                 if (!previous_owned.empty() && previous_owned != m_photo_tile_source_path) {
@@ -5988,6 +6041,7 @@ void GUI_App::open_photo_tile(const wxString& image_path)
        空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
     m_photo_tile_source_path = image_path.IsEmpty() ? std::string() : into_u8(image_path);
     m_photo_tile_origin_path.clear();          // 甲案：同上，換圖即作廢風格化原圖記錄
+    m_photo_tile_ai_path.clear();              // 另存 AI 圖：同上
 
     /* 覆審 I-7（記帳制順手清，🟡「覆蓋不刪」）：來源已改指別處＝記帳那顆暫存檔沒人用了。
        只刪自己記過帳的；上面剛清掉 active（真實路徑永不入帳＝這裡刪不到使用者的檔）。 */

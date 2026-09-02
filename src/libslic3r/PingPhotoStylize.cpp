@@ -11,8 +11,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <numeric>
+#include <utility>
 
 namespace Slic3r {
 
@@ -70,12 +72,16 @@ PhotoStylizeResult ping_photo_stylize(const PhotoStylizeParams& params)
         res.error = "色階數超出範圍（2~8），無法風格化。";
         return res;
     }
-    if (static_cast<int>(params.ramp_hex.size()) != K) {
-        res.error = "色階顏色數量與色階數不符，無法風格化。";
+    // ramp 的意義依對映模式而異（見 .hpp）：Rank ⇒ 恰 K 階的梯子；NearestDistinct ⇒ ≥K 個候選色（四料最多 64）。
+    const int  N    = static_cast<int>(params.ramp_hex.size());
+    const bool rank = (params.mapping == PhotoStylizeMapping::Rank);
+    if (rank ? (N != K) : (N < K || N > 64)) {
+        res.error = rank ? "色階顏色數量與色階數不符，無法風格化。"
+                         : "候選色數量不足或超出上限（64），無法風格化。";
         return res;
     }
-    std::vector<cv::Vec3b> ramp(K);
-    for (int i = 0; i < K; ++i) {
+    std::vector<cv::Vec3b> ramp(N);
+    for (int i = 0; i < N; ++i) {
         if (!hex_to_bgr(params.ramp_hex[i], ramp[i])) {
             res.error = "色階顏色格式錯誤，無法風格化。";
             return res;
@@ -140,19 +146,72 @@ PhotoStylizeResult ping_photo_stylize(const PhotoStylizeParams& params)
             L = tmp;
         }
 
-        // ── ⑥ 套色階：最暗的群配最暗的階 ──────────────────────────────────
-        // 🔴 排序依據是 centers 的 L*（第 0 欄）。配反了整張變負片——pipeline.py 的
-        //    註解就寫著這件事，是實際踩過的。
-        std::vector<int> order(K);
-        std::iota(order.begin(), order.end(), 0);
-        std::sort(order.begin(), order.end(), [&centers](int a, int b) {
-            return centers.at<float>(a, 0) < centers.at<float>(b, 0);   // L* 由小到大＝暗→亮
-        });
-        // ramp[0] ＝最亮端（料A）… ramp[K-1] ＝最暗端（料B）
-        // ⇒ 最暗的群（order[0]）要拿 ramp[K-1]。
         std::vector<cv::Vec3b> cluster_color(K);
-        for (int rank = 0; rank < K; ++rank)
-            cluster_color[order[rank]] = ramp[K - 1 - rank];
+        if (rank) {
+            // ── ⑥a 雙料：套色階，最暗的群配最暗的階 ──────────────────────────
+            // 🔴 排序依據是 centers 的 L*（第 0 欄）。配反了整張變負片——pipeline.py 的
+            //    註解就寫著這件事，是實際踩過的。
+            std::vector<int> order(K);
+            std::iota(order.begin(), order.end(), 0);
+            std::sort(order.begin(), order.end(), [&centers](int a, int b) {
+                return centers.at<float>(a, 0) < centers.at<float>(b, 0);   // L* 由小到大＝暗→亮
+            });
+            // ramp[0] ＝最亮端（料A）… ramp[K-1] ＝最暗端（料B）
+            // ⇒ 最暗的群（order[0]）要拿 ramp[K-1]。
+            for (int r = 0; r < K; ++r)
+                cluster_color[order[r]] = ramp[K - 1 - r];
+        } else {
+            // ── ⑥b 四料：每群配「最近、且與已配過的顏色相距 ≥3 ΔE」的候選色 ────────
+            // （Eric 2026-09-03 裁③，離線用 10 張 AI 圖 × 兩個四料款式實測導出）
+            // 四料的調色盤不是一維梯子（6 條兩兩色階線 × K 階，最多 64 色），沒有「亮→暗」可排，
+            // 改在 Lab 上找最近候選。**不重複**是為了保住款式設計的 K 階：純最近會讓兩群併成
+            // 同一色（實測約一半案例少一階＝雙料「身體消失」那型）。候選色之間本來就有相距不到
+            // 3 ΔE 的近親（深藍 vs 近黑），只比 index 的「不重複」會挑到肉眼同色的另一格，
+            // 所以判準是 ΔE ≥ 3。大群先挑：主色先拿到最貼近的候選，小群退讓。
+            cv::Mat pal_bgr(1, N, CV_8UC3);
+            for (int i = 0; i < N; ++i)
+                pal_bgr.at<cv::Vec3b>(0, i) = ramp[i];
+            cv::Mat pal_f, pal_lab;
+            cv::cvtColor(pal_bgr, pal_f, cv::COLOR_BGR2RGB);
+            pal_f.convertTo(pal_f, CV_32FC3, 1.0 / 255.0);
+            cv::cvtColor(pal_f, pal_lab, cv::COLOR_RGB2Lab);   // 與影像同一條轉換，才能同尺度比距離
+            const auto lab_dist = [](const cv::Vec3f& a, const cv::Vec3f& b) {
+                const cv::Vec3f d = a - b;
+                return std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+            };
+            std::vector<int> sizes(K, 0);
+            for (int y = 0; y < L.rows; ++y) {
+                const uchar* lrow = L.ptr<uchar>(y);
+                for (int x = 0; x < L.cols; ++x)
+                    if (lrow[x] < K) ++sizes[lrow[x]];
+            }
+            std::vector<int> order(K);
+            std::iota(order.begin(), order.end(), 0);
+            std::sort(order.begin(), order.end(), [&sizes](int a, int b) { return sizes[a] > sizes[b]; });
+            std::vector<int> picked;
+            picked.reserve(K);
+            for (const int c : order) {
+                const cv::Vec3f center(centers.at<float>(c, 0), centers.at<float>(c, 1), centers.at<float>(c, 2));
+                std::vector<std::pair<float, int>> ds;
+                ds.reserve(N);
+                for (int i = 0; i < N; ++i)
+                    ds.emplace_back(lab_dist(center, pal_lab.at<cv::Vec3f>(0, i)), i);
+                std::sort(ds.begin(), ds.end());
+                int pick = ds.front().second;              // 全部都太近時退回純最近（誠實：寧可少一階也不亂配）
+                for (const auto& di : ds) {
+                    const int i = di.second;
+                    bool near_taken = false;
+                    for (const int p : picked)
+                        if (lab_dist(pal_lab.at<cv::Vec3f>(0, i), pal_lab.at<cv::Vec3f>(0, p)) < 3.0f) {
+                            near_taken = true;
+                            break;
+                        }
+                    if (!near_taken) { pick = i; break; }
+                }
+                picked.push_back(pick);
+                cluster_color[c] = ramp[pick];
+            }
+        }
 
         cv::Mat out(img.rows, img.cols, CV_8UC3);
         for (int y = 0; y < img.rows; ++y) {
@@ -190,8 +249,8 @@ PhotoStylizeResult ping_photo_stylize(const PhotoStylizeParams& params)
     res.elapsed_ms = std::chrono::duration<double, std::milli>(
         std::chrono::steady_clock::now() - t_begin).count();
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化完成：" << res.width << "x" << res.height
-                            << "、K=" << K << "、" << res.elapsed_ms << " ms、"
-                            << res.png.size() << " bytes";
+                            << "、K=" << K << (rank ? "、對映=rank" : "、對映=nearest") << "、候選=" << N
+                            << "、" << res.elapsed_ms << " ms、" << res.png.size() << " bytes";
     return res;
 }
 

@@ -33,13 +33,22 @@
 
 namespace Slic3r {
 
+// 群 → 顏色的對映法（2026-09-03，Eric 裁③「四料款式也走壓平」）。
+//   Rank           ＝雙料：ramp 是一維色階梯（恰 K 個，亮→暗），群按 L* 排名配階。
+//   NearestDistinct＝四料：ramp 是候選色集合（≥K 個，最多 64；6 條兩兩色階線 × K 階），沒有「亮→暗」可排，
+//                    改在 Lab 上取最近候選，且與已配過的顏色相距 ≥3 ΔE（保住款式設計的 K 階；
+//                    離線用 10 張 AI 圖實測：純最近約一半案例兩群併成同一色）。
+enum class PhotoStylizeMapping { Rank, NearestDistinct };
+
 struct PhotoStylizeParams
 {
     std::string src_path;                 // 來源影像的檔案路徑（宿主手上的暫存檔）
     int         work_width = 800;         // 風格化工作寬度（px）。見檔頭的解析度實測
     int         tones      = 4;           // k-means 的 K ＝ 磚的色階數（頁面用 ptTones 決定）
-    // K 個顏色，index 0 ＝最亮端、index tones-1 ＝最暗端。
-    // 由呼叫端（頁面）從**唯一那條色階梯**算好傳進來，本檔不自己算（見檔頭）。
+    PhotoStylizeMapping mapping = PhotoStylizeMapping::Rank;
+    // Rank：K 個顏色，index 0 ＝最亮端、index tones-1 ＝最暗端。
+    // NearestDistinct：≥K 個候選色，順序不拘。
+    // 由呼叫端（頁面）從**唯一那份調色盤**算好傳進來，本檔不自己算（見檔頭）。
     std::vector<std::string> ramp_hex;
 };
 

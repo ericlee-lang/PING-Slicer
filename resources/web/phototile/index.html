@@ -22,6 +22,9 @@
   .btn.primary{background:var(--orange); border-color:var(--orange); color:#fff;}
   .btn.ghost{border-color:#ccc; padding:6px 12px; font-size:13px;}
   .btn.ghost:hover{border-color:var(--black);}
+  /* 標題列裡的小按鈕（「另存 AI 圖…」）：靠右、比標題小一號，讓標題仍是第一眼（HIE） */
+  .panel h2 .btn.mini{padding:2px 9px; font-size:12px; font-weight:600; margin-left:auto; font-family:inherit;}
+  .panel h2 .hint.warn{color:var(--orange);}
   /* C-2 A 案（Eric 0804 裁「就地轉換」）：生成中按鈕原位變進度＋取消，零版面位移 */
   .inline-prog{display:flex; align-items:center; gap:12px; border:1px solid #ddd;
                border-radius:7px; padding:8px 10px 8px 14px; background:#fff; flex:1; min-width:260px;}
@@ -211,13 +214,23 @@
     <!-- 尺寸拉桿（Eric 2026-09-02 令：「尺寸的部分可以用拉bar的方式嗎（放在第二張圖像的下方）」）。
          🔴 版位是他指定的，理由也成立：**調尺寸時眼睛要盯的是模擬圖**（雜訊濾除是固定 mm，
             磚越大＝相對越細、細節越保得住）。拉桿在右欄的話，看的地方跟調的地方隔一個畫面。
-         ⚠ 只綁「寬」：高由鎖定原圖比例算，兩個都能拉會讓比例鎖變成薛丁格的鎖。 -->
+         ⚠ 只綁「寬」：高由鎖定原圖比例算，兩個都能拉會讓比例鎖變成薛丁格的鎖。
+         🆕 2026-09-03（Eric 令）：右欄的尺寸設定整組搬進來，**寬／高的顯示欄位就是輸入欄位**——
+            拉到看得順眼的位置後，直接在旁邊把數字改成整數；厚度與雜訊濾除也在同一張卡（相關的放一起）。 -->
     <div class="sizebar" id="sizeBar" style="display:none">
       <div class="row" style="gap:8px; align-items:center">
         <label style="min-width:0">尺寸</label>
         <input type="range" id="wRange" min="20" max="800" step="1" value="100" style="flex:1">
-        <span class="sub" id="wRangeVal" style="min-width:118px; text-align:right"></span>
+        寬 <input type="number" id="wIn" value="100" min="20" max="800" step="0.1" style="width:70px">
+        × 高 <input type="number" id="hIn" value="75" min="20" max="800" step="0.1" style="width:70px"> mm
       </div>
+      <div class="row" style="gap:8px; align-items:center; margin-top:2px">
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
+        <span style="margin-left:8px">厚</span> <input type="number" id="tIn" value="10" min="2" max="30" step="0.5" style="width:64px"> mm
+        <span style="margin-left:12px">雜訊濾除 ≤</span> <input type="number" id="noiseIn" value="2.0" min="0" max="20" step="0.1" style="width:64px"> mm
+      </div>
+      <div class="sub" id="sizeInfo"></div>
+      <div class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</div>
       <div class="sub" id="sizeBarHint" style="margin-top:2px"></div>
     </div>
   </section>
@@ -270,17 +283,9 @@
         </select>
         <span class="sub" id="nozzleInfo">mm</span>
       </div>
-      <div class="row" id="sizeRow" style="display:none"><label>尺寸</label>
-        寬 <input type="number" id="wIn" value="100" min="20" max="800" step="0.1" style="width:70px">
-        高 <input type="number" id="hIn" value="75" min="20" max="800" step="0.1" style="width:70px">
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
-        厚 <input type="number" id="tIn" value="10" min="2" max="30" step="0.5" style="width:64px"> mm
-        <span class="sub" id="sizeInfo"></span>
-      </div>
-      <div class="row" id="noiseRow" style="display:none"><label>雜訊濾除</label>
-        雜訊尺寸 ≤ <input type="number" id="noiseIn" value="2.0" min="0" max="20" step="0.1" style="width:64px"> mm
-        <span class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</span>
-      </div>
+      <!-- 尺寸（寬／高／鎖定比例／厚）與雜訊濾除 2026-09-03 移進中欄「尺寸」卡片（#sizeBar）——
+           Eric 令「右邊的設置移到這卡片裡面，因為它是相關的」：拉桿拉到看得順眼的位置後想把數字改成整數，
+           調整的欄位就該在拉桿旁邊，不是在另一欄。輸入框的 id 一字未改，JS 不用動。 -->
       <!-- 兩個實驗選項（都預設關閉）收進 details：一進來只做這次要做的事（七律#2）。 -->
       <details id="advDetails" style="display:none">
         <summary style="font-weight:700; cursor:pointer; margin:6px 0">進階／實驗選項</summary>
@@ -621,6 +626,9 @@ function simulateVerticalQuad(){
   const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——換料 B/C/D 的顏色試試（例如補圖中缺的色系）';
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
+  /* 四料壓平（Eric 2026-09-03 裁③）：與 simulateVertical 尾端同一個掛鉤——這裡的 cands 就是
+     這一次真的拿去分箱的整組候選色，直接送去當調色盤，不在別處再算一份。 */
+  if(ptStylePending){ const job=ptStylePending; ptStylePending=null; ptStylizeSend(job, null, cands); }
 }
 /* engine.js 沒載到時的 fallback（與 engine.js 的 dualLadder 逐字同式）。
    正常路徑一律走引擎那份——這裡只是不讓頁面整個掛掉。 */
@@ -851,6 +859,7 @@ function buildGrid(){
 }
 function loadBitmap(bmp, label){
   srcBitmap=bmp; srcLabel=label;
+  if(typeof ptAiForget==='function') ptAiForget();            // 換圖＝上一張 AI 圖作廢（另存按鈕收掉）
   if(typeof ptSourceTitle==='function') ptSourceTitle('');   // 換圖＝回到「原圖」
   imgAspect=bmp.height/bmp.width;                      // 高/寬，尺寸寬高比連動
   if(sizeAspectLocked) applySizeChange('width',params.width,false);
@@ -998,8 +1007,9 @@ window.PINGPhotoTile={
          simulateVertical 的**尾端**才發送，先 simulate 再設 pending ＝永遠慢一步、
          那個 pending 會躺在那裡沒人送 ⇒ 壓平整個沒觸發，而畫面看起來一切正常。
          這一行的位置就是這個修法有沒有生效的全部差別。 */
-      if(ptAiStyle && params.orient==='vertical' && slotCount===2)
+      if(ptAiStyle && params.orient==='vertical' && (slotCount===2 || slotCount===4))   // 四料也壓平（Eric 2026-09-03 裁③）
         ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
+      ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
       srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('ai');
       /* 圖已經是新的了 ⇒ 遮罩要嘛關掉、要嘛換成下一段（壓平）在做的事。 */
       ptSourceBusy(ptStyleJob ? '壓成平色階中…' : '', ptStyleJob ? '約 1~2 秒' : '');
@@ -1039,6 +1049,13 @@ window.PINGPhotoTile={
     ptSourceBusy('');
     ptStyleStat('⚠ '+(message||'生圖失敗')+'　目前顯示的是原本的照片。');
     if(kind==='nokey' && typeof ptRender==='function') ptRender();
+  },
+  /* ── 另存 AI 圖的結果（2026-09-03）：回饋寫在按鈕旁邊，不寫到款式區的狀態列——
+     動作在哪、回饋在哪（FBK）。ok＝已存到哪；否則 message 是取消／失敗的原因。 */
+  aiSaved(r){
+    const st=document.getElementById('aiSaveStat'); if(!st) return;
+    if(r && r.ok){ st.textContent='已存到 '+(r.path||''); st.classList.remove('warn'); }
+    else { st.textContent=(r && r.message) ? r.message : '未存檔'; st.classList.toggle('warn', !!(r && r.message && /失敗/.test(r.message))); }
   },
   /* ── 2026-08-15：宿主告知「使用者已加入哪些照片磚機」──────────────────
      為什麼要有：ping_resolve_photo_tile_printer() 是去 bundle->printers 找符合的
@@ -1457,8 +1474,7 @@ function syncOrientUI(){
     document.getElementById(id).style.display=v?'none':'';
   document.getElementById('levelsRow').style.display=v?'':'none';
   document.getElementById('nozzleRow').style.display=v?'':'none';   // 口徑＝垂直模式限定（決定水平最小色塊寬）
-  document.getElementById('sizeRow').style.display=v?'':'none';
-  document.getElementById('noiseRow').style.display=v?'':'none';     // 雜訊濾除＝垂直模式限定
+  /* 尺寸與雜訊濾除 2026-09-03 移進中欄「尺寸」卡片（#sizeBar）；它的顯示由 ptSizeBarSync 管（同垂直限定）。 */
   document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
   document.getElementById('p2aRow').style.display=v?'':'none';      // P2A 縫遮罩＝垂直模式限定
   document.getElementById('advDetails').style.display=v?'':'none'; // 實驗選項容器同進退
@@ -1534,10 +1550,12 @@ document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked
 {
   const r=document.getElementById('wRange');
   if(r){
+    /* 拖動中只更新旁邊的寬／高輸入框（顯示欄位＝輸入欄位，2026-09-03），放開才重建幾何。
+       高在鎖定比例時照原圖比例即時換算，讓人拖的時候就看得到會落在多高；解鎖時高不動。 */
     r.oninput =e=>{ const v=+e.target.value;
       const wi=document.getElementById('wIn'); if(wi) wi.value=v;
-      const el=document.getElementById('wRangeVal');
-      if(el) el.textContent=v+' × '+(+params.height).toFixed(1)+' mm（放開後重算）'; };
+      const hi=document.getElementById('hIn');
+      if(hi && sizeAspectLocked && srcBitmap) hi.value=roundMm(v*imgAspect,1); };
     r.onchange=e=>{ applySizeChange('width', e.target.value); };   // 放開才重建幾何
   }
 }
@@ -1879,9 +1897,30 @@ function ptSourceBusy(text, sub){
 function ptSourceTitle(kind){
   const el=document.getElementById('srcTitle'); if(!el) return;
   const hint='<span class="hint">拖放／貼上／開啟圖片</span>';
-  if(kind==='style')   el.innerHTML='來源（已風格化）<span class="hint">原照片仍保留，重新套用時會從它出發</span>';
-  else if(kind==='ai') el.innerHTML='來源（AI 生成）<span class="hint">原照片仍保留，再生一張時會從它出發</span>';
+  /* 「另存 AI 圖…」只在本張照片生過圖之後出現（Eric 2026-09-03 裁①：按鈕放來源框標題右側，
+     存**壓平前**那張）。圖在哪按鈕在哪；沒有 AI 圖時不出現＝不給使用者一顆按了會失敗的按鈕。
+     壓平後標題也要說實話：來源是「AI 生成再壓平」，不是單純「已風格化」。 */
+  const save = ptAiHasImage
+    ? '<button class="btn ghost mini" id="aiSaveBtn" type="button" onclick="ptAiSave()">另存 AI 圖…</button>'
+      +'<span class="hint" id="aiSaveStat"></span>'
+    : '';
+  if(kind==='style')   el.innerHTML=(ptAiHasImage ? '來源（AI 生成，已壓成平色階）' : '來源（已風格化）')
+                                    +'<span class="hint">原照片仍保留，重新套用時會從它出發</span>'+save;
+  else if(kind==='ai') el.innerHTML='來源（AI 生成）<span class="hint">原照片仍保留，再生一張時會從它出發</span>'+save;
   else                 el.innerHTML='原圖 '+hint;
+}
+let ptAiHasImage=false;                 // 本張照片有沒有生過 AI 圖（決定「另存 AI 圖」按鈕出不出現）
+function ptAiForget(){ ptAiHasImage=false; }   // 換照片＝作廢（C++ 端的 m_photo_tile_ai_path 同步清）
+function ptAiSave(){
+  const st=document.getElementById('aiSaveStat');
+  if(!slicerBridgeReady()){
+    if(st) st.textContent='此環境無法另存（需要在 PING Slicer 裡開工作室）';
+    return;
+  }
+  const s=(ptAiStyle && typeof ptStyleById==='function') ? ptStyleById(ptAiStyle.id) : null;
+  if(st) st.textContent='選擇存檔位置…';
+  /* 檔名由 C++ 組（PING照片磚_AI_款式_日期時間.png）；頁面只給款式名，路徑決定權在存檔對話框。 */
+  sendSlicerMessage('phototile_ai_save',{ styleName: s ? s.name : 'AI' });
 }
 
 let ptStylePending=null;               // {styleId, tones} —— 等下一次 simulateVertical 拿到 levels 再發
@@ -1891,15 +1930,22 @@ const PT_STYLE_CW=800;                 // 工作寬度。實測：400/600/800/12
 
 function ptStyleStat(text){ const el=document.getElementById('styleWhy'); if(el) el.innerHTML=text||''; }
 
-function ptStylizeSend(job, levels){
+/* levels＝雙料的色階梯（simulateVertical 尾端給）；cands＝四料的候選色（simulateVerticalQuad 尾端給）。
+   兩者擇一，由 slotCount 決定走哪條——**調色盤只有一份**：就是這兩個函式當下真的拿去分箱的那組。 */
+function ptStylizeSend(job, levels, cands){
   if(!slicerBridgeReady()){
     /* 誠實：瀏覽器直開沒有 C++ ⇒ 風格化做不到。**明講**，不靜默降級——
        與 ptAiReady() 的 fail-closed 同一個原則：標得出來比裝得出來重要。 */
     ptStyleStat('⚠ 此環境無法風格化（需要在 PING Slicer 裡開工作室）——目前顯示的是未風格化的結果。');
     return;
   }
-  if(slotCount!==2 || !levels || levels.length!==job.tones){
-    ptStyleStat('⚠ 目前只有雙料款式支援風格化，這一款維持原本的處理。');
+  /* 四料也壓平（Eric 2026-09-03 裁③）。四料的調色盤不是一維梯子，是 6 條兩兩色階線 × K 階的候選色
+     （最多 64），所以送整組候選、對映改 nearest；C++ 端每群配「最近、且與已配過的相距 ≥3 ΔE」的候選。
+     離線用 10 張 AI 圖實測：壓平前「騎在兩個候選色邊界 ±3 內」的像素最高 74%，壓平後 0%。 */
+  const quad = (slotCount===4);
+  const pal  = quad ? cands : levels;
+  if((slotCount!==2 && slotCount!==4) || !pal || (quad ? pal.length<job.tones : pal.length!==job.tones)){
+    ptStyleStat('⚠ 這一款的料數目前不支援風格化，維持原本的處理。');
     return;
   }
   ptStyleJob='sty-'+Date.now();
@@ -1912,9 +1958,12 @@ function ptStylizeSend(job, levels){
        origin（預設）＝使用者的原照片——本地款式走這條，重跑不會疊在生成物上。
        current＝目前的來源影像，也就是**剛回來的 AI 圖**（丙案專用，見 aiEnd 的說明）。 */
     input: job.useCurrent ? 'current' : 'origin',
-    /* ramp[0]＝最亮端、[K-1]＝最暗端，與 C++ 端的約定一致。
-       直接送 levels 算好的顏色＝色階梯仍然只有一份（engine.js 那份）。 */
-    ramp:levels.map(l=>rgbHex(...l.rgb).toUpperCase())
+    /* rank（雙料）：ramp[0]＝最亮端、[K-1]＝最暗端，與 C++ 端的約定一致；
+       nearest（四料）：ramp＝全部候選色、順序不拘。
+       直接送頁面算好的顏色＝調色盤仍然只有一份（雙料是 engine.js 的梯子、四料是 simulateVerticalQuad 的候選）。 */
+    mapping: quad ? 'nearest' : 'rank',
+    ramp: quad ? cands.map(c=>rgbHex(...c.lin.map(l2s)).toUpperCase())
+               : levels.map(l=>rgbHex(...l.rgb).toUpperCase())
   });
 }
 
@@ -2023,12 +2072,13 @@ function ptAskSubject(){
     box.appendChild(h); box.appendChild(b);
     const list=document.createElement('div');
     list.style.cssText='display:flex; flex-direction:column; gap:6px; margin-bottom:12px;';
+    /* 不標「N 款可選」（Eric 2026-09-03 令「這個不用顯示在這邊，進去之後就可以看了」）：
+       這個框只做一個決定＝主角是誰；款式數量進工作室就看得到，放這裡是多餘資訊（七律#2）。 */
     STYLE_LIB.subjects.forEach(sub=>{
-      const n=STYLE_LIB.styles.filter(st=>st.subjects.includes(sub.id)).length;
       const btn=document.createElement('button');
       btn.className='btn'+(sub.id===ptSubject?' primary':'');
       btn.style.cssText='text-align:left; padding:7px 10px;';
-      btn.textContent=sub.name+'　'+(sub.keyFeature?('關鍵特徵＝'+sub.keyFeature+'　'):'')+n+' 款可選';
+      btn.textContent=sub.name+(sub.keyFeature?('　關鍵特徵＝'+sub.keyFeature):'');
       btn.onclick=()=>close(sub.id);
       list.appendChild(btn);
     });
@@ -2147,9 +2197,10 @@ function ptApply(s){
 function ptSizeBarSync(){
   const bar=document.getElementById('sizeBar'); if(!bar) return;
   bar.style.display = (params.orient==='vertical') ? '' : 'none';
-  const r=document.getElementById('wRange'), v=document.getElementById('wRangeVal');
+  const r=document.getElementById('wRange');
   if(r && document.activeElement!==r) r.value=Math.round(params.width);
-  if(v) v.textContent=Math.round(params.width)+' × '+(+params.height).toFixed(1)+' mm';
+  /* 寬／高的顯示欄位＝輸入欄位本身（Eric 2026-09-03 令「結合後面的顯示欄位，跟輸入欄位做在同一個」）：
+     值由 syncSizeInputs() 同步進 #wIn／#hIn，這裡不再另外印一份數字。 */
   const hint=document.getElementById('sizeBarHint');
   if(hint){
     /* 機台真實上限（2026-09-02 由 %APPDATA% 的機器 preset 實查）：
@@ -2157,7 +2208,7 @@ function ptSizeBarSync(){
        放這裡是因為使用者拉到超過機台時，這行就是他唯一的線索。 */
     const h=+params.height||0;
     const over = h>600 ? 'FF800 也放不下' : h>580 ? '只有 FF800 放得下' : h>300 ? '需要 FF600／FF800' : '';
-    hint.textContent = '磚越大越清楚（雜訊濾除是固定 '+params.noiseMm+' mm）；可印高：FD300 300／FF600 580／FF800 600 mm'
+    hint.textContent = '磚越大越清楚（雜訊濾除的 mm 值不隨尺寸變）；可印高：FD300 300／FF600 580／FF800 600 mm'
                      + (over ? '　⚠ 目前高度 '+h.toFixed(0)+' mm——'+over : '');
     hint.style.color = over ? 'var(--orange)' : '';
   }
