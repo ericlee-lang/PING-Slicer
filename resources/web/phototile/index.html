@@ -108,6 +108,18 @@
   .scard .pill.ok{color:#2d7a33}
   .scard .pill.no{color:var(--orange); font-weight:600}
 #modeSeg button.locked::after{content:' 🔒';font-size:.9em}
+  /* ── 款式套用確認框（Eric 2026-09-02 令：「請跳出小視窗，讓我按下確定再進行」）──
+     🔴 **不可以用 window.confirm**：嵌入式 WebView2 的 script dialog 由宿主決定要不要顯示、
+        不可靠，而且 modal 會卡住 renderer（0815 實錄：面板隱藏時 alert 一跳，頁面停住、
+        連 CDP 都進不去）。同 showModeNotice 的理由，一律做頁內的。 */
+  .cfmBack{position:fixed; inset:0; background:rgba(32,34,33,.38); display:flex;
+           align-items:center; justify-content:center; z-index:9999;}
+  .cfmBox{background:#fff; border-radius:4px; box-shadow:0 8px 28px rgba(0,0,0,.22);
+          max-width:420px; width:calc(100% - 40px); padding:18px 20px 14px;}
+  .cfmTitle{font-size:15px; font-weight:700; color:var(--black); margin:0 0 8px;}
+  .cfmBody{font-size:12.5px; line-height:1.85; color:#444; margin:0 0 14px; white-space:pre-line;}
+  .cfmCost{color:var(--orange); font-weight:700;}
+  .cfmBtns{display:flex; justify-content:flex-end; gap:8px;}
 </style>
 </head>
 <body>
@@ -1891,6 +1903,64 @@ function ptAiGenerate(s, tones){
   });
 }
 
+
+/* ══════════════ 套用款式的確認框（Eric 2026-09-02 令） ══════════════
+   他的原話：「當我選擇不一樣的模板時，請跳出小視窗，讓我按下確定再進行。否則現在只要
+   一點到，它就會再算一次，不小心點到也會算一次。」
+
+   🔴 誤點的代價比「多算一次」大得多，而且兩種款式各有各的痛：
+     ・AI 款式：**真的花錢**（每張 NT$0.3）＋ 20~40 秒。
+     ・本地款式：不花錢，但 ptApply() 會**覆蓋你調好的料色與色階數**——手調過的東西就沒了。
+   ⇒ 兩種都要問，但**問的內容不一樣**（FBK-12：先講後果再問要不要）。
+
+   ⚠ 焦點預設在「取消」：高後果操作的預設鍵要是安全的那一顆，Enter 連按不會誤觸。 */
+function ptConfirmApply(s, isRegen){
+  return new Promise(resolve=>{
+    const tones=ptTones(s);
+    const ai=!!s.requiresAI;
+    const cost=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[PT_AI.quality||'low']);
+    const lines=[];
+    if(ai){
+      lines.push('這一款會用 AI 重畫你的照片，約 20~40 秒。');
+      if(typeof cost==='number') lines.push('COST每張 NT$'+cost+'（算在你自己的 AI 帳號上）');
+    }else{
+      lines.push('這一款在你的電腦上重新計算，約 1~2 秒，不花錢。');
+    }
+    lines.push('套用會覆蓋目前的色階數（改成 '+tones+' 階）與料色（'
+               +(s.lockSlots===false?'交給自動配色':'鎖成款式指定的顏色')+'）。');
+
+    const back=document.createElement('div'); back.className='cfmBack';
+    const box=document.createElement('div'); box.className='cfmBox';
+    const h=document.createElement('div'); h.className='cfmTitle';
+    h.textContent=(isRegen?'要用「':'要套用「')+s.name+(isRegen?'」再生成一張嗎？':'」嗎？');
+    const b=document.createElement('div'); b.className='cfmBody';
+    /* 逐行 append：費用那行要標色，但**不拼 HTML**——款式名與訊息一律走 textContent。 */
+    lines.forEach((t,i)=>{
+      if(i) b.appendChild(document.createElement('br'));
+      if(t.startsWith('COST')){
+        const sp=document.createElement('span'); sp.className='cfmCost'; sp.textContent=t.slice(4);
+        b.appendChild(sp);
+      } else b.appendChild(document.createTextNode(t));
+    });
+    const btns=document.createElement('div'); btns.className='cfmBtns';
+    const no=document.createElement('button'); no.className='btn'; no.textContent='取消';
+    const yes=document.createElement('button'); yes.className='btn primary';
+    yes.textContent=isRegen?'確定再生成':'確定套用';
+    btns.appendChild(no); btns.appendChild(yes);
+    box.appendChild(h); box.appendChild(b); box.appendChild(btns); back.appendChild(box);
+    document.body.appendChild(back);
+
+    const close=(ok)=>{ document.removeEventListener('keydown',onKey); back.remove(); resolve(ok); };
+    const onKey=(e)=>{ if(e.key==='Escape') close(false);
+                       else if(e.key==='Enter' && document.activeElement===yes) close(true); };
+    document.addEventListener('keydown',onKey);
+    back.addEventListener('mousedown',e=>{ if(e.target===back) close(false); });  // 點背景＝取消
+    no.onclick=()=>close(false);
+    yes.onclick=()=>close(true);
+    no.focus();
+  });
+}
+
 function ptApply(s){
   const want=s.mode==='quad'?4:2;
   if(want===4 && !ptQuadOk()){
@@ -1982,7 +2052,7 @@ function ptRender(){
         +'</div></div>';
     }).join('') : '<div class="statline">這個題材目前沒有款式</div>';
 
-    g.querySelectorAll('.scard').forEach(e=>e.onclick=()=>{
+    g.querySelectorAll('.scard').forEach(e=>e.onclick=async ()=>{
       const s=ptStyleById(e.dataset.s), u=ptUsable(s);
       if(!u.ok){
         /* FBK-11：不能只是點不動，要講得出缺什麼、下一步做什麼。
@@ -2002,6 +2072,9 @@ function ptRender(){
         ptNotice('「'+s.name+'」目前不能選——'+u.why+nl+tail);
         return;
       }
+      /* Eric 2026-09-02：套用前一定要問（誤點會花錢，也會蓋掉手調的料色與色階數）。
+         重點一次款式＝「再生成一張」，AI 那條同樣要錢 ⇒ 一樣要問，只是換句話問。 */
+      if(!(await ptConfirmApply(s, s.id===ptApplied))) return;
       if(ptApply(s)){
         ptStyle=s.id; ptUserPicked=true; ptRender();
         /* 🔴 一定要在 ptRender() 之後——它會重寫狀態列，先發就看不到任何回饋。 */
