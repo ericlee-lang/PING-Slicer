@@ -951,6 +951,12 @@ window.PINGPhotoTile={
       /* 🔴 同甲案：刻意**不呼叫 loadBitmap()**——它結尾會跑 suggest()，
          那會拿「已經照款式鎖好料色的生成圖」再建議一次料色，顏色會自己漂走。
          AI 款式的料色是款式設計的一部分（lockSlots），不該被自動配色改掉。 */
+      /* 🔴 **排隊要在 simulate() 之前**（2026-09-02 攔截實測抓到）：排出去的工作是在
+         simulateVertical 的**尾端**才發送，先 simulate 再設 pending ＝永遠慢一步、
+         那個 pending 會躺在那裡沒人送 ⇒ 壓平整個沒觸發，而畫面看起來一切正常。
+         這一行的位置就是這個修法有沒有生效的全部差別。 */
+      if(ptAiStyle && params.orient==='vertical' && slotCount===2)
+        ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('ai');
       /* 🔴 **AI 圖一定要再過一次 k-means 壓平**（Eric 2026-09-02 裁「甲」，實測導出）。
          為什麼：prompt 寫「EXACTLY N flat colors」，但模型實際回的是**兩萬種顏色**（實測
@@ -960,16 +966,21 @@ window.PINGPhotoTile={
          肉眼看不出的 1.6 L* 漂移決定你拿到哪一種，而使用者每賭一次 NT$0.3。
          甲案的 k-means 是**在影像自己的色調分布上分群**再塗到料階梯 ⇒ 壓平後每一區的 L*
          就等於某一階的 L*，離門檻最遠、下一次分箱穩定（規格 R6-11 同一個機制）。
-         ⚠ 只排隊、不直接送：ramp 要等 simulateVertical 算完 levels 才有（同甲案）。 */
-      if(ptAiStyle && params.orient==='vertical' && slotCount===2)
-        ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
+         ⚠ 只排隊、不直接送：ramp 要等 simulateVertical 算完 levels 才有（同甲案）。
+         排隊的動作在上面 simulate() 之前——理由見那裡。 */
       /* 用量：張數由宿主帶過來（它才有跨重啟的計數），金額在這裡用款式庫的單價算
          ——單價正本只有款式庫 JSON 一份，C++ 那份由款式庫閘門盯著一致。 */
       const q=PT_AI.quality||'low', unit=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[q]);
       const used=(typeof meta.count==='number' && meta.count>0 && typeof unit==='number')
         ? '　這台電腦累計 '+meta.count+' 張／NT$'+(Math.round(meta.count*unit*10)/10) : '';
-      ptStyleStat('已生圖（'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。'
-                 +'不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）'+used);
+      /* 🔴 這句會蓋掉 ptStylizeSend 剛寫的「正在壓平…」（simulate() 在上面先跑過了），
+         所以**這裡就要把壓平講進去**，否則那 1~2 秒畫面等於在說謊：說「已完成」，
+         其實還有一段在跑，而且跑完訊息又會再變一次。 */
+      const flattening = !!ptStyleJob;
+      ptStyleStat('已生圖（'+(meta.ms||0)+' ms）'
+                 +(flattening ? '，正在壓成平色階…（約 1~2 秒）'
+                              : '——預覽與輸出用的是同一張。')
+                 +'　不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）'+used);
     }catch(e){
       ptStyleStat('⚠ 生圖結果讀不進來，已維持原本的照片。');
     }
