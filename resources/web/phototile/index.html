@@ -120,6 +120,20 @@
   .cfmBody{font-size:12.5px; line-height:1.85; color:#444; margin:0 0 14px; white-space:pre-line;}
   .cfmCost{color:var(--orange); font-weight:700;}
   .cfmBtns{display:flex; justify-content:flex-end; gap:8px;}
+  /* ── AI 生圖中的遮罩（Eric 2026-09-02：「我後來才發現它正在生圖中」）──────────
+     🔴 為什麼一定要遮在**圖上**：生圖要 20~40 秒，而這期間左邊那張仍然是**上一次的結果**。
+        狀態列那行小字在款式區、離圖很遠 ⇒ 使用者會把舊圖當成新結果看，然後判斷錯誤
+        （他實際踩到：以為畫面壞了，後來才發現只是還在生）。等待要有回饋，而且要在
+        「他正在看的那個東西」上面。 */
+  .srcBusy{position:absolute; inset:0; display:flex; flex-direction:column;
+           align-items:center; justify-content:center; gap:8px; z-index:5;
+           background:rgba(255,255,255,.72); backdrop-filter:blur(1.5px);
+           font-size:13px; color:var(--black); text-align:center; line-height:1.7;}
+  .srcBusy .sub{font-size:11.5px; color:#777;}
+  .srcBusy .dot{width:26px; height:26px; border:3px solid #e2e2e2;
+                border-top-color:var(--orange); border-radius:50%;
+                animation:srcSpin .9s linear infinite;}
+  @keyframes srcSpin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -151,7 +165,7 @@
   <!-- 原圖 -->
   <section class="panel">
     <h2 id="srcTitle">原圖 <span class="hint">拖放／貼上／開啟圖片</span></h2>
-    <div class="canvasbox" id="dropZone">
+    <div class="canvasbox" id="dropZone" style="position:relative">
       <canvas class="view" id="srcCanvas" width="4" height="4"></canvas>
       <div id="dropHint"><div style="font-size:40px">🖼</div><div>把圖片拖到這裡，或 Ctrl+V 貼上</div></div>
     </div>
@@ -900,7 +914,7 @@ window.PINGPhotoTile={
       /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它結尾會跑 suggest()，
          那會拿「已經套好料色的風格化圖」再建議一次料色 ⇒ 顏色會自己漂走。
          只換來源、重建格點、重算——尺寸與料色一律不動。 */
-      srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('style');
+      srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('style'); ptSourceBusy('');
       ptStyleStat('已風格化（'+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。');
     }catch(e){
       ptStyleStat('⚠ 風格化結果讀不進來，已維持未風格化的結果。');
@@ -909,6 +923,7 @@ window.PINGPhotoTile={
   styleError(jobId, message){
     if(jobId && jobId!==ptStyleJob) return;
     ptStyleMeta=null; ptStyleChunks=null;
+    ptSourceBusy('');
     ptStyleStat('⚠ '+(message||'風格化失敗')+'——目前顯示的是未風格化的結果。');
   },
   /* ── 丙案：宿主告知「這台機器能不能生圖」（＝有沒有存金鑰，2026-09-02）──────
@@ -958,6 +973,8 @@ window.PINGPhotoTile={
       if(ptAiStyle && params.orient==='vertical' && slotCount===2)
         ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('ai');
+      /* 圖已經是新的了 ⇒ 遮罩要嘛關掉、要嘛換成下一段（壓平）在做的事。 */
+      ptSourceBusy(ptStyleJob ? '壓成平色階中…' : '', ptStyleJob ? '約 1~2 秒' : '');
       /* 🔴 **AI 圖一定要再過一次 k-means 壓平**（Eric 2026-09-02 裁「甲」，實測導出）。
          為什麼：prompt 寫「EXACTLY N flat colors」，但模型實際回的是**兩萬種顏色**（實測
          19,342~24,272）。那些顏色接著要被「影像 L* 硬對映到料窗、取最近階」分箱——
@@ -991,6 +1008,7 @@ window.PINGPhotoTile={
     if(jobId && jobId!==ptAiJob) return;
     ptAiMeta=null; ptAiChunks=null;
     if(kind==='nokey') ptAiAvail=false;                  // 金鑰被移除了 ⇒ 把卡片鎖回去
+    ptSourceBusy('');
     ptStyleStat('⚠ '+(message||'生圖失敗')+'　目前顯示的是原本的照片。');
     if(kind==='nokey' && typeof ptRender==='function') ptRender();
   },
@@ -1802,6 +1820,24 @@ function ptTones(s){
    甲案與丙案都會**用處理後的圖取代來源影像**（刻意的：不換來源＝預覽與輸出兩把尺）。
    但標題寫死「原圖」就變成畫面在說謊——使用者看到自己的照片被換掉、卻沒有任何東西
    告訴他那是正常的、也沒告訴他原照片還在。**標得出來比裝得出來重要（FBK-11）。** */
+/* 生圖／壓平期間，把「還在跑」蓋在圖上（Eric 2026-09-02 實走：他把上一次的結果
+   當成新結果在看）。**顯示的是舊圖時，畫面就有義務講出來。** */
+function ptSourceBusy(text, sub){
+  const box=document.getElementById('dropZone'); if(!box) return;
+  let el=box.querySelector('.srcBusy');
+  if(!text){ if(el) el.remove(); return; }
+  if(!el){
+    el=document.createElement('div'); el.className='srcBusy';
+    const d=document.createElement('div'); d.className='dot';
+    const t=document.createElement('div'); t.className='msg';
+    const u=document.createElement('div'); u.className='sub';
+    el.appendChild(d); el.appendChild(t); el.appendChild(u);
+    box.appendChild(el);
+  }
+  el.querySelector('.msg').textContent=text;
+  el.querySelector('.sub').textContent=sub||'';
+}
+
 function ptSourceTitle(kind){
   const el=document.getElementById('srcTitle'); if(!el) return;
   const hint='<span class="hint">拖放／貼上／開啟圖片</span>';
@@ -1908,6 +1944,7 @@ function ptAiGenerate(s, tones){
   ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
   ptAiStyle={id:s.id, tones:tones};        // aiEnd 要用它接續壓平（見那裡的說明）
   ptStyleStat('AI 生圖中…（約 10~40 秒）　'+ptAiCostText());
+  ptSourceBusy('AI 生圖中…', '約 10~40 秒｜下面顯示的還是上一次的結果');
   sendSlicerMessage('phototile_ai_generate',{
     jobId:ptAiJob, prompt:prompt, size:size, quality:PT_AI.quality||'low',
     widthMm:+params.width||0, heightMm:+params.height||0   // C++ 守門用的後備（頁面沒送合法 size 時）
