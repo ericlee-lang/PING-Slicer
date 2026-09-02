@@ -120,6 +120,7 @@
   .cfmBody{font-size:12.5px; line-height:1.85; color:#444; margin:0 0 14px; white-space:pre-line;}
   .cfmCost{color:var(--orange); font-weight:700;}
   .cfmBtns{display:flex; justify-content:flex-end; gap:8px;}
+  .sizebar{padding:8px 10px 10px; border-top:1px solid #eee;}
   /* ── AI 生圖中的遮罩（Eric 2026-09-02：「我後來才發現它正在生圖中」）──────────
      🔴 為什麼一定要遮在**圖上**：生圖要 20~40 秒，而這期間左邊那張仍然是**上一次的結果**。
         狀態列那行小字在款式區、離圖很遠 ⇒ 使用者會把舊圖當成新結果看，然後判斷錯誤
@@ -207,6 +208,18 @@
       <canvas id="coreCanvas" width="800" height="36"></canvas>
     </div>
     <div class="metric" id="metric">—</div>
+    <!-- 尺寸拉桿（Eric 2026-09-02 令：「尺寸的部分可以用拉bar的方式嗎（放在第二張圖像的下方）」）。
+         🔴 版位是他指定的，理由也成立：**調尺寸時眼睛要盯的是模擬圖**（雜訊濾除是固定 mm，
+            磚越大＝相對越細、細節越保得住）。拉桿在右欄的話，看的地方跟調的地方隔一個畫面。
+         ⚠ 只綁「寬」：高由鎖定原圖比例算，兩個都能拉會讓比例鎖變成薛丁格的鎖。 -->
+    <div class="sizebar" id="sizeBar" style="display:none">
+      <div class="row" style="gap:8px; align-items:center">
+        <label style="min-width:0">尺寸</label>
+        <input type="range" id="wRange" min="20" max="800" step="1" value="100" style="flex:1">
+        <span class="sub" id="wRangeVal" style="min-width:118px; text-align:right"></span>
+      </div>
+      <div class="sub" id="sizeBarHint" style="margin-top:2px"></div>
+    </div>
   </section>
 
   <!-- 控制 -->
@@ -258,8 +271,8 @@
         <span class="sub" id="nozzleInfo">mm</span>
       </div>
       <div class="row" id="sizeRow" style="display:none"><label>尺寸</label>
-        寬 <input type="number" id="wIn" value="100" min="20" max="400" step="0.1" style="width:70px">
-        高 <input type="number" id="hIn" value="75" min="20" max="400" step="0.1" style="width:70px">
+        寬 <input type="number" id="wIn" value="100" min="20" max="800" step="0.1" style="width:70px">
+        高 <input type="number" id="hIn" value="75" min="20" max="800" step="0.1" style="width:70px">
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
         厚 <input type="number" id="tIn" value="10" min="2" max="30" step="0.5" style="width:64px"> mm
         <span class="sub" id="sizeInfo"></span>
@@ -308,11 +321,11 @@
   </section>
 </main>
 
-<script src="mesh_union.js?v=20260822"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
+<script src="mesh_union.js?v=20260902"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260902"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260902b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -774,7 +787,10 @@ function listSwaps(){
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
 let srcBitmap=null, srcLabel='';    // 原始點陣圖，供改輸出尺寸時自動重取樣
 const GRID_MAX=3200;                // 長邊格數上限（防瀏覽器/3MF 爆量）；3200＝16cm 邊 @0.05mm 仍不觸頂（更大的磚自動放粗格點；座標仍在 Uint16 範圍）
-const SIZE_MIN_MM=20, SIZE_MAX_MM=400;
+const SIZE_MIN_MM=20, SIZE_MAX_MM=800;   /* 2026-09-02 由 400 放寬到 800（Eric 令）。
+   🔴 這個值有三份：本檔、engine.js 的同名常數、兩個 input 的 max 屬性——**三處都要改**。
+      本棒實測踩到：只改了輸入框與 engine，拉桿拉到 400 卻停在高 400／寬 300，
+      因為 applySizeChange 用的是這一份。機台真限制：可印高 FD300 300／FF600 580／FF800 600。 */
 const {clampSizeMm, fitAspectSize, roundMm}=window.PingPhotoTileSize;
 
 function syncSizeInputs(){
@@ -800,6 +816,7 @@ function applySizeChange(changed, rawValue, rebuild=true){
      還原路徑不需另建：btnSuggest（「依這張圖建議配色與換層」）本來就是。 */
   if(rebuild && img){ buildGrid(); simulate(); }
   else updateSizeInfo();
+  if(typeof ptSizeBarSync==='function') ptSizeBarSync();   // 尺寸變了，拉桿與提示跟著走
 }
 /* 由系統依實體尺寸自動採 0.1 mm 高精度取樣；這是 3MF 幾何實作細節，不要求使用者判斷。
    正方格、aspect 由圖片決定並已連動 params.height。
@@ -841,6 +858,17 @@ function loadBitmap(bmp, label){
   buildGrid();
   document.getElementById('dropHint').style.display='none';
   suggest();           // 開圖即自動建議＋出模擬（零點擊先看到結果）
+  /* 問題材：只在垂直模式（平躺沒有款式的概念），而且**問完才重畫款式區**。
+     ⚠ 放在 suggest() 之後：先讓他看到結果，再問——問句擋在結果前面會像個路障。 */
+  if(params.orient==='vertical' && typeof ptAskSubject==='function'){
+    ptAskSubject().then(id=>{
+      if(!id || id===ptSubject) return;
+      ptSubject=id;
+      const sel=document.getElementById('subjectSel'); if(sel) sel.value=id;
+      ptUserPicked=false;                 // 換題材＝重新推薦，不要沿用上一個題材選過的款式
+      if(typeof ptRender==='function') ptRender();
+    });
+  }
 }
 async function loadFile(f){
   if(!f || !f.type.startsWith('image/')) return;
@@ -1503,6 +1531,16 @@ document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked;
 /* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64，engine.js MAXP），
    原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
+{
+  const r=document.getElementById('wRange');
+  if(r){
+    r.oninput =e=>{ const v=+e.target.value;
+      const wi=document.getElementById('wIn'); if(wi) wi.value=v;
+      const el=document.getElementById('wRangeVal');
+      if(el) el.textContent=v+' × '+(+params.height).toFixed(1)+' mm（放開後重算）'; };
+    r.onchange=e=>{ applySizeChange('width', e.target.value); };   // 放開才重建幾何
+  }
+}
 document.getElementById('pillarXY').onchange=e=>{
   params.pillarXY=Math.max(5,Math.min(60,Math.round(+e.target.value)||20));   // round＝覆審 I-5（同 klevels）
   e.target.value=params.pillarXY;
@@ -1962,9 +2000,58 @@ function ptAiGenerate(s, tones){
    ⇒ 兩種都要問，但**問的內容不一樣**（FBK-12：先講後果再問要不要）。
 
    ⚠ 焦點預設在「取消」：高後果操作的預設鍵要是安全的那一顆，Enter 連按不會誤觸。 */
+/* ══════════════ 載圖時問題材（Eric 2026-09-02 令） ══════════════
+   他的原話：「丟入圖像的時候跳出模型風格選擇視窗，不要常駐在下方的下拉選單」。
+
+   🔴 為什麼這件事值得一個視窗：他今天實際踩到——狗的照片停在預設的「人像特寫」，
+      而那個題材只端得出「模板風（2 階，為人臉高對比設計）」⇒ 圓臉低對比的巴哥糊成一片。
+      **題材決定系統端出哪些款式**，但那個下拉選單在畫面下方、沒有人會注意到它是個決定點。
+   ⚠ 下拉選單**保留**（不照字面拿掉）：那是事後要改題材的唯一出口，他今天就是靠它救回來的。
+      這個框只是把「該做決定的時刻」提前到載圖當下。
+   ℹ️ 刻意不做自動偵測：產品的 OpenCV 沒編 objdetect，而 dev 端那支 Haar 只認人臉、
+      沒有人臉一律回「風景」⇒ 拿狗去跑會得到一個講錯話的提示。寧可問，不要猜。 */
+function ptAskSubject(){
+  return new Promise(resolve=>{
+    const back=document.createElement('div'); back.className='cfmBack';
+    /* 🔴 同時只准有一個框（2026-09-02 實測抓到）：連續丟兩張圖時，前一張的題材框還開著，
+       第二個框會疊上去 ⇒ 兩層遮罩、按鈕看起來重複，而且關掉一層還有一層。舊的直接收掉。 */
+    document.querySelectorAll('.cfmBack').forEach(el=>el.remove());
+    const box=document.createElement('div'); box.className='cfmBox';
+    const h=document.createElement('div'); h.className='cfmTitle'; h.textContent='這張照片的主角是？';
+    const b=document.createElement('div'); b.className='cfmBody';
+    b.textContent='它決定系統端出哪些款式（不同款式的建議色階數不同）。之後也可以在下面的「題材」改。';
+    box.appendChild(h); box.appendChild(b);
+    const list=document.createElement('div');
+    list.style.cssText='display:flex; flex-direction:column; gap:6px; margin-bottom:12px;';
+    STYLE_LIB.subjects.forEach(sub=>{
+      const n=STYLE_LIB.styles.filter(st=>st.subjects.includes(sub.id)).length;
+      const btn=document.createElement('button');
+      btn.className='btn'+(sub.id===ptSubject?' primary':'');
+      btn.style.cssText='text-align:left; padding:7px 10px;';
+      btn.textContent=sub.name+'　'+(sub.keyFeature?('關鍵特徵＝'+sub.keyFeature+'　'):'')+n+' 款可選';
+      btn.onclick=()=>close(sub.id);
+      list.appendChild(btn);
+    });
+    const btns=document.createElement('div'); btns.className='cfmBtns';
+    const skip=document.createElement('button'); skip.className='btn';
+    skip.textContent='先不改（用目前的）'; skip.onclick=()=>close(null);
+    btns.appendChild(skip);
+    box.appendChild(list); box.appendChild(btns); back.appendChild(box);
+    document.body.appendChild(back);
+    const close=(id)=>{ document.removeEventListener('keydown',onKey); back.remove(); resolve(id); };
+    const onKey=(e)=>{ if(e.key==='Escape') close(null); };
+    document.addEventListener('keydown',onKey);
+    back.addEventListener('mousedown',e=>{ if(e.target===back) close(null); });
+    skip.focus();
+  });
+}
+
 function ptConfirmApply(s, isRegen){
   return new Promise(resolve=>{
     const tones=ptTones(s);
+    /* 🔴 同時只准有一個框（2026-09-02 實測抓到）：連續丟兩張圖時，前一張的題材框還開著，
+       第二個框會疊上去 ⇒ 兩層遮罩、按鈕看起來重複，而且關掉一層還有一層。舊的直接收掉。 */
+    document.querySelectorAll('.cfmBack').forEach(el=>el.remove());
     const ai=!!s.requiresAI;
     const cost=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[PT_AI.quality||'low']);
     const lines=[];
@@ -2053,9 +2140,33 @@ function ptApply(s){
   return true;
 }
 
+/* 尺寸拉桿（Eric 2026-09-02）。與「寬」輸入框雙向同步——**不另開一套狀態**：
+   拉桿只是同一個 params.width 的第二個入口，真正的換算仍走 applySizeChange（比例鎖歸它管）。
+   ⚠ oninput 會連續觸發 ⇒ 拖動時只更新數字與輸入框，**放開才重建幾何**（onchange），
+     否則每動一格就重算一次高精度格點，畫面會卡死。 */
+function ptSizeBarSync(){
+  const bar=document.getElementById('sizeBar'); if(!bar) return;
+  bar.style.display = (params.orient==='vertical') ? '' : 'none';
+  const r=document.getElementById('wRange'), v=document.getElementById('wRangeVal');
+  if(r && document.activeElement!==r) r.value=Math.round(params.width);
+  if(v) v.textContent=Math.round(params.width)+' × '+(+params.height).toFixed(1)+' mm';
+  const hint=document.getElementById('sizeBarHint');
+  if(hint){
+    /* 機台真實上限（2026-09-02 由 %APPDATA% 的機器 preset 實查）：
+       可印高 FD300 300／FF600 580／FF800 600；盤面直徑約 300／600／800。
+       放這裡是因為使用者拉到超過機台時，這行就是他唯一的線索。 */
+    const h=+params.height||0;
+    const over = h>600 ? 'FF800 也放不下' : h>580 ? '只有 FF800 放得下' : h>300 ? '需要 FF600／FF800' : '';
+    hint.textContent = '磚越大越清楚（雜訊濾除是固定 '+params.noiseMm+' mm）；可印高：FD300 300／FF600 580／FF800 600 mm'
+                     + (over ? '　⚠ 目前高度 '+h.toFixed(0)+' mm——'+over : '');
+    hint.style.color = over ? 'var(--orange)' : '';
+  }
+}
+
 function ptSyncVisibility(){
   const p=document.getElementById('stylePanel');
   if(p) p.style.display=(params.orient==='vertical')?'':'none';
+  ptSizeBarSync();          // 拉桿與款式面板同進退（都只在垂直模式有意義）
 }
 
 function ptRender(){
