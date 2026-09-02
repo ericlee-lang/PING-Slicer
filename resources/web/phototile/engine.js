@@ -99,7 +99,7 @@ function normalizeRequest(req){
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
-    pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 15)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
+    pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     teeth:   !!(req.seam && req.seam.teeth),
     /* p2aBlock 預設 true（Eric 2026-08-22 裁「預設開」，同值住 index.html:333）。
        引擎的預設一律跟著工作室走——否則「seam 欄缺席＝與工作室輸出位元組全等」這條契約會破：
@@ -640,11 +640,24 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
       `      <metadata key="name" value="${xmlEsc(pname)}"/>\n`+
       `      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n`+
       `      <metadata key="extruder" value="${pillarOid}"/>\n`+
-      `      <metadata key="sparse_infill_density" value="100%"/>\n`+
+      /* 洗料柱改空心方管（Eric 2026-09-02 令：「改成 20mm 正方、不要實心填充、厚度 2mm」）。
+         起因＝他實測一顆 87.77 g 的成品裡，柱子就佔 45.95 g（52%）。
+         🔴 不改 mesh、只改 part 覆蓋值：牆數＝2mm÷口徑（0.4→5 圈、0.6→3、1.0→2），填充 0%、上下殼 0
+            ⇒ 就是一根 20×20 的方管。改 mesh 要多 8 頂點 20 三角面，且方管內壁法線寫反就成破面，沒必要冒這個險。
+         ⚠ **沖刷量降到原本的 64%**（實心 15×15＝225 mm²/層 → 空心 20×20 壁厚 2＝144 mm²/層）。
+            洗料柱的用途就是把上一個混比的殘料擠掉，量變少＝可能洗不乾淨。這是 Eric 知情下的取捨；
+            實印若出現串色，第一個要調回來的就是這裡。 */
+      `      <metadata key="sparse_infill_density" value="0%"/>\n`+
+      `      <metadata key="wall_loops" value="${Math.max(1, Math.round(2.0/(P.nozzle||0.4)))}"/>
+`+
+      `      <metadata key="top_shell_layers" value="0"/>
+`+
+      `      <metadata key="bottom_shell_layers" value="0"/>
+`+
       `    </part>`);
     palLines.push( mode==='quad'
-      ? `extruder ${pillarOid} color ${pillarColor} = M6052 A25 B25 C25 D25（洗料柱 ${side}×${side}mm 實心方柱）`
-      : `extruder ${pillarOid} color ${pillarColor} = M6051 S0.5（洗料柱 ${side}×${side}mm 實心方柱）`);
+      ? `extruder ${pillarOid} color ${pillarColor} = M6052 A25 B25 C25 D25（洗料柱 ${side}×${side}mm 空心方管・壁厚 2mm）`
+      : `extruder ${pillarOid} color ${pillarColor} = M6051 S0.5（洗料柱 ${side}×${side}mm 空心方管・壁厚 2mm）`);
   }
   const MID=1000;
   const nObjs=parts.length+(pillarOid?1:0);

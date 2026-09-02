@@ -279,8 +279,8 @@
       </div>
       </details>
       <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根 15×4 全料同出柱（防久未用料空燒）</label>
-        柱寬 <input type="number" id="pillarXY" value="15" min="5" max="60" step="1" style="width:64px"> mm
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根全料同出的洗料柱（防久未用料空燒）</label>
+        柱寬 <input type="number" id="pillarXY" value="20" min="5" max="60" step="1" style="width:64px"> mm
         <span class="sub" id="pillarInfo"></span>
       </div>
       <div class="row" id="mapRow"><label>對色方式</label>
@@ -312,7 +312,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260822"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260902"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -354,7 +354,7 @@ let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'fla
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
-               pillar:true, pillarXY:15,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
+               pillar:true, pillarXY:20,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
                p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
@@ -1454,7 +1454,7 @@ function updateSizeInfo(){
   }
   const pe=document.getElementById('pillarInfo');
   if(pe) pe.textContent=params.pillar
-    ? `→ ${params.pillarXY}×${params.pillarXY} mm 實心方柱（磚右側 15mm）`
+    ? `→ ${params.pillarXY}×${params.pillarXY} mm 空心方管・壁厚 2mm（磚右側 15mm）`
     : '';
 }
 document.getElementById('orientSeg').addEventListener('click',e=>{
@@ -1504,7 +1504,7 @@ document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked;
    原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
 document.getElementById('pillarXY').onchange=e=>{
-  params.pillarXY=Math.max(5,Math.min(60,Math.round(+e.target.value)||15));   // round＝覆審 I-5（同 klevels）
+  params.pillarXY=Math.max(5,Math.min(60,Math.round(+e.target.value)||20));   // round＝覆審 I-5（同 klevels）
   e.target.value=params.pillarXY;
   updateSizeInfo();
 };
