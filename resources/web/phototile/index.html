@@ -138,7 +138,7 @@
   <div class="colstack">
   <!-- 原圖 -->
   <section class="panel">
-    <h2>原圖 <span class="hint">拖放／貼上／開啟圖片</span></h2>
+    <h2 id="srcTitle">原圖 <span class="hint">拖放／貼上／開啟圖片</span></h2>
     <div class="canvasbox" id="dropZone">
       <canvas class="view" id="srcCanvas" width="4" height="4"></canvas>
       <div id="dropHint"><div style="font-size:40px">🖼</div><div>把圖片拖到這裡，或 Ctrl+V 貼上</div></div>
@@ -808,6 +808,7 @@ function buildGrid(){
 }
 function loadBitmap(bmp, label){
   srcBitmap=bmp; srcLabel=label;
+  if(typeof ptSourceTitle==='function') ptSourceTitle('');   // 換圖＝回到「原圖」
   imgAspect=bmp.height/bmp.width;                      // 高/寬，尺寸寬高比連動
   if(sizeAspectLocked) applySizeChange('width',params.width,false);
   else syncSizeInputs();
@@ -887,7 +888,7 @@ window.PINGPhotoTile={
       /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它結尾會跑 suggest()，
          那會拿「已經套好料色的風格化圖」再建議一次料色 ⇒ 顏色會自己漂走。
          只換來源、重建格點、重算——尺寸與料色一律不動。 */
-      srcBitmap=bmp; buildGrid(); simulate();
+      srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('style');
       ptStyleStat('已風格化（'+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。');
     }catch(e){
       ptStyleStat('⚠ 風格化結果讀不進來，已維持未風格化的結果。');
@@ -938,7 +939,18 @@ window.PINGPhotoTile={
       /* 🔴 同甲案：刻意**不呼叫 loadBitmap()**——它結尾會跑 suggest()，
          那會拿「已經照款式鎖好料色的生成圖」再建議一次料色，顏色會自己漂走。
          AI 款式的料色是款式設計的一部分（lockSlots），不該被自動配色改掉。 */
-      srcBitmap=bmp; buildGrid(); simulate();
+      srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('ai');
+      /* 🔴 **AI 圖一定要再過一次 k-means 壓平**（Eric 2026-09-02 裁「甲」，實測導出）。
+         為什麼：prompt 寫「EXACTLY N flat colors」，但模型實際回的是**兩萬種顏色**（實測
+         19,342~24,272）。那些顏色接著要被「影像 L* 硬對映到料窗、取最近階」分箱——
+         而 AI 那片主色**剛好落在門檻上**：同一款式同一張照片連生三次，身體中位 L* 分別是
+         69.8／71.4／72.6，門檻在 71.1 ⇒ ①乾淨 ②半片翻階爆白斑 ③整片身體消失。
+         肉眼看不出的 1.6 L* 漂移決定你拿到哪一種，而使用者每賭一次 NT$0.3。
+         甲案的 k-means 是**在影像自己的色調分布上分群**再塗到料階梯 ⇒ 壓平後每一區的 L*
+         就等於某一階的 L*，離門檻最遠、下一次分箱穩定（規格 R6-11 同一個機制）。
+         ⚠ 只排隊、不直接送：ramp 要等 simulateVertical 算完 levels 才有（同甲案）。 */
+      if(ptAiStyle && params.orient==='vertical' && slotCount===2)
+        ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       /* 用量：張數由宿主帶過來（它才有跨重啟的計數），金額在這裡用款式庫的單價算
          ——單價正本只有款式庫 JSON 一份，C++ 那份由款式庫閘門盯著一致。 */
       const q=PT_AI.quality||'low', unit=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[q]);
@@ -987,7 +999,7 @@ window.PINGPhotoTile={
       genTeardown();
       genStatline('warn','生成已中止（引擎重新啟動或作業被取代），請再按一次「產生」。');
     }
-    else genFinishFail(r.errorMessage);
+    else genFinishFail(r.errorMessage, r.errorCode);
   },
   engineStatus(s){
     lastEngineStatus=s||null;
@@ -1530,12 +1542,23 @@ function genPaint(){
     ? `第 ${genState.stageIdx} / 7 階段・已 ${e.toFixed(1)} 秒`
     : `已 ${e.toFixed(1)} 秒`+((lastEngineStatus&&(lastEngineStatus.status==='starting'||lastEngineStatus.status==='rebuilding'))?'・引擎啟動中…':'');
 }
-function genStatline(cls,text){
+function genStatline(cls,text,action){
   const st=document.getElementById('exportStat');
   if(!text){ st.style.display='none'; st.textContent=''; return; }
   st.style.display='';
   st.style.color = cls==='ok' ? '#2E7D32' : cls==='warn' ? 'var(--orange)' : '#777';
   st.textContent=text;
+  /* FBK-11：訊息叫人去某個地方，就要給他一顆過去的按鈕（Eric 2026-09-02 實走：
+     「我在什麼時候要選擇機型呢？這個畫面並沒有讓我選擇的位置」）。
+     🔴 用 textContent 寫字、按鈕走 appendChild——**不要改成 innerHTML**：
+        這些訊息裡含使用者的檔案路徑，拼 HTML 等於開一個注入面。 */
+  if(action && slicerBridgeReady()){
+    const b=document.createElement('button');
+    b.className='btn ghost'; b.style.marginLeft='8px';
+    b.textContent=action.label;
+    b.onclick=()=>sendSlicerMessage(action.cmd,{});
+    st.appendChild(b);
+  }
 }
 function genTeardown(){
   if(!genState) return;
@@ -1576,9 +1599,13 @@ function genFinishOk(r){
     genTeardown(); genStatline('ok',text);
   }
 }
-function genFinishFail(msg){
+function genFinishFail(msg,code){
   genTeardown();
-  genStatline('warn',`產生失敗：${msg||'請重試'}`);
+  /* no_target_printer＝「有這台機但你沒加入」⇒ 給得出下一步的那顆鈕。
+     其他失敗碼不給鈕：按了也解決不了，只會變成一顆假的希望。 */
+  genStatline('warn',`產生失敗：${msg||'請重試'}`,
+    code==='no_target_printer'
+      ? {label:'開啟「選擇 3D 列印機」', cmd:'phototile_open_printer_wizard'} : null);
 }
 function genCancelClick(){
   if(!genState||genState.done) return;   // done＝成功已定、350ms 收尾中（🟡覆審：此時取消是謊言）
@@ -1748,6 +1775,18 @@ function ptTones(s){
    做法：C++（OpenCV）跑 bilateral→mean-shift→k-means→medianBlur，
    **結果回送本頁當新的來源影像** ⇒ 預覽與輸出自動共用同一張。
    🔴 不可以只在生成時做——那會變成預覽跑原圖、輸出跑風格化圖＝兩把尺。 */
+/* 🔴 左框的標題必須跟著事實走（Eric 2026-09-02 實走時問「為什麼這張圖會跟著變？」）。
+   甲案與丙案都會**用處理後的圖取代來源影像**（刻意的：不換來源＝預覽與輸出兩把尺）。
+   但標題寫死「原圖」就變成畫面在說謊——使用者看到自己的照片被換掉、卻沒有任何東西
+   告訴他那是正常的、也沒告訴他原照片還在。**標得出來比裝得出來重要（FBK-11）。** */
+function ptSourceTitle(kind){
+  const el=document.getElementById('srcTitle'); if(!el) return;
+  const hint='<span class="hint">拖放／貼上／開啟圖片</span>';
+  if(kind==='style')   el.innerHTML='來源（已風格化）<span class="hint">原照片仍保留，重新套用時會從它出發</span>';
+  else if(kind==='ai') el.innerHTML='來源（AI 生成）<span class="hint">原照片仍保留，再生一張時會從它出發</span>';
+  else                 el.innerHTML='原圖 '+hint;
+}
+
 let ptStylePending=null;               // {styleId, tones} —— 等下一次 simulateVertical 拿到 levels 再發
 let ptStyleJob=null, ptStyleChunks=null, ptStyleMeta=null;
 const PT_STYLE_CW=800;                 // 工作寬度。實測：400/600/800/1200 的最終標籤一致率 97.3/98.4/99.0/100%
@@ -1768,9 +1807,14 @@ function ptStylizeSend(job, levels){
   }
   ptStyleJob='sty-'+Date.now();
   ptStyleChunks=null; ptStyleMeta=null;
-  ptStyleStat('風格化中…（約 1~2 秒）');
+  ptStyleStat(job.useCurrent ? '正在把 AI 生成的圖壓成 '+job.tones+' 個平色階…（約 1~2 秒）'
+                             : '風格化中…（約 1~2 秒）');
   sendSlicerMessage('phototile_stylize',{
     jobId:ptStyleJob, workWidth:PT_STYLE_CW, tones:job.tones,
+    /* input：要壓平「哪一張」。
+       origin（預設）＝使用者的原照片——本地款式走這條，重跑不會疊在生成物上。
+       current＝目前的來源影像，也就是**剛回來的 AI 圖**（丙案專用，見 aiEnd 的說明）。 */
+    input: job.useCurrent ? 'current' : 'origin',
     /* ramp[0]＝最亮端、[K-1]＝最暗端，與 C++ 端的約定一致。
        直接送 levels 算好的顏色＝色階梯仍然只有一份（engine.js 那份）。 */
     ramp:levels.map(l=>rgbHex(...l.rgb).toUpperCase())
@@ -1786,6 +1830,7 @@ function ptStylizeSend(job, levels){
       輸出是原照片＝兩把尺。原照片留在 C++ 的 origin，重生時還是從它出發。 */
 const PT_AI=(STYLE_LIB.constants&&STYLE_LIB.constants.aiImage)||{};
 let ptAiJob=null, ptAiChunks=null, ptAiMeta=null;
+let ptAiStyle=null;                     // 這次生圖是哪個款式／幾階
 let ptAiPending=null;                  // {styleId,tones}：等 ptRender() 畫完才發（見 ptApply 的說明）
 /* 🔴 R9-4 的自動驗（keyRegion）目前只在 dev 端 harness，**產品裡沒有** ⇒ 自動重生不能開。
    R9-5 說「只在自動驗沒過時重試」；沒有驗就沒有「沒過」這個訊號，無條件重試＝重複燒錢，
@@ -1838,6 +1883,7 @@ function ptAiGenerate(s, tones){
     .split('{minPx}').join(String(ptAiMinPx(size)))
     .split('{tones}').join(String(tones));
   ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
+  ptAiStyle={id:s.id, tones:tones};        // aiEnd 要用它接續壓平（見那裡的說明）
   ptStyleStat('AI 生圖中…（約 10~40 秒）　'+ptAiCostText());
   sendSlicerMessage('phototile_ai_generate',{
     jobId:ptAiJob, prompt:prompt, size:size, quality:PT_AI.quality||'low',

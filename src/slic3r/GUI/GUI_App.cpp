@@ -19,6 +19,7 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
+#include <set>          // ping_install_photo_tile_printers()：機型去重
 #include <iterator>
 #include <exception>
 #include <cmath>
@@ -5100,6 +5101,14 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     }
                 });
             }
+            /* FBK-11：訊息叫使用者去「選擇 3D 列印機」，就要給得出那扇門
+               （Eric 2026-09-02 實走時問「這個畫面並沒有讓我選擇的位置」）。
+               🔴 一定要 CallAfter：wizard 是 modal，直接在 web 訊息處理裡開會把 WebView2 的
+                  訊息迴圈卡住——同一個坑頁面註解裡記過（面板隱藏時跳 alert，renderer 停住、
+                  連 CDP 都進不去）。 */
+            else if (command_str.compare("phototile_open_printer_wizard") == 0) {
+                CallAfter([this] { run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
+            }
             else if (command_str.compare("phototile_home") == 0) {
                 /* 覆審 I-3：離開工作室＝取消現役生成（**同步**清，賽跑窗＝零）。
                    C-1 時頁面卸載＝生成自然中止；C-2 把工作搬進 C++ 後這個天然保護消失
@@ -5320,13 +5329,22 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     style_fail(job_id, "沒有可用的影像來源，請重新載入圖片再試。");
                     return "";
                 }
-                /* 🔴 輸入一律取「原圖」，不是取目前來源——否則第二次風格化會拿
-                   已經風格化過的圖再風格化一次，色塊越滾越大。第一次風格化時把當下的
-                   來源記成原圖；換圖時那個記錄會被作廢（見 image_end／set_photo_tile_source）。 */
-                if (m_photo_tile_origin_path.empty())
-                    m_photo_tile_origin_path = m_photo_tile_source_path;
+                /* 要壓平「哪一張」由頁面指定（預設 origin，行為與 2026-08-22 相同）。
+                   ・origin ＝使用者的原照片：本地款式走這條。**不取目前來源**，否則第二次
+                     風格化會拿已經風格化過的圖再跑一次，色塊越滾越大。
+                   ・current＝目前的來源影像，也就是**剛回來的 AI 圖**（丙案，Eric 2026-09-02 裁「甲」）。
+                     AI 圖不壓平就直接分箱的話，它那片主色會騎在色階門檻上——實測同款式同照片
+                     連生三次，身體中位 L* ＝69.8／71.4／72.6 而門檻在 71.1 ⇒ 乾淨／爆白斑／
+                     整片消失三種結局。壓平後每一區的 L* 等於某一階的 L*，離門檻最遠。 */
+                const std::string style_input = root.get<std::string>("data.input", "origin");
                 PhotoStylizeParams sp;
-                sp.src_path   = m_photo_tile_origin_path;
+                if (style_input == "current") {
+                    sp.src_path = m_photo_tile_source_path;
+                } else {
+                    if (m_photo_tile_origin_path.empty())
+                        m_photo_tile_origin_path = m_photo_tile_source_path;
+                    sp.src_path = m_photo_tile_origin_path;
+                }
                 sp.work_width = static_cast<int>(std::lround(root.get<double>("data.workWidth", 800.0)));
                 sp.tones      = static_cast<int>(std::lround(root.get<double>("data.tones", 4.0)));
                 for (const auto& kv : root.get_child("data.ramp", pt::ptree()))
@@ -5880,10 +5898,80 @@ void GUI_App::request_open_project(std::string project_id)
         CallAfter([this, project_id] { mainframe->open_recent_project(-1, wxString::FromUTF8(project_id)); });
 }
 
+/* 照片磚機型自動補裝（**從出貨線移植回來，2026-09-02，牌 c-0902-PT-01**）。
+
+   為什麼開發線也要有：Eric 2026-08-07 已裁「不要等到匯出才說找不到機型」，出貨線當天就
+   做了，**開發線沒跟上** ⇒ 2026-09-02 他在開發線試用包實走時就踩到那個已經被裁掉的行為
+   （產生失敗、而畫面上沒有任何地方可以選機型）。這是「一個裁定只落一條線」的漏，不是新功能。
+
+   ⚠ 照 R6-10 逐處對錨點搬，不是複製檔案：本函式只用上游 API
+     （PresetBundle / AppConfig::get_variant／set_variant / load_installed_printers），
+     兩線同義，故可逐字沿用；呼叫點則各自掛在自己那份 open_photo_tile()。 */
+struct PingPhotoTileInstallResult
+{
+    int variants = 0;   // 新裝的口徑變體數（FD300×2＋FF600×3＋FF800×3 全新裝＝8）
+    int models   = 0;   // 涵蓋的機型數（＝3）
+};
+
+static PingPhotoTileInstallResult ping_install_photo_tile_printers()
+{
+    PingPhotoTileInstallResult out;
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    AppConfig*    config = wxGetApp().app_config;
+    if (bundle == nullptr || config == nullptr)
+        return out;
+
+    std::set<std::string> touched_models;
+    for (const Preset& preset : bundle->printers) {
+        if (!preset.is_system || preset.vendor == nullptr)
+            continue;
+        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
+        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
+        if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
+            continue;
+        if (pm->value.find("同進照片磚") == std::string::npos)
+            continue;
+        if (config->get_variant(preset.vendor->id, pm->value, pv->value))
+            continue;   // 已安裝＝不動（使用者自己取消勾選的情形也不強制裝回，只補從沒裝過的）
+        config->set_variant(preset.vendor->id, pm->value, pv->value, true);
+        ++out.variants;
+        touched_models.insert(pm->value);
+    }
+    out.models = int(touched_models.size());
+
+    if (out.variants > 0) {
+        // 只在真的有新增時才落盤與重算可見性——沒事不要動使用者的 conf。
+        bundle->load_installed_printers(*config);
+        config->save();
+    }
+    return out;
+}
+
 void GUI_App::open_photo_tile(const wxString& image_path)
 {
     if (!mainframe || !mainframe->m_webview)
         return;
+
+    // 進門就先把照片磚機型補裝好（Eric 2026-08-07；開發線 2026-09-02 補上）——
+    // 不要等到匯出才說「找不到機型」。掛在 open_photo_tile() 而不是某個 web 指令：
+    // 首頁入口與「拖圖片進來」兩條路都走這裡。
+    const PingPhotoTileInstallResult installed = ping_install_photo_tile_printers();
+    if (installed.variants > 0) {
+        BOOST_LOG_TRIVIAL(info) << "Photo tile: auto-installed " << installed.variants
+                                << " printer variant(s) across " << installed.models << " model(s)";
+        // 系統代替使用者做了事就要說（否則他會發現印表機清單莫名多出幾台，不知道哪來的）
+        if (Tab* printer_tab = get_tab(Preset::TYPE_PRINTER))
+            printer_tab->update_tab_ui();
+        if (plater() != nullptr) {
+            plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
+            plater()->get_notification_manager()->push_notification(
+                NotificationType::CustomNotification,
+                NotificationManager::NotificationLevel::RegularNotificationLevel,
+                std::string("照片磚：已自動加入 ") + std::to_string(installed.models) +
+                    " 種同進照片磚機型（共 " + std::to_string(installed.variants) +
+                    " 個口徑）到你的印表機清單——照片磚需要它們才切得了片。");
+        }
+    }
 
     /* 覆審 I-3（配套）：進工作室（含拖圖直入）＝任何現役生成作廢——同 phototile_home，
        遲到的結果不得上盤。 */
