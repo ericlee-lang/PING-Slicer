@@ -297,7 +297,7 @@
         "note": "最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標",
         "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
       },
-      "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use ONLY this ink palette: warm paper white (#F2F0EB), sky blue (#44A1DC), deep navy blue (#022561) and near-black (#0E1418); if more tones are needed, use intermediate blues between sky blue and navy. The blues must dominate — this is a blue colour-clash poster, never a grayscale one. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+      "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use bold saturated ink colours that suit this photo — never a grayscale image. A classic reference palette is warm paper white, sky blue, deep navy and near-black, but feel free to choose a different ink family that fits the subject. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
       "priority": 2,
       "deltaEBySubject": {
         "portrait_closeup": 7.86
