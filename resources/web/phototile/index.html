@@ -25,6 +25,8 @@
   /* 標題列裡的小按鈕（「另存 AI 圖…」）：靠右、比標題小一號，讓標題仍是第一眼（HIE） */
   .panel h2 .btn.mini{padding:2px 9px; font-size:12px; font-weight:600; margin-left:auto; font-family:inherit;}
   .panel h2 .hint.warn{color:var(--orange);}
+  /* 生圖／壓平中的款式卡：淡化＋等待游標＋不吃點擊（Eric 2026-09-03） */
+  .stylegrid.busy .scard{opacity:.55; cursor:wait; pointer-events:none;}
   /* C-2 A 案（Eric 0804 裁「就地轉換」）：生成中按鈕原位變進度＋取消，零版面位移 */
   .inline-prog{display:flex; align-items:center; gap:12px; border:1px solid #ddd;
                border-radius:7px; padding:8px 10px 8px 14px; background:#fff; flex:1; min-width:260px;}
@@ -937,6 +939,8 @@ window.PINGPhotoTile={
     if(!ptStyleMeta || !m || m.jobId!==ptStyleJob || !ptStyleChunks) return;
     const meta=ptStyleMeta, parts=ptStyleChunks;
     ptStyleMeta=null; ptStyleChunks=null;
+    ptStyleJob=null; ptSourceBusy('');                     // 壓平結束（成功或壞掉）：清 job、收遮罩、解鎖款式卡
+    if(typeof ptSyncBusy==='function') ptSyncBusy();
     if(parts.length!==meta.chunks){                        // 塊數
       ptStyleStat('⚠ 風格化結果不完整，已維持未風格化的結果。');
       return;
@@ -960,6 +964,8 @@ window.PINGPhotoTile={
   styleError(jobId, message){
     if(jobId && jobId!==ptStyleJob) return;
     ptStyleMeta=null; ptStyleChunks=null;
+    ptStyleJob=null;                                     // 失敗也算結束：解鎖款式卡（同 styleEnd）
+    if(typeof ptSyncBusy==='function') ptSyncBusy();
     ptSourceBusy('');
     ptStyleStat('⚠ '+(message||'風格化失敗')+'——目前顯示的是未風格化的結果。');
   },
@@ -989,6 +995,11 @@ window.PINGPhotoTile={
     if(!ptAiMeta || !m || m.jobId!==ptAiJob || !ptAiChunks) return;
     const meta=ptAiMeta, parts=ptAiChunks;
     ptAiMeta=null; ptAiChunks=null;
+    /* 生圖這件工作到這裡就結束了（成功或壞掉都是）：清 job、收遮罩、解鎖款式卡。
+       🔴 以前 ptAiJob 從來沒被清 ⇒ 第一次生圖之後 ptBusy 永遠為真（Eric 2026-09-03 實走抓到的
+          「生圖中點到模板還會跳確認框」修法需要準確的忙碌態，順手把這個一起修）。 */
+    ptAiJob=null; ptSourceBusy('');
+    if(typeof ptSyncBusy==='function') ptSyncBusy();
     if(parts.length!==meta.chunks){                      // 塊數
       ptStyleStat('⚠ 生圖結果不完整，已維持原本的照片。');
       return;
@@ -1036,6 +1047,7 @@ window.PINGPhotoTile={
                  +(flattening ? '，正在壓成平色階…（約 1~2 秒）'
                               : '——預覽與輸出用的是同一張。')
                  +'　不滿意就再點一次這個款式重生一張（'+ptAiCostText()+'）'+used);
+      if(typeof ptSyncBusy==='function') ptSyncBusy();   // 壓平若已排上（ptStyleJob 有值），卡片繼續鎖到 styleEnd
     }catch(e){
       ptStyleStat('⚠ 生圖結果讀不進來，已維持原本的照片。');
     }
@@ -1045,6 +1057,8 @@ window.PINGPhotoTile={
   aiError(jobId, kind, message){
     if(jobId && jobId!==ptAiJob) return;
     ptAiMeta=null; ptAiChunks=null;
+    ptAiJob=null;                                        // 失敗也算結束：解鎖款式卡（同 aiEnd）
+    if(typeof ptSyncBusy==='function') ptSyncBusy();
     if(kind==='nokey') ptAiAvail=false;                  // 金鑰被移除了 ⇒ 把卡片鎖回去
     ptSourceBusy('');
     ptStyleStat('⚠ '+(message||'生圖失敗')+'　目前顯示的是原本的照片。');
@@ -1923,6 +1937,14 @@ function ptAiSave(){
   sendSlicerMessage('phototile_ai_save',{ styleName: s ? s.name : 'AI' });
 }
 
+/* 生圖／壓平進行中，款式卡整片鎖住（Eric 2026-09-03 實走：「生圖中點到模板，不應該讓它再跳出來，問說要不要生圖」）。
+   鎖的是「這一次的工作還沒回來」這段時間：ptAiJob 或 ptStyleJob 有值 ⇒ 卡片變忙碌態（淡化＋等待游標＋不吃點擊），
+   結束（成功或失敗都算）才恢復。視覺要跟著鎖：可按的才長得像可按（HIE-16 的反面）。
+   ⚠ 這個函式被 PINGPhotoTile 的 aiEnd／styleEnd 等在前面呼叫，那邊用 typeof 守著（載入順序）。 */
+function ptSyncBusy(){
+  const g=document.getElementById('styleGrid'); if(!g) return;
+  g.classList.toggle('busy', !!ptAiJob || !!ptStyleJob);
+}
 let ptStylePending=null;               // {styleId, tones} —— 等下一次 simulateVertical 拿到 levels 再發
 let ptStyleJob=null, ptStyleChunks=null, ptStyleMeta=null;
 const PT_STYLE_CW=800;                 // 工作寬度。實測：400/600/800/1200 的最終標籤一致率 97.3/98.4/99.0/100%
@@ -1950,6 +1972,7 @@ function ptStylizeSend(job, levels, cands){
   }
   ptStyleJob='sty-'+Date.now();
   ptStyleChunks=null; ptStyleMeta=null;
+  ptSyncBusy();                                          // 壓平中：款式卡鎖住
   ptStyleStat(job.useCurrent ? '正在把 AI 生成的圖壓成 '+job.tones+' 個平色階…（約 1~2 秒）'
                              : '風格化中…（約 1~2 秒）');
   sendSlicerMessage('phototile_stylize',{
@@ -2029,6 +2052,7 @@ function ptAiGenerate(s, tones){
     .split('{minPx}').join(String(ptAiMinPx(size)))
     .split('{tones}').join(String(tones));
   ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
+  ptSyncBusy();                                          // 生圖中：款式卡鎖住（Eric 2026-09-03：生圖中點到模板不該再問要不要生圖）
   ptAiStyle={id:s.id, tones:tones};        // aiEnd 要用它接續壓平（見那裡的說明）
   ptStyleStat('AI 生圖中…（約 10~40 秒）　'+ptAiCostText());
   ptSourceBusy('AI 生圖中…', '約 10~40 秒｜下面顯示的還是上一次的結果');
@@ -2263,6 +2287,8 @@ function ptRender(){
     }).join('') : '<div class="statline">這個題材目前沒有款式</div>';
 
     g.querySelectorAll('.scard').forEach(e=>e.onclick=async ()=>{
+      /* 生圖／壓平還在跑：不問、不套用（CSS 已擋 pointer-events，這裡是第二道，鍵盤／程式觸發也擋）。 */
+      if(ptAiJob || ptStyleJob) return;
       const s=ptStyleById(e.dataset.s), u=ptUsable(s);
       if(!u.ok){
         /* FBK-11：不能只是點不動，要講得出缺什麼、下一步做什麼。
@@ -2302,6 +2328,7 @@ function ptRender(){
      ⇒ ptApply 剛寫的「AI 生圖中…」會被下一行的「某某款式放大到 N mm」立刻蓋掉，
      使用者按下去看起來毫無反應（而它其實正在花錢生圖）。 */
   const ptBusy = !!ptAiJob || !!ptStyleJob;
+  g.classList.toggle('busy', ptBusy);                    // 重畫卡片後忙碌態要跟著補上（ptSyncBusy 同一條規則）
   const blocked=cands.filter(s=>ptUsable(s).kind==='size');
   if(blocked.length && fix && why){
     const cheap=blocked.slice().sort((a,b)=>ptMinTile(a)-ptMinTile(b))[0];
