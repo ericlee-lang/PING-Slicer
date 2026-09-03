@@ -2129,7 +2129,7 @@ function ptAskSubject(){
   });
 }
 
-function ptConfirmApply(s, isRegen){
+function ptConfirmApply(s, isRegen, enlargeTo){
   return new Promise(resolve=>{
     const tones=ptTones(s);
     /* 🔴 同時只准有一個框（2026-09-02 實測抓到）：連續丟兩張圖時，前一張的題材框還開著，
@@ -2138,6 +2138,13 @@ function ptConfirmApply(s, isRegen){
     const ai=!!s.requiresAI;
     const cost=(PT_AI.unitCostNtd&&PT_AI.unitCostNtd[PT_AI.quality||'low']);
     const lines=[];
+    /* Eric 2026-09-03：點到「需放大」的款式直接在同一個窗問，不讓他自己去改尺寸再點一次。
+       放大是本窗最大的後果，放第一行（FBK-12：先講後果再問要不要）。 */
+    if(enlargeTo){
+      const lock=document.getElementById('aspectLock');
+      lines.push('會先把寬度放大到 '+enlargeTo+' mm（目前 '+params.width+' mm'
+                 +((lock&&lock.checked)?'，高度等比跟著放大':'')+'）。');
+    }
     if(ai){
       lines.push('這一款會用 AI 重畫你的照片，約 20~40 秒。');
       if(typeof cost==='number') lines.push('COST每張 NT$'+cost+'（算在你自己的 AI 帳號上）');
@@ -2164,7 +2171,7 @@ function ptConfirmApply(s, isRegen){
     const btns=document.createElement('div'); btns.className='cfmBtns';
     const no=document.createElement('button'); no.className='btn'; no.textContent='取消';
     const yes=document.createElement('button'); yes.className='btn primary';
-    yes.textContent=isRegen?'確定再生成':'確定套用';
+    yes.textContent=enlargeTo?'放大並套用':(isRegen?'確定再生成':'確定套用');
     btns.appendChild(no); btns.appendChild(yes);
     box.appendChild(h); box.appendChild(b); box.appendChild(btns); back.appendChild(box);
     document.body.appendChild(back);
@@ -2300,6 +2307,24 @@ function ptRender(){
       /* 生圖／壓平還在跑：不問、不套用（CSS 已擋 pointer-events，這裡是第二道，鍵盤／程式觸發也擋）。 */
       if(ptAiJob || ptStyleJob) return;
       const s=ptStyleById(e.dataset.s), u=ptUsable(s);
+      /* Eric 2026-09-03：「需放大」不再只講限制——直接問「要不要放大並套用」，
+         確認＝放大→套用（AI 款接著生圖）一氣呵成；取消＝什麼都不動。
+         與套用確認合成**同一個窗**（不疊兩層）。quad／金鑰兩種擋法照舊——那兩種不是一鍵能解的。 */
+      if(!u.ok && u.kind==='size'){
+        const need=ptMinTile(s);
+        if(!(await ptConfirmApply(s, s.id===ptApplied, need))) return;
+        const w=document.getElementById('wIn');
+        if(w){ w.value=need; w.dispatchEvent(new Event('change',{bubbles:true})); }  // 走既有 onchange；比例鎖定歸 applySizeChange
+        await new Promise(r=>setTimeout(r,0));                                       // 等 params.width 與重繪排完
+        const u2=ptUsable(s);
+        if(!u2.ok){ ptNotice('「'+s.name+'」放大後仍不能選——'+u2.why); return; }
+        if(ptApply(s)){
+          ptStyle=s.id; ptUserPicked=true; ptRender();
+          if(ptAiPending){ const j=ptAiPending; ptAiPending=null;
+            const st=ptStyleById(j.styleId); if(st) ptAiGenerate(st, j.tones); }
+        }
+        return;
+      }
       if(!u.ok){
         /* FBK-11：不能只是點不動，要講得出缺什麼、下一步做什麼。
            🔴 用頁內橫幅、**不用 alert**：這頁在產品裡跑在 WebView2 裡，modal 會卡住整個
