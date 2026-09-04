@@ -19,6 +19,15 @@ NEW_ENTRIES = {
     #（Eric 裁：修補不見得有效、不承擔那個責任）。舊 msgid 留在 .mo 當死條目，不移除。
     "Open STEP defect check": "開啟 STEP 破面檢查",
     "Drag this file into the defect check tool: %1%": "請把這個檔案拖進破面檢查工具：%1%",
+    # PING(2026-09-04・牌 c-0904-STEP-01)：null shape／空檔的前哨文案。
+    #   舊判定 components > 0 && solids == 0 把「普查沒跑」與「檔裡真的空」混在一起，
+    #   空檔因此完全沉默；分開之後空檔要講自己的話，不能沿用「只有殼」那組句子。
+    "This file has no shape inside": "這個檔案裡面沒有形狀",
+    (
+        "This file opened fine, but there is nothing inside it - no solid and no surface. "
+        "There is nothing here to slice."
+    ): "這個檔案讀得進來，但裡面什麼都沒有——既沒有實體，也沒有表面。\n沒有東西可以切片。",
+    "%1% has nothing inside it; there is nothing to slice.": "%1% 裡面什麼都沒有，沒有東西可以切片。",
     # PING(2026-07-09)：新增實例 tooltip 補說明（Eric 給的文案）
     (
         "Creates a linked copy of the object. Unlike a plain copy, instances stay in sync "

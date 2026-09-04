@@ -21520,3 +21520,20 @@ msgstr "請把這個檔案拖進破面檢查工具：%1%"
 
 msgid "Open STEP defect check"
 msgstr "開啟 STEP 破面檢查"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "%1% has nothing inside it; there is nothing to slice."
+msgstr "%1% 裡面什麼都沒有，沒有東西可以切片。"
+
+msgid "This file has no shape inside"
+msgstr "這個檔案裡面沒有形狀"
+
+msgid "This file opened fine, but there is nothing inside it - no solid and no surface. There is nothing here to slice."
+msgstr ""
+"這個檔案讀得進來，但裡面什麼都沒有——既沒有實體，也沒有表面。\n"
+"沒有東西可以切片。"

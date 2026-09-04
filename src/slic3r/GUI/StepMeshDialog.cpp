@@ -127,15 +127,24 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
 
         auto* alert_inner = new wxBoxSizer(wxVERTICAL);
 
-        auto* alert_title = new wxStaticText(alert_panel, wxID_ANY, _L("This file has no solid body"));
+        /* 【2026-09-04・牌 c-0904-STEP-01】null shape／空檔要走自己的文案。
+           它的 shells 是 0，套下面那句「裡面的 %d 個組件全部只有外殼」會變成
+           「裡面的 0 個組件……」——講了等於沒講，還會讓人以為是程式壞了。 */
+        const bool empty_file = census.has_no_geometry();
+
+        auto* alert_title = new wxStaticText(alert_panel, wxID_ANY,
+            empty_file ? _L("This file has no shape inside") : _L("This file has no solid body"));
         alert_title->SetFont(::Label::Head_14);
         alert_title->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#202221")));
         alert_inner->Add(alert_title, 0, wxALIGN_LEFT);
 
-        wxString alert_body = wxString::Format(
-            _L("All %d parts inside are surfaces only - they have an outer skin, but no solid interior. "
-               "Slicing this may produce holes, thin walls or wrong infill."),
-            census.shells);
+        wxString alert_body = empty_file
+            ? _L("This file opened fine, but there is nothing inside it - no solid and no surface. "
+                 "There is nothing here to slice.")
+            : wxString::Format(
+                  _L("All %d parts inside are surfaces only - they have an outer skin, but no solid interior. "
+                     "Slicing this may produce holes, thin walls or wrong infill."),
+                  census.shells);
         auto* alert_text = new wxStaticText(alert_panel, wxID_ANY, alert_body);
         alert_text->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
         alert_text->Wrap(FromDIP(390));

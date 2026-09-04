@@ -40,13 +40,25 @@ struct NamedSolid
    「破在哪裡」需要座標，那是 VibeCAD Repair Core 1.1.0 的事（見契約 §1）。 */
 struct StepBRepCensus
 {
+    /* 【2026-09-04・牌 c-0904-STEP-01】普查到底跑過了沒。
+       原本拿 components > 0 當「有跑過」的代理，但那把兩件事混成一件：
+       ①普查根本沒跑（m_shape_tool 為空）②普查跑了、而檔案裡真的一個形狀都沒有。
+       ②就是 null shape 檔 —— 前哨因此整個沉默，使用者要等到網格化跑完，
+       才會看到一句泛用的「檔案是空的」，而且那時候時間已經花掉了。
+       分開之後：①維持沉默（不知道就不要亂講）、②照樣示警。 */
+    bool inspected = false;
+
     int components = 0;   // 頂層形狀展開後的總數
     int solids     = 0;   // 其中是封閉實體的
     int shells     = 0;   // 其中只有外殼的
 
     // 嚴格觸發（Eric 2026-08-24 裁）：整份檔一個實體都沒有，才算「沒有實心結構」。
     // 「有實體也有殼」的混合檔不提示 —— 那是正常設計，誤報一次就會讓提示變雜訊。
-    bool has_no_solid() const { return components > 0 && solids == 0; }
+    bool has_no_solid() const { return inspected && solids == 0; }
+
+    // 連殼都沒有 —— null shape／空檔。文案必須跟「只有殼」分開講，
+    // 否則會吐出「裡面的 0 個組件全部只有外殼」這種不通的句子。
+    bool has_no_geometry() const { return inspected && components == 0; }
 };
 
 //BBS: Load an step file into a provided model.
