@@ -34,8 +34,11 @@ int step_import_gate(Slic3r::Step&        file,
 
     if (census.has_no_solid()) {
         // 累計而非覆蓋：這一批的第一個破圖檔才是通知條要講的那個。
-        if (out.no_solid_count == 0)
+        if (out.no_solid_count == 0) {
             out.file_name = boost::filesystem::path(path).filename().string();
+            // 通知條講的就是這一個檔，文案自然跟著這一個檔的形態走（牌 c-0904-STEP-01）。
+            out.first_has_no_geometry = census.has_no_geometry();
+        }
         ++out.no_solid_count;
     }
 
@@ -103,10 +106,14 @@ void step_preflight_followup(const StepPreflightResult& out)
     const std::string subject = out.no_solid_count > 1
         ? (boost::format(_u8L("%1% and %2% other files")) % out.file_name % (out.no_solid_count - 1)).str()
         : out.file_name;
+    const std::string body = out.first_has_no_geometry
+        ? (boost::format(_u8L("%1% has nothing inside it; there is nothing to slice.")) % subject).str()
+        : (boost::format(_u8L("%1% has no solid body; the sliced result may not be what you expect.")) % subject).str();
+
     notify->push_notification(
         NotificationType::PINGStepNoSolid,
         NotificationManager::NotificationLevel::WarningNotificationLevel,
-        (boost::format(_u8L("%1% has no solid body; the sliced result may not be what you expect.")) % subject).str(),
+        body,
         _u8L("Open STEP defect check"),
         [](wxEvtHandler*) {
             wxGetApp().open_step_repair();

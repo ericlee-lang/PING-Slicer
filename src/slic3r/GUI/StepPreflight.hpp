@@ -31,6 +31,10 @@ struct StepPreflightResult
     std::string file_name;
     // 這批裡總共幾個沒有實心結構 —— 多於一個時通知條要講清楚，不能只報一個檔名。
     int         no_solid_count = 0;
+    /* 【2026-09-04・牌 c-0904-STEP-01】通知條點名的那個檔（＝第一個）是「連殼都沒有」的空檔嗎。
+       空檔與「只有殼」兩種破法要講不同的話，否則會講出「沒有實心結構」這種
+       對空檔而言不算錯、但完全沒幫上忙的句子。 */
+    bool        first_has_no_geometry = false;
 };
 
 /* 交給 Model::read_from_step() 當 step_mesh_fn 用。

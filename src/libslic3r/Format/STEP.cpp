@@ -520,7 +520,8 @@ StepBRepCensus Step::inspect_brep() const
 {
     StepBRepCensus census;
     if (m_shape_tool.IsNull())
-        return census;
+        return census;   // 沒跑成 ⇒ inspected 維持 false ⇒ 前哨沉默（正確：不知道就不要講）
+    census.inspected = true;
 
     TDF_LabelSequence topLevelShapes;
     m_shape_tool->GetFreeShapes(topLevelShapes);
