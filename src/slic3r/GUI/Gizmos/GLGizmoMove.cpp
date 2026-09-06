@@ -333,16 +333,17 @@ void GLGizmoMove3D::change_cs_by_selection() {
     } else {
         m_object_manipulation->set_use_object_cs(false);
     }
-    // PING(異常單 #30，Eric 2026-07-25 裁「照 2.1」)：單一整個物件也預設「物件座標」。
-    // 原因＝世界座標的位置是以**模型中心點**為準：物件明明已經貼地，Z 仍顯示 45.00，
-    // 使用者會誤判成浮空（Eric 實圖佐證）。切成物件座標後欄位變「平移（相對）」、
-    // X/Y/Z 全是 0.00 ——這正是 V2.1 移動面板的顯示方式，也是要對齊的使用習慣。
-    // 多選物件與換料塔維持世界座標（那兩種情況下拉本來就沒有「物件座標」可選，
-    // 見 GizmoObjectManipulation.cpp:882-889 的 modes.pop_back()）。
-    const Selection& selection = m_parent.get_selection();
+    // PING(異常單 #146，Eric 2026-09-07 裁「改世界座標，之後操作後決議」)：
+    // **退掉 #30**（Eric 2026-07-25 裁「照 2.1」）加的「單一整個物件也預設物件座標」那一支。
+    // ⚠ 這兩張單要的是相反的東西，改回去之前先看完這段，不要當成漏改又補回來：
+    //   ・#30 的理由：世界座標的位置以**模型中心點**為準，物件明明貼地 Z 仍顯示 45.00，
+    //     會被誤判成浮空；切成物件座標後欄位變「平移（相對）」、X/Y/Z 全 0.00（V2.1 的樣子）。
+    //   ・#146 的理由（回報者原話）：「用物件座標上面的調整是沒有用的」——正是那個
+    //     「相對平移、永遠顯示 0.00」的設計，讓人沒辦法把物件挪到想要的絕對位置。
+    // ⇒ Eric 選了後者：**先改成世界座標，之後實際操作過再決議**要不要另尋第三條路
+    //   （例如維持世界座標、但把 Z 顯示成貼地高度而非模型中心）。
+    // 選到「零件」（model_volume）時仍走 use_object_cs＝物件座標，那是上游行為、本批不動。
     if (m_object_manipulation->get_use_object_cs()) {
-        m_object_manipulation->set_coordinates_type(ECoordinatesType::Instance);
-    } else if (selection.is_single_full_instance() && !selection.is_wipe_tower()) {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::Instance);
     } else {
         m_object_manipulation->set_coordinates_type(ECoordinatesType::World);
