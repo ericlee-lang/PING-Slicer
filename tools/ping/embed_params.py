@@ -216,6 +216,18 @@ PT_FIL_PLA = "PING PLA(照片磚)"
 #   ⚠ 名字刻意是「(照片磚 FD300)」而非「(照片磚)」——後者是 is_hf 的判定字串，
 #     這支是一般流量硬體，**不可**落進高流量家族（0816 改名連坐教訓的反向應用）。
 PT_FIL_PLA_FD = "PING PLA(照片磚 FD300)"
+# 🆕 2026-09-07 Eric 四裁（回報中心 #153・reporter 劉勝賢・base_release T035）：
+#   3in1 兩支**改名**而非另開新支——回報者原本要自己在機上建「PING PLA(3in1) - 高流量噴頭」
+#   自訂支才有對應噴頭的料（#153 原文：「不需要自行額外建立或手動調整」）。
+#   ⚠ 這兩支本來就落在 is_hf 高流量家族（回抽 3/30/30/0.6、清料 120，Eric 0723 確認
+#     「3in1 走流量律」），改名是**把既有事實寫進名字**，不是改變家族歸屬。
+#   ⚠ 名字用**帶空格**的 " - "（與回報者自建支同字串、也與全庫 "PING PLA - 高流量噴頭" 一致）。
+#   setting_id／filament_id **不變**（PINGFIL3PLA06／PINGFIL3SUP06＝同一支材料身份，T004 慣例）；
+#   舊名走 renamed_from（**字串**，T004 鐵則）——實際落在 ff_extra 範本檔內。
+#   同裁②：PLA 支流量 20→**30**（SupPLA 支 Eric 未點名＝維持 12，同 0816「未點名不順手改」）。
+TI_FIL_OLD = {"PLA": "PING PLA(3in1)",  "SupPLA": "PING SupPLA(3in1)"}
+TI_FIL_NEW = {"PLA": "PING PLA(3in1) - 高流量噴頭",
+              "SupPLA": "PING SupPLA(3in1) - 高流量噴頭"}
 FF_FIL_RENAME = {}   # 舊名→新名（4b 填入，供 ff_extra/照片磚範本 default 引用改名）
 for _k in ("PLA", "SupPLA"):
     FF_FIL_RENAME[FF_FIL_OLD[_k]] = FF_FIL_ALIAS[_k]          # 0816 本代改名
@@ -227,6 +239,12 @@ for _nz in ("0.4", "0.6", "1.0"):
     FF_FIL_RENAME["%s %s" % (FF_FIL_OLD["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["PLA"], _nz)] = FF_FIL_ALIAS["PLA"]
     FF_FIL_RENAME["%s %s" % (FF_FIL_ALIAS["SupPLA"], _nz)] = FF_FIL_ALIAS["SupPLA"]
+# 🆕 0907 #153 改名進同一張表＝一次拿到三件事：①3in1 機器檔的 default_filament_profile／
+#    default_materials 自動改指新名（rename_ff_filament_refs）②4b 尾端清掉舊名殘檔
+#    ③4d 過濾掉 PING.json 的舊名條目（防斷鏈）。⚠ quad/pt 分支只覆寫 PLA 系的四料/照片磚映射，
+#    3in1 機兩者皆不成立（名字含 "3in1"）⇒ 這兩條在任何分支下都保持 3in1 舊名→3in1 新名。
+for _k in ("PLA", "SupPLA"):
+    FF_FIL_RENAME[TI_FIL_OLD[_k]] = TI_FIL_NEW[_k]
 def _dedup_semilist(s):
     """分號清單去重（保序）。口徑合一（2026-07-18）後多口徑引用同映到合併支會重複——
     default_materials 重複無意義，去重＝921921c8 手工清 2 項的 regen-durable 版。"""

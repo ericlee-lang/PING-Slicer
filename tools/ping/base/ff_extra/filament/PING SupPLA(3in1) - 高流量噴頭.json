@@ -267,8 +267,8 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING SupPLA(3in1)",
-    "alias": "PING SupPLA(3in1)",
+    "name": "PING SupPLA(3in1) - 高流量噴頭",
+    "alias": "PING SupPLA(3in1) - 高流量噴頭",
     "from": "system",
     "instantiation": "true",
     "setting_id": "PINGFIL3SUP06",
@@ -280,7 +280,7 @@
     "default_filament_colors": [
         "#D3D3D3"
     ],
-    "renamed_from": "PING SupPLA(3in1) @FF 0.4;PING SupPLA(3in1) @FF 0.6;PING SupPLA(3in1) @FF 1.0",
+    "renamed_from": "PING SupPLA(3in1);PING SupPLA(3in1) @FF 0.4;PING SupPLA(3in1) @FF 0.6;PING SupPLA(3in1) @FF 1.0",
     "compatible_printers": [
         "FF600 3in1 0.4 nozzle",
         "FF600 3in1 0.6 nozzle",
