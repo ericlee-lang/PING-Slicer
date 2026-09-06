@@ -296,7 +296,7 @@
     "compatible_printers": [
         "FF800 3in1 0.6 nozzle"
     ],
-    "solid_infill_rotate_template": "45,135",
+    "solid_infill_rotate_template": "",
     "wipe_tower_max_idle_layers": "1",
     "renamed_from": "0.35mm @FF800 3in1 (0.6)"
 }
