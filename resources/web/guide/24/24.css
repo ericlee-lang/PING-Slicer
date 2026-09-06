@@ -4,6 +4,40 @@
 	padding: 32px; /* ORCA Specify & Reduce horizontal paddings to fit 4 items per row */
 }
 
+/* PING（回報中心 #94・2026-09-07）：「全選／清空」與 Fast/Classic/照片磚 頁籤原本
+   產在 #Content（overflow-y:auto）**裡面**，往下捲就整排消失 ⇒ 使用者失去「我現在在哪個
+   產品線」的定位，也回不去「全選／清空」。把 BlockBanner 與 ProductLineTabs 包成一塊
+   （24.js 兩處建構點都包了）黏在捲動區頂端。標題與搜尋本來就在捲動區外，不受影響。
+   ⚠ 底色必須**不透明**，否則機型卡會從底下透出來。
+   ⚠ 深色底走 ../css/dark.css（本頁實際的深色機制是 globalapi.js 的 SwitchDarkMode
+     去啟用那支樣式表，不是 prefers-color-scheme），下方 media query 只是與本檔既有寫法對齊。 */
+.VendorStickyHead
+{
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	background-color: #FFFFFF;
+}
+
+/* 🔴 實測（非推測）：#Content 有 `padding: 32px`，而 Chrome 的 sticky 是黏在**內距邊**
+   ——量到 head 與 #Content 的 rect 差恰好 32px ⇒ 黏住之後，上方那條 32px 會露出正在
+   捲過去的機型卡（看起來像「頁籤上面浮著半排卡片」）。用一塊等高的底色把它蓋掉。
+   ⚠ 這裡的 32px 必須跟本檔開頭 #Content 的 padding 同步改，兩者是同一個值。 */
+.VendorStickyHead::before
+{
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: -32px;
+	height: 32px;
+	background-color: inherit;
+}
+
+@media (prefers-color-scheme: dark) {
+	.VendorStickyHead { background-color: #2D2D31; }
+}
+
 .BlockBanner
 {
 	padding: 0px;

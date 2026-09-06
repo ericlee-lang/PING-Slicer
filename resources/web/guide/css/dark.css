@@ -73,3 +73,9 @@ input[type=checkbox]:checked{
 {
 	color: #BEBEC0;
 }
+
+/* PING（回報中心 #94・2026-09-07）：選機頁黏頂區塊的深色底，必須與 body 同色才不會在捲動時透出卡片。 */
+.VendorStickyHead
+{
+	background-color:#2D2D31;
+}

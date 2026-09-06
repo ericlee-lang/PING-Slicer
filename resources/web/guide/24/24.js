@@ -146,7 +146,7 @@ function HandleModelList( pVal )
 				sVV="Orca colosseum";
 
 			let HtmlNewVendor='<div class="OneVendorBlock" Vendor="'+strVendor+'">'+
-'<div class="BlockBanner">'+
+'<div class="VendorStickyHead">' +'<div class="BlockBanner">'+
 '	<div class="BannerBtns">'+
 '		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll('+"\'"+strVendor+"\'"+')">all</div>'+
 '		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone('+"\'"+strVendor+"\'"+')">none</div>'+
@@ -154,6 +154,7 @@ function HandleModelList( pVal )
 '	<a>'+sVV+'</a>'+
 '</div>'+
 ProductLineTabs(strVendor)+
+'</div>' +
 '<div class="PrinterArea">	'+
 '</div>'+
 '</div>';
@@ -345,7 +346,7 @@ function FilterModelList(keyword) {
 				sVV = "Orca colosseum";
 
 			let HtmlNewVendor = '<div class="OneVendorBlock" Vendor="' + strVendor + '">' +
-				'<div class="BlockBanner">' +
+				'<div class="VendorStickyHead">' +'<div class="BlockBanner">' +
 				'	<div class="BannerBtns">' +
 				'		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll(' + "\'" + strVendor + "\'" + ')">all</div>' +
 				'		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone(' + "\'" + strVendor + "\'" + ')">none</div>' +
@@ -353,6 +354,7 @@ function FilterModelList(keyword) {
 				'	<a>' + sVV + '</a>' +
 				'</div>' +
 				ProductLineTabs(strVendor) +
+				'</div>' +
 				'<div class="PrinterArea">	' +
 				'</div>' +
 				'</div>';
