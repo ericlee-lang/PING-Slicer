@@ -44,6 +44,13 @@ COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆(Z0)",      "易拆(Z0)水溶"
 COMBO_CAT_EASYPAL, COMBO_CAT_DUAL    = "易拆(Z0)+棧板", "雙料(Z隙)"
 COMBO_CAT_DUALPAL                    = "雙料(Z隙)+棧板"
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_DUAL, COMBO_CAT_DUALPAL}
+# 🆕 0907 #153（Eric 四裁）：3in1 兩支改名成「… - 高流量噴頭」。名字集中在這裡，
+#   下方所有 exact 比對一律引用這兩個常數——SOP §N 第 3 條（內聯複製的條件要改成共用變數）。
+#   ⚠ 新名仍含 `(3in1)` 與 `高流量` ⇒ is_hf／PA 豁免／清料 120 三處子字串判定**都還命中**，
+#     但那是實查過的結果、不是靠巧合（§N 第 2 條：不依賴「新名碰巧也含某關鍵字」）。
+TI_FIL_PLA = "PING PLA(3in1) - 高流量噴頭"
+TI_FIL_SUP = "PING SupPLA(3in1) - 高流量噴頭"
+TI_FIL_OLD = {"PING PLA(3in1)", "PING SupPLA(3in1)"}   # 改名前的名字，不得復活成 preset 名
 COMBO_OLD_TOKENS = {"PLA+SUP", "PLA+PVA", "ABS+SUP", "PLA+PLA", "ABS+ABS"}
 
 def cxx_unescape(s):
@@ -135,8 +142,10 @@ for name, (kind, d) in presets.items():
         #   被改掉都是靜默的（0813 back-fill 事故即一例）。
         _dfp = d.get("default_filament_profile") or []
         if len(_dfp) >= 2 and "3in1" in name:
-            if _dfp[1] != "PING SupPLA(3in1)":
-                err(f"[3in1 第二槽必為 SupPLA(3in1)] {name} -> {_dfp[1]!r}")
+            # 🔴 0907 #153 改名連坐：這裡原本硬寫 "PING SupPLA(3in1)"，改名後會直接紅。
+            #    名字集中在 TI_FIL_SUP 一處，不再散落（SOP §N 第 3 條）。
+            if _dfp[1] != TI_FIL_SUP:
+                err(f"[3in1 第二槽必為 {TI_FIL_SUP}] {name} -> {_dfp[1]!r}")
         elif len(_dfp) == 2 and name.startswith(("FD", "DUAL")):
             if "SupPLA" not in _dfp[1]:
                 err(f"[雙料機第二槽必為 SupPLA 系] {name} -> {_dfp[1]!r}")
@@ -342,11 +351,37 @@ for name, (kind, d) in presets.items():
             #   照片磚專用支 30（豁免，等 Eric 實印再定）。⚠ 放寬必須是 Eric 新的一次裁定。
             _mvs = d.get("filament_max_volumetric_speed")
             _mvs = _mvs[0] if isinstance(_mvs, list) and _mvs else _mvs
+            #   🆕 0907 #153 Eric 裁②：3in1 PLA 支 20→30；SupPLA 支未點名＝維持 12
+            #      （同 0816「未點名不順手改」）。同樣要放寬得是 Eric 新的一次裁定。
             _want_mvs = {"PING PLA - 四料同進噴頭": "50",
                          "PING SupPLA - 四料同進噴頭": "30",
-                         "PING PLA(照片磚)": "30"}.get(name)
+                         "PING PLA(照片磚)": "30",
+                         TI_FIL_PLA: "30",
+                         TI_FIL_SUP: "12"}.get(name)
             if _want_mvs and _mvs != _want_mvs:
-                err(f"[四料同進流量 0816] {name}: {_mvs!r}, expected {_want_mvs!r}")
+                err(f"[四料同進流量 0816／3in1 流量 0907] {name}: {_mvs!r}, expected {_want_mvs!r}")
+            # ★ 檢查 13b（0907 #153）：改名後的兩支要有一張**新名 → 期望值**的硬表。
+            #   SOP §N 第 4 條的教訓：產生器與驗證器的家族判定若都綁同一個名字字串，
+            #   **兩邊會一起錯、一起綠**；唯一擋得住的是這種不靠子字串推導的 exact 表。
+            _ti_want = {TI_FIL_PLA: {"filament_minimal_purge_on_wipe_tower": "120",
+                                     "filament_retraction_length": "3",
+                                     "filament_retract_restart_extra": "0.6",
+                                     "pressure_advance": "0.4",
+                                     "nozzle_temperature": "210"},
+                        TI_FIL_SUP: {"filament_minimal_purge_on_wipe_tower": "120",
+                                     "filament_retraction_length": "3",
+                                     "filament_retract_restart_extra": "0.6",
+                                     "pressure_advance": "0.2",
+                                     "nozzle_temperature": "210",
+                                     "filament_is_support": "1"}}.get(name)
+            if _ti_want:
+                for _tk, _tv in _ti_want.items():
+                    _tg = d.get(_tk)
+                    _tg = _tg[0] if isinstance(_tg, list) and _tg else _tg
+                    if _tg != _tv:
+                        err(f"[3in1 高流量支硬表 0907] {name}: {_tk}={_tg!r}, expected {_tv!r}")
+            if name in TI_FIL_OLD:
+                err(f"[3in1 舊名不得復活 0907] {name}: 已於 #153 改名，舊名只能待在 renamed_from")
             if pv is not None and pv != expected_pv:
                 err(f"[洗料塔最小清理量] {name}: {pv!r}, expected {expected_pv!r}")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁）＋
