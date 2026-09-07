@@ -6067,7 +6067,7 @@ static std::string ping_photo_tile_entry_block_reason()
                "照片磚是靠 M6051／M6052 這組逐段混色指令印出來的，前代韌體沒有這組指令"
                "（前代的 M6050 只能整支設一個固定混色比例，做不出一張圖需要的逐段變化）。";
     if (!cap.is_mixing)
-        return "照片磚需要**同進**機型才印得出來（兩料或四料同時進同一個噴頭，靠混色比例做出色階）。\n\n"
+        return "照片磚需要「同進」機型才印得出來（兩料或四料同時進同一個噴頭，靠混色比例做出色階）。\n\n"
                "你目前選的是「" + model + "」。";
     if (!ping_family_has_photo_tile_printer(cap.family))
         return "「" + model + "」目前還沒有對應的照片磚機型。\n\n"
