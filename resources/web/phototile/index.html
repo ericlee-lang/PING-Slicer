@@ -61,11 +61,7 @@
   input[type=color]{width:40px; height:30px; border:1px solid #bbb; border-radius:5px; padding:1px; background:#fff; cursor:pointer;}
   .slot{display:grid; grid-template-columns:46px 88px 1fr 44px; gap:8px; align-items:center;
         padding:7px 8px; border:1px solid var(--gray); border-radius:7px; margin:6px 0;}
-  .slot .tdw{display:flex; flex-direction:column; font-size:11px; color:#888;}
-  .slot .tdw input{width:80px;}
   .slot .sw{display:flex; flex-direction:column; font-size:11px; color:#888; align-items:center;}
-  .slot .startw{display:flex; flex-direction:column; font-size:11px; color:#888;}
-  .slot .lv{font-weight:700; font-size:13px; text-align:right; color:var(--black);}
   .corebox{padding:8px 14px 12px;}
   .corebox canvas{width:100%; height:36px; border:1px solid var(--gray); border-radius:5px; display:block;}
   .corelabel{display:flex; justify-content:space-between; font-size:11.5px; color:#888;}
@@ -152,12 +148,6 @@
   </div>
   <div class="grow"></div>
   <button class="btn" id="btnBack" style="display:none">返回首頁</button>
-  <!-- 平躺（疊色）／垂直（混色）切換：Eric 2026-09-07 裁「ORCA 上的平面功能先取消，只保留照片磚」⇒ 自產品移除。
-       DOM 留著（下方 JS 以 getElementById 引用，拿掉會拋錯）、加 hidden、預設鎖垂直；平躺模擬碼留置、拆碼另棒。牌 c-0907-PT-01。 -->
-  <div class="seg" id="orientSeg" hidden style="display:none">   <!-- .seg 的 display:flex 會蓋過 [hidden]，故加 inline -->
-    <button data-o="flat">平躺（疊色）</button>
-    <button data-o="vertical" class="on">垂直（混色）</button>
-  </div>
   <div class="seg" id="modeSeg">
     <button data-n="2" class="on">雙料</button>
     <button data-n="4">四色</button>
@@ -183,8 +173,8 @@
   <!-- 款式（AI 風格化 P3 階段 A）。動線正本＝動線原型v2_照片磚.html（Eric 2026-08-17「動線 OK」）。
        版位＝左欄原圖下方，理由是 1920x1080 實測此處本來就有 378px 空白（原圖欄底部落在 702），
        塞這裡不會讓既有捲動變糟——判例 R-01：一覽可操作是硬底線，空間不夠先砍間距、不砍可操作高度。
-       只在「垂直（混色）」出現：平躺（疊色）＝研究線，行為維持原狀不動。 -->
-  <section class="panel" id="stylePanel" style="display:none">
+       （2026-09-07 平躺自產品移除，工作室只剩垂直混色 ⇒ 本區恆顯示。） -->
+  <section class="panel" id="stylePanel">
     <h2>款式 <span class="hint">系統挑出這個尺寸做得出來的</span></h2>
     <div class="pad">
       <div class="row"><label>題材</label>
@@ -211,7 +201,7 @@
       <canvas class="view" id="simCanvas" width="4" height="4"></canvas>
     </div>
     <div class="corebox">
-      <div class="corelabel"><span>疊得出來的顏色（左＝底板 → 右＝疊滿）</span><span id="coreRight"></span></div>
+      <div class="corelabel"><span>印得出來的色階</span><span id="coreRight"></span></div>
       <canvas id="coreCanvas" width="800" height="36"></canvas>
     </div>
     <div class="metric" id="metric">—</div>
@@ -221,7 +211,7 @@
          ⚠ 只綁「寬」：高由鎖定原圖比例算，兩個都能拉會讓比例鎖變成薛丁格的鎖。
          🆕 2026-09-03（Eric 令）：右欄的尺寸設定整組搬進來，**寬／高的顯示欄位就是輸入欄位**——
             拉到看得順眼的位置後，直接在旁邊把數字改成整數；厚度與雜訊濾除也在同一張卡（相關的放一起）。 -->
-    <div class="sizebar" id="sizeBar" style="display:none">
+    <div class="sizebar" id="sizeBar">
       <div class="row" style="gap:8px; align-items:center">
         <label style="min-width:0">尺寸</label>
         <input type="range" id="wRange" min="20" max="800" step="1" value="100" style="flex:1">
@@ -259,27 +249,11 @@
       </div>
       <div class="row" id="exportStat" style="display:none; font-size:12.5px; color:#777"></div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
-      <div class="row" id="lhRow"><label>層高</label>
-        <select id="lhSel">
-          <option value="0.04">0.04 mm（最細）</option>
-          <option value="0.08" selected>0.08 mm（建議）</option>
-          <option value="0.12">0.12 mm</option>
-          <option value="0.2">0.2 mm（垂直較快）</option>
-          <option value="0.35">0.35 mm（0.6 口徑同進）</option>
-        </select>
-      </div>
-      <div class="row" id="layersRow"><label>混色層數</label>
-        <input type="number" id="layersIn" value="20" min="4" max="60" step="1">
-        <span class="sub" id="thickInfo"></span>
-      </div>
-      <div class="row" id="baseRow"><label>底板厚</label>
-        <input type="number" id="baseIn" value="0.4" min="0.2" max="3" step="0.1"> <span class="sub">mm（用第 1 支料印）</span>
-      </div>
-      <div class="row" id="levelsRow" style="display:none"><label>色階數</label>
+      <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值） -->
         <span class="sub">階＝拆成幾種混色色塊零件（雙料＝漸層階數；邊界＝層線，銳利）</span>
       </div>
-      <div class="row" id="nozzleRow" style="display:none"><label>口徑</label>
+      <div class="row" id="nozzleRow"><label>口徑</label>
         <select id="nozzleSel">
           <option value="0.4" selected>0.4</option>
           <option value="0.6">0.6</option>
@@ -291,26 +265,19 @@
            Eric 令「右邊的設置移到這卡片裡面，因為它是相關的」：拉桿拉到看得順眼的位置後想把數字改成整數，
            調整的欄位就該在拉桿旁邊，不是在另一欄。輸入框的 id 一字未改，JS 不用動。 -->
       <!-- 兩個實驗選項（都預設關閉）收進 details：一進來只做這次要做的事（七律#2）。 -->
-      <details id="advDetails" style="display:none">
+      <details id="advDetails">
         <summary style="font-weight:700; cursor:pointer; margin:6px 0">進階／實驗選項</summary>
-      <div class="row" id="teethRow" style="display:none"><label>邊界</label>
+      <div class="row" id="teethRow"><label>邊界</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
       </div>
-      <div class="row" id="p2aRow" style="display:none"><label>縫遮罩</label>
+      <div class="row" id="p2aRow"><label>縫遮罩</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
       </details>
-      <div class="row" id="pillarRow" style="display:none"><label>洗料柱</label>
+      <div class="row" id="pillarRow"><label>洗料柱</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根全料同出的洗料柱（防久未用料空燒）</label>
         柱寬 <input type="number" id="pillarXY" value="20" min="5" max="60" step="1" style="width:64px"> mm
         <span class="sub" id="pillarInfo"></span>
-      </div>
-      <div class="row" id="mapRow"><label>對色方式</label>
-        <select id="mapSel">
-          <option value="match" selected>自動對色（每個點找最接近的層數）</option>
-          <option value="lum">照明暗（亮的疊多、暗的疊少）</option>
-        </select>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="invChk"> 反過來</label>
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
@@ -362,16 +329,11 @@ function lin2lab(r,g,b){
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;   // 線性亮度
 
 /* ================= 狀態 ================= */
-const SLOT_DEFAULT = [
-  {color:'#1a1a1a', td:0.8, start:1},
-  {color:'#f2f0eb', td:6,   start:1},
-  {color:'#c0392b', td:3,   start:7},
-  {color:'#e8c547', td:3,   start:14},
-];
+const SLOT_DEFAULT = [ {color:'#1a1a1a'}, {color:'#f2f0eb'}, {color:'#c0392b'}, {color:'#e8c547'} ];   // 2026-09-07 平躺移除：td／start（透光距離／換層）一併拆掉
 let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
-let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'vertical', klevels:8,   // orient 鎖 vertical（Eric 2026-09-07 裁平面移除）
+let params = { klevels:8,                        // 2026-09-07 平躺（疊色）移除：lh／layers／base／map／inv／orient 一併拆掉，工作室只有垂直混色
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
@@ -394,7 +356,7 @@ let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
 let viewMode = 'sim';
-/* 自動驗收用的色差。三條模擬路徑（四料垂直／雙料垂直／平躺）本來就各自算了 sumDE/n，
+/* 自動驗收用的色差。兩條模擬路徑（四料垂直／雙料垂直）本來就各自算了 sumDE/n，
    但只寫進 #metric 的 innerHTML ⇒ 程式讀不到。存起來才有「生完就驗、沒過重生」的尺（P3 丑）。
    🔴 ΔE 只管「印得出來嗎」，不是品質分數（0815 三度誤導：5.34 無眼睛 vs 5.29 有眼睛）。 */
 let lastDeltaE = null;
@@ -403,79 +365,27 @@ let lastDeltaE = null;
 const slotList = document.getElementById('slotList');
 function renderSlots(){
   slotList.innerHTML = '';
-  if(params.orient==='vertical'){
-    /* 垂直混色：無透光疊層 → 不顯示 TD/換層。雙料＝亮暗兩端；四料＝白＋三彩混搭調色 */
-    const names = slotCount===2
-      ? ['料A（亮端，機上 E1）——每個色階＝兩支料的一個混合比例','料B（暗端）——正面實色平整']
-      : ['料A（白，機上 E1）——調亮度用','料B（彩色）——與白/其他彩料混搭','料C（彩色）','料D（彩色）'];
-    for(let i=0;i<slotCount;i++){
-      const div=document.createElement('div'); div.className='slot';
-      div.style.gridTemplateColumns='46px 1fr';
-      div.innerHTML=`
-        <div class="sw"><input type="color" value="${slots[i].color}" data-i="${i}" data-k="color">料 ${i+1}</div>
-        <div class="sub">${names[i]}</div>`;
-      slotList.appendChild(div);
-    }
-    return;
-  }
+  /* 垂直混色：雙料＝亮暗兩端；四料＝白＋三彩混搭調色（2026-09-07 平躺移除後只剩這一種） */
+  const names = slotCount===2
+    ? ['料A（亮端，機上 E1）——每個色階＝兩支料的一個混合比例','料B（暗端）——正面實色平整']
+    : ['料A（白，機上 E1）——調亮度用','料B（彩色）——與白/其他彩料混搭','料C（彩色）','料D（彩色）'];
   for(let i=0;i<slotCount;i++){
-    const s = slots[i];
-    const div = document.createElement('div'); div.className='slot';
-    div.innerHTML = `
-      <div class="sw"><input type="color" value="${s.color}" data-i="${i}" data-k="color">料 ${i+1}</div>
-      <div class="tdw">透光距離 mm<input type="number" min="0.1" max="100" step="0.1" value="${s.td}" data-i="${i}" data-k="td"></div>
-      <div class="startw">${i===0?'底板＋第 1 層起':'從第幾層起用這支料'}
-        <input type="range" min="1" max="${params.layers}" step="1" value="${Math.min(s.start,params.layers)}"
-               data-i="${i}" data-k="start" ${i===0?'disabled':''}></div>
-      <div class="lv" data-lv="${i}">${i===0?'—':'第'+Math.min(s.start,params.layers)+'層'}</div>`;
+    const div=document.createElement('div'); div.className='slot';
+    div.style.gridTemplateColumns='46px 1fr';
+    div.innerHTML=`
+      <div class="sw"><input type="color" value="${slots[i].color}" data-i="${i}" data-k="color">料 ${i+1}</div>
+      <div class="sub">${names[i]}</div>`;
     slotList.appendChild(div);
   }
 }
 slotList.addEventListener('input', e=>{
   const i=+e.target.dataset.i, k=e.target.dataset.k;
   if(k==='color') slots[i].color=e.target.value;
-  if(k==='td')    slots[i].td=Math.max(0.1, parseFloat(e.target.value)||0.1);
-  if(k==='start'){ slots[i].start=+e.target.value;
-    const lv=slotList.querySelector(`[data-lv="${i}"]`); if(lv) lv.textContent='第'+slots[i].start+'層';
-  }
   queue();
 });
-
-/* ================= 核心：層→顏色表 ================= */
-function layerFilaments(act){
-  act = act || slots.slice(0,slotCount);
-  const N=params.layers;
-  const arr=new Array(N+1).fill(0);
-  for(let j=1;j<=N;j++){
-    let pick=0, best=-1;
-    for(let i=0;i<act.length;i++){
-      const st = i===0?1:Math.min(act[i].start,N);
-      if(st<=j && st>=best){ best=st; pick=i; }
-    }
-    arr[j]=pick;
-  }
-  return arr;
-}
-function buildCoreFor(act){
-  const N=params.layers, lf=layerFilaments(act);
-  const lin=act.map(s=>hexLin(s.color));
-  const T = act.map(s=>Math.pow(10, -params.lh/s.td));
-  let below = lin[0].slice();              // 底板＝料1，視為不透光背襯
-  const core=[{lin:below.slice()}];
-  for(let j=1;j<=N;j++){
-    const f=lf[j];
-    below=[0,1,2].map(c=> lin[f][c]*(1-T[f]) + below[c]*T[f]);
-    core.push({lin:below.slice()});
-  }
-  for(const c of core){ c.lab=lin2lab(...c.lin); c.rgb=c.lin.map(l2s); }
-  return {core, lf};
-}
-function buildCore(){ return buildCoreFor(slots.slice(0,slotCount)); }
-
 /* ================= 模擬 ================= */
 const simCanvas=document.getElementById('simCanvas'), simCtx=simCanvas.getContext('2d');
 const coreCanvas=document.getElementById('coreCanvas'), coreCtx=coreCanvas.getContext('2d');
-let lastK=null;
 /* ============ 垂直混色模式（v1.4，Eric 2026-07-06 定）============
    照片立起來印：每個色階的色塊往後（深度）延伸，換色過渡藏在磚體後方
    （厚度＝換色清料空間，M6051 混比有切換距離、混比做不出銳利邊緣——Eric 實機 ground truth），
@@ -563,7 +473,7 @@ function simulateVerticalQuad(){
       assign[p]=bi; usage[bi]++;
     }
     let used=[...cands.keys()].filter(i=>usage[i]>0).sort((a,b)=>usage[b]-usage[a]);
-    const MAXP = (params.orient==='vertical' && params.pillar) ? 63 : 64;   // 洗料柱佔 1 支（Orca 上限 64）
+    const MAXP = params.pillar ? 63 : 64;   // 洗料柱佔 1 支（Orca 上限 64）
     if(used.length>MAXP){ dropped=used.length-MAXP; used=used.slice(0,MAXP); }
     used.sort((a,b)=>cands[b].lab[0]-cands[a].lab[0]);          // 顯示序：亮→暗
     const remap=new Int16Array(cands.length).fill(-1);
@@ -716,83 +626,7 @@ function listVertical(levels){
   });
   document.getElementById('swapList').textContent=lines.join('\n');
 }
-function simulate(){
-  if(params.orient==='vertical'){ simulateVertical(); return; }
-  if(!img){ drawCore(buildCore()); listSwaps(); return; }
-  const t0=performance.now();
-  const {core}=buildCore(); const N=params.layers;
-  const out=simCtx.createImageData(img.w,img.h);
-  const od=out.data; const n=img.w*img.h;
-  lastK=new Uint8Array(n);
-  let sumDE=0;
-  for(let p=0;p<n;p++){
-    let k;
-    const L0=img.lab[p*3], A0=img.lab[p*3+1], B0=img.lab[p*3+2];
-    if(params.map==='match'){
-      let bd=1e9;
-      for(let i=0;i<=N;i++){
-        const cl=core[i].lab;
-        const d=(L0-cl[0])**2 + (A0-cl[1])**2 + (B0-cl[2])**2;
-        if(d<bd){ bd=d; k=i; }
-      }
-      sumDE+=Math.sqrt(bd);
-    }else{
-      let L=img.lum[p]; if(params.inv) L=1-L;
-      k=Math.round(L*N);
-      const cl=core[k].lab;
-      sumDE+=Math.sqrt((L0-cl[0])**2+(A0-cl[1])**2+(B0-cl[2])**2);
-    }
-    lastK[p]=k;
-    const c = viewMode==='sim' ? core[k].rgb : [(k/N*255)|0,(k/N*255)|0,(k/N*255)|0];
-    od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
-  }
-  simCanvas.width=img.w; simCanvas.height=img.h;
-  simCtx.putImageData(out,0,0);
-  drawCore({core});
-  listSwaps();
-  const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
-  lastDeltaE=de;
-  const verdict = params.map==='lum'
-    ? '明暗漸層模式＝單色調呈現，色差偏大屬正常，看漸層順不順就好'
-    : (de<10?'貼近':de<20?'尚可':'落差明顯——這組料色蓋不到照片的色域，換色或加料試試');
-  document.getElementById('metric').innerHTML =
-    `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
-}
-function drawCore({core}){
-  const W=coreCanvas.width, H=coreCanvas.height, N=params.layers;
-  const bw=W/(N+1);
-  for(let i=0;i<=N;i++){
-    coreCtx.fillStyle=rgbHex(...core[i].rgb);
-    coreCtx.fillRect(i*bw,0,Math.ceil(bw),H);
-  }
-  // 換料標記
-  const lf=layerFilaments();
-  coreCtx.fillStyle='#fff'; coreCtx.strokeStyle='#202221';
-  for(let j=2;j<=N;j++){
-    if(lf[j]!==lf[j-1]){
-      coreCtx.beginPath(); coreCtx.moveTo(j*bw,0); coreCtx.lineTo(j*bw,H);
-      coreCtx.lineWidth=2; coreCtx.stroke();
-    }
-  }
-  document.getElementById('coreRight').textContent =
-    `混色區 ${params.layers} 層 × ${params.lh} = ${(params.layers*params.lh).toFixed(2)} mm`;
-}
-function listSwaps(){
-  const lf=layerFilaments(); const N=params.layers;
-  const lines=[];
-  lines.push(`底板 ${params.base.toFixed(1)} mm：料1 ${slots[0].color}`);
-  let cur=lf[1];
-  lines.push(`第 1 層（${params.base.toFixed(2)} mm 起）：料${cur+1} ${slots[cur].color}`);
-  for(let j=2;j<=N;j++){
-    if(lf[j]!==cur){
-      cur=lf[j];
-      const z=params.base+(j-1)*params.lh;
-      lines.push(`第 ${j} 層（約 ${z.toFixed(2)} mm）換料${cur+1} ${slots[cur].color}`);
-    }
-  }
-  lines.push(`總高 ${(params.base+N*params.lh).toFixed(2)} mm｜層高 ${params.lh} mm`);
-  document.getElementById('swapList').textContent=lines.join('\n');
-}
+function simulate(){ simulateVertical(); }   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色
 
 /* ================= 圖片載入 ================= */
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
@@ -872,7 +706,7 @@ function loadBitmap(bmp, label){
   suggest();           // 開圖即自動建議＋出模擬（零點擊先看到結果）
   /* 問題材：只在垂直模式（平躺沒有款式的概念），而且**問完才重畫款式區**。
      ⚠ 放在 suggest() 之後：先讓他看到結果，再問——問句擋在結果前面會像個路障。 */
-  if(params.orient==='vertical' && typeof ptAskSubject==='function'){
+  if(typeof ptAskSubject==='function'){
     ptAskSubject().then(id=>{
       if(!id || id===ptSubject) return;
       ptSubject=id;
@@ -1023,7 +857,7 @@ window.PINGPhotoTile={
          simulateVertical 的**尾端**才發送，先 simulate 再設 pending ＝永遠慢一步、
          那個 pending 會躺在那裡沒人送 ⇒ 壓平整個沒觸發，而畫面看起來一切正常。
          這一行的位置就是這個修法有沒有生效的全部差別。 */
-      if(ptAiStyle && params.orient==='vertical' && (slotCount===2 || slotCount===4))   // 四料也壓平（Eric 2026-09-03 裁③）
+      if(ptAiStyle && (slotCount===2 || slotCount===4))   // 四料也壓平（Eric 2026-09-03 裁③）
         ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
       srcBitmap=bmp; buildGrid();
@@ -1153,42 +987,6 @@ function makeDemo(){
    枚舉料順序×換層位置、以整圖平均色差最小挑組合（底=最暗當背襯）。
    建議色＝目標採購色（Eric 定：會照建議色備料，TD 依深淺給暫定值）。 */
 document.getElementById('btnSuggest').onclick=()=>{ if(img) suggest(); };
-function labOfHexArr(rgb){ return lin2lab(s2l(rgb[0]),s2l(rgb[1]),s2l(rgb[2])); }
-function evalConfig(act){          // 整圖平均色差（縮樣）＋料色覆蓋懲罰
-  const {core}=buildCoreFor(act);
-  const tl=img.thumbLab, m=tl.length/3;
-  let sum=0;
-  for(let p=0;p<m;p++){
-    const L0=tl[p*3],A0=tl[p*3+1],B0=tl[p*3+2];
-    let bd=1e9;
-    for(let i=0;i<core.length;i++){
-      const c=core[i].lab;
-      const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
-      if(d<bd)bd=d;
-    }
-    sum+=Math.sqrt(bd);
-  }
-  /* 覆蓋懲罰（v1.1 修：Eric 抓到紅屋不紅）——每支選定料的純色都要在色譜上
-     真正現身（構得到），否則小面積的顯眼色會被「平均」犧牲掉、換層擠到只剩1層 */
-  let cov=0;
-  for(const f of act){
-    const fl=labOfHexArr(hexRgb(f.color));
-    let bd=1e9;
-    for(let i=0;i<core.length;i++){
-      const c=core[i].lab;
-      const d=(fl[0]-c[0])**2+(fl[1]-c[1])**2+(fl[2]-c[2])**2;
-      if(d<bd)bd=d;
-    }
-    cov+=Math.sqrt(bd);
-  }
-  return sum/m + 0.8*cov/act.length;
-}
-function perms(a){ if(a.length<=1)return [a];
-  const out=[]; for(let i=0;i<a.length;i++){
-    const rest=a.slice(0,i).concat(a.slice(i+1));
-    for(const p of perms(rest)) out.push([a[i],...p]); }
-  return out;
-}
 function suggest(){
   if(!img) return;
   document.getElementById('metric').textContent='建議計算中…';
@@ -1214,30 +1012,9 @@ function suggest(){
       cnt=sum.map(s=>s[3]);
     }
     const clusters=cen.map((c,i)=>({lab:c,n:cnt[i]})).filter(c=>c.n>m*0.005); // 濾雜訊(<0.5%)
-    /* --- 2.（四色用）色相家族分析（v1.3）：非近白叢集依色相分家族（深藍＋淺藍＝
-       同一個藍家族），取權重前 3 大家族；每家族用「深色代表」當料——色帶白→深
-       自然經過淺色調，帶內漸層就涵蓋整個同色系的深淺（紅屋這種小而顯眼的家族
-       靠彩度加權活下來） --- */
+    /* --- 2. 候選色池：非近白叢集（四料建議從這裡取最遠點；色相家族分析已隨平躺拆除）--- */
     let pool=clusters.filter(c=>c.lab[0]<86);
     if(!pool.length) pool=clusters;
-    const fams=[];
-    for(const c of pool){
-      const ch=Math.hypot(c.lab[1],c.lab[2]);
-      const hue=Math.atan2(c.lab[2],c.lab[1]);
-      let f=null;
-      if(ch>=8){
-        for(const q of fams){ if(q.ch<8)continue;
-          let dh=Math.abs(hue-q.hue); if(dh>Math.PI)dh=2*Math.PI-dh;
-          if(dh<0.7){f=q;break;} }
-      }else f=fams.find(q=>q.ch<8)||null;          // 無彩度歸同一灰家族
-      const w=c.n*(1+ch/25);                        // 彩度加權：小面積高彩度保得住
-      if(f){ f.w+=w; if(c.lab[0]<f.deep.lab[0])f.deep=c;
-             f.sumL+=c.lab[0]*c.n; f.sumN+=c.n; }
-      else fams.push({hue,ch,w,deep:c,sumL:c.lab[0]*c.n,sumN:c.n});
-    }
-    fams.sort((a,b)=>b.w-a.w);
-    const top=fams.slice(0,Math.max(1,slotCount-1));
-    while(top.length<slotCount-1) top.push(top[top.length-1]);   // 圖太單調時補位
     /* Lab→sRGB（gamma 2.2 近似，與模擬端一致） */
     function lab2hex(lab){
       const fy=(lab[0]+16)/116, fx=fy+lab[1]/500, fz=fy-lab[2]/200;
@@ -1262,10 +1039,7 @@ function suggest(){
            黑色杜賓            → 米白＋棕 #975a30    ΔE 13.95（黑狗被印成棕狗）
          共同觸發條件＝**單一顏色佔大面積**。修後 14.19／5.31／8.90／8.28。
          ⚠ 遵守 Eric 2026-08-05「**分散是最佳化目標，不是閘門**」：加的是評分權重、無硬門檻。
-         ⚠ **只套垂直混色**：這理由是混色專屬（雙料每一階都落在兩支料的連線上）；
-            平躺是層數/TD 疊色機制、且屬研究線＝行為維持原狀。engine.js 本來就只有
-            混色路徑（無平躺分支）⇒ 這樣切與正本一致。 */
-      const vertical = params.orient==='vertical';
+         （2026-09-07 平躺自產品移除後，本段只剩混色路徑，與 engine.js suggestSlots() 雙料分支同義。） */
       const LA = lin2lab(...hexLin('#f2f0eb'))[0];   // slotA 固定米白，取其 L
       let main=null, bs=-1;
       for(const c of clusters){
@@ -1273,34 +1047,19 @@ function suggest(){
         /* sep 刻意**不設飽和上限**：第二支越遠、整條可用色階越長，所以「更暗」要能
            持續加分。實證＝黑白杜賓：黑(ΔL≈80) 與棕斑(ΔL≈50) 若都夾成 1 就只剩彩度
            決勝，棕斑贏 ⇒ 黑狗被印成棕狗。 */
-        const s = vertical ? Math.sqrt(c.n)*(1+ch/25)*(Math.abs(c.lab[0]-LA)/100)
-                           : Math.sqrt(c.n)*(ch+3);   // 平躺：原式不動（+3 讓全灰階圖也挑得出主調）
+        const s = Math.sqrt(c.n)*(1+ch/25)*(Math.abs(c.lab[0]-LA)/100);
         if(s>bs){bs=s;main=c;}
       }
       if(main && Math.hypot(main.lab[1],main.lab[2])<8)      // 幾乎無彩度（黑白照）
         main=clusters.reduce((a,b)=>a.lab[0]<b.lab[0]?a:b);  // → 用最暗的當主色
-      if(params.orient==='vertical'){
-        /* 垂直混色：料A=白（亮端）、料B=圖的主色深端；色階數維持使用者設定 */
-        slots[0]={color:'#f2f0eb', td:6, start:1};
-        slots[1]={color:lab2hex(main.lab), td:2, start:1};
-        renderSlots(); simulate();
-        return;
-      }
-      slots[0]={color:'#f2f0eb', td:6, start:1};             // 白底
-      /* 主色 TD 與層數連動：疊滿剛好 ≈95% 飽和（10^(-N·層高/td)=0.05 → td=N·層高/1.3）
-         → 1 層淺、疊滿深，整段層數都是有效漸層；層數改了→重按建議就重配跨度 */
-      const tdMain=Math.min(4, Math.max(0.8, Math.round(params.layers*params.lh/1.3*10)/10));
-      slots[1]={color:lab2hex(main.lab), td:tdMain, start:1};
-      params.map='lum'; document.getElementById('mapSel').value='lum';
-      params.inv=true;  document.getElementById('invChk').checked=true;
+      /* 垂直混色：料A=白（亮端）、料B=圖的主色深端；色階數維持使用者設定 */
+      slots[0]={color:'#f2f0eb'};
+      slots[1]={color:lab2hex(main.lab)};
       renderSlots(); simulate();
       return;
     }
-    /* --- v1.3 四色＝白底＋三個色相家族漸層帶（Eric 2026-07-06：四色沒有漸層）——
-       白底當第 1 支；3 個家族各佔一段色帶，**帶長∝√家族權重（每帶至少 3 層）、
-       帶 TD 與帶長連動**（帶內剛好疊到 ≈95% 飽和，同雙料公式）→ 每帶整段都是
-       該色系淺→深的有效漸層；家族上下順序枚舉 6 種、取整圖色差最小，帶界再微調 --- */
-    if(params.orient==='vertical'){
+    /* --- 四色（垂直混色）--- */
+    {
       /* 垂直四料建議：料A=白（調亮度）＋三支從**分群層**最遠點取樣的彩色。
          【2026-08-05 建議配色核心規格・Eric 裁「白＋不得複製充數」】
          舊法用上面的 `top`（前三大色相家族的 deep），有兩個實測過的缺陷：
@@ -1311,9 +1070,8 @@ function suggest(){
          色數 34、ΔE 5.634（且自動挑出 L*68 的中間膚色），比人工手挑的 6.251 還好。
          ⚠ 分散是最佳化目標、**不是閘門**——不設「任兩支必須差多少」的門檻，
            使用者要刻意選兩支相近色照樣可以；本規格只約束「我們主動建議的初值」。
-         ⚠ 上面的 fams/top 仍保留給**平躺**分支用（平躺為研究線、行為維持原狀不動）。
          ⚠ 本段與 engine.js suggestSlots() 的四料分支必須同步——兩份實作的統一另案處理。 */
-      slots[0]={color:'#f2f0eb', td:6, start:1};
+      slots[0]={color:'#f2f0eb'};
       const picks=[];
       if(pool.length){
         let seed=pool[0], sw=-1;
@@ -1346,7 +1104,7 @@ function suggest(){
                                                : Math.max(12, Math.min.apply(null,used)-28);
         labs.push([L, base[1], base[2]]);
       }
-      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(labs[i]), td:2, start:1};
+      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(labs[i])};
       /* 最後一道：不得吐出兩支逐字元相同的 hex（不同 Lab 也可能捨入到同一個 hex）。 */
       for(let i=1;i<=3;i++){
         let guard=0;
@@ -1358,75 +1116,10 @@ function suggest(){
       renderSlots(); simulate();
       return;
     }
-    params.map='match'; document.getElementById('mapSel').value='match';   // 四色回自動對色
-    params.inv=false;   document.getElementById('invChk').checked=false;
-    const N=params.layers;
-    /* TD 下限 0.3（不是 0.8）：短帶要在帶內爬完淺→深，需要高遮蓋料
-       （黑料實測 TD 0.1~0.2，高遮蓋彩料 0.3~1 物理上存在——採購規格照此挑） */
-    const bandTd=len=>Math.min(4,Math.max(0.3,Math.round(len*params.lh/1.3*100)/100));
-    const rest=top.map(f=>({color:lab2hex(f.deep.lab), w:f.w}));
-    const wsum=rest.reduce((s,f)=>s+Math.sqrt(f.w),0);
-    rest.forEach(f=>{ f.len=Math.max(3,Math.round(N*Math.sqrt(f.w)/wsum)); });
-    { let diff=N-rest.reduce((s,f)=>s+f.len,0);              // 湊齊總層數
-      while(diff!==0){
-        const f=diff>0 ? rest.reduce((a,b)=>a.len<b.len?a:b) : rest.reduce((a,b)=>a.len>b.len?a:b);
-        f.len+=Math.sign(diff); diff-=Math.sign(diff);
-      } }
-    const cfgFrom=(ord,bounds)=>{                            // bounds＝第2、3帶的起始層
-      const st=[1,...bounds];
-      const cfg=[{color:'#f2f0eb', td:6, start:1}];          // 白底
-      for(let i=0;i<ord.length;i++){
-        const en=(i+1<ord.length?st[i+1]:N+1);
-        cfg.push({color:ord[i].color, td:bandTd(en-st[i]), start:st[i]});
-      }
-      return cfg;
-    };
-    const boundsOf=ord=>{ let acc=1; const b=[];
-      for(let i=0;i<ord.length-1;i++){ acc+=ord[i].len; b.push(acc); } return b; };
-    let bestOrd=null, bestBounds=null, bestDE=1e9;
-    for(const ord of perms(rest)){
-      const b=boundsOf(ord);
-      const de=evalConfig(cfgFrom(ord,b));
-      if(de<bestDE){bestDE=de;bestOrd=ord;bestBounds=b;}
-    }
-    for(let r=0;r<2;r++){                                    // 帶界微調（每帶至少 3 層）
-      for(let bi=0;bi<bestBounds.length;bi++){
-        for(let d=-3;d<=3;d++){
-          if(!d) continue;
-          const b2=bestBounds.slice(); b2[bi]+=d;
-          const st=[1,...b2,N+1];
-          let ok=true;
-          for(let i=1;i<st.length;i++) if(st[i]-st[i-1]<3) ok=false;
-          if(!ok) continue;
-          const de=evalConfig(cfgFrom(bestOrd,b2));
-          if(de<bestDE){bestDE=de;bestBounds=b2;}
-        }
-      }
-    }
-    const cfg=cfgFrom(bestOrd,bestBounds);
-    for(let i=0;i<slotCount;i++){
-      slots[i].color=cfg[i].color; slots[i].td=cfg[i].td; slots[i].start=cfg[i].start;
-    }
-    renderSlots(); simulate();
   }, 30);
 }
 
 /* ================= 參數/模式事件 ================= */
-document.getElementById('lhSel').onchange=e=>{ params.lh=parseFloat(e.target.value); thick(); updateSizeInfo(); queue(); };
-document.getElementById('layersIn').onchange=e=>{
-  const old=params.layers;
-  params.layers=Math.max(4,Math.min(60,+e.target.value||20));
-  e.target.value=params.layers;
-  /* v1.2（Eric 抓到：拉層數漸層不跟著動）——換層位置等比例縮放，保持漸層分布 */
-  for(const s of slots){ if(s.start>1)
-    s.start=Math.max(1,Math.min(params.layers,Math.round(s.start*params.layers/old))); }
-  renderSlots(); thick(); queue();
-};
-document.getElementById('baseIn').onchange=e=>{ params.base=Math.max(0.2,parseFloat(e.target.value)||0.4); queue(); };
-document.getElementById('mapSel').onchange=e=>{ params.map=e.target.value; queue(); };
-document.getElementById('invChk').onchange=e=>{ params.inv=e.target.checked; queue(); };
-function thick(){ document.getElementById('thickInfo').textContent=
-  `＝混色區 ${(params.layers*params.lh).toFixed(2)} mm`; }
 let machineCap=null;                    // null＝宿主沒告知 ⇒ 不擋（fail-open）
 const quadAvailable=()=> !machineCap || machineCap.hasQuad!==false;
 function modeBlockedMessage(){
@@ -1489,22 +1182,9 @@ document.getElementById('modeSeg').addEventListener('click',e=>{
   renderSlots(); simulate();
 });
 function syncOrientUI(){
-  const v=params.orient==='vertical';
-  /* 垂直：純幾何輸出（Eric 2026-07-06 定：層高歸切片器管，原型不設＝不會 Double）；
-     收掉疊色專用的層高/層數/底板/對色 */
-  for(const id of ['lhRow','layersRow','baseRow','mapRow'])
-    document.getElementById(id).style.display=v?'none':'';
-  document.getElementById('levelsRow').style.display=v?'':'none';
-  document.getElementById('nozzleRow').style.display=v?'':'none';   // 口徑＝垂直模式限定（決定水平最小色塊寬）
-  /* 尺寸與雜訊濾除 2026-09-03 移進中欄「尺寸」卡片（#sizeBar）；它的顯示由 ptSizeBarSync 管（同垂直限定）。 */
-  document.getElementById('teethRow').style.display=v?'':'none';    // 交錯齒＝垂直模式限定
-  document.getElementById('p2aRow').style.display=v?'':'none';      // P2A 縫遮罩＝垂直模式限定
-  document.getElementById('advDetails').style.display=v?'':'none'; // 實驗選項容器同進退
-  document.getElementById('pillarRow').style.display=v?'':'none';   // 洗料柱＝垂直模式限定
-  // 3MF 輸出＝垂直模式限定；生成中按鈕讓位給進度（A 案就地轉換），切模式不打架
-  document.getElementById('btnExport').style.display=(v&&!(genState&&genState.shown))?'':'none';
-  document.getElementById('genProg').style.display=(v&&genState&&genState.shown)?'flex':'none';
-  if(!v) document.getElementById('exportStat').style.display='none';
+  /* 2026-09-07 平躺移除：所有列恆顯示；這裡只剩「生成中按鈕讓位給進度」（A 案就地轉換） */
+  document.getElementById('btnExport').style.display=(genState&&genState.shown)?'none':'';
+  document.getElementById('genProg').style.display=(genState&&genState.shown)?'flex':'none';
   if(!img) updateNoiseStat(null);
   if(typeof ptSyncVisibility==='function') ptSyncVisibility();
   updateSizeInfo();
@@ -1523,14 +1203,6 @@ function updateSizeInfo(){
     ? `→ ${params.pillarXY}×${params.pillarXY} mm 空心方管・壁厚 2mm（磚右側 15mm）`
     : '';
 }
-document.getElementById('orientSeg').addEventListener('click',e=>{
-  if(e.target.tagName!=='BUTTON') return;
-  params.orient=e.target.dataset.o;
-  for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
-  syncOrientUI(); renderSlots();
-  /* 【0805 規格 §2.2】切平躺/垂直不重新建議——同上，只重算不覆寫使用者的料色。 */
-  simulate();
-});
 document.getElementById('levelsIn').onchange=e=>{
   // 上限 8＝Eric 2026-08-02 裁 B；Math.round＝覆審 I-5：5.5 不 round 會存成小數，
   // C++ 端 get<int> 靜默回退預設 8 階（開發路徑卻做 6 階＝兩條路不同結果）
@@ -1648,9 +1320,8 @@ let lastEngineStatus=null;
 
 function genShowProgress(on){
   if(genState) genState.shown=on;
-  const vertical=params.orient==='vertical';
-  document.getElementById('btnExport').style.display=(vertical&&!on)?'':'none';
-  document.getElementById('genProg').style.display=(vertical&&on)?'flex':'none';
+  document.getElementById('btnExport').style.display=on?'none':'';
+  document.getElementById('genProg').style.display=on?'flex':'none';
 }
 function genPaint(){
   if(!genState||!genState.shown) return;
@@ -1796,11 +1467,7 @@ document.getElementById('btnExport').onclick=async()=>{
 };
 
 /* ================= 啟動：直接給結果 ================= */
-if(startupQuery.get('mode')==='vertical'){
-  params.orient='vertical';
-  for(const b of document.getElementById('orientSeg').children)
-    b.classList.toggle('on',b.dataset.o==='vertical');
-}
+/* ?mode=vertical（宿主 WebViewDialog.cpp:45 仍會帶）：2026-09-07 起工作室只有垂直混色，參數保留相容、不再讀。 */
 const startupNoise=parseFloat(startupQuery.get('noise'));
 if(Number.isFinite(startupNoise)){
   params.noiseMm=Math.max(0,Math.min(20,startupNoise));
@@ -2217,14 +1884,14 @@ function ptApply(s){
   /* 甲案：只有「宣告了 pipeline 的款式」才要風格化（目前＝本地款式）。
      AI 款式不走這條——它們的圖是生出來的，不是把原照壓成色塊。
      這裡只排隊；真正發送在 simulateVertical 尾端（那時料色與色階才定案）。 */
-  if(Array.isArray(s.pipeline) && s.pipeline.length && params.orient==='vertical')
+  if(Array.isArray(s.pipeline) && s.pipeline.length)
     ptStylePending={styleId:s.id, tones:tones};
   /* 丙案：AI 款式＝套用就去生圖，但**排到 ptRender() 之後才發**（2026-09-02 實測踩到）。
      🔴 不可以在這裡直接發：點款式的流程是 ptApply() → ptRender()，而 ptRender 會重寫
         同一條狀態列 ⇒ 不論是「AI 生圖中…」還是「請先載入一張照片」都會被立刻蓋掉，
         使用者按下去看起來毫無反應。與甲案排隊等 levels 的理由不同（那是等資料），
         這裡純粹是**等畫面重畫完**。 */
-  else if(s.requiresAI && params.orient==='vertical')
+  else if(s.requiresAI)
     ptAiPending={styleId:s.id, tones:tones};
   else
     ptStyleStat('');
@@ -2238,7 +1905,6 @@ function ptApply(s){
      否則每動一格就重算一次高精度格點，畫面會卡死。 */
 function ptSizeBarSync(){
   const bar=document.getElementById('sizeBar'); if(!bar) return;
-  bar.style.display = (params.orient==='vertical') ? '' : 'none';
   const r=document.getElementById('wRange');
   if(r && document.activeElement!==r) r.value=Math.round(params.width);
   /* 寬／高的顯示欄位＝輸入欄位本身（Eric 2026-09-03 令「結合後面的顯示欄位，跟輸入欄位做在同一個」）：
@@ -2256,11 +1922,7 @@ function ptSizeBarSync(){
   }
 }
 
-function ptSyncVisibility(){
-  const p=document.getElementById('stylePanel');
-  if(p) p.style.display=(params.orient==='vertical')?'':'none';
-  ptSizeBarSync();          // 拉桿與款式面板同進退（都只在垂直模式有意義）
-}
+function ptSyncVisibility(){ ptSizeBarSync(); }   // 2026-09-07 平躺移除：款式面板與尺寸卡恆顯示
 
 function ptRender(){
   const sub=document.getElementById('subjectSel');
@@ -2408,7 +2070,7 @@ if(sgEl) sgEl.addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
 document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
 document.getElementById('slotList').addEventListener('input',()=>setTimeout(ptInvalidateApplied,0));
 ptSyncVisibility(); ptRender();
-renderSlots(); thick(); syncOrientUI();
+renderSlots(); syncOrientUI();
 if(embeddedMode) simulate(); else makeDemo();
 </script>
 </body>
