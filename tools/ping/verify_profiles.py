@@ -453,7 +453,10 @@ for name, (kind, d) in presets.items():
                             f"pa={_v('pressure_advance')!r}, expected 1/0.4")
                 # 回抽長度四分支（🆕 0819 改寫）
                 if is_pt:
-                    # 🔴 照片磚＝零回抽，且零回抽只寫在機器層（retraction_length 0,0）——
+                    # 🔴 照片磚系線材**一律 nil＝吃機器層**，線材端不得自己覆蓋回抽長度。
+                    #    ⚠ 2026-09-07 起機器層已不是零回抽（Eric 裁：韌體回抽＋抬升 0.1，
+                    #      見 [照片磚機器層回抽政策 0907]）——但**本條的形狀完全不變**：
+                    #      線材層覆蓋會贏，所以無論機器層是 0 還是 1.3，線材端都必須是 nil。
                     #    線材覆蓋會贏，所以線材端必須是 nil。0730 那批曾把 FF 照片磚支掃成 3，
                     #    靜默蓋掉零回抽整整 20 天沒人發現；這條護欄就是為了不再發生。
                     if _v("filament_retraction_length") != "nil":
@@ -688,6 +691,26 @@ for _n, (_k, _d) in presets.items():
 # 哪些 machine preset 掛了 PHOTOTILE 標記
 _phototile_machines = {n for n, (k, d) in presets.items()
                        if k == "machine" and _PHOTOTILE_MARK in (d.get("printer_notes") or "")}
+# 🆕 **照片磚機器層回抽政策護欄（Eric 2026-09-07 裁，取代 0718 的零回抽）**
+#   為什麼要有：這組值原本是「零回抽」，而它 2026-07~08 曾經被線材層靜默蓋掉 20 天沒人發現
+#   （見同檔 [照片磚零回抽 0819] 那條的註解）。政策改了，**護欄要跟著改而不是拿掉**——
+#   否則下一次有人動機器層或範本，就會再靜默漂一次，而且症狀（短路徑缺料）要實印才看得出來。
+#   值的出處：回抽長度與韌體回抽＝同進家族既有的韌體回抽組（不另訂數字）；抬升 0.1＝Eric 指定。
+#   🔴 `retract_length_toolchange` 必須維持 0：照片磚的 Tn 是後處理要換成 M6051/M6052 的混色指令，
+#      不是真的換料頭；插換料回抽等於每次換色都白抽一次。
+_PT_MACHINE_POLICY = {
+    "use_firmware_retraction": "1",
+    "retraction_length": ["1.3", "1.3"],
+    "z_hop": ["0.1"],
+    "retract_length_toolchange": ["0", "0"],
+}
+for _pm in sorted(_phototile_machines):
+    _pd = presets[_pm][1]
+    for _k, _want in _PT_MACHINE_POLICY.items():
+        _got = _pd.get(_k)
+        if _got != _want:
+            err(f"[照片磚機器層回抽政策 0907] {_pm}: {_k}={_got!r} 應 {_want!r}")
+
 _model_variants = {}
 for _n, (_k, _d) in presets.items():
     if _k == "machine" and _d.get("instantiation") == "true" and _d.get("printer_model"):

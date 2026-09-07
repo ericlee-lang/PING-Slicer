@@ -2163,6 +2163,27 @@ def main(src_base):
     #     ⚠ **明列 compatible_printers 的線材不加**——明列優先於條件式，加了也不生效；
     #       0822 原註已載明「產生器若照舊寫 all_machines 會整個蓋掉」。四料同進/3in1/照片磚專用支都屬此類。
     PT_NOTE = "PHOTOTILE"
+    # 🆕 **照片磚機器層回抽政策（Eric 2026-09-07 裁，取代 0718 的「零回抽」）**
+    #   原話：「需要做回抽抬升，回抽的距離採用韌體回抽的參數即可，抬升的高度 0.1，不用太高。」
+    #   起因＝短路徑（照片磚某些區塊只繞一圈、或長度 < 1mm）吐料不飽滿，判斷是壓力不足。
+    # ⚠ **這是明文推翻既有定案**：零回抽來自 2026-07 的 %APPDATA% 實印驗證檔
+    #   （handoff 202607 §651「全部取自實印驗證檔＝含 SEMM=1／64 槽／零回抽」），不是隨手設的。
+    #   變更權在 Eric（他有新的實印證據：上面那張短路徑缺料的照片）。
+    # 值的來源＝**不另訂數字**，直接用同進家族既有的韌體回抽組（全 FD/FF 同進機一致：
+    #   retraction_length 1.3／use_firmware_retraction 1），只有抬升照 Eric 指定改 0.1
+    #   （一般同進機是 0.4；他說「不用太高」）。
+    # 🔴 **`retract_length_toolchange` 刻意維持 0**：照片磚的 Tn 會被後處理換成 M6051/M6052
+    #   混色指令，**不是真的換料頭**；一張磚一層裡有很多次 Tn，若每次都插 2mm 換料回抽＝
+    #   大量無謂回抽與積料。這一項不在 Eric 的指示範圍內，維持原值。
+    # 🔴 **`wipe`／`wipe_on_loops`／`seam_gap` 一律不動**：那是 0718 的接縫定案（藏背面、零間隙），
+    #   與回抽是兩件事。handoff 202607 §660 記著「回抽關後 wipe 已歸零」——現在回抽開回來，
+    #   wipe 要不要跟著開是**另一個要實印才知道的問題**，本批不順手動它。
+    # 線材層仍是 `nil`（吃機器層）＝ 0819 那條護欄的形狀不變，只是機器層的值從 0 換成 1.3。
+    PT_RETRACTION = {
+        "use_firmware_retraction": "1",
+        "retraction_length": ["1.3", "1.3"],
+        "z_hop": ["0.1"],
+    }
     PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
     pt_m = pt_mm = pt_f = 0
     for _e in mac_list:
@@ -2172,8 +2193,10 @@ def main(src_base):
         if not os.path.isfile(_fp):
             continue
         _d = json.load(io.open(_fp, encoding="utf-8"))
-        if _d.get("printer_notes") != PT_NOTE:
-            _d["printer_notes"] = PT_NOTE
+        _before = json.dumps(_d, sort_keys=True)
+        _d["printer_notes"] = PT_NOTE
+        _d.update(PT_RETRACTION)          # 🆕 0907：機器層回抽政策（見 PT_RETRACTION 註解）
+        if json.dumps(_d, sort_keys=True) != _before:
             jdump(_fp, _d); pt_m += 1
     for _e in mm_list:
         if "照片磚" not in _e["name"]:
