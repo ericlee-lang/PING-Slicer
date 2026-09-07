@@ -111,9 +111,11 @@
   </div>
   <div class="grow"></div>
   <button class="btn" id="btnBack" style="display:none">返回首頁</button>
-  <div class="seg" id="orientSeg">
-    <button data-o="flat" class="on">平躺（疊色）</button>
-    <button data-o="vertical">垂直（混色）</button>
+  <!-- 平躺（疊色）／垂直（混色）切換：Eric 2026-09-07 裁「ORCA 上的平面功能先取消，只保留照片磚」⇒ 自產品移除。
+       DOM 留著（下方 JS 以 getElementById 引用，拿掉會拋錯）、加 hidden、預設鎖垂直；平躺模擬碼留置、拆碼另棒。牌 c-0907-PT-01。 -->
+  <div class="seg" id="orientSeg" hidden style="display:none">   <!-- .seg 的 display:flex 會蓋過 [hidden]，故加 inline -->
+    <button data-o="flat">平躺（疊色）</button>
+    <button data-o="vertical" class="on">垂直（混色）</button>
   </div>
   <div class="seg" id="modeSeg">
     <button data-n="2" class="on">雙料</button>
@@ -310,10 +312,9 @@
       </details>
     </div>
     <div class="disclaim">
-      螢幕模擬僅為近似，實際顏色以實品為準。各料「透光距離」目前是暫定值，
-      待校準色卡實印後回填會更準。透光距離＝料要疊多厚才擋住光（黑料約 0.5、一般彩色 2~7、白料 5~15 mm）。<br>
-      平躺＝透光疊色（色深靠層數）；垂直＝照片立起來印、雙料混比出色階——正面實色平整、
-      色階邊界＝層線（銳利），換色過渡藏在磚體後方（厚度＝換色空間，混比改變有切換距離、做不出銳利邊）。
+      螢幕模擬僅為近似，實際顏色以實品為準。<br>
+      照片立起來印、雙料混比出色階——正面實色平整、色階邊界＝層線（銳利），
+      換色過渡藏在磚體後方（厚度＝換色空間，混比改變有切換距離、做不出銳利邊）。
     </div>
   </section>
 </main>
@@ -379,7 +380,7 @@ const SLOT_DEFAULT = [
 let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
-let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'flat', klevels:8,
+let params = { lh:0.08, layers:20, base:0.4, map:'match', inv:false, orient:'vertical', klevels:8,   // orient 鎖 vertical（Eric 2026-09-07 裁平面移除）
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
