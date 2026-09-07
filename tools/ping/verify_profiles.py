@@ -408,7 +408,11 @@ for name, (kind, d) in presets.items():
                 # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
                 is_hf = (("高流量" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
-                is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)")
+                # ⚠ 這裡是**內聯清單**，不吃 embed_params 的常數（兩支是獨立程式）。
+                #   新增照片磚專用線材時兩邊都要加——0730 就是漏了這一行，照片磚支被掃成
+                #   回抽 3、靜默蓋掉零回抽 20 天。正本＝embed_params.PT_FIL_SPECS。
+                is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)",
+                                 "PING PLA(照片磚 FD高流量)")
                 # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
                 #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
                 _want_extra = "0.6" if is_hf else "nil"

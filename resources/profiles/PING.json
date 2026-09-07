@@ -41,6 +41,10 @@
             "sub_path": "machine/FD300 Pro 單料頭.json"
         },
         {
+            "name": "FD300 Pro 同進照片磚",
+            "sub_path": "machine/FD300 Pro 同進照片磚.json"
+        },
+        {
             "name": "FD450 Pro",
             "sub_path": "machine/FD450 Pro.json"
         },
@@ -51,6 +55,10 @@
         {
             "name": "FD450 Pro 單料頭",
             "sub_path": "machine/FD450 Pro 單料頭.json"
+        },
+        {
+            "name": "FD450 Pro 同進照片磚",
+            "sub_path": "machine/FD450 Pro 同進照片磚.json"
         },
         {
             "name": "FD600 Pro",
@@ -65,6 +73,10 @@
             "sub_path": "machine/FD600 Pro 單料頭.json"
         },
         {
+            "name": "FD600 Pro 同進照片磚",
+            "sub_path": "machine/FD600 Pro 同進照片磚.json"
+        },
+        {
             "name": "FD800 Pro",
             "sub_path": "machine/FD800 Pro.json"
         },
@@ -75,6 +87,10 @@
         {
             "name": "FD800 Pro 單料頭",
             "sub_path": "machine/FD800 Pro 單料頭.json"
+        },
+        {
+            "name": "FD800 Pro 同進照片磚",
+            "sub_path": "machine/FD800 Pro 同進照片磚.json"
         },
         {
             "name": "FF600",
@@ -643,6 +659,50 @@
             "sub_path": "process/0.45mm @FF600 同進照片磚 (1.0).json"
         },
         {
+            "name": "0.2mm @FD300 Pro 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD300 Pro 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD300 Pro 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD300 Pro 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.2mm @FD450 Pro 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD450 Pro 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD450 Pro 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD450 Pro 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD450 Pro 同進照片磚 (1.0)",
+            "sub_path": "process/0.5mm @FD450 Pro 同進照片磚 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD600 Pro 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD600 Pro 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD600 Pro 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD600 Pro 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD600 Pro 同進照片磚 (1.0)",
+            "sub_path": "process/0.5mm @FD600 Pro 同進照片磚 (1.0).json"
+        },
+        {
+            "name": "0.2mm @FD800 Pro 同進照片磚 (0.4)",
+            "sub_path": "process/0.2mm @FD800 Pro 同進照片磚 (0.4).json"
+        },
+        {
+            "name": "0.3mm @FD800 Pro 同進照片磚 (0.6)",
+            "sub_path": "process/0.3mm @FD800 Pro 同進照片磚 (0.6).json"
+        },
+        {
+            "name": "0.5mm @FD800 Pro 同進照片磚 (1.0)",
+            "sub_path": "process/0.5mm @FD800 Pro 同進照片磚 (1.0).json"
+        },
+        {
             "name": "0.1mm_棧板 @FP300 (0.2)",
             "sub_path": "process/0.1mm_棧板 @FP300 (0.2).json"
         },
@@ -1103,6 +1163,10 @@
         {
             "name": "PING SupPLA(3in1) - 高流量噴頭",
             "sub_path": "filament/PING SupPLA(3in1) - 高流量噴頭.json"
+        },
+        {
+            "name": "PING PLA(照片磚 FD高流量)",
+            "sub_path": "filament/PING PLA(照片磚 FD高流量).json"
         }
     ],
     "machine_list": [
@@ -1421,6 +1485,50 @@
         {
             "name": "FF600 同進照片磚 1.0 nozzle",
             "sub_path": "machine/FF600 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD300 Pro 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD300 Pro 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD300 Pro 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD450 Pro 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD450 Pro 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FD450 Pro 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FD450 Pro 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD600 Pro 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD600 Pro 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FD600 Pro 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FD600 Pro 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進照片磚 0.4 nozzle",
+            "sub_path": "machine/FD800 Pro 同進照片磚 0.4 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進照片磚 0.6 nozzle",
+            "sub_path": "machine/FD800 Pro 同進照片磚 0.6 nozzle.json"
+        },
+        {
+            "name": "FD800 Pro 同進照片磚 1.0 nozzle",
+            "sub_path": "machine/FD800 Pro 同進照片磚 1.0 nozzle.json"
         }
     ]
 }
