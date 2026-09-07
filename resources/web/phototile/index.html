@@ -12,6 +12,16 @@
   header{display:flex; align-items:center; gap:18px; padding:10px 22px;
          border-bottom:3px solid var(--orange); flex-wrap:wrap;}
   .brand{font-family:Inter,Arial,sans-serif; font-weight:800; letter-spacing:.1em; font-size:13px;}
+  /* #101：與 step-repair 的 .icon-button 同度量（40x40／1px 邊／圓角 10／hover 轉橘），
+     兩個工具頁的「返回」因此長得一樣。數值取自 step-repair.js 的 .icon-button，改要一起改。 */
+  /* 🔴 flex:0 0 auto 不可省：本頁的 header 是 flex（step-repair 那邊是 grid 固定欄寬），
+     flex item 預設 flex-shrink:1 ⇒ 實測寬度被壓成 24px、變成又窄又高的長方形。
+     用電腦量 getComputedStyle 才看得出來，肉眼容易放過。 */
+  .backbtn{flex:0 0 auto; width:40px; height:40px; display:grid; place-items:center; padding:0;
+           border:1px solid #d5d9db; border-radius:10px; color:#30373a; background:#fff; cursor:pointer;}
+  .backbtn svg{width:22px; height:22px; fill:none; stroke:currentColor;
+               stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+  .backbtn:hover{color:#c63f10; border-color:var(--orange);}
   h1{font-family:"Source Han Serif TC","Noto Serif TC",serif; font-size:20px; font-weight:700;}
   .sub{font-size:12.5px; color:#777;}
   .sub.warn{color:var(--orange); font-weight:700;}
@@ -141,13 +151,22 @@
 <body>
 
 <header>
+  <!-- 回報中心 #101（Eric 2026-09-07 裁「把返回做成跟『STEP 破面檢查』一樣」；0908 令「現在做」）：
+       返回鍵從右側的一顆文字按鈕，改成**左上角的圖示鈕**，與 step-repair 頁同形。
+       為什麼：ping-ux LAY-12 結構一致性——同類元件（「離開這個工具回到主程式」）在兩個工具頁
+       長得一樣，使用者學一次就通用。原本它擺在右側，混在「雙料/四色・用測試圖・開啟圖片」那排
+       **前進**動作裡，讓「離開」跟「往下做」長得一樣、還放在一起。
+       ⚠ 只動位置與長相：id、預設 display:none（只有 embeddedMode 才顯示）、
+         onclick 送 phototile_home，全部原樣不動。 -->
+  <button class="backbtn" id="btnBack" style="display:none" type="button" aria-label="返回首頁" title="返回首頁">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>
+  </button>
   <span class="brand">PING</span>
   <div>
     <h1>照片磚工作室</h1>
     <div class="sub">選圖片、調整色階與尺寸，完成後直接放到列印板</div>
   </div>
   <div class="grow"></div>
-  <button class="btn" id="btnBack" style="display:none">返回首頁</button>
   <div class="seg" id="modeSeg">
     <button data-n="2" class="on">雙料</button>
     <button data-n="4">四色</button>
