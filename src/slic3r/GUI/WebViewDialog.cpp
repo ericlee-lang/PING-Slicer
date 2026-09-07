@@ -318,17 +318,26 @@ bool WebViewPanel::IsStepRepairPage() const
     return !expected.IsEmpty() && current.IsSameAs(expected, false);
 }
 
-/* 【2026-08-15・Eric 裁 A 案】把「使用者已加入哪些照片磚機」告訴工作室頁面，
-   讓四色按鈕在沒有四料機時擋得住。
-   為什麼需要：resolver 只認已加入的機型（is_visible），配不到就不載入並報錯——
-   但那是**做完之後**才擋。頁面端先擋，使用者才不會白做一輪。
-   fail-open：這支沒被呼叫（舊頁面）⇒ 頁面 machineCap 維持 null ⇒ 不擋、行為照舊。 */
+/* 【2026-08-15・Eric 裁 A 案；判準已於 2026-09-07 被 #99 Q3 甲取代，見下】
+   把「照片磚機有沒有這個模式」告訴工作室頁面，讓四色按鈕在做不到四料時擋得住。
+   頁面端先擋，使用者才不會白做一輪（匯出時才擋＝做完之後才擋）。
+   fail-open：這支沒被呼叫（舊頁面）⇒ 頁面 machineCap 維持 null ⇒ 不擋、行為照舊。
+
+   🔴 **2026-09-08 修回歸**：原本這裡跟 resolver 一樣用 `is_visible`（＝使用者已加入）。
+   #99 Q3 甲把照片磚機從「選擇 3D 列印機」整批移除、改成匯出時才按需安裝之後，
+   **進工作室當下一台都還沒安裝** ⇒ `hasQuad` 恆為 false ⇒ **四色永遠鎖著**。
+   實錄：Eric 2026-09-08 選了 FF600 同進進工作室，四色是鎖的；查他的 conf，
+   已安裝機型只有 6 台、照片磚機 0 台——舊版是「進門整組自動裝」才讓它看起來一直是解鎖的。
+   ⇒ 判準改成 `is_system`，與 `ping_resolve_photo_tile_printer()` 同步
+   （那支已在 0907 改掉，**這一處是同一個假設的第二個落點、當時漏掉**）。
+   語意也跟著正確了：這個閘門要回答的是「這台機做不做得到四色」，
+   不是「使用者有沒有把它加進清單」——後者在新設計裡已經不是使用者的事。 */
 void WebViewPanel::SendPhotoTileMachineCapability()
 {
     bool has_dual = false, has_quad = false;
     if (PresetBundle* bundle = wxGetApp().preset_bundle) {
         for (const Preset& preset : bundle->printers) {
-            if (!preset.is_visible)
+            if (!preset.is_system)          // 見上：不再要求「已加入」，照片磚機是按需安裝的
                 continue;
             const PhotoTileCapability cap = photo_tile_capability_of(preset);
             if (!cap.is_photo_tile)
@@ -341,7 +350,7 @@ void WebViewPanel::SendPhotoTileMachineCapability()
     }
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
                            + ",\"hasQuad\":" + (has_quad ? "true" : "false") + "}";
-    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：已加入的照片磚機 " << json;
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
 }
