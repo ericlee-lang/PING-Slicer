@@ -6,7 +6,7 @@
     "machine_tech": "FFF",
     "family": "",
     "bed_model": "PING_FD300_buildplate_model.stl",
-    "bed_texture": "ping_buildplate_texture.png",
+    "bed_texture": "ping_buildplate_texture.svg",
     "hotend_model": "",
     "default_materials": "PING PLA(照片磚 FD300)"
 }
