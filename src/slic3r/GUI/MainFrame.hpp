@@ -305,6 +305,9 @@ public:
     void        update_side_preset_ui();
     // PING：依「機型是否同進」與「混色是否啟用」刷新上方列混色鈕的顯示與標籤
     void        update_ping_mix_side_button();
+    // PING(2026-09-07 Eric 裁・回報中心 #99)：照片磚入口從首頁搬到上方列，只在同進機顯示。
+    // 由 update_ping_mix_side_button() 末尾一併呼叫（兩顆鈕的觸發時機完全相同：換機型／上方列顯示切換）。
+    void        update_ping_phototile_side_button();
     void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
@@ -416,6 +419,12 @@ public:
     SideButton* m_print_option_btn{ nullptr };
 
     SidePopup*  m_slice_option_pop_up{ nullptr };
+
+    // PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：照片磚入口。判準＝目前機型是同進
+    // （is_ping_tongjin_selected，**含照片磚機本身**，否則做完第一張磚就找不到入口了）。
+    // ⚠ 不可用 is_ping_mix_available()——那把尺對照片磚機回 false（0822 令混色鈕在照片磚機隱藏）。
+    wxPanel*    m_phototile_panel{ nullptr };
+    SideButton* m_phototile_btn{ nullptr };
 
     // PING(2026-08-19 Eric 令)：混色開關搬上方列，格式比照切片那組（SideButton ＋ SidePopup）。
     // 原本是預覽頁畫布右上角的浮動鈕（Preview::m_ping_mix_strip，已移除）。

@@ -61,6 +61,20 @@ let PingSearchKeyword = '';
 const PING_VARIANT_SUFFIX = /\s*(單料頭|單噴頭|同進|3in1|關門)$/;
 function PingBaseModel(model) { return model.replace(PING_VARIANT_SUFFIX, ''); }
 
+// PING 2026-09-07（Eric 裁・回報中心 #99 Q3 甲）：**照片磚機不再列進本頁**。
+// 理由：「FD300／FF600／FF800 同進照片磚」不是使用者要挑的機器，是照片磚功能的內部載體
+// （64 個虛擬料槽＋零回抽），由照片磚工作室在載入時自己裝、自己切。列在這裡的後果就是 #99：
+// 只有 FD300 的人也會看到 FF600／FF800 兩台永遠用不到的機器。
+// ⓘ 連帶效果（刻意的）：既有使用者只要再跑一次本頁存檔，那三台就會從 AppConfig 消失
+//    ——OnExitFilter() 只送 ModelNozzleSelected 裡的機型，而 C++ 端是整組覆蓋
+//    （GuideFrame::apply_config → app_config->set_vendors）⇒ 沒送到的就不存在。
+//    這正是 #99 回報者手上那兩台的清除路徑，不必另外寫一次性清理。
+// ⚠ 判準是機型名含「照片磚」，與 C++ 端 PhotoTileCapability 的 PHOTO_TILE_MARKER
+//    （「同進照片磚」）同源；C++ 那支是單一來源，網頁端引用不到它 ⇒ 改判準時兩邊要一起改。
+function PingIsPhotoTileModel(vendor, model) {
+	return vendor == 'PING' && model.indexOf('照片磚') != -1;
+}
+
 // PING 2026-08-13（Eric 裁丙案）：本體變體（無後綴）的顯示名＝該機的**料數**。
 // 值域由實查各系列本體的 default_filament_profile 槽數定（2026-08-13）：
 //   FF600／FF800 ＝ 4 槽 ⇒ 四料｜FD 系與 DUAL 系 ＝ 2 槽 ⇒ 雙料｜其餘（FP300／EDU 200／
@@ -97,7 +111,9 @@ function ProductLineTabs(vendor) {
 	return '<div class="ProductLineTabs" role="tablist" aria-label="PING product line">' +
 		'<button type="button" class="ProductLineTab" data-line="fast" onclick="SetPingProductLine(\'fast\')">Fast</button>' +
 		'<button type="button" class="ProductLineTab" data-line="classic" onclick="SetPingProductLine(\'classic\')">Classic</button>' +
-		'<button type="button" class="ProductLineTab" data-line="phototile" onclick="SetPingProductLine(\'phototile\')">照片磚</button>' +
+		/* 照片磚分頁 2026-09-07 移除（#99 Q3 甲）——照片磚機已不列進本頁，分頁會是空的。
+		   ProductLineOf() 的 'phototile' 分支刻意留著：萬一日後有照片磚機漏擋進來，
+		   它會被歸到一個沒有分頁的產品線而**被隱藏**（fail-safe），不會混進 Fast。 */
 		'</div>';
 }
 
@@ -163,6 +179,7 @@ ProductLineTabs(strVendor)+
 		}
 		
 		let ModelName=OneModel['model'];
+		if (PingIsPhotoTileModel(strVendor, ModelName)) continue;   // #99 Q3 甲：照片磚機不列出
 
 		//Collect Html Node Nozzel Html
 		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
@@ -203,6 +220,7 @@ ProductLineTabs(strVendor)+
 	{
 		let OneModel=pModel[m];
 
+		if (PingIsPhotoTileModel(OneModel['vendor'], OneModel['model'])) continue;   // #99 Q3 甲：不回填、也不送回 C++
 		let SelectList=OneModel['nozzle_selected'];
 		if(SelectList!='')
 		{
@@ -332,6 +350,7 @@ function FilterModelList(keyword) {
 
 		let strVendor = OneModel['vendor'];
 		let ModelName = OneModel['model'];
+		if (PingIsPhotoTileModel(strVendor, ModelName)) continue;   // #99 Q3 甲：搜尋結果也不列出
 		if (ModelName.toLowerCase().indexOf(keyword.toLowerCase()) == -1)
 			continue;
 

@@ -19,7 +19,7 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
-#include <set>          // ping_install_photo_tile_printers()：機型去重
+#include <set>
 #include <iterator>
 #include <exception>
 #include <cmath>
@@ -4769,14 +4769,32 @@ int GUI_App::request_user_unbind(std::string dev_id)
 // 依工作室送來的 mode（dual/quad）＋口徑，從 preset bundle「實資料」解析目標同進照片磚機：
 // printer_model 含「同進照片磚」＋ dual→FD／quad→FF 家族 ＋ printer_variant 對口徑。
 // 不寫死機名＝日後加新照片磚機（或 C 案準備頁整合要列可選機）都吃同一來源。
+/* 機型名去掉變體字尾＝「系列」。與選機頁 `resources/web/guide/21/21.js` 的
+   `PING_VARIANT_SUFFIX` 同一條規則（那邊是分組用，這邊是配對用）——**改一邊要改兩邊**，
+   網頁端引用不到 C++ 的常數。
+   例：`FF800 同進` → `FF800`／`FF800 同進照片磚` → `FF800`／`FD450 Pro 同進` → `FD450 Pro`。 */
+static std::string ping_printer_series(const std::string& printer_model)
+{
+    static const std::string SUFFIXES[] = { " 同進照片磚", " 單料頭", " 單噴頭", " 同進", " 3in1", " 關門" };
+    for (const std::string& suffix : SUFFIXES) {
+        const size_t n = suffix.size();
+        if (printer_model.size() > n && printer_model.compare(printer_model.size() - n, n, suffix) == 0)
+            return printer_model.substr(0, printer_model.size() - n);
+    }
+    return printer_model;
+}
+
 struct PingPhotoTilePrinter
 {
     bool        known_mode       = false; // mode 欄位可辨識（舊版網頁沒帶＝false，行為照舊）
     bool        already_selected = false; // 目前機器（含其衍生 user preset）已符合＝不切不打擾
     std::string preset_name;              // 需要切換時的目標；解析不到＝空
-    /* 2026-08-15：有這台機、但使用者沒在「選擇 3D 列印機」裡加入 ⇒ 引導他去加入，
-       而不是給一句「找不到機型」讓他不知道能怎麼辦。 */
-    bool        exists_but_hidden = false;
+    /* 2026-09-07：配到的是**別的系列**的照片磚機（例：FD450 Pro 同進 沒有專屬照片磚版本，
+       只好用 FD300 同進照片磚）。列印範圍與起始碼會是那一台的 ⇒ 要在通知裡講出來，不能靜默。 */
+    bool        cross_series     = false;
+    /* 🗑 2026-09-07 移除 `exists_but_hidden`（Eric 裁 #99 Q3 甲）：那個欄位是 0815 A 案的產物，
+       用來分辨「有這台機但使用者沒在選機清單勾」。照片磚機已從選機清單整批移除 ⇒ 它永遠是
+       「沒勾」，那條分支恆真、訊息也永遠是錯的（叫人去一個已經沒有照片磚分頁的地方勾）。 */
 };
 
 static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& mode, const std::string& nozzle)
@@ -4805,21 +4823,39 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
         out.already_selected = true;
         return out;
     }
-    /* 【2026-08-15 A 案・Eric 裁】只認**使用者已加入**的機型（is_visible）。
-       `is_visible` 正是「選擇 3D 列印機」對話框在設的（ConfigWizard：preset.is_visible = evt.enable）。
-       修正前這裡掃全部 system preset ⇒ 使用者沒加入四料機卻選了四色，仍會被自動切到
-       一台他沒勾選、可能根本沒有的機器，而且沒有錯誤也沒有提示。 */
-    const Preset* hidden_hit = nullptr;
-    for (const Preset& preset : bundle->printers)
-        if (preset.is_system && matches(preset)) {
-            if (preset.is_visible) {
-                out.preset_name = preset.name;
-                return out;
-            }
-            if (hidden_hit == nullptr)
-                hidden_hit = &preset;
+    /* 【2026-09-07 Eric 裁 #99 Q3 甲——**取代** 2026-08-15 的 A 案】不再要求 `is_visible`。
+       0815 A 案（只認使用者已加入的機型）的理由是「不要自動切到一台他沒勾選、可能根本沒有的
+       機器」，**那條的前提是「照片磚機是使用者要自己在選機清單裡挑的機器」**。
+       0907 之後前提沒了：照片磚機已從「選擇 3D 列印機」整批移除（guide/21・24 的
+       `PingIsPhotoTileModel`），它是照片磚功能的內部載體（64 個虛擬料槽＋零回抽），
+       **永遠不會是 is_visible** ⇒ 沿用舊判準等於照片磚從此配不到任何機型。
+       ⇒ 改成「找得到就用」，安裝交給 `ping_install_photo_tile_printer()` 在切換前當場做。
+       0815 想防的事沒有回來：那時的風險是「整組裝八台又自動切過去」，現在**一次只裝一台、
+       而且是他這張磚真正要用的那一台**。 */
+    /* 🔴 2026-09-07 順手修掉一個同型的舊 bug：原本是「掃到第一個家族對得上的就用」，
+       而 printer 預設集是**按名字排序**的（`Preset::operator<` 比 name）⇒ 四料那一組永遠先掃到
+       `FF600 同進照片磚`（'6' < '8'）⇒ **手上是 FF800 同進的人，做四料照片磚一律被切到 FF600**
+       ——床 600 不是 800，而且畫面上只會說「已自動切換機型」，看不出換錯了。
+       ⇒ 改成兩段：**同系列優先**（FF800 同進 → FF800 同進照片磚），沒有同系列的才退回家族比對，
+       而且退回時把 `cross_series` 立起來讓上層講出來（例：FD450 Pro 同進 目前沒有專屬照片磚版本）。 */
+    const std::string cur_series =
+        ping_printer_series(bundle->printers.get_selected_preset().config.opt_string("printer_model"));
+    const Preset* family_hit = nullptr;
+    for (const Preset& preset : bundle->printers) {
+        if (!preset.is_system || !matches(preset))
+            continue;
+        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
+        if (pm != nullptr && !cur_series.empty() && ping_printer_series(pm->value) == cur_series) {
+            out.preset_name = preset.name;      // 同系列＝首選，直接收工
+            return out;
         }
-    out.exists_but_hidden = (hidden_hit != nullptr);
+        if (family_hit == nullptr)
+            family_hit = &preset;               // 家族對得上的第一台，當退路
+    }
+    if (family_hit != nullptr) {
+        out.preset_name  = family_hit->name;
+        out.cross_series = true;
+    }
     return out;
 }
 
@@ -5951,53 +5987,93 @@ void GUI_App::request_open_project(std::string project_id)
         CallAfter([this, project_id] { mainframe->open_recent_project(-1, wxString::FromUTF8(project_id)); });
 }
 
-/* 照片磚機型自動補裝（**從出貨線移植回來，2026-09-02，牌 c-0902-PT-01**）。
+/* 照片磚機型的安裝（**2026-09-07 Eric 裁 #99 Q3 甲後重寫**）。
 
-   為什麼開發線也要有：Eric 2026-08-07 已裁「不要等到匯出才說找不到機型」，出貨線當天就
-   做了，**開發線沒跟上** ⇒ 2026-09-02 他在開發線試用包實走時就踩到那個已經被裁掉的行為
-   （產生失敗、而畫面上沒有任何地方可以選機型）。這是「一個裁定只落一條線」的漏，不是新功能。
+   ▍原本是什麼、為什麼砍掉
+   原本是 `ping_install_photo_tile_printers()`：一進工作室就掃全部 system preset，把
+   `printer_model` 含「同進照片磚」的**整組裝上**（FD300×2＋FF600×3＋FF800×3＝3 個機型 8 個
+   口徑變體）。出發點是 Eric 2026-08-07 的「不要等到匯出才說找不到機型」，但代價就是回報中心
+   **#99**：只有 FD300 的人也會被塞進 FF600／FF800 兩台永遠用不到的機器。
+   🔴 而且**弄不掉**——選機精靈是整組覆蓋（`GuideFrame::apply_config` → `set_vendors`），
+   取消勾選是真的移除，但下次一開工作室這裡又會判「未安裝」而裝回去，中間沒有任何訊息。
+   （舊註解寫「使用者自己取消勾選的情形也不強制裝回」，與 `AppConfig::set_variant(false)`
+   會 erase 的實際行為不符，是錯的。）
 
-   ⚠ 照 R6-10 逐處對錨點搬，不是複製檔案：本函式只用上游 API
-     （PresetBundle / AppConfig::get_variant／set_variant / load_installed_printers），
-     兩線同義，故可逐字沿用；呼叫點則各自掛在自己那份 open_photo_tile()。 */
-struct PingPhotoTileInstallResult
+   ▍現在是什麼
+   照片磚機**已從「選擇 3D 列印機」整批移除**（`resources/web/guide/21|24` 的
+   `PingIsPhotoTileModel`）——它不是使用者要挑的機器，是照片磚功能的內部載體
+   （64 個虛擬料槽＋零回抽）。所以這裡改成**只在要切過去的那一刻、只裝那一台**。
+   Eric 2026-08-07「不要等到匯出才說找不到機型」那條沒有被丟掉，換成了進門的
+   `ping_photo_tile_entry_block_reason()`：機型做不到就在**進門當下**講，而不是做完一整張磚
+   才講。 */
+
+// 只裝一台（`preset_name` ＝ 解析器挑出來的目標機）。回傳 true＝這次真的新裝了。
+static bool ping_install_photo_tile_printer(const std::string& preset_name)
 {
-    int variants = 0;   // 新裝的口徑變體數（FD300×2＋FF600×3＋FF800×3 全新裝＝8）
-    int models   = 0;   // 涵蓋的機型數（＝3）
-};
-
-static PingPhotoTileInstallResult ping_install_photo_tile_printers()
-{
-    PingPhotoTileInstallResult out;
     PresetBundle* bundle = wxGetApp().preset_bundle;
     AppConfig*    config = wxGetApp().app_config;
-    if (bundle == nullptr || config == nullptr)
-        return out;
+    if (bundle == nullptr || config == nullptr || preset_name.empty())
+        return false;
 
-    std::set<std::string> touched_models;
+    const Preset* preset = bundle->printers.find_preset(preset_name, false);
+    if (preset == nullptr || !preset->is_system || preset->vendor == nullptr)
+        return false;
+    const ConfigOptionString* pm = preset->config.option<ConfigOptionString>("printer_model");
+    const ConfigOptionString* pv = preset->config.option<ConfigOptionString>("printer_variant");
+    if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
+        return false;
+    if (config->get_variant(preset->vendor->id, pm->value, pv->value))
+        return false;                       // 已裝＝什麼都不要動（含使用者自己勾的情形）
+
+    config->set_variant(preset->vendor->id, pm->value, pv->value, true);
+    bundle->load_installed_printers(*config);
+    config->save();
+    BOOST_LOG_TRIVIAL(info) << "Photo tile: installed printer on demand: " << preset_name;
+    return true;
+}
+
+/* 這台機的**家族**有沒有任何照片磚機。進門當下還不知道口徑與 dual/quad
+   （那要等工作室回報），所以只問到家族這一層——口徑對不上的情形仍由匯出時的解析器
+   誠實回報（「找不到符合這個模式與口徑的…」）。 */
+static bool ping_family_has_photo_tile_printer(const std::string& family)
+{
+    if (family.empty())
+        return false;
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return false;
     for (const Preset& preset : bundle->printers) {
-        if (!preset.is_system || preset.vendor == nullptr)
+        if (!preset.is_system)
             continue;
-        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
-        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
-        if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
-            continue;
-        if (pm->value.find("同進照片磚") == std::string::npos)
-            continue;
-        if (config->get_variant(preset.vendor->id, pm->value, pv->value))
-            continue;   // 已安裝＝不動（使用者自己取消勾選的情形也不強制裝回，只補從沒裝過的）
-        config->set_variant(preset.vendor->id, pm->value, pv->value, true);
-        ++out.variants;
-        touched_models.insert(pm->value);
+        const PhotoTileCapability cap = photo_tile_capability_of(preset);
+        if (cap.is_photo_tile && cap.family == family)
+            return true;
     }
-    out.models = int(touched_models.size());
+    return false;
+}
 
-    if (out.variants > 0) {
-        // 只在真的有新增時才落盤與重算可見性——沒事不要動使用者的 conf。
-        bundle->load_installed_printers(*config);
-        config->save();
-    }
-    return out;
+/* 進門守門（Eric 2026-09-07 裁 #99 Q2 乙）：**入口保持可點，點下去給一個有出口的指引**。
+   回傳空字串＝這台機做得到，直接進工作室；非空＝擋下來的理由（給對話框顯示）。
+   為什麼是「說明」不是「藏起來」：入口神秘地不存在，是最難問出口的一種壞掉。
+   ⚠ 上方列那顆鈕只在同進機顯示，但**拖圖片直入**這條路任何機型都走得到 ⇒ 守門要放在這裡
+     （兩條路都經過 open_photo_tile()），不能只靠鈕的顯示條件。 */
+static std::string ping_photo_tile_entry_block_reason()
+{
+    const PhotoTileCapability cap = photo_tile_capability_of_selected_printer();
+    const std::string model = cap.printer_model.empty() ? std::string("（未知）") : cap.printer_model;
+
+    if (cap.is_classic)
+        return "「" + model + "」是 Classic 前代機型，韌體不支援照片磚。\n\n"
+               "照片磚是靠 M6051／M6052 這組逐段混色指令印出來的，前代韌體沒有這組指令"
+               "（前代的 M6050 只能整支設一個固定混色比例，做不出一張圖需要的逐段變化）。";
+    if (!cap.is_mixing)
+        return "照片磚需要**同進**機型才印得出來（兩料或四料同時進同一個噴頭，靠混色比例做出色階）。\n\n"
+               "你目前選的是「" + model + "」。";
+    if (!ping_family_has_photo_tile_printer(cap.family))
+        return "「" + model + "」目前還沒有對應的照片磚機型。\n\n"
+               "照片磚現在支援 FD300（雙料）與 FF600／FF800（四料）。"
+               "它需要一組專屬設定（64 個虛擬料槽＋零回抽），不是換個參數就能用同一台機器跑。";
+    return std::string();
 }
 
 void GUI_App::open_photo_tile(const wxString& image_path)
@@ -6005,25 +6081,23 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     if (!mainframe || !mainframe->m_webview)
         return;
 
-    // 進門就先把照片磚機型補裝好（Eric 2026-08-07；開發線 2026-09-02 補上）——
-    // 不要等到匯出才說「找不到機型」。掛在 open_photo_tile() 而不是某個 web 指令：
-    // 首頁入口與「拖圖片進來」兩條路都走這裡。
-    const PingPhotoTileInstallResult installed = ping_install_photo_tile_printers();
-    if (installed.variants > 0) {
-        BOOST_LOG_TRIVIAL(info) << "Photo tile: auto-installed " << installed.variants
-                                << " printer variant(s) across " << installed.models << " model(s)";
-        // 系統代替使用者做了事就要說（否則他會發現印表機清單莫名多出幾台，不知道哪來的）
-        if (Tab* printer_tab = get_tab(Preset::TYPE_PRINTER))
-            printer_tab->update_tab_ui();
-        if (plater() != nullptr) {
-            plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
-            plater()->get_notification_manager()->push_notification(
-                NotificationType::CustomNotification,
-                NotificationManager::NotificationLevel::RegularNotificationLevel,
-                std::string("照片磚：已自動加入 ") + std::to_string(installed.models) +
-                    " 種同進照片磚機型（共 " + std::to_string(installed.variants) +
-                    " 個口徑）到你的印表機清單——照片磚需要它們才切得了片。");
+    /* #99 Q2 乙：做不到就在**進門當下**說，並給兩個出口（去選機／還是先進去看看）——
+       不要讓人做完一整張磚，到上盤那一步才知道沒有機器可以放。 */
+    const std::string block_reason = ping_photo_tile_entry_block_reason();
+    if (!block_reason.empty()) {
+        BOOST_LOG_TRIVIAL(info) << "Photo tile: entry guidance shown: " << block_reason;
+        MessageDialog dlg(mainframe,
+                          wxString::FromUTF8(block_reason + "\n\n"
+                              "你可以先到「選擇 3D 列印機」把機型加進來，或直接用左上角的印表機下拉切換。"),
+                          wxString::FromUTF8("照片磚"),
+                          wxOK | wxCANCEL | wxICON_INFORMATION);
+        dlg.SetButtonLabel(wxID_OK, wxString::FromUTF8("開啟「選擇 3D 列印機」"));
+        dlg.SetButtonLabel(wxID_CANCEL, wxString::FromUTF8("還是先進去看看"));
+        if (dlg.ShowModal() == wxID_OK) {
+            CallAfter([this] { run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
+            return;                         // 去換機型＝這次不進工作室
         }
+        // 選「先進去看看」＝照樣開（入口保持可點），只是他已經知道最後會卡在哪。
     }
 
     /* 覆審 I-3（配套）：進工作室（含拖圖直入）＝任何現役生成作廢——同 phototile_home，
@@ -9746,13 +9820,30 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
             return;
         }
         if (!target.preset_name.empty()) {
+            /* #99 Q3 甲：照片磚機不在選機清單裡 ⇒ 切過去之前先把**這一台**裝上。
+               只裝要用的那一台（不是 0907 之前的整組八個變體），而且已裝就不動。 */
+            const bool just_installed = ping_install_photo_tile_printer(target.preset_name);
             Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
             if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
-                plater() != nullptr)
+                plater() != nullptr) {
+                if (just_installed) {
+                    // 系統代替使用者做了事就要說（否則印表機清單莫名多一台，不知道哪來的）
+                    plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
+                    printer_tab->update_tab_ui();
+                }
+                std::string note = std::string("照片磚：已自動切換機型「") + target.preset_name +
+                                   "」，製程與線材隨機型預設。";
+                if (just_installed)
+                    note += "（這台是照片磚專用機型，剛為你加入印表機清單。）";
+                if (target.cross_series)
+                    note += " ⚠ 你目前的機型沒有專屬的照片磚版本，這是同家族裡最接近的一台"
+                            "——列印範圍與起始 G-code 會以它為準，請確認尺寸放得下。";
                 plater()->get_notification_manager()->push_notification(
                     NotificationType::CustomNotification,
-                    NotificationManager::NotificationLevel::RegularNotificationLevel,
-                    std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
+                    target.cross_series ? NotificationManager::NotificationLevel::ImportantNotificationLevel
+                                        : NotificationManager::NotificationLevel::RegularNotificationLevel,
+                    note);
+            }
         } else if (target.known_mode && !target.already_selected) {
             /* 【2026-08-15 A 案・Eric 裁】配不到「已加入」的照片磚機 ⇒ **誠實報錯、不載入**，
                並保留 3MF 路徑（與 protocol_stale_env 同一種處置）。
@@ -9761,14 +9852,15 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                兩種原因分開講，因為使用者能做的事不同：
                  ・有這台機但沒加入 → 去「選擇 3D 列印機 → 照片磚」加進來（做得到）
                  ・根本沒有這個組合（例：雙料×1.0 口徑，FD 家族無 1.0 機）→ 換口徑或換模式 */
-            const std::string msg = target.exists_but_hidden
-                ? std::string("這片照片磚需要的機型你還沒加入。請到「選擇 3D 列印機 → 照片磚」"
-                              "把它加進來，再回照片磚頁按一次產生（檔案保留在 ") + project_path + "）。"
-                : std::string("找不到符合這個模式與口徑的同進照片磚機型，為避免切到錯的機器，"
-                              "這片照片磚沒有自動載入（檔案保留在 ") + project_path + "）。";
+            /* 🗑 2026-09-07（#99 Q3 甲）：原本這裡分兩種訊息，其中「有這台機但你還沒加入 ⇒
+               請到『選擇 3D 列印機 → 照片磚』把它加進來」那一支已經**刪掉**——照片磚分頁沒了，
+               那句話會把人送到一個不存在的地方。現在配不到就只有一種原因：這個模式×口徑
+               真的沒有對應機（例：雙料×1.0，FD 家族沒有 1.0 的照片磚機）。 */
+            const std::string msg =
+                std::string("找不到符合這個模式與口徑的同進照片磚機型，為避免切到錯的機器，"
+                            "這片照片磚沒有自動載入（檔案保留在 ") + project_path + "）。";
             BOOST_LOG_TRIVIAL(warning)
-                << "PhotoTile 工作室：無可用（已加入）目標機型，不載入 " << project_path
-                << "（exists_but_hidden=" << (target.exists_but_hidden ? "true" : "false") << "）";
+                << "PhotoTile 工作室：找不到對應的照片磚機型，不載入 " << project_path;
             if (done)
                 done(false, "no_target_printer", msg);
             return;

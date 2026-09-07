@@ -1308,6 +1308,32 @@ void MainFrame::update_ping_mix_side_button()
         Layout();
         fit_tab_labels();   // 同切片改標籤時的處置（上方列寬度變了）
     }
+
+    /* 照片磚鈕的觸發時機與混色鈕**完全相同**（換機型／上方列顯示切換），
+       所以掛在這裡一併刷新，而不是要每個呼叫點各記得叫兩支——漏叫一處的失效是靜默的
+       （鈕留在上一台機器的狀態，看起來像它自己壞掉）。呼叫點：show_option()、
+       混色鈕自己的 handler、on_select_default_preset()、GUI_Preview.cpp:327。 */
+    update_ping_phototile_side_button();
+}
+
+// PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：上方列「照片磚」鈕的顯示。
+// 判準＝目前機型是同進（`is_ping_tongjin_selected`）——照片磚只有同進硬體做得到，
+// 非同進機顯示這顆等於給一條走不通的路（上方列也擠，不留永遠不能按的鈕佔位）。
+// 🔴 **刻意不用 `is_ping_mix_available()`**：那把尺對照片磚機回 false（Eric 0822 令混色鈕
+//    在照片磚機整組隱藏）⇒ 照抄的話「做完第一張磚、被自動切到照片磚機之後入口就消失」。
+// 🔴 Classic 前代（DUAL 同進・Marlin）**也會看到這顆**，這是 Eric 2026-09-07 裁的 Q2 乙：
+//    看得到、點下去被告知為什麼不支援，勝過入口神秘地不存在。擋下與說明在 open_photo_tile()。
+void MainFrame::update_ping_phototile_side_button()
+{
+    if (m_phototile_panel == nullptr)
+        return;
+    const bool tongjin = (m_plater != nullptr) && m_plater->is_ping_tongjin_selected();
+    const bool show    = tongjin && m_side_tools_shown;
+    if (m_phototile_panel->IsShown() != show) {
+        m_phototile_panel->Show(show);
+        Layout();
+        fit_tab_labels();
+    }
 }
 
 void MainFrame::init_tabpanel() {
@@ -1915,10 +1941,24 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_mix_btn = new SideButton(m_mix_panel, wxString::FromUTF8("混色停用"), "");
     m_mix_option_btn = new SideButton(m_mix_panel, "", "sidebutton_dropdown", 0, 14);
 
+    /* PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：照片磚入口從首頁搬來這裡。
+       為什麼搬：首頁那顆任何人、任何機型都點得到，而點下去會把三個「同進照片磚」機型
+       （8 個口徑變體）整組裝進印表機清單 ⇒ 只有 FD300 的人也會多出 FF600／FF800 兩台
+       用不到的機器（＝#99 原文）。照片磚只有同進機做得到 ⇒ 入口跟著硬體能力走。
+       沒有下拉小箭頭：這顆是「開一個功能」，不是切換狀態，沒有第二個選項可挑。 */
+    m_phototile_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTRANSPARENT_WINDOW);
+    m_phototile_btn = new SideButton(m_phototile_panel, wxString::FromUTF8("照片磚"), "");
+
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
     m_print_btn = new SideButton(print_panel, _L("Print plate"), "");
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
+
+    auto phototile_sizer = new wxBoxSizer(wxHORIZONTAL);
+    phototile_sizer->Add(m_phototile_btn, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
+    // 右側間距放在面板內＝整組隱藏時連空隙一起收掉（同混色組的處置）
+    phototile_sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    m_phototile_panel->SetSizer(phototile_sizer);
 
     auto mix_sizer = new wxBoxSizer(wxHORIZONTAL);
     mix_sizer->Add(m_mix_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
@@ -1941,6 +1981,8 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_slice_option_btn->Enable();
     m_print_option_btn->Enable();
     //sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    sizer->Add(m_phototile_panel);    // PING：照片磚鈕排在混色鈕左邊
+    m_phototile_panel->Hide();        // 預設藏著，等 update_ping_phototile_side_button() 依機型決定
     sizer->Add(m_mix_panel);          // PING：混色鈕排在切片鈕左邊（Eric 圖示位置）
     m_mix_panel->Hide();              // 預設藏著，等 update_ping_mix_side_button() 依機型決定
     sizer->Add(slice_panel);
@@ -2063,6 +2105,12 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     m_mix_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
         set_ping_mix(m_plater != nullptr && !m_plater->is_ping_mix_enabled());
+    });
+
+    // PING(#99 Q1 甲)：走與首頁入口相同的 open_photo_tile()——機型檢查、指引與工作室
+    // 都在那一支裡，這裡不重複判斷（判準漂移＝鬼故事）。
+    m_phototile_btn->Bind(wxEVT_BUTTON, [](wxCommandEvent&) {
+        wxGetApp().open_photo_tile();
     });
 
     m_mix_option_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
@@ -2471,6 +2519,14 @@ void MainFrame::update_side_button_style()
     // m_publish_btn->SetBorderColor(m_btn_bg_enable);
     // m_publish_btn->SetBackgroundColour(wxColour(59,68,70));
     // m_publish_btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+
+    // PING：照片磚鈕與混色／切片組同度量
+    if (m_phototile_btn != nullptr) {
+        m_phototile_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
+        m_phototile_btn->SetCornerRadius(FromDIP(12));
+        m_phototile_btn->SetExtraSize(wxSize(FromDIP(38), FromDIP(10)));
+        m_phototile_btn->SetMinSize(wxSize(-1, FromDIP(24)));
+    }
 
     // PING：混色組套用與切片組完全相同的度量（Eric 令「格式設定一樣」）
     if (m_mix_btn != nullptr) {
