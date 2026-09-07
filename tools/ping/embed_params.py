@@ -337,7 +337,19 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
-BED_TEXTURE = "ping_buildplate_texture.png"
+# 🆕 2026-09-07（回報中心 #112・Eric 裁「甲」）：床貼圖改 **SVG**。
+#   起因＝「拉大看模型時底圖 LOGO 邊緣不銳利」。查下來不是解析度不夠（原 PNG 3192×3191、
+#   墨跡帶 2297×489 放大三倍仍銳利），而是點陣圖在 3D 視角拉近時本來就會被放大。
+#   引擎確實支援 SVG（`3DBed.cpp:501` 走 load_from_svg_file，載入時以 GPU max_tex_size 點陣化，
+#   且有 `svg_source` uniform）⇒ 換成向量後縮放不再受解析度限制。
+#   內容＝`resources/images/OrcaSlicer.svg` 原封搬入（純向量、7 個 path、零點陣、零 base64），
+#   只外包一層 transform 縮放置中——**沒有重畫任何一筆**（CIS 核心原則 1）。
+#   ⚠ 兩點視覺變更，Eric 2026-09-07 已裁「甲」：
+#     ①字距：舊圖是 CIS 的「寬字距版」、新圖是「緊湊版」（2026 起的主商標）。
+#     ②顏色：舊三份資產各用各的橘（床 #E2532E／SVG 原檔 #d24d21），**沒有一個是 CIS 正色**
+#       ⇒ 一律校正到 #EA4E16／#202221（CIS §1 正色、§10 反「手打近似值」）。
+#   產生器＝tools/ping/make_bed_texture_svg.py（同時產關門版＝同一份只改垂直位移）。
+BED_TEXTURE = "ping_buildplate_texture.svg"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
            "P200+":"P200+_buildplate_model.stl",   # 250 床盤（FD300 300 盤 ×0.833 置中）切齊網格
            "FD450":"PING_FD450_buildplate_model.stl",
@@ -377,10 +389,13 @@ BED_OVERRIDE = {
     #       「拉滿床形外框再用床形裁切」（3DBed.cpp:49-67 init_model_from_poly），原圖 logo
     #       垂直置中 ⇒ 上緣兩側被三角形斜邊切掉（實測溢出 5.03mm）。專屬圖＝原檔往床前緣
     #       平移 17mm（餘裕 +3.47mm），**只平移不重畫**（CIS 鐵則）。
-    #       產生器＝tools/ping/make_closeddoor_texture.py；閘門吃 bed_texture_ink_extents.json。
+    #       🆕 2026-09-07 隨 #112 一起改 SVG：平移仍是 17mm、做法從「PIL 搬像素」變成
+    #       「同一份 SVG 只改 transform 的 ty」——更精確也更簡單。產生器改為
+    #       tools/ping/make_bed_texture_svg.py（舊的 make_closeddoor_texture.py 已標示退役）；
+    #       閘門仍吃 bed_texture_ink_extents.json。
     "FD300 關門": {"area_polygon": "rounded_triangle", "prime_y_shift": 50,
                    "bed_model_center": "0x0",
-                   "bed_texture": "ping_buildplate_texture_closeddoor.png"},
+                   "bed_texture": "ping_buildplate_texture_closeddoor.svg"},
 }
 
 # ---------- Classic 前代機（V3.6） ----------
