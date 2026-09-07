@@ -287,7 +287,14 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）
-BED_TEXTURE = "ping_buildplate_texture.png"
+# 🆕 2026-09-07（回報中心 #112・Eric 裁「甲」・出貨線同批）：床貼圖改 **SVG**。
+#   起因＝「拉大看模型時底圖 LOGO 邊緣不銳利」。不是解析度不夠，是點陣圖在 3D 拉近時本來就會被放大；
+#   引擎支援 SVG（`3DBed.cpp:501` load_from_svg_file，以 GPU max_tex_size 點陣化）⇒ 換向量後不再受限。
+#   內容＝`resources/images/OrcaSlicer.svg` 原封搬入（純向量、零點陣），只外包 transform；
+#   顏色校正到 CIS 正色 #EA4E16／#202221（舊資產三種橘都不是正色）。**沒有重畫任何一筆**。
+#   產生器＝tools/ping/make_bed_texture_svg.py。
+#   ⚠ 本線沒有關門專屬貼圖與床貼圖裁切閘門（出貨線 0811 那批未同步過來）⇒ 這裡只換主貼圖。
+BED_TEXTURE = "ping_buildplate_texture.svg"
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
            "P200+":"P200+_buildplate_model.stl",   # 250 床盤（FD300 300 盤 ×0.833 置中）切齊網格
            "FD450":"PING_FD450_buildplate_model.stl",
