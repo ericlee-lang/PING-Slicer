@@ -295,6 +295,21 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
 #   產生器＝tools/ping/make_bed_texture_svg.py。
 #   ⚠ 本線沒有關門專屬貼圖與床貼圖裁切閘門（出貨線 0811 那批未同步過來）⇒ 這裡只換主貼圖。
 BED_TEXTURE = "ping_buildplate_texture.svg"
+
+def apply_bed_texture(mm):
+    """把床貼圖對齊 BED_TEXTURE（machine_model 專用）。
+
+    🔴 為什麼需要這一支（2026-09-07 實錯後補，回報中心 #112 收尾）：
+    FF 同進/3in1 與照片磚兩批機型走的是**範本複製法**（emit_ff_extra／emit_phototile
+    直接把 tools/ping/base/ 下的 JSON 原樣搬出來、只重編 setting_id），
+    **BED_TEXTURE 這個常數碰不到它們** ⇒ 0907 把床貼圖 PNG→SVG 時，
+    26 個機型只換到 19 個，剩下 7 個（FF600/FF800 的 同進・3in1・同進照片磚 ＋ FD300 同進照片磚）
+    還是舊的鋸齒 PNG，**而且不會有任何錯誤訊息**。
+    改範本檔可以治這一次，但下次再換貼圖還會漏同樣 7 個 ⇒ 照「源頭優先」把對齊放進產生器。
+    BED_OVERRIDE 仍然贏（P200+ 有自己的專屬貼圖）。"""
+    mm["bed_texture"] = BED_OVERRIDE.get(mm.get("name", ""), {}).get("bed_texture", BED_TEXTURE)
+    return mm
+
 BED_STL = {"FD300":"PING_FD300_buildplate_model.stl","FP300":"PING_FD300_buildplate_model.stl",
            "P200+":"P200+_buildplate_model.stl",   # 250 床盤（FD300 300 盤 ×0.833 置中）切齊網格
            "FD450":"PING_FD450_buildplate_model.stl",
@@ -1001,6 +1016,7 @@ def emit_ff_extra(mm_list, mac_list, proc_list, gm, gp):
         rename_ff_filament_refs(d, quad=not any(t in d["name"] for t in ("同進", "3in1", "照片磚")))
         name = d["name"]
         if d.get("type") == "machine_model":
+            apply_bed_texture(d)          # 範本凍結的是舊 PNG；床貼圖一律對齊 BED_TEXTURE（見該函式）
             mm_list.append({"name": name, "sub_path": "machine/%s.json" % name}); ff_models.append(name)
         else:
             d["setting_id"] = "PINGM%03d" % gm; gm += 1
@@ -1048,6 +1064,7 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", fn), encoding="utf-8"))
         rename_ff_filament_refs(d, pt=True)   # 照片磚 64 槽 → 照片磚專用支（0816 裁「甲」）
         if d.get("type") == "machine_model":
+            apply_bed_texture(d)          # 同 emit_ff_extra：範本凍結的貼圖不算數
             jdump(os.path.join(PINGDIR, "machine", "%s.json" % d["name"]), d)
             mm_list.append({"name": d["name"], "sub_path": "machine/%s.json" % d["name"]})
             pt_models.append(d["name"])
