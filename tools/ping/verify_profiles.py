@@ -662,6 +662,10 @@ for name, (kind, d) in presets.items():
             #    全 25 支實測皆為 25% ⇒ 不需任何豁免。
             if d.get("overhang_fan_threshold") != ["25%"]:
                 err(f"[懸空冷卻閾值 25% 0724] {name}: {d.get('overhang_fan_threshold')!r}")
+            # 🆕 Eric 2026-09-08 令：ABS 家族「懸空與外部橋接區域的冷卻風扇速度」80%→30%（ABS 風扇吹太強會翹；ABS 與 SupABS 都要）。
+            #   基底 fdm_filament_abs 同改、葉檔明寫（這裡只看葉檔不解析繼承）。與開發線同一條斷言。
+            if "ABS" in name and d.get("overhang_fan_speed") != ["30"]:
+                err(f"[ABS 懸空風扇 30% 0908] {name}: overhang_fan_speed={d.get('overhang_fan_speed')!r} 應 ['30']")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
             # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
             #    專屬護欄在檔尾「Classic 材料層回抽覆蓋 0807」。
