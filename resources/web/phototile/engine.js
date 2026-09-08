@@ -111,7 +111,9 @@ function normalizeRequest(req){
       const def = mode === 'quad' ? [1,1,1,2] : [1,2];
       let laps = String(c.laps || '').split(/[,; ]+/).filter(Boolean).map(n=>Math.max(1, Math.round(Number(n)||0)));
       if (laps.length !== def.length || laps.some(n=>!Number.isFinite(n)||n<1)) laps = def;
-      return { enabled:true, laps, sizeMm: Math.max(0, Number(c.sizeMm)||0),
+      // sizeMm 預設 25（Eric 2026-09-08「固定 25」；缺席／0 都給 25，不再回退成「讓切片器自動等比放大」）
+      const _size = Number(c.sizeMm) > 0 ? Number(c.sizeMm) : 25;
+      return { enabled:true, laps, sizeMm: _size,
                gapMm: clamp('cycle.gapMm', c.gapMm, 0, 100, 15), brimMm: clamp('cycle.brimMm', c.brimMm, 0, 30, 8) };
     })(req.cycle),
     teeth:   !!(req.seam && req.seam.teeth),

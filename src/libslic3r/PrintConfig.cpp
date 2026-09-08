@@ -1576,7 +1576,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("ping_pt_cycle_size", coFloat);
     def->label = L("PING cycle tower size");
     def->category = L("PING");
-    def->tooltip = L("Tower body size in mm; 0 = automatic (44 mm scaled by nozzle/0.4).");
+    def->tooltip = L("Tower body size in mm; 0 = default (25 mm, all nozzles).");
     def->sidetext = L("mm");
     def->min = 0;
     def->mode = comDevelop;

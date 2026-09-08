@@ -326,7 +326,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260908e"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260908f"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -1509,7 +1509,11 @@ function buildRequest(){
     klevels: params.klevels,
     noiseMm: params.noiseMm,
     pillar:{enabled:params.pillar, xyMm:params.pillarXY},
-    cycle:{enabled:!!params.cycle, laps:cycleLaps().join(','), sizeMm:0, gapMm:15, brimMm:8},   // WT 線：循環洗料塔（尺寸自動＝44×口徑/0.4）
+    /* WT 線：循環洗料塔。sizeMm 固定 25（Eric 2026-09-08「固定 25」）——原「自動＝44×口徑/0.4」的用意是怕口徑變大時
+       塔內產生不連續的路徑，但 照片磚_循環洗料塔/size_sweep.py 實算後那不是真的約束：路徑連續的最小邊長 0.4／0.6＝8.5 mm、
+       1.0＝12.5 mm，25 mm 餘裕兩倍；25 mm 可容 0.4 25 圈／0.6 18 圈／1.0 10 圈，現行只用 3～5 圈。等比放大反而讓 0.6 變 66 mm、
+       1.0 變 110 mm（圓床放不下）。**明寫數值而不是送 0**，3MF 就記得住實際邊長，切片器端不必再猜。 */
+    cycle:{enabled:!!params.cycle, laps:cycleLaps().join(','), sizeMm:25, gapMm:15, brimMm:8},
     seam:{teeth:params.teeth, p2aBlock:params.p2aBlock},
     slots: slots.slice(0,slotCount).map(s=>({...s}))
   };

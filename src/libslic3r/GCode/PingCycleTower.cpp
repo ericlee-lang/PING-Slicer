@@ -132,7 +132,11 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     if (!collect_palette(print.model(), palette, why)) return nullptr;
 
     const float nozzle = (float) print.config().nozzle_diameter.get_at(0);
-    const float size   = st.size_mm > 0.f ? st.size_mm : 44.f * nozzle / 0.4f;
+    // 沒帶尺寸時的預設＝25 mm 固定（Eric 2026-09-08「固定 25」）。原式 44×口徑/0.4 的用意是怕大口徑讓塔內路徑斷掉，
+    // 但 照片磚_循環洗料塔/size_sweep.py 實算：路徑連續的最小邊長 0.4／0.6＝8.5 mm、1.0＝12.5 mm ⇒ 25 mm 對全口徑都有兩倍餘裕，
+    // 且 25 mm 可容 0.4 25 圈／0.6 18 圈／1.0 10 圈（現行 3～5 圈）。等比放大會讓 1.0 變 110 mm，圓床根本放不下。
+    // 真的放不下或圈數過多時，geometry_for() 仍會把「圈斷裂／空腔封閉」報成 SlicingError，不會默默印出爛塔。
+    const float size   = st.size_mm > 0.f ? st.size_mm : 25.f;
 
     // 塔位置：所有物件包絡的 +X 側、Y 置中；與模型外緣距 gap（brim 另加）
     BoundingBox bb;
