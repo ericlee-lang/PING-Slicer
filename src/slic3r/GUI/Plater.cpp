@@ -5852,8 +5852,10 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
                                 << " recipe " << palette.recipes.at((int) i);
     }
 
-    /* PING(2026-08-22 Eric 裁「丁」)：零回抽護欄——fail loud，不要再靜默。
-       照片磚的零回抽只寫在**機器層**（retraction_length=0），而線材層的
+    /* PING(2026-08-22 Eric 裁「丁」)：回抽護欄——fail loud，不要再靜默。
+       🔴 2026-09-08 Eric「『必須零回抽』這個解凍」：0907 起照片磚回抽政策已是**機器層 1.3 mm＋抬升 0.1**（#99 棒），
+       不再是零回抽；本護欄的邏輯不變（線材層非 nil 仍會覆蓋機器層），只是文案不再說「必須零回抽」。
+       原註解保留：照片磚的回抽只寫在**機器層**（0718 時 retraction_length=0），而線材層的
        filament_retraction_length 只要不是 nil 就會**覆蓋掉它**。0730 實錄：FF 照片磚支被掃成 3，
        零回抽就這樣破了 20 天沒人發現——因為壞掉的時候什麼都不會說。
        「甲」（照片磚機的線材下拉只剩專用支）已經堵住主要入口；這一條是背水的那道：
@@ -5885,9 +5887,9 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
                 names += (names.empty() ? wxString() : wxString::FromUTF8("、")) + wxString::FromUTF8(n);
             ping_notify_photo_tile_import(
                 plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
-                wxString::FromUTF8("照片磚：這些線材會覆蓋掉機台的零回抽 —— ") + names +
-                wxString::FromUTF8("。照片磚必須零回抽，否則換色處會抽出縫。請改用照片磚專用線材"
-                                   "（回抽長度為 nil＝沿用機台設定）再切片。"));
+                wxString::FromUTF8("照片磚：這些線材會覆蓋掉機台的照片磚回抽設定 —— ") + names +
+                wxString::FromUTF8("。照片磚的回抽由機台設定（目前 1.3 mm、抬升 0.1）統一管，線材自帶回抽會蓋掉它。"
+                                   "請改用照片磚專用線材（回抽長度為 nil＝沿用機台設定）再切片。"));
         }
     }
 
