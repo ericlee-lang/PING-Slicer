@@ -429,6 +429,11 @@ for name, (kind, d) in presets.items():
                 # 檢查 13 線材側（Eric 2026-07-24 爬坡品質批）：懸空冷卻觸發閾值全線材 25%
                 if _v("overhang_fan_threshold") != "25%":
                     err(f"[懸空冷卻閾值 25% 0724] {name}: {_v('overhang_fan_threshold')!r}")
+                # 🆕 Eric 2026-09-08 令：ABS 家族「懸空與外部橋接區域的冷卻風扇速度」80%→30%
+                #   （ABS 風扇吹太強會翹；ABS 與 SupABS 都要）。基底 fdm_filament_abs 同改、葉檔明寫。
+                #   _v 只看葉檔不解析繼承 ⇒ 葉檔必須明寫，靠基底繼承會在這裡被抓成缺值。
+                if "ABS" in name and _v("overhang_fan_speed") != "30":
+                    err(f"[ABS 懸空風扇 30% 0908] {name}: overhang_fan_speed={_v('overhang_fan_speed')!r} 應 30")
                 # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只限一般流量」→ 2026-07-28 三輪裁
                 #   「材料如果不是高流量跟火山口或四料，它的壓力提前是 0.08」＝一般流量 0.12→0.08）
                 #   現況表（0728 起、以下為權威）：
