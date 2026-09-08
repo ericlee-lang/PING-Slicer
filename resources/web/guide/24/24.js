@@ -169,9 +169,9 @@ function HandleModelList( pVal )
 '	</div>'+
 '	<a>'+sVV+'</a>'+
 '</div>'+
-PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上 */
-ProductLineTabs(strVendor)+
-'</div>' +
+'</div>' +   /* VendorStickyHead 只包到 PING 底線（Eric 2026-09-08：凍結區「更換成上方 PING 底線之上」；先前說明區被包進黏頂 ⇒ 捲軸拉不到機器） */
+PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上；隨內容捲動 */
+'<div class="VendorStickyTabs">' + ProductLineTabs(strVendor) + '</div>' +   /* 分頁列第二段黏頂：說明區捲過去後停在 PING 底線下（保留 #94「知道自己在哪個產品線」） */
 '<div class="PrinterArea">	'+
 '</div>'+
 '</div>';
@@ -374,8 +374,9 @@ function FilterModelList(keyword) {
 				'	</div>' +
 				'	<a>' + sVV + '</a>' +
 				'</div>' +
-				ProductLineTabs(strVendor) +
 				'</div>' +
+				PingModeHelpHtml(strVendor) +   /* PING v12：搜尋重繪也要有說明區（否則打字篩選後說明區消失） */
+				'<div class="VendorStickyTabs">' + ProductLineTabs(strVendor) + '</div>' +
 				'<div class="PrinterArea">	' +
 				'</div>' +
 				'</div>';
@@ -423,6 +424,7 @@ function FilterModelList(keyword) {
 	// }
 
 	ApplyPingProductLine();
+	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：搜尋重繪後重掛說明區 */
 	TranslatePage();
 }
 

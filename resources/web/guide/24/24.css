@@ -38,6 +38,22 @@
 	.VendorStickyHead { background-color: #2D2D31; }
 }
 
+/* PING 2026-09-08（Eric「凍結畫面應更換成上方 PING 底線之上」）：黏頂拆成兩段——
+   .VendorStickyHead 只包「全選／清空＋PING」到橘色底線；「認識列印模式」說明區隨內容捲動；
+   Fast/Classic 分頁列另成第二段黏頂，說明區捲過去後停在 PING 底線正下方（top＝banner 高，實量 41px）。
+   這樣凍結區在靜止時只有 PING 底線以上，捲動後最多多一排分頁（保留 #94 的產品線定位）。
+   ⚠ top 值與 .BlockBanner 實高綁定：SmallBtn 26px 高＋PING 標籤 padding ⇒ 41px；改 banner 高度要同步改這裡。 */
+.VendorStickyTabs
+{
+	position: sticky;
+	top: 41px;   /* ＝.BlockBanner 實量高度（瀏覽器量測 41px；SmallBtn 26＋PING 標籤 padding＋1px 底線） */
+	z-index: 4;
+	background-color: #FFFFFF;
+}
+@media (prefers-color-scheme: dark) {
+	.VendorStickyTabs { background-color: #2D2D31; }
+}
+
 .BlockBanner
 {
 	padding: 0px;
@@ -176,15 +192,53 @@
 /* PING 2026-08-13（Eric 裁乙案・中圖）：拿掉每口徑勾選後卡片變矮，同時縮小卡片與封面圖，
    一屏可見機型 1 台 → 8 台。整張卡片可點＝選該機型（口徑留到切片時選）。
    ⚠ 本檔與 21.css 必須同步——24＝重跑精靈、21＝首次啟動，只改一份會讓兩入口行為不一致。 */
+/* PING 2026-09-08（Eric 裁「橫排 要」）：**機器圖在左、系列名＋變體勾選在右**。
+   起因：說明區進來後卡片被推到第二屏；直排卡（圖上、勾選下）高約 215px、8 個系列要兩列。
+   橫排後卡高≈95px、寬≈236px，一列 3 張、8 個系列三列一屏全在（七律#5 一覽）。
+   ⚠ Eric 追加：圖要**左側滿版、上下切齊**——.PImg 用 grid 跨右欄全部列（grid-row span），
+     高度＝右欄內容高，圖 absolute 填滿框、object-fit contain；卡片本身不留上下 padding，
+     上下留白只來自右欄的 7px 對稱邊距。與 21/24.css 一式，改一邊就要改另一邊。 */
 .PrinterBlock
 {
-	width: 96px;           /* PING: 160 → 96（外框 116px，一列約 6 張） */
-	text-align: center;
-	padding: 8px 10px 7px;
+	display: grid;
+	grid-template-columns: 84px minmax(0, 1fr);
+	column-gap: 10px;
+	align-items: start;
+	width: 226px;
+	text-align: left;
+	padding: 0 8px 0 0;
 	border: 1px solid #E2E2E2;
 	border-radius: 4px;
 	background: #fff;
 }
+
+.PrinterBlock > .PImg
+{
+	grid-row: 1 / span 20;   /* 跨右欄所有列＝與卡同高（列數上限 20，變體不會超過） */
+	align-self: stretch;
+	position: relative;
+	width: 84px;
+	height: auto;
+	min-height: 84px;
+	padding: 0;
+	margin: 0;
+	background: #F5F5F5;
+	border-radius: 3px 0 0 3px;
+}
+
+.PrinterBlock > .PImg img
+{
+	position: absolute;
+	left: 0; top: 0;
+	width: 100%;
+	height: 100%;
+	padding: 3px;
+	box-sizing: border-box;
+	object-fit: contain;
+}
+
+.PrinterBlock > .SeriesName { margin: 7px 0 3px; }
+.PrinterBlock > .VarRow:last-child { margin-bottom: 7px; }
 
 /* 系列名（FD300／FF800…）＝卡片標題，不可點；可點的是下面每一列變體 */
 .SeriesName
@@ -215,12 +269,9 @@
 .VarRow.Selected        { font-weight: 700; color: #202221; }
 .VarName                { text-align: left; word-break: break-word; }
 
-.PImg
+.PImg   /* PING 2026-09-08：尺寸與定位已由 .PrinterBlock > .PImg（橫排卡）接管；此處只留相容殼 */
 {
 	position:relative;
-	width:88px;       /* PING 2026-08-13: 120 → 88（中圖） */
-	height:88px;	  /* ORCA fit image to fill frame */
-	padding:4px 12px  /* PING: 配合 112px 卡寬（88+12*2=112） */
 }
 
 .ModelCheckBox

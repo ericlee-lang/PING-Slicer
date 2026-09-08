@@ -74,6 +74,10 @@
   align-items: center;
   gap: 18px;
   padding: 12px 0 14px;
+  /* Eric 2026-09-08：五個模式的說明區要同高，否則切頁時下方卡片被推動的量不同。
+     做法＝圖框固定高：三圖／兩圖版每張圖 150px＋圖下標籤一行；單圖版 176px（＝150＋標籤列），
+     再以 min-height 兜底，讓文字較長的語言也不會把區塊撐高。 */
+  min-height: 202px;
 }
 #PingModeHelp .pmh-detail[data-layout="applications"] {
   grid-template-columns: var(--pmh-copy-width) minmax(0, 1fr);
@@ -134,8 +138,7 @@
 #PingModeHelp .pmh-case img {
   display: block;
   width: 100%;
-  height: auto;
-  aspect-ratio: 1;
+  height: 150px;           /* 固定高（等高規則），寬隨欄位、object-fit 保比例 */
   object-fit: contain;
   background: var(--pmh-paper);
 }
@@ -151,8 +154,7 @@
 #PingModeHelp .pmh-single-art {
   display: block;
   width: 100%;
-  height: auto;
-  max-height: 170px;
+  height: 176px;           /* ＝三圖版 150px 圖＋標籤列，五模式等高 */
   object-fit: contain;
   background: var(--pmh-paper);
 }

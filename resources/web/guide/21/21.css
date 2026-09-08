@@ -118,22 +118,53 @@
 /* PING 2026-08-13（Eric 裁丙案・中圖）：**一個系列一張卡**，變體在圖下方垂直勾選。
    卡片形狀與舊版同型（圖＋底下一串勾選框），只是勾選框內容從「口徑」換成「變體」
    ⇒ 使用者不必重新認識版面（LAY-12）。一系列一張卡後卡片不必各佔一列，密度大幅提升。 */
+/* PING 2026-09-08（Eric 裁「橫排 要」）：**機器圖在左、系列名＋變體勾選在右**。
+   起因：說明區進來後卡片被推到第二屏；直排卡（圖上、勾選下）高約 215px、8 個系列要兩列。
+   橫排後卡高≈95px、寬≈236px，一列 3 張、8 個系列三列一屏全在（七律#5 一覽）。
+   ⚠ Eric 追加：圖要**左側滿版、上下切齊**——.PImg 用 grid 跨右欄全部列（grid-row span），
+     高度＝右欄內容高，圖 absolute 填滿框、object-fit contain；卡片本身不留上下 padding，
+     上下留白只來自右欄的 7px 對稱邊距。與 21/24.css 一式，改一邊就要改另一邊。 */
 .PrinterBlock
 {
-	width: 96px;           /* PING: 160 → 96（外框 116px，一列約 6 張） */
-	text-align: center;
-	padding: 8px 10px 7px;
+	display: grid;
+	grid-template-columns: 84px minmax(0, 1fr);
+	column-gap: 10px;
+	align-items: start;
+	width: 226px;
+	text-align: left;
+	padding: 0 8px 0 0;
 	border: 1px solid #E2E2E2;
 	border-radius: 4px;
 	background: #fff;
 }
 
-.PImg
+.PrinterBlock > .PImg
 {
-	width:88px;       /* PING: 120 → 88（中圖） */
-	height:88px;	  /* ORCA fit image to fill frame */
-	padding:0        /* PING: 卡片已有 padding，圖框不再另加（88=96-8 內距餘裕） */
+	grid-row: 1 / span 20;   /* 跨右欄所有列＝與卡同高（列數上限 20，變體不會超過） */
+	align-self: stretch;
+	position: relative;
+	width: 84px;
+	height: auto;
+	min-height: 84px;
+	padding: 0;
+	margin: 0;
+	background: #F5F5F5;
+	border-radius: 3px 0 0 3px;
 }
+
+.PrinterBlock > .PImg img
+{
+	position: absolute;
+	left: 0; top: 0;
+	width: 100%;
+	height: 100%;
+	padding: 3px;
+	box-sizing: border-box;
+	object-fit: contain;
+}
+
+.PrinterBlock > .SeriesName { margin: 7px 0 3px; }
+.PrinterBlock > .VarRow:last-child { margin-bottom: 7px; }
 
 /* 系列名（FD300／FF800…）＝卡片標題，不可點；可點的是下面每一列變體 */
 .SeriesName

@@ -373,6 +373,7 @@ function FilterModelList(keyword) {
 				'	</div>' +
 				'	<a>' + sVV + '</a>' +
 				'</div>' +
+				PingModeHelpHtml(strVendor) +   /* PING v12：搜尋重繪也要有說明區 */
 				ProductLineTabs(strVendor) +
 				'<div class="PrinterArea">	' +
 				'</div>' +
@@ -421,6 +422,7 @@ function FilterModelList(keyword) {
 	// }
 
 	ApplyPingProductLine();
+	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：搜尋重繪後重掛說明區 */
 	TranslatePage();
 }
 
