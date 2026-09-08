@@ -25,17 +25,17 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "易拆支撐",
-      "alt": "灰色電鑽半邊外殼斜放，開口朝上；橘色支撐格柵以連接底座與橫向連結托住弧形外殼、握把及底座下方的懸空處。"
+      "alt": "橘色電鑽半邊外殼斜放，開口朝上；灰色支撐格柵以連接底座與橫向連結托住弧形外殼、握把及底座下方的懸空處。"
      },
      {
       "id": "dual-color",
       "label": "雙色列印",
-      "alt": "灰色外環與橘色中心直接相接，構成同一件雙色齒輪。"
+      "alt": "橘色外環與灰色中心直接相接，構成同一件雙色齒輪。"
      },
      {
       "id": "dual-soft",
       "label": "軟硬結合",
-      "alt": "橘色軟質握把包覆並接合灰色硬質本體，形成一件完整產品。"
+      "alt": "灰色軟質握把包覆並接合橘色硬質本體，形成一件完整產品。"
      }
     ]
    },
@@ -50,7 +50,7 @@ var PingModeCopy = {
      {
       "id": "cofeed",
       "label": "流量 ×2・速度 ×2",
-      "alt": "兩卷同色材料匯流後主線加粗並標示 ×2，列印單色零件。"
+      "alt": "兩卷橘色同種材料匯流後主線加粗並標示 ×2，列印橘色零件。"
      },
      {
       "id": "cofeed-gradient",
@@ -76,12 +76,12 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "ABS 主體＋易拆支撐",
-      "alt": "灰色 ABS 電鑽半邊外殼依參考角度斜放；橘色支撐格柵以連接底座與橫向連結，從下方托住外殼的懸空處。"
+      "alt": "橘色 ABS 電鑽半邊外殼依參考角度斜放；灰色支撐格柵以連接底座與橫向連結，從下方托住外殼的懸空處。"
      },
      {
       "id": "dual-color",
       "label": "ABS 雙色列印",
-      "alt": "灰色外環與橘色中心直接相接，構成同一件 ABS 雙色齒輪。"
+      "alt": "橘色外環與灰色中心直接相接，構成同一件 ABS 雙色齒輪。"
      }
     ]
    },
@@ -91,7 +91,7 @@ var PingModeCopy = {
     "benefit": "一種材料・一卷即可",
     "body": "適合列印量較少、只有一卷材料，或不需同進額外流量的情境。",
     "limit": "",
-    "alt": "一卷材料供料，列印單一材料的零件。"
+    "alt": "一卷橘色材料供料，列印橘色的單一材料零件。"
    },
    "three": {
     "name": "3 in 1",
@@ -99,7 +99,7 @@ var PingModeCopy = {
     "benefit": "主材流量 ×3・獨立易拆支撐",
     "body": "三支主材合流列印主體，第四支材料獨立列印懸空面下方的支撐。",
     "limit": "",
-    "alt": "三卷炭黑主材線合流後加粗並標示 ×3，供應平放的五輻輪圈；第四卷橘色材料獨立供應輪緣與輪輻下方的支撐格柵，支撐具有連接底座及橫向連結。"
+    "alt": "三卷橘色主材線合流後加粗並標示 ×3，供應平放的橘色五輻輪圈；第四卷灰色材料獨立供應輪緣與輪輻下方的灰色支撐格柵，支撐具有連接底座及橫向連結。"
    }
   }
  },
@@ -119,17 +119,17 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "Removable supports",
-      "alt": "A gray drill half-shell is tilted with its cavity facing upward. Orange support grids with a connected base and cross-ties carry the overhangs beneath the curved housing, grip and foot."
+      "alt": "An orange drill half-shell is tilted with its cavity facing upward. Gray support grids with a connected base and cross-ties carry the overhangs beneath the curved housing, grip and foot."
      },
      {
       "id": "dual-color",
       "label": "Two-color part",
-      "alt": "A gray outer ring and orange center join into a single two-color gear."
+      "alt": "An orange outer ring and gray center join into a single two-color gear."
      },
      {
       "id": "dual-soft",
       "label": "Rigid + flexible",
-      "alt": "An orange flexible grip wraps and joins the gray rigid frame as one complete handle."
+      "alt": "A gray flexible grip wraps and joins the orange rigid frame as one complete handle."
      }
     ]
    },
@@ -144,7 +144,7 @@ var PingModeCopy = {
      {
       "id": "cofeed",
       "label": "2× flow · 2× speed",
-      "alt": "Two matching-color feeds merge into a thicker line marked ×2 to print a single-color part."
+      "alt": "Two orange spools of the same material merge into a thicker orange line marked ×2 to print an orange part."
      },
      {
       "id": "cofeed-gradient",
@@ -170,12 +170,12 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "ABS + removable supports",
-      "alt": "A gray ABS drill half-shell is tilted as in the reference. Orange support grids with a connected base and cross-ties carry its overhangs from below."
+      "alt": "An orange ABS drill half-shell is tilted as in the reference. Gray support grids with a connected base and cross-ties carry its overhangs from below."
      },
      {
       "id": "dual-color",
       "label": "Two-color ABS",
-      "alt": "The gray outer ring and orange center form one continuous two-color ABS gear."
+      "alt": "The orange outer ring and gray center form one continuous two-color ABS gear."
      }
     ]
    },
@@ -185,7 +185,7 @@ var PingModeCopy = {
     "benefit": "One material · One spool",
     "body": "For smaller prints, a single available spool, or jobs that do not need the extra flow of co-feed.",
     "limit": "",
-    "alt": "One spool supplies a part made from one material."
+    "alt": "One orange spool supplies an orange part made from one material."
    },
    "three": {
     "name": "3 in 1",
@@ -193,7 +193,7 @@ var PingModeCopy = {
     "benefit": "3× main-material flow · Separate removable supports",
     "body": "Three main filaments feed the part together. A fourth independently prints supports beneath the overhang.",
     "limit": "",
-    "alt": "Three charcoal main feeds merge into a thicker line marked ×3 to supply a horizontal five-spoke wheel rim. A separate fourth orange feed supplies support grids beneath the rim and spokes, joined by a common base and transverse ties."
+    "alt": "Three orange main feeds merge into a thicker orange line marked ×3 to supply a horizontal orange five-spoke wheel rim. A separate fourth gray feed supplies gray support grids beneath the rim and spokes, joined by a common base and transverse ties."
    }
   }
  },
@@ -213,17 +213,17 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "Entfernbare Stützen",
-      "alt": "Eine graue Gehäusehälfte einer Bohrmaschine liegt schräg mit der Öffnung nach oben. Orangefarbene Stützgitter mit verbundenem Sockel und Querverbindungen tragen die Überhänge unter Gehäuse, Griff und Fuß."
+      "alt": "Eine orangefarbene Gehäusehälfte einer Bohrmaschine liegt schräg mit der Öffnung nach oben. Graue Stützgitter mit verbundenem Sockel und Querverbindungen tragen die Überhänge unter Gehäuse, Griff und Fuß."
      },
      {
       "id": "dual-color",
       "label": "Zweifarbiges Bauteil",
-      "alt": "Grauer Außenring und orange Mitte bilden ein einziges zusammenhängendes Zahnrad."
+      "alt": "Ein orangefarbener Außenring und eine graue Mitte bilden ein einziges zusammenhängendes Zahnrad."
      },
      {
       "id": "dual-soft",
       "label": "Hart + flexibel",
-      "alt": "Ein flexibler orangefarbener Griff umschließt den starren grauen Rahmen und ist mit ihm verbunden."
+      "alt": "Ein flexibler grauer Griff umschließt den starren orangefarbenen Rahmen und ist mit ihm verbunden."
      }
     ]
    },
@@ -238,7 +238,7 @@ var PingModeCopy = {
      {
       "id": "cofeed",
       "label": "Durchfluss ×2 · Tempo ×2",
-      "alt": "Zwei gleichfarbige Zuführungen vereinigen sich zu einer dickeren Linie mit ×2 und drucken ein einfarbiges Bauteil."
+      "alt": "Zwei orangefarbene Spulen desselben Materials vereinigen sich zu einer dickeren orangefarbenen Linie mit ×2 und drucken ein orangefarbenes Bauteil."
      },
      {
       "id": "cofeed-gradient",
@@ -264,12 +264,12 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "ABS + entfernbare Stützen",
-      "alt": "Eine graue ABS-Gehäusehälfte einer Bohrmaschine ist wie in der Vorlage geneigt. Orangefarbene Stützgitter mit verbundenem Sockel und Querverbindungen tragen ihre Überhänge von unten."
+      "alt": "Eine orangefarbene ABS-Gehäusehälfte einer Bohrmaschine ist wie in der Vorlage geneigt. Graue Stützgitter mit verbundenem Sockel und Querverbindungen tragen ihre Überhänge von unten."
      },
      {
       "id": "dual-color",
       "label": "Zweifarbiges ABS",
-      "alt": "Grauer Außenring und orange Mitte bilden ein einziges zusammenhängendes ABS-Zahnrad."
+      "alt": "Ein orangefarbener Außenring und eine graue Mitte bilden ein einziges zusammenhängendes ABS-Zahnrad."
      }
     ]
    },
@@ -279,7 +279,7 @@ var PingModeCopy = {
     "benefit": "Ein Material · Eine Spule",
     "body": "Für kleinere Druckmengen, nur eine verfügbare Spule oder Aufträge ohne zusätzlichen Durchfluss durch gleichzeitige Zufuhr.",
     "limit": "",
-    "alt": "Eine Spule versorgt ein Bauteil aus einem einzigen Material."
+    "alt": "Eine orangefarbene Spule versorgt ein orangefarbenes Bauteil aus einem einzigen Material."
    },
    "three": {
     "name": "3 in 1",
@@ -287,7 +287,7 @@ var PingModeCopy = {
     "benefit": "Hauptmaterial-Durchfluss ×3 · Separate entfernbare Stützen",
     "body": "Drei Hauptfilamente versorgen gemeinsam das Bauteil. Ein viertes druckt separat die Stützen unter dem Überhang.",
     "limit": "",
-    "alt": "Drei anthrazitfarbene Hauptzuführungen vereinigen sich zu einer dickeren Linie mit ×3 und versorgen eine waagerecht liegende Fünfspeichenfelge. Eine separate vierte orangefarbene Zuführung versorgt Stützgitter unter Felgenrand und Speichen, verbunden durch einen gemeinsamen Sockel und Querverbindungen."
+    "alt": "Drei orangefarbene Hauptzuführungen vereinigen sich zu einer dickeren orangefarbenen Linie mit ×3 und versorgen eine waagerecht liegende orangefarbene Fünfspeichenfelge. Eine separate vierte graue Zuführung versorgt graue Stützgitter unter Felgenrand und Speichen, verbunden durch einen gemeinsamen Sockel und Querverbindungen."
    }
   }
  },
@@ -307,17 +307,17 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "Supports amovibles",
-      "alt": "Une demi-coque grise de perceuse est inclinée, sa cavité ouverte vers le haut. Des supports en treillis orange, reliés par une base commune et des traverses, soutiennent les surplombs sous le carter, la poignée et le pied."
+      "alt": "Une demi-coque orange de perceuse est inclinée, sa cavité ouverte vers le haut. Des supports en treillis gris, reliés par une base commune et des traverses, soutiennent les surplombs sous le carter, la poignée et le pied."
      },
      {
       "id": "dual-color",
       "label": "Pièce bicolore",
-      "alt": "La couronne grise et le centre orange sont unis en un seul engrenage bicolore."
+      "alt": "La couronne orange et le centre gris sont unis en un seul engrenage bicolore."
      },
      {
       "id": "dual-soft",
       "label": "Rigide + souple",
-      "alt": "La prise souple orange enveloppe le corps rigide gris et forme avec lui une poignée complète."
+      "alt": "La prise souple grise enveloppe le corps rigide orange et forme avec lui une poignée complète."
      }
     ]
    },
@@ -332,7 +332,7 @@ var PingModeCopy = {
      {
       "id": "cofeed",
       "label": "Débit ×2 · Vitesse ×2",
-      "alt": "Deux alimentations de même couleur fusionnent en une ligne plus épaisse marquée ×2 pour imprimer une pièce unicolore."
+      "alt": "Deux bobines orange du même matériau fusionnent en une ligne orange plus épaisse marquée ×2 pour imprimer une pièce orange."
      },
      {
       "id": "cofeed-gradient",
@@ -358,12 +358,12 @@ var PingModeCopy = {
      {
       "id": "dual-support",
       "label": "ABS + supports amovibles",
-      "alt": "Une demi-coque de perceuse en ABS gris est inclinée comme sur la référence. Des supports en treillis orange, reliés par une base commune et des traverses, soutiennent ses surplombs par-dessous."
+      "alt": "Une demi-coque de perceuse en ABS orange est inclinée comme sur la référence. Des supports en treillis gris, reliés par une base commune et des traverses, soutiennent ses surplombs par-dessous."
      },
      {
       "id": "dual-color",
       "label": "ABS bicolore",
-      "alt": "La couronne grise et le centre orange constituent un seul engrenage ABS bicolore."
+      "alt": "La couronne orange et le centre gris constituent un seul engrenage ABS bicolore."
      }
     ]
    },
@@ -373,7 +373,7 @@ var PingModeCopy = {
     "benefit": "Un matériau · Une bobine",
     "body": "Pour les petites impressions, une seule bobine disponible ou les travaux sans besoin du débit accru de la co-alimentation.",
     "limit": "",
-    "alt": "Une bobine alimente une pièce faite d’un seul matériau."
+    "alt": "Une bobine orange alimente une pièce orange faite d’un seul matériau."
    },
    "three": {
     "name": "3 in 1",
@@ -381,7 +381,7 @@ var PingModeCopy = {
     "benefit": "Débit du matériau principal ×3 · Supports amovibles séparés",
     "body": "Trois filaments principaux alimentent la pièce ensemble. Un quatrième imprime séparément les supports sous le surplomb.",
     "limit": "",
-    "alt": "Trois alimentations principales anthracite fusionnent en une ligne plus épaisse marquée ×3 pour alimenter une jante horizontale à cinq branches. Une quatrième alimentation orange indépendante fournit les supports en treillis sous le bord et les branches, reliés par une base commune et des traverses."
+    "alt": "Trois alimentations principales orange fusionnent en une ligne orange plus épaisse marquée ×3 pour alimenter une jante horizontale orange à cinq branches. Une quatrième alimentation grise indépendante fournit les supports en treillis gris sous le bord et les branches, reliés par une base commune et des traverses."
    }
   }
  }
@@ -412,8 +412,8 @@ function PingModeLang() {
 /* 只給 PING 廠牌區塊；其他廠牌回空字串（本頁目前只有 PING）。 */
 function PingModeHelpHtml(vendor) {
   if (vendor !== 'PING') return '';
+  /* Eric 2026-09-08：「認識列印模式」那行不要（頁籤本身已說明用途），不產 heading 節點。 */
   return '<section id="PingModeHelp" class="PingModeHelp">' +
-    '<p class="pmh-heading"></p>' +
     '<div class="pmh-modes" role="tablist"></div>' +
     '<div class="pmh-detail" role="region" aria-live="polite" aria-atomic="true">' +
       '<div class="pmh-copy">' +
@@ -466,8 +466,7 @@ function PingModeHelpRender() {
   for (k in over) mode[k] = over[k];
 
   root.lang = sel.lang || 'en';
-  root.setAttribute('aria-label', sel.heading);
-  root.querySelector('.pmh-heading').textContent = sel.heading;
+  root.setAttribute('aria-label', sel.heading);   /* heading 只留給輔助技術，不畫在畫面上（Eric 0908） */
   var tabs = root.querySelector('.pmh-modes');
   tabs.setAttribute('aria-label', sel.selectMode);
   tabs.querySelectorAll('.pmh-mode').forEach(function (b) {

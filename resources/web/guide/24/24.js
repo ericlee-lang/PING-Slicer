@@ -61,6 +61,15 @@ let PingSearchKeyword = '';
 const PING_VARIANT_SUFFIX = /\s*(單料頭|單噴頭|同進|3in1|關門)$/;
 function PingBaseModel(model) { return model.replace(PING_VARIANT_SUFFIX, ''); }
 
+/* PING 2026-09-08（Eric「機器圖再大一點、大概紅框這麼大」）：系列卡的機器圖改用 ../img/cards/<系列>.png——
+   由 profiles/PING/<系列>_cover.png 裁掉透明留白、統一 3:4 直式（270×360）產生（原 cover 是 600×600、機器只佔寬 36%，
+   contain 進卡片後只剩六成大）。18 張變體 cover 本來就是全透明佔位檔（1,476 B），所以一律用「系列名」對應、不用 cover 檔名。
+   onerror 退回 C++ 給的 cover 路徵，新增系列忘了產卡片圖也不會破圖。 */
+function PingCardImgHtml(series, cover) {
+	var card = '../img/cards/' + encodeURIComponent(series) + '.png';
+	return '<img src="' + card + '" onerror="this.onerror=null;this.src=' + "'" + String(cover).replace(/\\/g, '/').replace(/'/g, '%27') + "'" + ';" />';
+}
+
 // PING 2026-09-07（Eric 裁・回報中心 #99 Q3 甲）：**照片磚機不再列進本頁**。
 // 理由：「FD300／FF600／FF800 同進照片磚」不是使用者要挑的機器，是照片磚功能的內部載體
 // （64 個虛擬料槽＋零回抽），由照片磚工作室在載入時自己裝、自己切。列在這裡的後果就是 #99：
@@ -210,7 +219,7 @@ PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認�
 		{
 			let g=ModelHtml[key][series];
 			pArea.append('<div class="PrinterBlock" data-product-line="'+g.line+'" data-series="'+series+'">'+
-'	<div class="PImg"><img src="'+g.cover+'"  /></div>'+
+'	<div class="PImg">'+PingCardImgHtml(series, g.cover)+'</div>'+
 '	<div class="SeriesName">'+series+'</div>'+ g.rows +'</div>');
 		}
 	}
@@ -407,7 +416,7 @@ function FilterModelList(keyword) {
 		for (let series in ModelHtml[key]) {
 			let g = ModelHtml[key][series];
 			obj.append('<div class="PrinterBlock" data-product-line="' + g.line + '" data-series="' + series + '">' +
-				'	<div class="PImg"><img src="' + g.cover + '"  /></div>' +
+				'	<div class="PImg">' + PingCardImgHtml(series, g.cover) + '</div>' +
 				'	<div class="SeriesName">' + series + '</div>' + g.rows + '</div>');
 		}
 	}

@@ -18,8 +18,8 @@
   background: var(--pmh-paper);
   color: var(--pmh-ink);
   border-bottom: 1px solid var(--pmh-line);
-  margin: 6px 0 4px;
-  padding: 10px 0 0;
+  margin: 4px 0 2px;
+  padding: 4px 0 0;   /* 0908 第三輪：heading 已拿掉，頂部只留 4px */
   font-size: 14px;
   line-height: 1.65;
   text-align: left;
@@ -43,9 +43,9 @@
   justify-content: center;
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  min-height: 34px;
   margin: 0 0 -1px;
-  padding: 7px 5px;
+  padding: 5px 5px;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -72,18 +72,20 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 210px;
   align-items: center;
-  gap: 18px;
-  padding: 12px 0 14px;
+  gap: 16px;
+  padding: 8px 0 10px;
   /* Eric 2026-09-08：五個模式的說明區要同高，否則切頁時下方卡片被推動的量不同。
      做法＝圖框固定高：三圖／兩圖版每張圖 150px＋圖下標籤一行；單圖版 176px（＝150＋標籤列），
      再以 min-height 兜底，讓文字較長的語言也不會把區塊撐高。 */
-  min-height: 202px;
+  min-height: 150px;      /* 0908 第三輪：圖 150→104px，區塊 202→150px（含 8/10 內距） */
 }
 #PingModeHelp .pmh-detail[data-layout="applications"] {
   grid-template-columns: var(--pmh-copy-width) minmax(0, 1fr);
 }
 #PingModeHelp .pmh-detail[data-mode="closed"] {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* ABS 關門文字最多（材料註記＋範圍兩段）：文字欄放寬到約 1.9 倍，讓那兩段各一行，
+     區塊才能跟其他四個模式一樣停在 150px（0908 第三輪量測：1fr/1fr 時 193px、其餘 150px）。 */
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
 }
 #PingModeHelp .pmh-copy { min-width: 0; }
 #PingModeHelp .pmh-title {
@@ -112,7 +114,7 @@
   overflow-wrap: anywhere;
 }
 #PingModeHelp .pmh-limit {
-  margin: 7px 0 0;
+  margin: 5px 0 0;
   font-size: 13px;
   font-weight: 700;
   line-height: 1.6;
@@ -120,7 +122,7 @@
   overflow-wrap: anywhere;
 }
 #PingModeHelp .pmh-material-note {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   font-size: 12px;
   font-weight: 400;
   line-height: 1.65;
@@ -138,15 +140,15 @@
 #PingModeHelp .pmh-case img {
   display: block;
   width: 100%;
-  height: 150px;           /* 固定高（等高規則），寬隨欄位、object-fit 保比例 */
+  height: 104px;           /* 固定高（等高規則）；0908 第三輪 150→104，與下方機器卡（約 96px 圖）成比例 */
   object-fit: contain;
   background: var(--pmh-paper);
 }
 #PingModeHelp .pmh-case figcaption {
-  padding: 6px 2px 0;
+  padding: 4px 2px 0;
   color: var(--pmh-ink);
   text-align: center;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 400;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -154,7 +156,7 @@
 #PingModeHelp .pmh-single-art {
   display: block;
   width: 100%;
-  height: 176px;           /* ＝三圖版 150px 圖＋標籤列，五模式等高 */
+  height: 130px;           /* ＝三圖版 104px 圖＋標籤列 26px，五模式等高 */
   object-fit: contain;
   background: var(--pmh-paper);
 }

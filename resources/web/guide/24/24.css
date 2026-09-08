@@ -201,8 +201,8 @@
 .PrinterBlock
 {
 	display: grid;
-	grid-template-columns: 84px minmax(0, 1fr);
-	column-gap: 10px;
+	grid-template-columns: 96px minmax(0, 1fr);
+	column-gap: 8px;
 	align-items: start;
 	width: 226px;
 	text-align: left;
@@ -217,12 +217,12 @@
 	grid-row: 1 / span 20;   /* 跨右欄所有列＝與卡同高（列數上限 20，變體不會超過） */
 	align-self: stretch;
 	position: relative;
-	width: 84px;
+	width: 96px;             /* PING 0908 第三輪：84 → 96（Eric「機器圖再大一點」；配合去留白的 3:4 卡片圖，機器填滿卡高） */
 	height: auto;
-	min-height: 84px;
+	min-height: 96px;
 	padding: 0;
 	margin: 0;
-	background: #F5F5F5;
+	background: #FFFFFF;
 	border-radius: 3px 0 0 3px;
 }
 
@@ -232,7 +232,7 @@
 	left: 0; top: 0;
 	width: 100%;
 	height: 100%;
-	padding: 3px;
+	padding: 2px 2px 2px 3px;
 	box-sizing: border-box;
 	object-fit: contain;
 }
