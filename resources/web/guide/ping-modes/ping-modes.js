@@ -64,27 +64,6 @@ var PingModeCopy = {
      }
     ]
    },
-   "closed": {
-    "name": "ABS 關門",
-    "title": "ABS 關門模式",
-    "benefit": "雙料延伸・噴嘴 245°C",
-    "body": "沿用雙料設定並提高溫度，關門保溫有助減少翹曲。",
-    "materialNote": "暫無軟硬結合：兩進一出需共用 245°C，目前無適配此配置的軟料。",
-    "limit": "FD300 關門：Ø 200 mm；Pro 外罩機型：開關門不影響列印範圍。",
-    "alt": "ABS 關門沿用雙料的易拆支撐與雙色列印用途。",
-    "applications": [
-     {
-      "id": "dual-support",
-      "label": "ABS 主體＋易拆支撐",
-      "alt": "橘色 ABS 電鑽半邊外殼依參考角度斜放；灰色支撐格柵以連接底座與橫向連結，從下方托住外殼的懸空處。"
-     },
-     {
-      "id": "dual-color",
-      "label": "ABS 雙色列印",
-      "alt": "橘色外環與灰色中心直接相接，構成同一件 ABS 雙色齒輪。"
-     }
-    ]
-   },
    "single": {
     "name": "單料頭",
     "title": "單料頭模式",
@@ -155,27 +134,6 @@ var PingModeCopy = {
       "id": "photo",
       "label": "Photo tiles (in development)",
       "alt": "Photo tiles are in development. A photo becomes an upright printed tile, using color blending to reproduce the image."
-     }
-    ]
-   },
-   "closed": {
-    "name": "ABS / Enclosed",
-    "title": "ABS enclosed mode",
-    "benefit": "Dual material extension · Nozzle 245°C",
-    "body": "Use the dual material settings at a higher temperature. Closing the door retains heat and helps reduce warping.",
-    "materialNote": "No rigid + flexible option: this two-in/one-out setup shares 245°C, and no compatible flexible filament is currently available for it.",
-    "limit": "FD300, door closed: Ø 200 mm. Enclosed Pro models: opening or closing the door does not change the print area.",
-    "alt": "ABS enclosed mode uses the removable-support and two-color applications of dual material mode.",
-    "applications": [
-     {
-      "id": "dual-support",
-      "label": "ABS + removable supports",
-      "alt": "An orange ABS drill half-shell is tilted as in the reference. Gray support grids with a connected base and cross-ties carry its overhangs from below."
-     },
-     {
-      "id": "dual-color",
-      "label": "Two-color ABS",
-      "alt": "The orange outer ring and gray center form one continuous two-color ABS gear."
      }
     ]
    },
@@ -252,27 +210,6 @@ var PingModeCopy = {
      }
     ]
    },
-   "closed": {
-    "name": "ABS / Geschlossen",
-    "title": "ABS bei geschlossener Tür",
-    "benefit": "Erweiterung des Zweimaterialmodus · Düse 245°C",
-    "body": "Die Einstellungen des Zweimaterialmodus werden mit höherer Temperatur genutzt. Die geschlossene Tür hält Wärme und verringert Verzug.",
-    "materialNote": "Keine Hart-Flexibel-Kombination: Beide Zuführungen dieses 2-in-1-Ausgang-Systems nutzen 245°C. Dafür ist derzeit kein passendes flexibles Filament verfügbar.",
-    "limit": "FD300 mit geschlossener Tür: Ø 200 mm. Pro-Modelle mit Gehäuse: Der Druckbereich bleibt beim Öffnen und Schließen unverändert.",
-    "alt": "Der ABS-Modus übernimmt entfernbare Stützen und zweifarbige Bauteile aus dem Zweimaterialmodus.",
-    "applications": [
-     {
-      "id": "dual-support",
-      "label": "ABS + entfernbare Stützen",
-      "alt": "Eine orangefarbene ABS-Gehäusehälfte einer Bohrmaschine ist wie in der Vorlage geneigt. Graue Stützgitter mit verbundenem Sockel und Querverbindungen tragen ihre Überhänge von unten."
-     },
-     {
-      "id": "dual-color",
-      "label": "Zweifarbiges ABS",
-      "alt": "Ein orangefarbener Außenring und eine graue Mitte bilden ein einziges zusammenhängendes ABS-Zahnrad."
-     }
-    ]
-   },
    "single": {
     "name": "Ein Material",
     "title": "Drucken mit einem Material",
@@ -346,27 +283,6 @@ var PingModeCopy = {
      }
     ]
    },
-   "closed": {
-    "name": "ABS / Fermé",
-    "title": "ABS, porte fermée",
-    "benefit": "Extension du mode à deux matériaux · Buse 245°C",
-    "body": "Les réglages du mode à deux matériaux sont repris à une température plus élevée. Fermer la porte conserve la chaleur et réduit le gauchissement.",
-    "materialNote": "Pas de combinaison rigide + souple : les deux entrées partagent une sortie à 245°C, sans filament souple actuellement compatible avec cette configuration.",
-    "limit": "FD300, porte fermée : Ø 200 mm. Modèles Pro avec enceinte : ouvrir ou fermer la porte ne modifie pas la zone d’impression.",
-    "alt": "Le mode ABS reprend les supports amovibles et l’impression bicolore du mode à deux matériaux.",
-    "applications": [
-     {
-      "id": "dual-support",
-      "label": "ABS + supports amovibles",
-      "alt": "Une demi-coque de perceuse en ABS orange est inclinée comme sur la référence. Des supports en treillis gris, reliés par une base commune et des traverses, soutiennent ses surplombs par-dessous."
-     },
-     {
-      "id": "dual-color",
-      "label": "ABS bicolore",
-      "alt": "La couronne orange et le centre gris constituent un seul engrenage ABS bicolore."
-     }
-    ]
-   },
    "single": {
     "name": "Un matériau",
     "title": "Impression avec un matériau",
@@ -387,7 +303,7 @@ var PingModeCopy = {
  }
 };
 
-var PingModeIds = ['dual', 'cofeed', 'closed', 'single', 'three'];
+var PingModeIds = ['dual', 'cofeed', 'single', 'three'];   /* Eric 0908：ABS 關門頁籤拿掉（它是 FD300 關門的範圔限制，不是列印模式） */
 var PingModeArt = {
   'dual-support': '../ping-modes/dual-support.png',
   'dual-color': '../ping-modes/dual-color.png',

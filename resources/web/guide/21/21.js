@@ -102,7 +102,11 @@ function PingBaseLabel(series) {
 // 例：FD300 → 雙料｜FD300 同進 → 同進｜FF800 3in1 → 3in1｜FD300 同進照片磚 → 同進照片磚
 function PingVariantLabel(model, series) {
 	let s = model.slice(series.length).trim();
-	return s === '' ? PingBaseLabel(series) : s;
+	if (s === '') return PingBaseLabel(series);
+	// PING 2026-09-08（Eric）：「ABS 關門」不是一個列印模式，只是 FD300／FP300 關門時列印範圍縮到 Ø200 的限制
+	// ⇒ 說明區的 ABS 頁籤拿掉，改在變體列旁註明用途。
+	if (s === '關門') return '關門（ABS）';
+	return s;
 }
 
 function ProductLineOf(vendor, model) {

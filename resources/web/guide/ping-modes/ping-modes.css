@@ -34,7 +34,7 @@
 }
 #PingModeHelp .pmh-modes {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));   /* 0908 第四輪：ABS 關門頁籤拿掉，剩四個 */
   border-bottom: 1px solid var(--pmh-line);
 }
 #PingModeHelp .pmh-mode {
@@ -81,11 +81,6 @@
 }
 #PingModeHelp .pmh-detail[data-layout="applications"] {
   grid-template-columns: var(--pmh-copy-width) minmax(0, 1fr);
-}
-#PingModeHelp .pmh-detail[data-mode="closed"] {
-  /* ABS 關門文字最多（材料註記＋範圍兩段）：文字欄放寬到約 1.9 倍，讓那兩段各一行，
-     區塊才能跟其他四個模式一樣停在 150px（0908 第三輪量測：1fr/1fr 時 193px、其餘 150px）。 */
-  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
 }
 #PingModeHelp .pmh-copy { min-width: 0; }
 #PingModeHelp .pmh-title {
