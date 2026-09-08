@@ -3,7 +3,7 @@
 
 // PING 照片磚「每層循環洗料塔」（WT 線，2026-09-08；計畫正本＝設計提案/照片磚循環洗料塔_20260908_01a07fef/CLAUDE_PLAN.md）
 //
-// 一份資料驅動三件事：塔路徑（真實 offset 圈）、寫出順序（塔段配方→離塔→模型純 E0 先其餘保序）、用料／時間統計
+// 一份資料驅動三件事：塔路徑（真實 offset 圈）、寫出順序（塔段配方由深到淺→離塔→模型段由淺到深）、用料／時間統計
 // （擠出走 GCode::extrude_path ⇒ 預覽與統計吃的就是這批 G1）。離線對照答案＝照片磚_循環洗料塔/cycle_core.py（fixture 12/12）。
 //
 // 料路 ID：E0＝第 1 路最淺（雙料 M6051 S1／四料 A100）；塔內順序由外往內＝E(n-1)…E0；換料只在圈界。
@@ -32,7 +32,7 @@ struct Settings {
     bool                enabled   = false;
     std::string         mode;                 // "dual" | "quad"
     std::vector<int>    laps;                 // 由外往內每段圈數：dual {1,2}＝E1,E0；quad {1,1,1,2}＝E3,E2,E1,E0（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4）
-    float               size_mm   = 0.f;      // 0＝自動：44 × (口徑/0.4)
+    float               size_mm   = 0.f;      // 0＝預設 25 mm 固定（Eric 2026-09-08；原式 44 × 口徑/0.4 已停用）
     float               gap_mm    = 15.f;     // 塔與模型外緣距離
     float               brim_mm   = 8.f;      // 首層外擴 brim（用第一段的料）
     int                 channels() const { return (int) laps.size(); }
@@ -63,6 +63,11 @@ std::unique_ptr<class Tower> create(const Print& print, std::string& why);
 // 純料配方命令（給 ToolOrdering／GCode 共用）
 const char* pure_recipe(const std::string& mode, const std::string& channel);
 bool        is_pure_light_recipe(const std::string& cmd);   // 雙料 S==1；四料 A==100 其餘 0
+// 配方的「亮度分數」0..1（1＝最淺、0＝最深）。Eric 2026-09-09 裁「丙」：
+//   雙料＝S（E0 佔比）；四料＝(A×3 + B×2 + C×1 + D×0) / 300
+// ＝把塔自己就在用的「E0 最淺、E3 最深」假設一路用到混合配方上，不必另取線材色。
+// 解析不出來回 -1（呼叫端據此維持原生順序，不要當成最深）。
+double      light_score(const std::string& cmd);
 
 // 讀某台 print 是否任何物件開了循環塔（ToolOrdering 用）
 bool enabled_for(const Print& print);

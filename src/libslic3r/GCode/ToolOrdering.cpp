@@ -535,7 +535,7 @@ ToolOrdering::ToolOrdering(const Print &print, unsigned int first_extruder, bool
     else
         this->handle_dontcare_extruder(first_extruder);
 
-    this->ping_reorder_for_cycle_tower(print);   // PING WT：照片磚循環塔模式下，純 E0 先其餘保序（未開＝不動）
+    this->ping_reorder_for_cycle_tower(print);   // PING WT：照片磚循環塔模式下，模型段淺→深完全排序（未開＝不動）
 
     this->collect_extruder_statistics(prime_multi_material);
 
@@ -551,19 +551,39 @@ void ToolOrdering::ping_reorder_for_cycle_tower(const Print& print)
         BOOST_LOG_TRIVIAL(warning) << "PING photo-tile cycle tower: palette not usable, keep native tool order: " << reason;
         return;
     }
-    std::set<unsigned int> pure;
-    for (const auto& kv : palette)
-        if (PingCycle::is_pure_light_recipe(kv.second))
-            pure.insert((unsigned int) kv.first);
-    if (pure.empty())
+    // 模型段一律「淺→深」完全排序（Eric 2026-09-09 裁「丙」）。
+    // 為什麼不是原本的「純 E0 搬到最前、其餘保序」：塔的最後一段固定是純 E0，出塔那一刻噴頭是乾淨的白；
+    // 但原生順序是 Orca 的省換料蛇行（一層淺→深、下一層深→淺），實測 333 層只有 24 層（7.2%）碰巧是淺→深，
+    // **有 65 層剛把噴頭洗成純白、模型第一段就上純黑** ⇒ 那趟洗料整個白費。
+    // 排成淺→深之後兩個接縫都同色：出塔純白→模型最淺；模型最深→下一層塔的第一段（固定純最深）。
+    // 原生那個「層尾接下一層層首」的省換料優化在循環塔模式下本來就作廢（層間一定經過塔），沒有損失。
+    std::map<unsigned int, double> score;
+    for (const auto& kv : palette) {
+        const double s = PingCycle::light_score(kv.second);
+        if (s >= 0.)
+            score[(unsigned int) kv.first] = s;
+    }
+    if (score.size() < 2)
         return;
     // 此時 extruders 已是 0-based（handle_dontcare 尾段已 reindex）
     for (LayerTools& lt : m_layer_tools) {
-        std::vector<unsigned int> first, rest;
-        for (unsigned int e : lt.extruders) (pure.count(e) ? first : rest).push_back(e);
-        if (first.empty()) continue;
-        first.insert(first.end(), rest.begin(), rest.end());
-        lt.extruders = std::move(first);
+        // 只重排「認得的」那幾格，不在 palette 裡的（洗料塔／idle purge 之類插進來的）留在原位不動——
+        // 把它們一律推到最後會改到本功能範圍外的行為。
+        std::vector<size_t> slots;
+        for (size_t i = 0; i < lt.extruders.size(); ++i)
+            if (score.count(lt.extruders[i]))
+                slots.push_back(i);
+        if (slots.size() < 2)
+            continue;
+        std::vector<unsigned int> known;
+        known.reserve(slots.size());
+        for (size_t i : slots)
+            known.push_back(lt.extruders[i]);
+        // stable_sort：亮度同分維持原生相對順序（四料 A 佔比相同的兩支不會被亂動）
+        std::stable_sort(known.begin(), known.end(),
+                         [&score](unsigned int a, unsigned int b) { return score.at(a) > score.at(b); });
+        for (size_t k = 0; k < slots.size(); ++k)
+            lt.extruders[slots[k]] = known[k];
     }
 }
 

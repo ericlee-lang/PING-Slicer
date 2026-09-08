@@ -64,6 +64,22 @@ bool is_pure_light_recipe(const std::string& cmd)
     return false;
 }
 
+double light_score(const std::string& cmd)
+{
+    if (boost::starts_with(cmd, "M6051")) {
+        double s = -1.;
+        return read_param(cmd, 'S', s) ? s : -1.;
+    }
+    if (boost::starts_with(cmd, "M6052")) {
+        double a = -1., b = -1., c = -1., d = -1.;
+        if (!read_param(cmd, 'A', a) || !read_param(cmd, 'B', b) || !read_param(cmd, 'C', c) || !read_param(cmd, 'D', d))
+            return -1.;
+        // 純 A100 → 1.0、純 D100 → 0.0，與 is_pure_light_recipe 的判定相容。
+        return (a * 3. + b * 2. + c * 1. + d * 0.) / 300.;
+    }
+    return -1.;
+}
+
 bool enabled_for(const Print& print)
 {
     for (const PrintObject* obj : print.objects())
@@ -134,7 +150,8 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     const float nozzle = (float) print.config().nozzle_diameter.get_at(0);
     // 沒帶尺寸時的預設＝25 mm 固定（Eric 2026-09-08「固定 25」）。原式 44×口徑/0.4 的用意是怕大口徑讓塔內路徑斷掉，
     // 但 照片磚_循環洗料塔/size_sweep.py 實算：路徑連續的最小邊長 0.4／0.6＝8.5 mm、1.0＝12.5 mm ⇒ 25 mm 對全口徑都有兩倍餘裕，
-    // 且 25 mm 可容 0.4 25 圈／0.6 18 圈／1.0 10 圈（現行 3～5 圈）。等比放大會讓 1.0 變 110 mm，圓床根本放不下。
+    // 且 25 mm 可容 0.4 25 圈／0.6 18 圈／1.0 10 圈（現行 3～5 圈）。等比放大真正的代價是佔床：0.6 變 66 mm ⇒ 100 mm 磚在
+    // FD300（Ø300）上，塔含 brim 的最遠角算出來是半徑 152.9 mm、超過床的 150；固定 25 mm 降到 108.3 mm。
     // 真的放不下或圈數過多時，geometry_for() 仍會把「圈斷裂／空腔封閉」報成 SlicingError，不會默默印出爛塔。
     const float size   = st.size_mm > 0.f ? st.size_mm : 25.f;
 
