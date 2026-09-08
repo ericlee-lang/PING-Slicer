@@ -8,6 +8,7 @@
 #include "../Exception.hpp"
 #include <boost/log/trivial.hpp>
 #include <boost/algorithm/string.hpp>
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 
@@ -283,18 +284,23 @@ const LayerGeometry& Tower::geometry_for(float layer_height, bool first_layer)
     for (int i = 0; i < n; ++i) {
         const double inset = g.width / 2. + i * g.spacing;
         Polygons rings = offset(m_outline, -scale_(inset), ClipperLib::jtRound, arc_tol());
-        if (rings.empty()) { g.problem = "lap " + std::to_string(i + 1) + " vanishes at inset " + std::to_string(inset) + " mm"; break; }
-        if (rings.size() != 1) { g.problem = "lap " + std::to_string(i + 1) + " splits into " + std::to_string(rings.size()) + " rings at inset " + std::to_string(inset) + " mm"; break; }
+        if (rings.empty()) { g.problem = "ring at inset " + std::to_string(inset) + " mm vanishes"; break; }
+        if (rings.size() != 1) { g.problem = "ring at inset " + std::to_string(inset) + " mm splits into " + std::to_string(rings.size()) + " rings"; break; }
         g.loops.push_back(ring_from_seam(rings.front(), anchor));
         g.loops.back().simplify(scale_(kSimplifyMm));
     }
+    // 🔴 圈序反轉＝loops[0] 變成**最內圈**（Eric 2026-09-09：「由內先畫深色、最外部為淺色，不會在垂直方向看到顏色變化」）。
+    // 上面是照 inset 由小到大生的（＝由外往內）；反轉之後，第 1 段（最深）落在最內圈、最後一段（純 E0 最淺）落在最外圈。
+    // 列印順序完全沒變，仍是「深→淺」——只是現在等於由內往外走 ⇒ 塔的外皮永遠是最淺的那一路，垂直方向看不到顏色變化。
+    // 附帶好處：離塔時人在最外圈，不必再橫越已印的圈。
+    std::reverse(g.loops.begin(), g.loops.end());
     if (g.problem.empty()) {
         Polygons cavity = offset(m_outline, -scale_(g.width / 2. + (n - 1) * g.spacing + g.width / 2.), ClipperLib::jtRound, arc_tol());
         if (cavity.size() != 1) g.problem = "central cavity is closed or split";
     }
     if (g.problem.empty() && first_layer && m_settings.brim_mm > 0.f) {
         const int nb = (int) std::ceil(m_settings.brim_mm / g.spacing);
-        for (int k = nb; k >= 1; --k) {                  // 由最外往內，接到塔的第 1 圈
+        for (int k = 1; k <= nb; ++k) {                  // 由內往外：接在**最後一段（最淺）的最外圈**之後繼續往外長
             Polygons rings = offset(m_outline, scale_(g.width / 2. + (k - 1) * g.spacing), ClipperLib::jtRound, arc_tol());
             if (rings.size() != 1) { g.problem = "brim ring " + std::to_string(k) + " is not a single ring"; break; }
             g.brim_loops.push_back(ring_from_seam(rings.front(), anchor));

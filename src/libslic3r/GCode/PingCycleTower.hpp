@@ -6,7 +6,8 @@
 // 一份資料驅動三件事：塔路徑（真實 offset 圈）、寫出順序（塔段配方由深到淺→離塔→模型段由淺到深）、用料／時間統計
 // （擠出走 GCode::extrude_path ⇒ 預覽與統計吃的就是這批 G1）。離線對照答案＝照片磚_循環洗料塔/cycle_core.py（fixture 12/12）。
 //
-// 料路 ID：E0＝第 1 路最淺（雙料 M6051 S1／四料 A100）；塔內順序由外往內＝E(n-1)…E0；換料只在圈界。
+// 料路 ID：E0＝第 1 路最淺（雙料 M6051 S1／四料 A100）；塔內順序**由內往外**＝E(n-1)…E0；換料只在圈界。
+// ⇒ 最深的那一路在最內圈、最淺的 E0 在最外圈（Eric 2026-09-09），塔的外皮與 brim 統一是最淺色、垂直方向無色變。
 // 純 E0 判定看**配方權重**（雙料 S==1；四料 A==100 其餘 0），不看預覽色。
 //
 // 設定載體＝PrintObjectConfig 的 ping_pt_cycle*（工作室寫進 3MF 物件層 metadata；未開＝本檔完全不介入，行為與舊版逐位相同）。
@@ -39,7 +40,7 @@ struct Settings {
     int                 total_laps() const { int n = 0; for (int l : laps) n += l; return n; }
 };
 
-// 一個材料段：由外往內連續幾圈同一純料配方
+// 一個材料段：由內往外連續幾圈同一純料配方（loops[0]＝最內圈）
 struct Stage {
     std::string channel;      // "E3"…"E0"
     std::string recipe_cmd;   // "M6051 S1" | "M6052 A100 B0 C0 D0" …
@@ -52,8 +53,8 @@ struct LayerGeometry {
     float                 width        = 0.f;   // 線寬
     float                 spacing      = 0.f;   // 線道間距（Flow）
     double                mm3_per_mm   = 0.;
-    std::vector<Polyline> loops;                // 由外往內，每圈閉合（首尾同點），從接縫起
-    std::vector<Polyline> brim_loops;           // 首層用：由內往外的外擴圈（第一段的料）
+    std::vector<Polyline> loops;                // **由內往外**，每圈閉合（首尾同點），從接縫起
+    std::vector<Polyline> brim_loops;           // 首層用：由內往外的外擴圈（接在**最後一段＝最淺**之後）
     std::string           problem;              // 非空＝幾何不合法（分裂／消失／空腔封閉）
 };
 

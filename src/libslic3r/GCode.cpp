@@ -4278,7 +4278,8 @@ inline std::string get_instance_name(const PrintObject *object, const PrintInsta
 }
 
 // ── PING 照片磚循環洗料塔：每層一趟 ────────────────────────────────────────────
-// 順序（計畫 §5）：塔最外圈起，E(n-1)…E0 各段連續繞圈，圈界才切純料配方；E0 最內圈完成後回抽離塔；
+// 順序（計畫 §5＋Eric 2026-09-09 圈序反向）：塔**最內圈**起，E(n-1)…E0 各段連續繞圈，圈界才切純料配方；
+// E0 走到**最外圈**（首層再接 brim 繼續往外）後回抽離塔 ⇒ 列印順序仍是深→淺，但外皮永遠是最淺那一路；
 // 離塔後**一律明寫**本層第一段模型配方（原生工具 ID 沒變／甚至就是 E0 也寫，writer 快取不可省）。
 // 擠出走 extrude_path ⇒ 預覽、時間與用料吃的就是這批 G1；配方命令直接寫 M605x（不寫虛擬 T 讓後處理猜）。
 std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, coordf_t print_z)
@@ -4314,11 +4315,13 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
     for (size_t si = 0; si < stages.size(); ++si) {
         const PingCycle::Stage& st = stages[si];
         gcode += st.recipe_cmd + " ; PING photo-tile cycle " + st.channel + "\n";
-        if (si == 0)
-            for (const Polyline& b : g.brim_loops)          // 首層 brim 用第一段的料、由外往內接到第 1 圈
-                extrude_ring(b, "PING cycle tower brim");
         for (int lap = st.first_lap; lap <= st.last_lap; ++lap)
             extrude_ring(g.loops[lap - 1], "PING cycle tower");
+        // 首層 brim 接在**最後一段（純 E0 最淺）之後**、由內往外長（Eric 2026-09-09 圈序反向後的必然結果）：
+        // brim 在塔身之外，若還用第一段的深色，塔底就會有一圈深色 ⇒ 正是「垂直方向看到顏色變化」。
+        if (si + 1 == stages.size())
+            for (const Polyline& b : g.brim_loops)
+                extrude_ring(b, "PING cycle tower brim");
     }
     // 離塔：回抽（含機型設定的抬升），下一段模型 travel 由既有 travel_to 帶避讓
     gcode += this->retract();
