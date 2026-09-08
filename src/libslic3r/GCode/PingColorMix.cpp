@@ -469,6 +469,17 @@ int build_photo_tile_gcode(const std::string& gcode,
     int count = 0;
     size_t start = 0;
     const size_t N = gcode.size();
+    /* PING 2026-09-08（Eric 對照印 `_NO_RESEND_SETRETRACT` 證實；交辦單 §8/§12）：
+       Klipper 上游 firmware_retraction 的 SET_RETRACTION 會把 is_retracted 清成 False，而 G11 只在 True 才回吐。
+       照片磚每次換色的序列是 G10 → M6051 → 線材起始 G-code 重發 SET_RETRACTION → G11 ⇒ 2,200 次換色的 G11 全部落空，
+       兩支各 1.3 mm 沒回吐，下一段先補 2.6 mm 才出料＝短格子缺料（Eric 現場看到「回抽後移到下一點沒回吐」）。
+       修法＝**回抽態遇到 SET_RETRACTION 先暫存，等 G11 原樣輸出後再吐出**：回吐用的是 G10 當下生效的長度（本來就該如此），
+       新值在回吐之後才生效。只在本 pass（palette 有效＝照片磚）內做；一般雙料換料的同型問題交韌體補丁（Klipper 線）。 */
+    bool        retracted = false;          // 看到 G10 起、G11 止
+    std::string held_set_retraction;        // 回抽態暫存的 SET_RETRACTION 整行（同一段只留最後一行）
+    auto cmd_ends_at = [&gcode](size_t p, size_t b) {
+        return p == b || gcode[p] == ' ' || gcode[p] == '\t' || gcode[p] == ';' || gcode[p] == '\r';
+    };
     while (true) {
         size_t nl = gcode.find('\n', start);
         const size_t line_end = (nl == std::string::npos) ? N : nl;
@@ -477,6 +488,20 @@ int build_photo_tile_gcode(const std::string& gcode,
         if (b > a && gcode[b - 1] == '\r') --b;
         while (a < b && (gcode[a] == ' ' || gcode[a] == '\t')) ++a;
         bool replaced = false;
+        // ── 回抽狀態機（只認行首指令）
+        bool skip_line = false, flush_held_after = false;
+        if (b - a >= 3 && gcode[a] == 'G' && gcode[a + 1] == '1' && (gcode[a + 2] == '0' || gcode[a + 2] == '1') && cmd_ends_at(a + 3, b)) {
+            if (gcode[a + 2] == '0') retracted = true;
+            else { retracted = false; flush_held_after = !held_set_retraction.empty(); }
+        } else if (retracted && b - a >= 14 && gcode.compare(a, 14, "SET_RETRACTION") == 0 && cmd_ends_at(a + 14, b)) {
+            held_set_retraction.assign(gcode, start, line_end - start);   // 保留原行（含前導空白／尾 \r）
+            skip_line = true;
+        }
+        if (skip_line) {
+            if (nl == std::string::npos) break;
+            start = nl + 1;
+            continue;
+        }
         // 「T＋純數字」開頭、數字後是行尾/空白/註解 → 才是換料指令
         //（M104 T0 這類行首是 M；行中 T 參數永遠不會被看到）
         if (b - a >= 2 && gcode[a] == 'T' && std::isdigit((unsigned char)gcode[a + 1])) {
@@ -499,9 +524,18 @@ int build_photo_tile_gcode(const std::string& gcode,
             }
         }
         if (!replaced) out.append(gcode, start, line_end - start);
+        if (flush_held_after) {                 // G11 已原樣輸出 → 現在才吐出被延後的 SET_RETRACTION
+            out.push_back('\n');
+            out += held_set_retraction;
+            held_set_retraction.clear();
+        }
         if (nl == std::string::npos) break;
         out.push_back('\n');
         start = nl + 1;
+    }
+    if (!held_set_retraction.empty()) {          // 檔尾仍在回抽態（末段 G10 無 G11）：照樣吐出，不吞掉使用者的設定
+        out.push_back('\n');
+        out += held_set_retraction;
     }
     return count;
 }
