@@ -128,7 +128,7 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
 
 ### 8.1 循環洗料塔（WT 線 2026-09-08，additive；schema 仍 1）
 
-- request 多一欄 `cycle`：`{enabled, laps:"2,4"|"2,2,2,4", sizeMm, gapMm, brimMm}`；**缺席＝關**（3MF／請求字串與舊版位元組全等）。宿主 `PhotoTileEngineRequest::cycle*` 只在開啟時寫入。
+- request 多一欄 `cycle`：`{enabled, laps:"1,2"|"1,1,1,2", sizeMm, gapMm, brimMm}`（圈數預設 Eric 2026-09-08 第 4 階段裁；原 2,4／2,2,2,4 真切塔比模型本體重 3 倍）；**缺席＝關**（3MF／請求字串與舊版位元組全等）。宿主 `PhotoTileEngineRequest::cycle*` 只在開啟時寫入。
 - 開啟時引擎：①不再產舊固定比洗料柱零件 ②`Metadata/model_settings.config` 的照片磚 `<object>` 多六個 metadata 鍵 `ping_pt_cycle=1`／`ping_pt_cycle_mode`／`ping_pt_cycle_laps`／`ping_pt_cycle_size`／`ping_pt_cycle_gap`／`ping_pt_cycle_brim`（bbs_3mf 匯入→`ModelObject::config`→`PrintObjectConfig`，另存重開都在）③`ping_phototile.json.params.cycle` 記同一組值。
 - 切片端：`libslic3r/GCode/PingCycleTower.*` 讀物件設定，`ToolOrdering::ping_reorder_for_cycle_tower` 純 E0 先其餘保序，`GCode::ping_cycle_tower_layer` 層首插塔（真實 offset 圈、配方命令 M605x 直寫、離塔後明寫第一段模型配方）。離線對照答案＝`照片磚_循環洗料塔/cycle_core.py`。
 

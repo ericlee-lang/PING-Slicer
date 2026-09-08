@@ -31,7 +31,7 @@ namespace PingCycle {
 struct Settings {
     bool                enabled   = false;
     std::string         mode;                 // "dual" | "quad"
-    std::vector<int>    laps;                 // 由外往內每段圈數：dual {2,4}＝E1,E0；quad {2,2,2,4}＝E3,E2,E1,E0
+    std::vector<int>    laps;                 // 由外往內每段圈數：dual {1,2}＝E1,E0；quad {1,1,1,2}＝E3,E2,E1,E0（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4）
     float               size_mm   = 0.f;      // 0＝自動：44 × (口徑/0.4)
     float               gap_mm    = 15.f;     // 塔與模型外緣距離
     float               brim_mm   = 8.f;      // 首層外擴 brim（用第一段的料）

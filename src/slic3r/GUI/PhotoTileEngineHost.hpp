@@ -47,7 +47,7 @@ struct PhotoTileEngineRequest
     bool        pillar = true;
     int         pillar_xy_mm = 25;
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。**只在開啟時寫進請求**
-       ⇒ 不帶＝與舊請求同字（黃金案基準不受影響）。cycle_laps "2,4"｜"2,2,2,4"，空＝引擎依模式預設。 */
+       ⇒ 不帶＝與舊請求同字（黃金案基準不受影響）。cycle_laps "1,2"｜"1,1,1,2"（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4），空＝引擎依模式預設。 */
     bool        cycle = false;
     std::string cycle_laps;
     double      cycle_size_mm = 0.0, cycle_gap_mm = 15.0, cycle_brim_mm = 8.0;

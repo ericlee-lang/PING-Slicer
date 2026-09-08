@@ -1569,7 +1569,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("ping_pt_cycle_laps", coString);
     def->label = L("PING cycle tower laps");
     def->category = L("PING");
-    def->tooltip = L("Laps per channel from outside to inside, e.g. 2,4 (E1,E0) or 2,2,2,4 (E3,E2,E1,E0).");
+    def->tooltip = L("Laps per channel from outside to inside, e.g. 1,2 (E1,E0) or 1,1,1,2 (E3,E2,E1,E0).");
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionString(""));
 

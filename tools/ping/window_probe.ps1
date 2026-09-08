@@ -16,7 +16,8 @@
 param(
   [int]$TargetPid = 0,
   [string]$NameLike = 'ping-slicer',
-  [string]$Capture = ''
+  [string]$Capture = '',
+  [string]$Hwnd = ''             # 0908 補：-Capture 指定要抓哪個視窗（0x 十六進位）；空＝第一個列到的（app 剛起時第一個常是 160×28 的隱藏視窗）
 )
 
 Add-Type @"
@@ -62,6 +63,7 @@ foreach ($p in $pids) {
   }
 }
 
+if ($Hwnd) { $firstHwnd = [IntPtr][Convert]::ToInt64($Hwnd.Replace('0x','').Replace('0X',''), 16) }
 if ($Capture -and $firstHwnd -ne [IntPtr]::Zero) {
   Add-Type -AssemblyName System.Drawing
   $r = New-Object PingWinProbe+RECT

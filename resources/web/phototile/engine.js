@@ -105,10 +105,10 @@ function normalizeRequest(req){
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
        開啟＝不再產舊固定比洗料柱（Eric 裁 3），3MF 物件層寫 ping_pt_cycle* 六鍵給切片器（PrintObjectConfig）。
-       laps 字串 "2,4"｜"2,2,2,4"（由外往內＝E(n-1)…E0），長度不符或空＝依模式預設。 */
+       laps 字串 "1,2"｜"1,1,1,2"（由外往內＝E(n-1)…E0），長度不符或空＝依模式預設（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4）。 */
     cycle: (function(c){
       if (!c || !c.enabled) return { enabled:false };
-      const def = mode === 'quad' ? [2,2,2,4] : [2,4];
+      const def = mode === 'quad' ? [1,1,1,2] : [1,2];
       let laps = String(c.laps || '').split(/[,; ]+/).filter(Boolean).map(n=>Math.max(1, Math.round(Number(n)||0)));
       if (laps.length !== def.length || laps.some(n=>!Number.isFinite(n)||n<1)) laps = def;
       return { enabled:true, laps, sizeMm: Math.max(0, Number(c.sizeMm)||0),

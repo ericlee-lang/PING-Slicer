@@ -85,6 +85,7 @@ if ($ClickX -ge 0 -and $ClickY -ge 0) {
   $dn = $(if ($RightClick) { [PingUiDrive]::RIGHTDOWN } else { [PingUiDrive]::LEFTDOWN })
   $up = $(if ($RightClick) { [PingUiDrive]::RIGHTUP }   else { [PingUiDrive]::LEFTUP })
   [PingUiDrive]::mouse_event($dn, 0, 0, 0, [UIntPtr]::Zero)
+  Start-Sleep -Milliseconds 30      # 0908 補：按下與放開之間留 30 ms，wx 自繪按鈕偶發吃不到零間隔的 down/up
   [PingUiDrive]::mouse_event($up, 0, 0, 0, [UIntPtr]::Zero)
   if ($Double) {
     Start-Sleep -Milliseconds 80
