@@ -311,9 +311,8 @@
       </details>
     </div>
     <div class="disclaim">
-      螢幕模擬僅為近似，實際顏色以實品為準。<br>
-      照片立起來印、雙料混比出色階——正面實色平整、色階邊界＝層線（銳利），
-      換色過渡藏在磚體後方（厚度＝換色空間，混比改變有切換距離、做不出銳利邊）。
+      <!-- 2026-09-08 Eric 打叉這段技術說明（不太有用）⇒ 只留第一句：那是 ping-ux 七律#6 的「誠實近似、明說侷限」 -->
+      螢幕模擬僅為近似，實際顏色以實品為準。
     </div>
   </section>
 </main>
@@ -932,7 +931,8 @@ window.PINGPhotoTile={
      動作在哪、回饋在哪（FBK）。ok＝已存到哪；否則 message 是取消／失敗的原因。 */
   aiSaved(r){
     const st=document.getElementById('aiSaveStat'); if(!st) return;
-    if(r && r.ok){ st.textContent='已存到 '+(r.path||''); st.classList.remove('warn'); }
+    /* 2026-09-08 Eric 打叉「已存到 D:\\…長路徑」⇒ 回饋留一個詞，路徑放 tooltip（回饋要有，但不佔版面）。 */
+    if(r && r.ok){ st.textContent='已另存'; st.title=r.path||''; st.classList.remove('warn'); }
     else { st.textContent=(r && r.message) ? r.message : '未存檔'; st.classList.toggle('warn', !!(r && r.message && /失敗/.test(r.message))); }
   },
   /* ── 2026-08-15：宿主告知「使用者已加入哪些照片磚機」──────────────────
@@ -945,6 +945,7 @@ window.PINGPhotoTile={
   setMachineCapability(cap){
     machineCap = (cap && typeof cap === 'object') ? cap : null;
     applyFixedModeFromHost();   /* 甲案（2026-09-08）：從同進機進來就照那台定料數 */
+    applyNozzleFromHost();      /* 2026-09-08：口徑跟進來時機器的噴嘴（Eric：「口徑可否依照機器選擇的口徑自動變化」） */
     syncModeAvailability();
   },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
@@ -1209,6 +1210,20 @@ function applyFixedModeFromHost(){
     renderSlots(); simulate();
   }
   if(typeof ptRender==='function') ptRender();   // 款式清單跟著料數換
+}
+/* Eric 2026-09-08：「四料照片磚的口徑可否依照機器選擇的口徑自動變化呢？」⇒ 宿主送 currentNozzle（進工作室當下機器的噴嘴），
+   在下拉白名單（0.4／0.6／1.0）內就直接設成它並重算。**為什麼一定要跟**：匯出時 C++ 用「printer_variant == 頁面口徑」挑照片磚機，
+   口徑沒跟機器走，0.6 的機會被切成 0.4 的照片磚機、印出來線寬不對。仍可手改（例如先看另一支噴頭的可印尺寸）；不在白名單的噴嘴只標示不改。 */
+function applyNozzleFromHost(){
+  const sel=document.getElementById('nozzleSel'); if(!sel) return;
+  const nz=(machineCap && typeof machineCap.currentNozzle==='number' && machineCap.currentNozzle>0) ? machineCap.currentNozzle : null;
+  if(nz===null) return;
+  const opt=[...sel.options].find(o=>Math.abs(parseFloat(o.value)-nz)<1e-6);
+  /* #nozzleInfo 是模擬後的併格統計（每次 simulate 重寫），這裡不去碰它；狀態放 select 的 tooltip。 */
+  if(!opt){ sel.title='機器噴嘴 '+nz+' mm 不在 0.4／0.6／1.0 內，請自選'; return; }
+  if(sel.value!==opt.value){ sel.value=opt.value; params.nozzle=parseFloat(opt.value)||0.4; if(typeof queue==='function') queue(); }
+  sel.title='已依機器噴嘴（'+opt.value+' mm）自動設定，仍可手改';
+  if(typeof ptRender==='function') ptRender();   // 可印尺寸門檻隨口徑變
 }
 function syncModeAvailability(){
   const seg=document.getElementById('modeSeg'); if(!seg) return;
@@ -1650,9 +1665,9 @@ function ptSourceTitle(kind){
     ? '<button class="btn ghost mini" id="aiSaveBtn" type="button" onclick="ptAiSave()">另存 AI 圖…</button>'
       +'<span class="hint" id="aiSaveStat"></span>'
     : '';
-  if(kind==='style')   el.innerHTML=(ptAiHasImage ? '來源（AI 生成，已壓成平色階）' : '來源（已風格化）')
-                                    +'<span class="hint">原照片仍保留，重新套用時會從它出發</span>'+save;
-  else if(kind==='ai') el.innerHTML='來源（AI 生成）<span class="hint">原照片仍保留，再生一張時會從它出發</span>'+save;
+  /* 2026-09-08 Eric 打叉「原照片仍保留…」那句（說明不太有用）⇒ 拿掉；標題只說來源是什麼。 */
+  if(kind==='style')   el.innerHTML=(ptAiHasImage ? '來源（AI 生成，已壓成平色階）' : '來源（已風格化）')+save;
+  else if(kind==='ai') el.innerHTML='來源（AI 生成）'+save;
   else                 el.innerHTML='原圖 '+hint;
 }
 let ptAiHasImage=false;                 // 本張照片有沒有生過 AI 圖（決定「另存 AI 圖」按鈕出不出現）

@@ -5,6 +5,7 @@
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
 #include "slic3r/GUI/PhotoTileCapability.hpp"
+#include <sstream>
 #include "slic3r/GUI/Widgets/WebView.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
@@ -366,10 +367,16 @@ void WebViewPanel::SendPhotoTileMachineCapability()
     const std::string cur_mode_json  = cur.mode.empty() ? std::string("null") : json_str(cur.mode);
     const std::string cur_model_json = cur.mode.empty() ? std::string("null")
                                      : json_str(cur.printer_model.empty() ? cur.preset_name : cur.printer_model);
+    /* 2026-09-08（Eric：「四料照片磚的口徑可否依照機器選擇的口徑自動變化？」）：一併送進工作室當下機器的噴嘴。
+       為什麼要跟：匯出時 ping_resolve_photo_tile_printer() 用「printer_variant == 頁面口徑」挑照片磚機，
+       頁面口徑沒跟機器走 ⇒ 0.6 的機會被切成 0.4 的照片磚機。nozzle_mm 讀 nozzle_diameter[0]（非同進機也有值）。 */
+    std::string cur_nozzle_json = "null";
+    if (cur.nozzle_mm > 0.0) { std::ostringstream os; os << cur.nozzle_mm; cur_nozzle_json = os.str(); }
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
                            + ",\"hasQuad\":" + (has_quad ? "true" : "false")
                            + ",\"current\":" + cur_mode_json
-                           + ",\"currentModel\":" + cur_model_json + "}";
+                           + ",\"currentModel\":" + cur_model_json
+                           + ",\"currentNozzle\":" + cur_nozzle_json + "}";
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
