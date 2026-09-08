@@ -425,6 +425,10 @@ public:
     // ⚠ 不可用 is_ping_mix_available()——那把尺對照片磚機回 false（0822 令混色鈕在照片磚機隱藏）。
     wxPanel*    m_phototile_panel{ nullptr };
     SideButton* m_phototile_btn{ nullptr };
+    // 🆕 2026-09-08（Eric 裁 B 案）：下拉不是為了對齊而加的裝飾——它裝的是**同一個行動的兩個
+    // 入口變體**（空手進工作室／選一張圖直接帶進去），與旁邊三顆「這個行動有變體可挑」同語意。
+    SideButton* m_phototile_option_btn{ nullptr };
+    SidePopup*  m_phototile_option_pop_up{ nullptr };
 
     // PING(2026-08-19 Eric 令)：混色開關搬上方列，格式比照切片那組（SideButton ＋ SidePopup）。
     // 原本是預覽頁畫布右上角的浮動鈕（Preview::m_ping_mix_strip，已移除）。

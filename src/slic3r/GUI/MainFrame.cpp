@@ -1948,6 +1948,7 @@ wxBoxSizer* MainFrame::create_side_tools()
        沒有下拉小箭頭：這顆是「開一個功能」，不是切換狀態，沒有第二個選項可挑。 */
     m_phototile_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTRANSPARENT_WINDOW);
     m_phototile_btn = new SideButton(m_phototile_panel, wxString::FromUTF8("照片磚"), "");
+    m_phototile_option_btn = new SideButton(m_phototile_panel, "", "sidebutton_dropdown", 0, 14);
 
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
@@ -1955,6 +1956,7 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
 
     auto phototile_sizer = new wxBoxSizer(wxHORIZONTAL);
+    phototile_sizer->Add(m_phototile_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
     phototile_sizer->Add(m_phototile_btn, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
     // 右側間距放在面板內＝整組隱藏時連空隙一起收掉（同混色組的處置）
     phototile_sizer->Add(FromDIP(15), 0, 0, 0, 0);
@@ -2111,6 +2113,46 @@ wxBoxSizer* MainFrame::create_side_tools()
     // 都在那一支裡，這裡不重複判斷（判準漂移＝鬼故事）。
     m_phototile_btn->Bind(wxEVT_BUTTON, [](wxCommandEvent&) {
         wxGetApp().open_photo_tile();
+    });
+
+    /* 🆕 2026-09-08（Eric 裁 B 案）：下拉的內容＝**同一個行動的兩個入口變體**。
+       起因：Eric 看實機說「直接拿掉那個小箭頭，就感覺少了一塊東西，畫面怪怪的」。
+       ⚠ 但**不是為了對齊補一個空箭頭**——那等於謊稱這顆有變體可挑，違反 ping-ux
+       「以功能描述長相」。照七律#1「用途先於畫法」先定用途：這顆只有一個行動
+       （開工作室），而它真的有兩種入口——空手進、或帶著一張圖進（拖放走的就是後者）。
+       把「帶圖進」提前到這裡＝省掉每次都要在工作室裡再點一次「開啟圖片」（七律#1：
+       常態性每次都要做的步驟把它做順）。 */
+    m_phototile_option_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        if (m_phototile_option_pop_up)
+            delete m_phototile_option_pop_up;
+        m_phototile_option_pop_up = new SidePopup(this);
+        SideButton* open_btn = new SideButton(m_phototile_option_pop_up,
+                                              wxString::FromUTF8("開啟照片磚工作室"), "");
+        SideButton* pick_btn = new SideButton(m_phototile_option_pop_up,
+                                              wxString::FromUTF8("選一張圖片開始…"), "");
+        open_btn->SetCornerRadius(0);
+        pick_btn->SetCornerRadius(0);
+        open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (m_phototile_option_pop_up) m_phototile_option_pop_up->Dismiss();
+            CallAfter([] { wxGetApp().open_photo_tile(); });
+        });
+        pick_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (m_phototile_option_pop_up) m_phototile_option_pop_up->Dismiss();
+            /* 先收掉 popup 再開 modal——popup 還在時開對話框，關掉後 popup 會殘留。 */
+            CallAfter([this] {
+                /* ⚠ 副檔名清單與拖放那條路**必須一致**（Plater.cpp 的 OnDropFiles：
+                   png/jpg/jpeg/webp/bmp）。兩處分別寫死是已知的耦合，改一邊要改兩邊。 */
+                wxFileDialog dlg(this, wxString::FromUTF8("選一張圖片開始做照片磚"),
+                                 "", "",
+                                 wxString::FromUTF8("圖片檔|*.png;*.jpg;*.jpeg;*.webp;*.bmp"),
+                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+                if (dlg.ShowModal() == wxID_OK && !dlg.GetPath().IsEmpty())
+                    wxGetApp().open_photo_tile(dlg.GetPath());
+            });
+        });
+        m_phototile_option_pop_up->append_button(open_btn);
+        m_phototile_option_pop_up->append_button(pick_btn);
+        m_phototile_option_pop_up->Popup(m_phototile_btn);
     });
 
     m_mix_option_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
@@ -2519,6 +2561,14 @@ void MainFrame::update_side_button_style()
     // m_publish_btn->SetBorderColor(m_btn_bg_enable);
     // m_publish_btn->SetBackgroundColour(wxColour(59,68,70));
     // m_publish_btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+
+    if (m_phototile_option_btn != nullptr) {
+        m_phototile_option_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Center);
+        m_phototile_option_btn->SetCornerRadius(FromDIP(12));
+        m_phototile_option_btn->SetExtraSize(wxSize(FromDIP(10), FromDIP(10)));
+        m_phototile_option_btn->SetIconOffset(FromDIP(2));
+        m_phototile_option_btn->SetMinSize(wxSize(FromDIP(24), FromDIP(24)));
+    }
 
     // PING：照片磚鈕與混色／切片組同度量
     if (m_phototile_btn != nullptr) {
