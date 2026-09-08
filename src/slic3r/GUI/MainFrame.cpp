@@ -1334,6 +1334,19 @@ void MainFrame::update_ping_phototile_side_button()
         Layout();
         fit_tab_labels();
     }
+
+    /* PING(2026-09-08 Eric 裁「變灰」)：**預覽頁停用這一組（主鈕＋左邊下拉箭頭），不隱藏。**
+       為什麼：切片完跳到預覽後，這顆點下去會把人帶回工作室，回來時盤上原本的內容找不到
+       （Eric 0908 實走）。停用而非隱藏——同一列右邊的「列印」在預覽頁本來就是灰底停用，
+       同款長相學一次就通（ping-ux LAY-12）；隱藏會讓上方列每次切分頁重排寬度。
+       屬 HIE-16 三分邊界②「當下狀態不成立＝不可點」，不是 HIE-50 那種硬體不可用要展示成果的情境。
+       兩顆一起停：只停主鈕、箭頭還能點＝從下拉繞進去，等於沒停。
+       觸發點＝分頁切換 handler（init_tabpanel）多叫一次本函式；其餘既有呼叫點重算一次是冪等的。 */
+    const bool enable = (m_tabpanel == nullptr) || (m_tabpanel->GetSelection() != tpPreview);
+    if (m_phototile_btn != nullptr && m_phototile_btn->IsEnabled() != enable)
+        m_phototile_btn->Enable(enable);
+    if (m_phototile_option_btn != nullptr && m_phototile_option_btn->IsEnabled() != enable)
+        m_phototile_option_btn->Enable(enable);
 }
 
 void MainFrame::init_tabpanel() {
@@ -1380,6 +1393,10 @@ void MainFrame::init_tabpanel() {
         else if (panel == m_monitor) {
             //monitor
         }
+        /* PING(2026-09-08)：分頁換了就重算照片磚鈕的可按性（預覽頁＝停用），
+           見 update_ping_phototile_side_button()。放在 plater 分支外面：從預覽跳首頁、
+           再回準備頁時也要回到可按。 */
+        update_ping_phototile_side_button();
 #ifndef __APPLE__
         if (sel == tp3DEditor) {
             m_topbar->EnableUndoRedoItems();
