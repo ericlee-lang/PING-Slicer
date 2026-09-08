@@ -148,6 +148,10 @@ def jdump(path, obj):
 # 順序＝精靈顯示順序（2026-06-10 使用者定）：單料 → 雙料 → 四料；同類依列印範圍小→大
 FAMS = [
     ("FP300",       "FP300",       "single"),
+    # FP300 關門（Eric 2026-09-08「FP300 應該也會有關門的模式，只是它是單料的，請幫我複製過去」）：
+    # 同 FD300 關門的幾何（床 Ø200、高度不變、預擠內移 50），但 kind=single＝只出單料本體。
+    # ⚠ 中段插入會推移後面所有 setting_id（SOP_加機型 §2.8）⇒ 本機型走保留號段 EXT_RESERVED（950 起），既有 id 零位移。
+    ("FP300",       "FP300 關門",  "single"),
     ("FD300",       "FD300",       "dual"),
     # 關門模式（Eric 2026-07-26）：門關著印（ABS 保艙溫）＝列印範圍剩直徑 200、高度不變；
     # 同一台實體機、吃 FD300 交付 config，只縮床＋預擠內移（BED_OVERRIDE）。
@@ -160,6 +164,11 @@ FAMS = [
     ("FF600 Pro",   "FF600",       "ff"),
     ("FF800 Pro",   "FF800",       "ff"),
 ]
+# ★ 保留號段（第二段，2026-09-08）：後加、且插在 FAMS 中段的一般機型（非照片磚）從 PINGM/PINGP 950 起配號，
+#   不動共用計數器 gm/gp ⇒ 既有 preset 的 setting_id 一個都不變（照片磚那段用 900–949，見 emit_phototile）。
+#   判準＝機型全名在 EXT_RESERVED_MODELS；製程／雙生製程用「@<機型> (」子字串比對。
+EXT_RESERVED_MODELS = ("FP300 關門",)
+EXT_RESERVED_START = 950
 # PING(2026-06-12)：P200+（過渡版）是「客戶專屬」機型，不進通用版 FAMS。
 # 客戶精簡交付：環境變數 PING_ONLY=P200+ → FAMS 換成只剩 P200+ 這一台（其餘全砍、
 # FF 線材也跳過）→ 產出「只有這台機器」的客戶版 build（讀 FP300 config + 床 override）。
@@ -383,6 +392,9 @@ BED_OVERRIDE = {
     # 預擠直線 Y-140/-138 → +50 內移＝P200+ 門關 200 實機驗過的同款幾何。
     # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出 200 床）。
     "FD300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
+    # FP300 關門（Eric 2026-09-08）：與 FD300 關門同幾何——直徑 300→200、高度不變、預擠直線 Y-140/-138 內移 50。
+    # 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型 ⇒ 不會誤套 R144 弧。
+    "FP300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
 }
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
@@ -1289,6 +1301,9 @@ def main(src_base):
         print("  基礎支改名：%s → %s（renamed_from 字串相容、id 不動）" % (BASE_PLA_OLD, BASE_PLA_NEW))
 
     gm = gp = 0
+    _ext_m = _ext_p = EXT_RESERVED_START   # 保留號段第二段（FP300 關門 等後加機型；SOP_加機型 §2.8）
+    def _ext_proc(nm):                     # 製程／雙生製程是否屬保留號段機型
+        return any(("@" + r + " (") in nm for r in EXT_RESERVED_MODELS)
     mm_list, mac_list, proc_list = [], [], []
     nozzles_of = {}   # model -> [nz...]
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
@@ -1333,7 +1348,7 @@ def main(src_base):
                 if isinstance(mac.get("retract_when_changing_layer"), list):
                     mac["retract_when_changing_layer"] = ["0"] * len(mac["retract_when_changing_layer"])
                 mac.update({"type":"machine","name":mac_name,"from":"system","instantiation":"true",
-                    "setting_id":"PINGM%03d"%gm,"printer_model":model,"printer_variant":nz,
+                    "setting_id":(("PINGM%03d" % _ext_m) if model in EXT_RESERVED_MODELS else ("PINGM%03d" % gm)),"printer_model":model,"printer_variant":nz,
                     "default_print_profile":pname(combos[0]),
                     # alias=機型名 → active 標籤顯示乾淨名；口徑走噴嘴 chip(printer_variant)
                     "alias":model})
@@ -1347,7 +1362,9 @@ def main(src_base):
                 normalize_prime_lines(mac)         # 預擠中途 travel F800＋T0/T1 結尾 T0（2026-07-12）
                 apply_fd300_prime_arc(model, mac)  # FD300 預擠改左側弧線（防撞門，2026-07-09）
                 jdump(os.path.join(PINGDIR,"machine","%s.json"%mac_name), mac)
-                mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name}); gm += 1
+                mac_list.append({"name":mac_name,"sub_path":"machine/%s.json"%mac_name})
+                if model in EXT_RESERVED_MODELS: _ext_m += 1
+                else: gm += 1
                 # processes（inherits 必須指向存在父 preset，絕不可空字串——坑#12）
                 for cb in combos:
                     pb = split(cfgs[(nz, cb)])["P"] if is_dual_machine else b["P"]
@@ -1375,13 +1392,15 @@ def main(src_base):
                     normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
                     normalize_tree_support(proc)  # 樹狀保守配方＋organic 防呆（2026-07-25）
                     proc.update({"type":"process","name":pname(cb),"from":"system","instantiation":"true",
-                        "setting_id":"PINGP%03d"%gp,"inherits":"fdm_process_ping_common",
+                        "setting_id":(("PINGP%03d" % _ext_p) if model in EXT_RESERVED_MODELS else ("PINGP%03d" % gp)),"inherits":"fdm_process_ping_common",
                         "compatible_printers":[mac_name],
                         "filename_format": filename_tpl(cb)})
                     if is_dual_machine:   # 功能歸類改名：舊材料對全名入 renamed_from（舊 3mf 回溯）
                         proc["renamed_from"] = combo_renamed_from(lh, cb, model, nz)
                     jdump(os.path.join(PINGDIR,"process","%s.json"%pname(cb)), proc)
-                    proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)}); gp += 1
+                    proc_list.append({"name":pname(cb),"sub_path":"process/%s.json"%pname(cb)})
+                    if model in EXT_RESERVED_MODELS: _ext_p += 1
+                    else: gp += 1
                     # 棧板雙生（單料頭/同進/FP 限定；kind=ff 的四色 is_single=False 天然排除）
                     if is_single and not PING_ONLY:
                         tw = dict(proc); tw.update(PALLET_OVERRIDES)
@@ -1457,7 +1476,8 @@ def main(src_base):
 
     # 4a-4. 棧板雙生製程統一 emit（setting_id 接在全庫最後＝既有 111＋照片磚 5 支 id 零位移）
     for tw in pallet_twins:
-        tw["setting_id"] = "PINGP%03d" % gp; gp += 1
+        if _ext_proc(tw["name"]): tw["setting_id"] = "PINGP%03d" % _ext_p; _ext_p += 1
+        else: tw["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % tw["name"]), tw)
         proc_list.append({"name": tw["name"], "sub_path": "process/%s.json" % tw["name"]})
     if pallet_twins:
@@ -1465,7 +1485,8 @@ def main(src_base):
 
     # 4a-5. PLA+PVA 專屬製程統一 emit（接在棧板之後＝既有＋照片磚＋棧板 id 全零位移）
     for pv in pva_twins:
-        pv["setting_id"] = "PINGP%03d" % gp; gp += 1
+        if _ext_proc(pv["name"]): pv["setting_id"] = "PINGP%03d" % _ext_p; _ext_p += 1
+        else: pv["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % pv["name"]), pv)
         proc_list.append({"name": pv["name"], "sub_path": "process/%s.json" % pv["name"]})
     if pva_twins:
@@ -1473,7 +1494,8 @@ def main(src_base):
 
     # 4a-6. 高流量製程組統一 emit（Eric 2026-07-30 裁；id 接尾＝既有＋照片磚＋棧板＋PVA 全零位移）
     for hf in hf_twins:
-        hf["setting_id"] = "PINGP%03d" % gp; gp += 1
+        if _ext_proc(hf["name"]): hf["setting_id"] = "PINGP%03d" % _ext_p; _ext_p += 1
+        else: hf["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % hf["name"]), hf)
         proc_list.append({"name": hf["name"], "sub_path": "process/%s.json" % hf["name"]})
     if hf_twins:
@@ -1482,7 +1504,8 @@ def main(src_base):
     # 4a-7. PA-CF 專屬製程統一 emit（Eric 2026-08-26 裁；id 接在全庫最尾＝既有＋Classic＋棧板＋
     #        PVA＋照片磚＋高流量 全零位移。⚠ 新增製程一律排最後，別插隊——r6 撞號事故同源）
     for pf in pacf_twins:
-        pf["setting_id"] = "PINGP%03d" % gp; gp += 1
+        if _ext_proc(pf["name"]): pf["setting_id"] = "PINGP%03d" % _ext_p; _ext_p += 1
+        else: pf["setting_id"] = "PINGP%03d" % gp; gp += 1
         jdump(os.path.join(PINGDIR, "process", "%s.json" % pf["name"]), pf)
         proc_list.append({"name": pf["name"], "sub_path": "process/%s.json" % pf["name"]})
     if pacf_twins:
