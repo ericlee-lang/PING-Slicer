@@ -48,6 +48,7 @@
   .seg{display:inline-flex; border:1px solid #bbb; border-radius:6px; overflow:hidden;}
   .seg button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:14px; font-weight:700; color:#666;}
   .seg button.on{background:var(--black); color:#fff;}
+  .modeFixed{font-size:14px; font-weight:700; color:#666; padding:6px 0;}   /* 甲案：料數跟機器時取代 .seg 的固定標籤 */
   main{display:grid; grid-template-columns:minmax(300px,1fr) minmax(300px,1fr) 400px;
        gap:14px; padding:14px 22px; align-items:start;}
   .panel{border:1px solid var(--gray); border-radius:8px; background:#fff;}
@@ -943,6 +944,7 @@ window.PINGPhotoTile={
         行為照舊。新閘門不該變成新的壞事來源。 */
   setMachineCapability(cap){
     machineCap = (cap && typeof cap === 'object') ? cap : null;
+    applyFixedModeFromHost();   /* 甲案（2026-09-08）：從同進機進來就照那台定料數 */
     syncModeAvailability();
   },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
@@ -1175,6 +1177,38 @@ function showModeNotice(text){
   el.style.display = '';
   clearTimeout(showModeNotice._t);
   showModeNotice._t = setTimeout(()=>{ el.style.display='none'; }, 12000);
+}
+/* 甲案（Eric 2026-09-08：「點四料的同進進到工作室時，應該只讓我選擇四色；雙料的同進只讓我選雙料，
+   或不需要讓我選擇，然後下方的模板也跟著改變」→ 裁「不需要讓我選」）：
+   宿主送 current='dual'|'quad'（進工作室當下選中的同進機）＋ currentModel（型號）⇒
+   料數照機器定、切換鈕換成一行固定標籤、款式清單只列該料數（ptCandidates 依 ptFixedMode 過濾）。
+   current 為 null（非同進機／舊宿主）⇒ 維持切換鈕，行為照舊（fail-open）。
+   ⚠ 四色但 bundle 沒四料照片磚機（quadAvailable 假）＝不鎖，交給下面 syncModeAvailability 照舊擋並說明。 */
+let ptFixedMode=null;   // 'dual'|'quad'|null
+function applyFixedModeFromHost(){
+  const seg=document.getElementById('modeSeg'); if(!seg) return;
+  const cur=(machineCap && (machineCap.current==='quad'||machineCap.current==='dual')) ? machineCap.current : null;
+  let fixed=document.getElementById('modeFixed');
+  const want=cur==='quad'?4:2;
+  if(!cur || (want===4 && !quadAvailable())){
+    ptFixedMode=null; seg.style.display=''; if(fixed) fixed.style.display='none';
+    if(typeof ptRender==='function') ptRender();
+    return;
+  }
+  if(!fixed){
+    fixed=document.createElement('div'); fixed.id='modeFixed'; fixed.className='modeFixed';
+    seg.parentNode.insertBefore(fixed, seg);
+  }
+  fixed.textContent=(want===4?'四色':'雙料')+(machineCap.currentModel?('・'+machineCap.currentModel):'');
+  fixed.title='料數跟著進來時選的機器，不在這裡切換';
+  fixed.style.display=''; seg.style.display='none';
+  ptFixedMode=cur;
+  if(slotCount!==want){
+    slotCount=want;
+    for(const b of seg.children) b.classList.toggle('on', b.dataset.n===String(want));
+    renderSlots(); simulate();
+  }
+  if(typeof ptRender==='function') ptRender();   // 款式清單跟著料數換
 }
 function syncModeAvailability(){
   const seg=document.getElementById('modeSeg'); if(!seg) return;
@@ -1560,10 +1594,12 @@ function ptUsable(s){
 }
 function ptCandidates(){
   const all=STYLE_LIB.styles.filter(s=>s.subjects.includes(ptSubject));
+  /* 甲案（2026-09-08）：料數跟機器時，另一種料數的款式整個不列——套用它會把料數切走，與「不讓選」矛盾 */
+  const byMode = ptFixedMode ? all.filter(s=>s.mode===ptFixedMode) : all;
   const by=(a,b)=>a.priority-b.priority;
   /* 可用排前、不可用排後但**不隱藏**（Eric 2026-08-15 定：讓他看得到「有那台機器就做得到什麼」）。
      🔴 排序不可用 ΔE——那是「款式×照片」的配對值、也不是品質分數。用款式庫宣告的 priority。 */
-  return [...all.filter(s=>ptUsable(s).ok).sort(by), ...all.filter(s=>!ptUsable(s).ok).sort(by)];
+  return [...byMode.filter(s=>ptUsable(s).ok).sort(by), ...byMode.filter(s=>!ptUsable(s).ok).sort(by)];
 }
 
 /* 這個款式在**目前題材**下建議幾階（Eric 2026-08-22 裁「乙」；規則與理由見出貨線同名函式的註解，
@@ -1985,7 +2021,7 @@ function ptRender(){
         +'<div class="pill '+(u.ok?'ok':'no')+'">'
         +(u.ok?(ptMinTile(s)+' mm 起可印'+(s.id===ptApplied?'　·　已套用':(s.id===ptStyle?'　·　點一下套用':''))):u.why)
         +'</div></div>';
-    }).join('') : '<div class="statline">這個題材目前沒有款式</div>';
+    }).join('') : '<div class="statline">這個題材目前沒有'+(ptFixedMode?(ptFixedMode==='quad'?'四料':'雙料'):'')+'款式</div>';
 
     g.querySelectorAll('.scard').forEach(e=>e.onclick=async ()=>{
       /* 生圖／壓平還在跑：不問、不套用（CSS 已擋 pointer-events，這裡是第二道，鍵盤／程式觸發也擋）。 */

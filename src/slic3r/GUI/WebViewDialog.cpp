@@ -348,8 +348,28 @@ void WebViewPanel::SendPhotoTileMachineCapability()
                 has_quad = true;
         }
     }
+    /* 2026-09-08（Eric：「點四料的同進進到工作室時，應該只讓我選擇四色；雙料的同進只讓我選雙料，或不需要讓我選擇，
+       下方的模板也跟著改變」→ 裁甲案＝不讓選）：多送「進工作室當下選中的機器」的模式與型號，
+       頁面照它定料數、把雙料／四色切換鈕換成固定標籤、款式只列該料數。
+       非同進機（mode 空）送 null ⇒ 頁面維持切換鈕（fail-open，與 hasDual／hasQuad 同一精神；舊頁面也不受影響）。
+       判定走 photo_tile_capability_of_selected_printer()（與匯出時 ping_resolve_photo_tile_printer 同一支），不自己比字串。 */
+    const PhotoTileCapability cur = photo_tile_capability_of_selected_printer();
+    auto json_str = [](const std::string& v) {
+        std::string out = "\"";
+        for (char ch : v) {
+            if (ch == '\n' || ch == '\r') continue;
+            if (ch == '"' || ch == '\\') out += '\\';
+            out += ch;
+        }
+        return out + "\"";
+    };
+    const std::string cur_mode_json  = cur.mode.empty() ? std::string("null") : json_str(cur.mode);
+    const std::string cur_model_json = cur.mode.empty() ? std::string("null")
+                                     : json_str(cur.printer_model.empty() ? cur.preset_name : cur.printer_model);
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
-                           + ",\"hasQuad\":" + (has_quad ? "true" : "false") + "}";
+                           + ",\"hasQuad\":" + (has_quad ? "true" : "false")
+                           + ",\"current\":" + cur_mode_json
+                           + ",\"currentModel\":" + cur_model_json + "}";
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
