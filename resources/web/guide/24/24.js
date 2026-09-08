@@ -169,6 +169,7 @@ function HandleModelList( pVal )
 '	</div>'+
 '	<a>'+sVV+'</a>'+
 '</div>'+
+PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上 */
 ProductLineTabs(strVendor)+
 '</div>' +
 '<div class="PrinterArea">	'+
@@ -242,6 +243,7 @@ ProductLineTabs(strVendor)+
 	// }
 	
 	ApplyPingProductLine();
+	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：說明區渲染（語言同 TranslatePage） */
 	TranslatePage();
 }
 
