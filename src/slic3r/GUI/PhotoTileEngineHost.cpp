@@ -980,6 +980,10 @@ std::string build_generate_command_impl(const PhotoTileEngineRequest& req)
        產生的請求字串與 C-1 完全同字，位元組基準不受影響。 */
     if (!req.slots_json.empty())
         r += ",\"slots\":" + req.slots_json;
+    /* WT 線：循環洗料塔——只在開啟時寫入 ⇒ 不帶＝與舊請求同字 */
+    if (req.cycle)
+        r += ",\"cycle\":{" + jkb("enabled", true) + "," + jkv("laps", req.cycle_laps) + "," + jkn("sizeMm", req.cycle_size_mm) + "," +
+             jkn("gapMm", req.cycle_gap_mm) + "," + jkn("brimMm", req.cycle_brim_mm) + "}";
     if (req.want_metadata)
         r += ",\"metadata\":{" + jkv("groupUuid", req.group_uuid) + "," +
              jkb("embedSource", req.embed_source) + "," + jkv("createdBy", "PING-Slicer") + "}";

@@ -5306,6 +5306,12 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 engine_req.noise_mm     = root.get<double>("data.noiseMm", 2.0);
                 engine_req.pillar       = root.get<bool>("data.pillar.enabled", true);
                 engine_req.pillar_xy_mm = (int) std::lround(root.get<double>("data.pillar.xyMm", 25.0));
+                // WT 線：循環洗料塔設定原封轉送引擎（laps 走逗號字串，ptree 不必解陣列）
+                engine_req.cycle         = root.get<bool>("data.cycle.enabled", false);
+                engine_req.cycle_laps    = root.get<std::string>("data.cycle.laps", "");
+                engine_req.cycle_size_mm = root.get<double>("data.cycle.sizeMm", 0.0);
+                engine_req.cycle_gap_mm  = root.get<double>("data.cycle.gapMm", 15.0);
+                engine_req.cycle_brim_mm = root.get<double>("data.cycle.brimMm", 8.0);
                 engine_req.teeth        = root.get<bool>("data.seam.teeth", false);
                 engine_req.p2a_block    = root.get<bool>("data.seam.p2aBlock", false);
                 engine_req.slots_json   = slots_json;

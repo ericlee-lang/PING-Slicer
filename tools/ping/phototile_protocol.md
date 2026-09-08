@@ -126,6 +126,12 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
 > 雙路黃金 oracle（`照片磚_C0尖峰產物/goldenrunner.html`，6/6 逐 entry SHA-256 全等）因此持續有效。
 > 不得把 metadata 改成預設開——那會讓黃金基準失效。
 
+### 8.1 循環洗料塔（WT 線 2026-09-08，additive；schema 仍 1）
+
+- request 多一欄 `cycle`：`{enabled, laps:"2,4"|"2,2,2,4", sizeMm, gapMm, brimMm}`；**缺席＝關**（3MF／請求字串與舊版位元組全等）。宿主 `PhotoTileEngineRequest::cycle*` 只在開啟時寫入。
+- 開啟時引擎：①不再產舊固定比洗料柱零件 ②`Metadata/model_settings.config` 的照片磚 `<object>` 多六個 metadata 鍵 `ping_pt_cycle=1`／`ping_pt_cycle_mode`／`ping_pt_cycle_laps`／`ping_pt_cycle_size`／`ping_pt_cycle_gap`／`ping_pt_cycle_brim`（bbs_3mf 匯入→`ModelObject::config`→`PrintObjectConfig`，另存重開都在）③`ping_phototile.json.params.cycle` 記同一組值。
+- 切片端：`libslic3r/GCode/PingCycleTower.*` 讀物件設定，`ToolOrdering::ping_reorder_for_cycle_tower` 純 E0 先其餘保序，`GCode::ping_cycle_tower_layer` 層首插塔（真實 offset 圈、配方命令 M605x 直寫、離塔後明寫第一段模型配方）。離線對照答案＝`照片磚_循環洗料塔/cycle_core.py`。
+
 ## 9. 單元測
 
 `node tools/ping/phototile_protocol_test.js` —— 涵蓋分塊往返、四項驗證的反向測試（亂序／少塊／長度竄改／SHA 竄改／

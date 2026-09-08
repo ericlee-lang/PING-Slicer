@@ -15,6 +15,7 @@
 #include "GCode/SpiralVase.hpp"
 #include "GCode/ToolOrdering.hpp"
 #include "GCode/WipeTower.hpp"
+#include "GCode/PingCycleTower.hpp"
 #include "GCode/SeamPlacer.hpp"
 #include "GCode/GCodeProcessor.hpp"
 #include "EdgeGrid.hpp"
@@ -593,6 +594,9 @@ private:
     std::unique_ptr<AdaptivePAProcessor>      m_pa_processor;
 
     std::unique_ptr<WipeTowerIntegration> m_wipe_tower;
+    // PING 照片磚循環洗料塔（WT 線 2026-09-08）：do_export 建、process_layer 層首用；未開＝nullptr
+    std::unique_ptr<PingCycle::Tower>     m_ping_cycle;
+    std::string ping_cycle_tower_layer(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, coordf_t print_z);
 
     std::unique_ptr<SmallAreaInfillFlowCompensator> m_small_area_infill_flow_compensator;
     

@@ -1551,6 +1551,55 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloat(0.));
 
+    // PING 照片磚「每層循環洗料塔」（WT 線 2026-09-08）——六個物件層設定，由工作室寫進 3MF、不在 UI 露出（comDevelop）。
+    def = this->add("ping_pt_cycle", coBool);
+    def->label = L("PING photo-tile cycle tower");
+    def->category = L("PING");
+    def->tooltip = L("Per-layer purge cycle tower for PING photo tiles: every physical channel purges each layer, lightest channel (E0) last; model pure-E0 regions print first.");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("ping_pt_cycle_mode", coString);
+    def->label = L("PING cycle tower mode");
+    def->category = L("PING");
+    def->tooltip = L("dual or quad (physical channels of the photo-tile printer).");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("ping_pt_cycle_laps", coString);
+    def->label = L("PING cycle tower laps");
+    def->category = L("PING");
+    def->tooltip = L("Laps per channel from outside to inside, e.g. 2,4 (E1,E0) or 2,2,2,4 (E3,E2,E1,E0).");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionString(""));
+
+    def = this->add("ping_pt_cycle_size", coFloat);
+    def->label = L("PING cycle tower size");
+    def->category = L("PING");
+    def->tooltip = L("Tower body size in mm; 0 = automatic (44 mm scaled by nozzle/0.4).");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionFloat(0.));
+
+    def = this->add("ping_pt_cycle_gap", coFloat);
+    def->label = L("PING cycle tower gap");
+    def->category = L("PING");
+    def->tooltip = L("Distance from the model bounding box to the tower.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionFloat(15.));
+
+    def = this->add("ping_pt_cycle_brim", coFloat);
+    def->label = L("PING cycle tower brim");
+    def->category = L("PING");
+    def->tooltip = L("First-layer brim width around the tower.");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionFloat(8.));
+
     def = this->add("brim_type", coEnum);
     def->label = L("Brim type");
     def->category = L("Support");

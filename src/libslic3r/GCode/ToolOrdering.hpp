@@ -197,6 +197,9 @@ public:
 
     void handle_dontcare_extruder(const std::vector<unsigned int>& first_layer_tool_order);
     void handle_dontcare_extruder(unsigned int first_extruder);
+    // PING 照片磚循環洗料塔（WT 線 2026-09-08）：每層純 E0 的虛擬槽 stable partition 到前面、其餘原生順序不變；
+    // 並取消「上一層末工具搬到本層開頭」——那個最佳化會讓剛洗白的 E0 第一段就被彩料破壞（獵焰 407 層中 196 層）。
+    void ping_reorder_for_cycle_tower(const Print& print);
 
     void sort_and_build_data(const PrintObject &object, unsigned int first_extruder, bool prime_multi_material = false);
     void sort_and_build_data(const Print& print, unsigned int first_extruder, bool prime_multi_material = false);

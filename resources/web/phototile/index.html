@@ -296,6 +296,11 @@
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
       </details>
+      <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；圈數依料數渲染。 -->
+      <div class="row" id="cycleRow"><label>循環洗料</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="cycleOn" checked> 每層讓每一路都吐一次料、最淺料最後清洗（圈數為試印設定）</label>
+        <span id="cycleLaps" style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap"></span>
+      </div>
       <div class="row" id="pillarRow"><label>洗料柱</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="pillarOn" checked> 印一根全料同出的洗料柱（防久未用料空燒）</label>
         柱寬 <input type="number" id="pillarXY" value="20" min="5" max="60" step="1" style="width:64px"> mm
@@ -321,7 +326,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260902b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260908d"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -359,6 +364,7 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:20,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
+               cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 2,4／quad 2,2,2,4
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
                p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
@@ -384,7 +390,22 @@ let lastDeltaE = null;
 
 /* ================= UI 生成：料槽 ================= */
 const slotList = document.getElementById('slotList');
+/* WT 線：循環洗料塔 UI。圈數欄依料數渲染（雙料：彩料 E1／最淺 E0；四料：E3 E2 E1 E0）；
+   開啟時舊洗料柱列收起（循環塔取代它）。長度不符（切換雙／四料）就回該模式預設。 */
+function cycleDefaultLaps(){ return slotCount===4 ? [2,2,2,4] : [2,4]; }
+function cycleLaps(){ const d=cycleDefaultLaps(); return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
+function renderCycleUI(){
+  const box=document.getElementById('cycleLaps'); if(!box) return;
+  const names = slotCount===4 ? ['E3','E2','E1','E0 最淺'] : ['彩料 E1','最淺 E0'];
+  const laps=cycleLaps();
+  box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('');
+  box.querySelectorAll('input').forEach(inp=>inp.onchange=e=>{ const l=cycleLaps().slice(); const i=+e.target.dataset.i; l[i]=Math.max(1,Math.min(8,Math.round(+e.target.value)||1)); params.cycleLaps=l; e.target.value=l[i]; });
+  const on=!!params.cycle; box.style.display=on?'':'none';
+  const cb=document.getElementById('cycleOn'); if(cb) cb.checked=on;
+  const pr=document.getElementById('pillarRow'); if(pr) pr.style.display=on?'none':'';
+}
 function renderSlots(){
+  if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變
   slotList.innerHTML = '';
   /* 垂直混色：雙料＝亮暗兩端；四料＝白＋三彩混搭調色（2026-09-07 平躺移除後只剩這一種） */
   const names = slotCount===2
@@ -1240,6 +1261,7 @@ function syncModeAvailability(){
     showModeNotice(['已改回「雙料」。',''].join(String.fromCharCode(10))+modeBlockedMessage());
   }
 }
+document.getElementById('cycleOn').onchange=e=>{ params.cycle=e.target.checked; renderCycleUI(); };
 document.getElementById('modeSeg').addEventListener('click',e=>{
   if(e.target.tagName!=='BUTTON') return;
   const want=+e.target.dataset.n;
@@ -1487,6 +1509,7 @@ function buildRequest(){
     klevels: params.klevels,
     noiseMm: params.noiseMm,
     pillar:{enabled:params.pillar, xyMm:params.pillarXY},
+    cycle:{enabled:!!params.cycle, laps:cycleLaps().join(','), sizeMm:0, gapMm:15, brimMm:8},   // WT 線：循環洗料塔（尺寸自動＝44×口徑/0.4）
     seam:{teeth:params.teeth, p2aBlock:params.p2aBlock},
     slots: slots.slice(0,slotCount).map(s=>({...s}))
   };
@@ -1510,7 +1533,7 @@ document.getElementById('btnExport').onclick=async()=>{
       jobId:req.jobId, mode:req.mode,
       nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):'',
       size:req.size, klevels:req.klevels, noiseMm:req.noiseMm,
-      pillar:req.pillar, seam:req.seam,
+      pillar:req.pillar, cycle:req.cycle, seam:req.seam,
       slotsJson:JSON.stringify(req.slots)
     });
   }else{

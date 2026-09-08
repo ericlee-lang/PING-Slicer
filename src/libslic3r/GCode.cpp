@@ -12,6 +12,7 @@
 #include "GCode/PrintExtents.hpp"
 #include "GCode/Thumbnails.hpp"
 #include "GCode/WipeTower.hpp"
+#include "GCode/PingCycleTower.hpp"
 #include "ShortestPath.hpp"
 #include "Print.hpp"
 #include "Utils.hpp"
@@ -3286,6 +3287,16 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             // Sort layers by Z.
             // All extrusion moves with the same top layer height are extruded uninterrupted.
             std::vector<std::pair<coordf_t, std::vector<LayerToPrint>>> layers_to_print = collect_layers_to_print(print);
+            // PING 照片磚循環洗料塔（WT 線）：物件開了 ping_pt_cycle 才建；放不下／設定壞＝fail loud，不輸出沒有塔的 G-code
+            m_ping_cycle.reset();
+            if (PingCycle::enabled_for(print)) {
+                std::string why;
+                m_ping_cycle = PingCycle::create(print, why);
+                if (!m_ping_cycle)
+                    throw Slic3r::SlicingError(std::string("PING photo-tile cycle tower: ") + why);
+                if (m_spiral_vase)
+                    throw Slic3r::SlicingError("PING photo-tile cycle tower: spiral vase mode is not supported");
+            }
             // Prusa Multi-Material wipe tower.
             if (has_wipe_tower && ! layers_to_print.empty()) {
                 m_wipe_tower.reset(new WipeTowerIntegration(print.config(), print.get_plate_index(), print.get_plate_origin(), *print.wipe_tower_data().priming.get(),
@@ -4266,6 +4277,61 @@ inline std::string get_instance_name(const PrintObject *object, const PrintInsta
     return get_instance_name(object, inst.id);
 }
 
+// ── PING 照片磚循環洗料塔：每層一趟 ────────────────────────────────────────────
+// 順序（計畫 §5）：塔最外圈起，E(n-1)…E0 各段連續繞圈，圈界才切純料配方；E0 最內圈完成後回抽離塔；
+// 離塔後**一律明寫**本層第一段模型配方（原生工具 ID 沒變／甚至就是 E0 也寫，writer 快取不可省）。
+// 擠出走 extrude_path ⇒ 預覽、時間與用料吃的就是這批 G1；配方命令直接寫 M605x（不寫虛擬 T 讓後處理猜）。
+std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, coordf_t print_z)
+{
+    if (!m_ping_cycle)
+        return std::string();
+    const Layer* obj_layer = nullptr;
+    for (const LayerToPrint& l : layers)
+        if (l.object_layer != nullptr) { obj_layer = l.object_layer; break; }
+    if (obj_layer == nullptr)          // 只有支撐／raft／空層：不做塔
+        return std::string();
+    const bool  first_layer  = (m_layer_index == 0);
+    const float layer_height = (float) obj_layer->height;
+    const PingCycle::LayerGeometry& g = m_ping_cycle->geometry_for(layer_height, first_layer);
+    if (!g.problem.empty())
+        throw Slic3r::SlicingError(std::string("PING photo-tile cycle tower: ") + g.problem);
+
+    std::string gcode;
+    { std::ostringstream os; os << "; PING photo-tile cycle tower begin z=" << print_z << "\n"; gcode += os.str(); }
+    const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
+    bool first_move = true;
+    auto extrude_ring = [&](const Polyline& ring, const char* what) {
+        ExtrusionPath path(erWipeTower, g.mm3_per_mm, g.width, layer_height);
+        path.polyline = ring;
+        if (first_move) {
+            m_avoid_crossing_perimeters.use_external_mp_once();
+            gcode += this->travel_to(path.first_point(), erWipeTower, "move to PING cycle tower");
+            first_move = false;
+        }
+        gcode += this->extrude_path(path, what, speed);
+    };
+    const auto& stages = m_ping_cycle->stages();
+    for (size_t si = 0; si < stages.size(); ++si) {
+        const PingCycle::Stage& st = stages[si];
+        gcode += st.recipe_cmd + " ; PING photo-tile cycle " + st.channel + "\n";
+        if (si == 0)
+            for (const Polyline& b : g.brim_loops)          // 首層 brim 用第一段的料、由外往內接到第 1 圈
+                extrude_ring(b, "PING cycle tower brim");
+        for (int lap = st.first_lap; lap <= st.last_lap; ++lap)
+            extrude_ring(g.loops[lap - 1], "PING cycle tower");
+    }
+    // 離塔：回抽（含機型設定的抬升），下一段模型 travel 由既有 travel_to 帶避讓
+    gcode += this->retract();
+    if (!layer_tools.extruders.empty()) {
+        const unsigned int first_tool = layer_tools.extruders.front();
+        auto it = m_ping_cycle->palette().find((int) first_tool);
+        if (it != m_ping_cycle->palette().end())
+            gcode += it->second + " ; PING photo-tile cycle exit -> T" + std::to_string(first_tool) + "\n";
+    }
+    gcode += "; PING photo-tile cycle tower end\n";
+    return gcode;
+}
+
 std::string GCode::generate_skirt(const Print &print,
         const ExtrusionEntityCollection &skirt,
         const Point& offset,
@@ -5011,6 +5077,9 @@ LayerResult GCode::process_layer(
     };
 
     bool has_insert_wrapping_detection_gcode = false;
+
+    // PING 照片磚循環洗料塔（WT 線）：層首先做一趟塔（由外往內 E(n-1)…E0），離塔後明寫第一段模型配方；未開＝空字串
+    gcode += this->ping_cycle_tower_layer(print, layers, layer_tools, print_z);
 
     // Extrude the skirt, brim, support, perimeters, infill ordered by the extruders.
     for (unsigned int extruder_id : layer_tools.extruders)

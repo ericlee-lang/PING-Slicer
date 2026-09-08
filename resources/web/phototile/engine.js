@@ -103,6 +103,17 @@ function normalizeRequest(req){
     noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
+    /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
+       開啟＝不再產舊固定比洗料柱（Eric 裁 3），3MF 物件層寫 ping_pt_cycle* 六鍵給切片器（PrintObjectConfig）。
+       laps 字串 "2,4"｜"2,2,2,4"（由外往內＝E(n-1)…E0），長度不符或空＝依模式預設。 */
+    cycle: (function(c){
+      if (!c || !c.enabled) return { enabled:false };
+      const def = mode === 'quad' ? [2,2,2,4] : [2,4];
+      let laps = String(c.laps || '').split(/[,; ]+/).filter(Boolean).map(n=>Math.max(1, Math.round(Number(n)||0)));
+      if (laps.length !== def.length || laps.some(n=>!Number.isFinite(n)||n<1)) laps = def;
+      return { enabled:true, laps, sizeMm: Math.max(0, Number(c.sizeMm)||0),
+               gapMm: clamp('cycle.gapMm', c.gapMm, 0, 100, 15), brimMm: clamp('cycle.brimMm', c.brimMm, 0, 30, 8) };
+    })(req.cycle),
     teeth:   !!(req.seam && req.seam.teeth),
     /* p2aBlock 預設 true（Eric 2026-08-22 裁「預設開」，同值住 index.html:333）。
        引擎的預設一律跟著工作室走——否則「seam 欄缺席＝與工作室輸出位元組全等」這條契約會破：
@@ -122,6 +133,7 @@ function normalizeRequest(req){
     env: (req.env && typeof req.env === 'object') ? req.env : null,
     clamped
   };
+  if (P.cycle.enabled) P.pillar = false;   // WT：循環塔取代舊固定比洗料柱（Eric 2026-09-08 裁 3）
   const need = mode === 'quad' ? 4 : 2;
   if (P.slots && P.slots.length < need)
     throw new EngineError(ERR.BAD_REQUEST, `${mode} 模式 slots 需 ${need} 支（收到 ${P.slots.length}）`);
@@ -562,6 +574,13 @@ function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
    修法與 quantizeQuad 同款：hooks.tick＝回報進度＋讓步＋檢查取消。讓步只加在
    「零件迴圈每 4 件」與「zip 每個 entry 之間」，**迴圈順序、算式、字串組裝完全不變**
    ⇒ 輸出位元組逐位元相同（黃金閘門複驗把關）。hooks 缺席＝行為與原版完全一致。 */
+/* WT 線：循環塔開啟時寫進 3MF 物件層的六個切片器鍵（bbs_3mf 匯入時進 ModelObject::config → PrintObjectConfig）。 */
+function cycleObjectMeta(P){
+  const rows = [['ping_pt_cycle','1'], ['ping_pt_cycle_mode',P.mode], ['ping_pt_cycle_laps',P.cycle.laps.join(',')],
+                ['ping_pt_cycle_size',String(P.cycle.sizeMm)], ['ping_pt_cycle_gap',String(P.cycle.gapMm)], ['ping_pt_cycle_brim',String(P.cycle.brimMm)]];
+  return rows.map(([k,v])=>`    <metadata key="${k}" value="${xmlEsc(v)}"/>`).join('\n') + '\n';
+}
+
 async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
   if (!root.PhotoTileMesh) throw new EngineError(ERR.MESH_MODULE_MISSING, '連通網格模組未載入');
   const mode=P.mode, noiseMm=P.noiseMm;
@@ -687,7 +706,7 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
 <config>
   <object id="${MID}">
     <metadata key="name" value="${xmlEsc('照片磚')}"/>
-${cfgParts.join('\n')}
+${P.cycle && P.cycle.enabled ? cycleObjectMeta(P) : ''}${cfgParts.join('\n')}
   </object>
 </config>`;
   const rels=`<?xml version="1.0" encoding="UTF-8"?>
@@ -803,6 +822,7 @@ async function buildExtras(P, q, filtered, palette, source, img){
     canonical: { widthMm: P.width, heightMm: P.height, thickMm: P.thick },  // 引擎產出的幾何尺寸
     params: { klevels: P.klevels, noiseMm: P.noiseMm,
               pillar: { enabled: P.pillar, xyMm: P.pillarXY },
+              cycle: P.cycle,                                          // WT 線：{enabled} 或 {enabled,laps,sizeMm,gapMm,brimMm}（schema 仍 1，additive）
               seam: { teeth: P.teeth, p2aBlock: P.p2aBlock },
               limits: P.limits },
     slots: P.slots,

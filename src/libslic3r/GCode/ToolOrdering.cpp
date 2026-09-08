@@ -1,6 +1,8 @@
 #include "ExtrusionEntity.hpp"
 #include "Print.hpp"
 #include "ToolOrdering.hpp"
+#include "GCode/PingCycleTower.hpp"
+#include <boost/log/trivial.hpp>
 #include "Layer.hpp"
 #include "ClipperUtils.hpp"
 #include "ParameterUtils.hpp"
@@ -406,6 +408,9 @@ void ToolOrdering::sort_and_build_data(const Print& print, unsigned int first_ex
         this->fill_wipe_tower_partitions(print.config(), object_bottom_z, max_layer_height);
     }
 
+    /* PING WT：省沖刷量重排會把「純 E0 先」洗掉（0908 真切實測：層首又變彩料），所以在最後再套一次；統計要在重排之後算 */
+    this->ping_reorder_for_cycle_tower(print);
+
     this->collect_extruder_statistics(prime_multi_material);
 }
 
@@ -530,9 +535,36 @@ ToolOrdering::ToolOrdering(const Print &print, unsigned int first_extruder, bool
     else
         this->handle_dontcare_extruder(first_extruder);
 
+    this->ping_reorder_for_cycle_tower(print);   // PING WT：照片磚循環塔模式下，純 E0 先其餘保序（未開＝不動）
+
     this->collect_extruder_statistics(prime_multi_material);
 
     this->mark_skirt_layers(print.config(), max_layer_height);
+}
+
+void ToolOrdering::ping_reorder_for_cycle_tower(const Print& print)
+{
+    if (!PingCycle::enabled_for(print))
+        return;
+    std::map<int, std::string> palette; std::string reason;
+    if (!PingCycle::collect_palette(print.model(), palette, reason)) {
+        BOOST_LOG_TRIVIAL(warning) << "PING photo-tile cycle tower: palette not usable, keep native tool order: " << reason;
+        return;
+    }
+    std::set<unsigned int> pure;
+    for (const auto& kv : palette)
+        if (PingCycle::is_pure_light_recipe(kv.second))
+            pure.insert((unsigned int) kv.first);
+    if (pure.empty())
+        return;
+    // 此時 extruders 已是 0-based（handle_dontcare 尾段已 reindex）
+    for (LayerTools& lt : m_layer_tools) {
+        std::vector<unsigned int> first, rest;
+        for (unsigned int e : lt.extruders) (pure.count(e) ? first : rest).push_back(e);
+        if (first.empty()) continue;
+        first.insert(first.end(), rest.begin(), rest.end());
+        lt.extruders = std::move(first);
+    }
 }
 
 static void apply_first_layer_order(const DynamicPrintConfig* config, std::vector<unsigned int>& tool_order) {
