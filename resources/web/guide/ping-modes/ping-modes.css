@@ -171,3 +171,12 @@
   #PingModeHelp .pmh-cases { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   #PingModeHelp .pmh-case { width: 180px; max-width: 100%; justify-self: center; }
 }
+
+/* ── 收合／展開（Eric 2026-09-08：「點 PING 把下方縮起來；箭頭展開時朝上、收起時朝下」，裁 A 案＋記狀態）──
+   本檔唯一作用在 #PingModeHelp 之外的一段：開關長在 PING 標頭列的標籤上（21／24 的 HtmlNewVendor），
+   行為在 ping-modes.js（PingModeHelpToggleHtml／TogglePingModeHelp），三者屬同一功能所以放一起。 */
+.BlockBanner a.ModeHelpToggle { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 8px; }
+.BlockBanner a.ModeHelpToggle:focus-visible { outline: 2px solid #202221; outline-offset: -2px; }
+.ModeHelpChev { width: 12px; height: 12px; flex: 0 0 auto; transition: transform .15s ease; }
+.OneVendorBlock.ModeHelpCollapsed .ModeHelpChev { transform: rotate(180deg); }   /* 收起＝箭頭朝下 */
+.OneVendorBlock.ModeHelpCollapsed #PingModeHelp { display: none; }

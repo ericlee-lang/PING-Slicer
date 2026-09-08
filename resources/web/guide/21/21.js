@@ -119,15 +119,24 @@ function ProductLineOf(vendor, model) {
 	return vendor == 'PING' && PingClassicModels.has(PingBaseModel(model)) ? 'classic' : 'fast';
 }
 
+// 2026-09-08：「全選／清空」兩顆鈕的 markup 抽成一支——PING 放在產品線分頁列左側，其他廠牌仍在標頭列。
+function VendorSelectBtnsHtml(vendor) {
+	return '<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll(\'' + vendor + '\')">all</div>' +
+	       '<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone(\'' + vendor + '\')">none</div>';
+}
+
 function ProductLineTabs(vendor) {
 	if (vendor != 'PING') return '';
-	return '<div class="ProductLineTabs" role="tablist" aria-label="PING product line">' +
+	return '<div class="ProductLineTabs">' +
+		/* 2026-09-08（Eric）：全選／清空從 PING 標頭列搬到這裡——它們管的是下方卡片，該跟卡片同一列 */
+		'<div class="LineBtns">' + VendorSelectBtnsHtml(vendor) + '</div>' +
+		'<div class="LineTabs" role="tablist" aria-label="PING product line">' +
 		'<button type="button" class="ProductLineTab" data-line="fast" onclick="SetPingProductLine(\'fast\')">Fast</button>' +
 		'<button type="button" class="ProductLineTab" data-line="classic" onclick="SetPingProductLine(\'classic\')">Classic</button>' +
 		/* 照片磚分頁 2026-09-07 移除（#99 Q3 甲）——照片磚機已不列進本頁，分頁會是空的。
 		   ProductLineOf() 的 'phototile' 分支刻意留著：萬一日後有照片磚機漏擋進來，
 		   它會被歸到一個沒有分頁的產品線而**被隱藏**（fail-safe），不會混進 Fast。 */
-		'</div>';
+		'</div></div>';
 }
 
 function SetPingProductLine(line) {
@@ -176,11 +185,9 @@ function HandleModelList( pVal )
 
 			let HtmlNewVendor='<div class="OneVendorBlock" Vendor="'+strVendor+'">'+
 '<div class="BlockBanner">'+
-'	<div class="BannerBtns">'+
-'		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll('+"\'"+strVendor+"\'"+')">all</div>'+
-'		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone('+"\'"+strVendor+"\'"+')">none</div>'+
-'	</div>'+
-'	<a>'+sVV+'</a>'+
+/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
+(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>')+
+(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>')+
 '</div>'+
 PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上 */
 ProductLineTabs(strVendor)+
@@ -380,11 +387,9 @@ function FilterModelList(keyword) {
 
 			let HtmlNewVendor = '<div class="OneVendorBlock" Vendor="' + strVendor + '">' +
 				'<div class="BlockBanner">' +
-				'	<div class="BannerBtns">' +
-				'		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll(' + "\'" + strVendor + "\'" + ')">all</div>' +
-				'		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone(' + "\'" + strVendor + "\'" + ')">none</div>' +
-				'	</div>' +
-				'	<a>' + sVV + '</a>' +
+				/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
+				(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>') +
+				(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>') +
 				'</div>' +
 				PingModeHelpHtml(strVendor) +   /* PING v12：搜尋重繪也要有說明區 */
 				ProductLineTabs(strVendor) +

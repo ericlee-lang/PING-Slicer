@@ -368,6 +368,7 @@ function PingModeHelpInit() {
     });
   }
   PingModeHelpRender();
+  PingModeHelpApplyCollapsed();   /* 2026-09-08：重繪後套回收合狀態（搜尋重繪也會走這裡） */
 }
 
 function PingModeHelpRender() {
@@ -423,4 +424,32 @@ function PingModeHelpRender() {
     single.src = PingModeArt[PingModeState.mode] || '';
     single.alt = mode.alt || '';
   }
+}
+
+/* ── 收合／展開（Eric 2026-09-08：「我能夠點選這個 PING 之後，把下方這個縮起來嗎？…展開時箭頭朝上、縮起來時朝下」，
+   四案比較後裁 A 案＝PING 標籤本身可按、箭頭在字後＋記住狀態）──
+   狀態存 localStorage（WebView2 file:// 可用；不可用時 try/catch 吞掉、退回本次會話的記憶體值＝每次進來展開）。
+   markup 由各頁 HtmlNewVendor 呼叫 PingModeHelpToggleHtml() 產生；行為集中在這裡，21／24 兩頁共用。 */
+var PingModeHelpStorageKey = 'ping.modeHelp.collapsed';
+var PingModeHelpCollapsedMem = false;
+function PingModeHelpIsCollapsed() {
+  try { var v = localStorage.getItem(PingModeHelpStorageKey); if (v !== null) return v === '1'; } catch (e) {}
+  return PingModeHelpCollapsedMem;
+}
+function PingModeHelpApplyCollapsed() {
+  var block = document.querySelector(".OneVendorBlock[vendor='PING']"); if (!block) return;
+  var collapsed = PingModeHelpIsCollapsed();
+  block.classList.toggle('ModeHelpCollapsed', collapsed);
+  block.querySelectorAll('.ModeHelpToggle').forEach(function (a) { a.setAttribute('aria-expanded', collapsed ? 'false' : 'true'); });
+}
+function TogglePingModeHelp(ev) {
+  if (ev && ev.type === 'keydown') { if (ev.key !== 'Enter' && ev.key !== ' ') return; ev.preventDefault(); }
+  var next = !PingModeHelpIsCollapsed();
+  PingModeHelpCollapsedMem = next;
+  try { localStorage.setItem(PingModeHelpStorageKey, next ? '1' : '0'); } catch (e) {}
+  PingModeHelpApplyCollapsed();
+}
+function PingModeHelpToggleHtml(label) {
+  return '<a class="ModeHelpToggle" role="button" tabindex="0" aria-expanded="true" onclick="TogglePingModeHelp(event)" onkeydown="TogglePingModeHelp(event)">' + label +
+         '<svg class="ModeHelpChev" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 7.5 6 3.5 10 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></a>';
 }

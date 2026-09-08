@@ -132,8 +132,8 @@
 .ProductLineTabs
 {
 	display: flex;
-	justify-content: flex-end;
-	gap: 4px;
+	justify-content: space-between; /* 2026-09-08：左＝全選／清空、右＝分頁 */
+	align-items: flex-end;
 	padding-top: 8px;
 	border-bottom: #EA4E16 1px solid;
 }
@@ -450,3 +450,9 @@ img.ModelThumbnail
 	padding-bottom: 5px;
 	padding-left: 32px; /* ORCA Align with content */
 }
+
+/* 2026-09-08（Eric）：全選／清空搬到產品線分頁列左側；PING 標頭列只剩可收合標籤，仍靠右 */
+.LineBtns { display: flex; align-items: center; padding-bottom: 6px; }
+.LineBtns > :first-child { margin-left: 0; }
+.LineTabs { display: flex; gap: 4px; }
+.BlockBanner a { margin-left: auto; }
