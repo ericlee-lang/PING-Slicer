@@ -157,8 +157,10 @@
        長得一樣，使用者學一次就通用。原本它擺在右側，混在「雙料/四色・用測試圖・開啟圖片」那排
        **前進**動作裡，讓「離開」跟「往下做」長得一樣、還放在一起。
        ⚠ 只動位置與長相：id、預設 display:none（只有 embeddedMode 才顯示）、
-         onclick 送 phototile_home，全部原樣不動。 -->
-  <button class="backbtn" id="btnBack" style="display:none" type="button" aria-label="返回首頁" title="返回首頁">
+         onclick 送 phototile_home，全部原樣不動。
+       2026-09-08（Eric 裁）：返回改落「準備」頁——切頁在 C++ 端的 phototile_home 處理；
+         這裡只把字樣改成「返回準備頁」，id／display／onclick 仍原樣。 -->
+  <button class="backbtn" id="btnBack" style="display:none" type="button" aria-label="返回準備頁" title="返回準備頁">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 5-7 7 7 7"/></svg>
   </button>
   <span class="brand">PING</span>

@@ -5159,8 +5159,16 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：離開頁面，取消現役 job=" << leaving;
                 }
                 CallAfter([this] {
-                    if (mainframe && mainframe->m_webview)
+                    if (!mainframe)
+                        return;
+                    if (mainframe->m_webview)
                         mainframe->m_webview->ShowHomepage();
+                    /* PING(2026-09-08 Eric 裁)：返回落「準備」頁，不落首頁。
+                       入口在準備頁（#99 Q1 甲搬過去的），返回就該回到入口所在的那一頁；
+                       首頁自 #99 起沒有照片磚入口，落首頁＝走進死巷（Eric 0908 實走）。
+                       上面 ShowHomepage() 保留：之後點「首頁」分頁看到的才是首頁，不是殘留的工作室。
+                       STEP 破面檢查的返回維持落首頁——它的入口在首頁；兩個工具同一條原則。 */
+                    mainframe->select_tab(size_t(MainFrame::tp3DEditor));
                 });
             }
             /* ⚠ phototile_export_begin|chunk|end 三支＝頁面自建 3MF 鏈的舊收件口——
