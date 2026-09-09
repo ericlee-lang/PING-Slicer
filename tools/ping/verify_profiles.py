@@ -986,7 +986,14 @@ for _name, (_kind, _d) in presets.items():
         else:
             _exp_census["棧板3" if _is_raft else "支撐0"] += 1
     if "support_line_width" in _d:
-        _nzn = _nominal_nozzle_v(_d.get("line_width"))
+        # 口徑優先從製程名「(口徑)」取（2026-09-09 PTP 棒：照片磚線寬 1.5×口徑，line_width 反推會錯一階）
+        _m_nz = re.search(r"\(([\d.]+)\)\s*$", _name)
+        _nzn = None
+        if _m_nz:
+            _c = "%g" % float(_m_nz.group(1))
+            _nzn = _c if _c in _SUP_LW_BY_NOZZLE else None
+        if _nzn is None:
+            _nzn = _nominal_nozzle_v(_d.get("line_width"))
         if _nzn is None:
             err(f"[支撐線寬] {_name}: line_width={_d.get('line_width')!r} 認不出口徑（查表失效）")
         elif _d["support_line_width"] != _SUP_LW_BY_NOZZLE[_nzn]:

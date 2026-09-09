@@ -1197,6 +1197,15 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
         #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
         d["enable_support"] = "0"
+        # ★ 牆 1 圈＋線寬 1.5×口徑（Eric 2026-09-09「牆層數改一圈，線寬改口徑的 1.5 倍，0.6 就改 0.9」，牌 c-0909-PTP-01）：
+        #   每個色塊只走一圈較寬的外牆（0.4→0.6、0.6→0.9、1.0→1.5）；只動預設／首層／外牆／內牆四鍵（Eric 截圖改的就是這四個），
+        #   頂面／稀疏／實心填充／支撐線寬不動——磚 0 殼、0 填充、關支撐，改了也無效、還會讓 verify 的支撐線寬查表紅。
+        #   ⚠ 工作室 3MF 物件層另寫 wall_loops（engine.js）＝物件覆蓋製程 ⇒ 同批把它從 round(2/口徑) 改成 1，兩處要一起看。
+        if m_nz_pt:
+            _pt_lw = "%g" % round(float(m_nz_pt.group(1)) * 1.5, 2)
+            d["wall_loops"] = "1"
+            for _k in ("line_width", "initial_layer_line_width", "outer_wall_line_width", "inner_wall_line_width"):
+                d[_k] = _pt_lw
         # 檔名：照片磚自成一模式（Eric 2026-07-26 裁）⇒ `照片磚_機型(口徑)_檔名_時間_重量`。
         # ⚠ 照片磚製程從範本檔複製、**不走 filename_tpl()**，範本裡連主體都還是 0610 舊佔位符
         #   （{filament_type}_{total_weight_str}_{print_time_hm}）⇒ 這裡整條覆蓋才會真的跟上。
@@ -2074,7 +2083,15 @@ def main(src_base):
                 touched = True
                 exp_set += 1
         if "support_line_width" in pdj:
-            _nz_nom = _nominal_nozzle(pdj.get("line_width"))
+            # ★ 口徑優先從檔名「(口徑)」取（2026-09-09 PTP 棒）：照片磚線寬＝1.5×口徑後，用 line_width 反推會把 0.4 認成 0.6
+            #   ⇒ 支撐線寬被改錯一階、verify 跟著紅。檔名沒括號的（fdm 基底等）才退回 line_width。
+            _m_nz_nm = re.search(r"\(([\d.]+)\)\s*\.json$", os.path.basename(pp_path))
+            _nz_nom = None
+            if _m_nz_nm:
+                _cand = "%g" % float(_m_nz_nm.group(1))
+                _nz_nom = _cand if _cand in SUP_LW_BY_NOZZLE else None
+            if _nz_nom is None:
+                _nz_nom = _nominal_nozzle(pdj.get("line_width"))
             if _nz_nom is None:
                 lw_unknown += 1
                 print("  ⚠ 支撐線寬 post-pass：%s 的 line_width=%r 認不出口徑，跳過"
