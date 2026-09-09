@@ -894,7 +894,12 @@ else:
                 err(f"[跨層護欄・C-12 renamed 回溯] PresetBundle.cpp {_pat!r} 出現 {_got} 次"
                     f"（應 ≥{_need}＝load_selections＋update_selections 各一）")
 
-# ★ 功能歸類普查（0730 改名批）：五 token × 18 支 exact；舊材料對名歸零
+# ★ 功能歸類普查（0730 改名批）：五 token × N 支 exact；舊材料對名歸零。
+#   N＝雙料本體機（FD300／FD300 Pro／FD300 關門／FD450 Pro／FD600 Pro／FD800 Pro）的口徑變體總數——
+#   0730 時＝6 台 × 3 口徑＝18；2026-09-09 NZ 棒大機加 0.25 後＝21。從 machine preset 算、不寫死常數，
+#   下次再加口徑不必回來改這裡（每個雙料機口徑變體恰出五 token 各一支）。
+_DUAL_BODY_MODELS = {"FD300", "FD300 Pro", "FD300 關門", "FD450 Pro", "FD600 Pro", "FD800 Pro"}
+_combo_expect = sum(1 for _n, (_k, _d) in presets.items() if _k == "machine" and _d.get("printer_model") in _DUAL_BODY_MODELS)
 _combo_census = {}
 for _n, (_k, _d) in presets.items():
     if _k != "process":
@@ -906,8 +911,8 @@ for _n, (_k, _d) in presets.items():
         if (" %s @" % _old) in _n:
             err(f"[功能歸類・舊材料對名殘留] {_n}")
 for _t in sorted(COMBO_TOKENS):
-    if _combo_census.get(_t, 0) != 18:
-        err(f"[功能歸類・{_t} 應 18 支] 實得 {_combo_census.get(_t, 0)}")
+    if _combo_census.get(_t, 0) != _combo_expect:
+        err(f"[功能歸類・{_t} 應 {_combo_expect} 支＝雙料本體機口徑變體數] 實得 {_combo_census.get(_t, 0)}")
 # id baseline（二輪必改 14／四輪修訂 C）：改名前快照＝舊名→新名→setting_id 90 條 exact，
 # 防重構位移／PVA 插回主迴圈／依新名重排 emission（fixture＝regen 前 dump、進 repo）。
 _idb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "combo_rename_id_baseline.json")

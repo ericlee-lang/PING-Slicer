@@ -2,7 +2,7 @@
     "type": "machine_model",
     "name": "FD600 Pro 單料頭",
     "model_id": "PING_FD600_Pro_單料頭",
-    "nozzle_diameter": "0.4;0.6;1.0",
+    "nozzle_diameter": "0.2;0.4;0.6;1.0",
     "machine_tech": "FFF",
     "family": "",
     "bed_model": "PING_FD600_buildplate_model.stl",
