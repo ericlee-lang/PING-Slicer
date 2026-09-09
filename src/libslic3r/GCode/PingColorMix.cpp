@@ -469,17 +469,10 @@ int build_photo_tile_gcode(const std::string& gcode,
     int count = 0;
     size_t start = 0;
     const size_t N = gcode.size();
-    /* PING 2026-09-08（Eric 對照印 `_NO_RESEND_SETRETRACT` 證實；交辦單 §8/§12）：
-       Klipper 上游 firmware_retraction 的 SET_RETRACTION 會把 is_retracted 清成 False，而 G11 只在 True 才回吐。
-       照片磚每次換色的序列是 G10 → M6051 → 線材起始 G-code 重發 SET_RETRACTION → G11 ⇒ 2,200 次換色的 G11 全部落空，
-       兩支各 1.3 mm 沒回吐，下一段先補 2.6 mm 才出料＝短格子缺料（Eric 現場看到「回抽後移到下一點沒回吐」）。
-       修法＝**回抽態遇到 SET_RETRACTION 先暫存，等 G11 原樣輸出後再吐出**：回吐用的是 G10 當下生效的長度（本來就該如此），
-       新值在回吐之後才生效。只在本 pass（palette 有效＝照片磚）內做；一般雙料換料的同型問題交韌體補丁（Klipper 線）。 */
-    bool        retracted = false;          // 看到 G10 起、G11 止
-    std::string held_set_retraction;        // 回抽態暫存的 SET_RETRACTION 整行（同一段只留最後一行）
-    auto cmd_ends_at = [&gcode](size_t p, size_t b) {
-        return p == b || gcode[p] == ' ' || gcode[p] == '\t' || gcode[p] == ';' || gcode[p] == '\r';
-    };
+    /* 🔴 2026-09-09（`#353` 丙，牌 c-0909-RET2）：原本這裡內嵌一份「回抽態的 SET_RETRACTION 延到 G11 之後」
+       的狀態機（2026-09-08 commit 846e974c89）。Eric 裁定把同一條規則擴到**所有**換料路徑（雙料 T 換料、3in1…），
+       所以那段已抽成 defer_set_retraction()，改由 BackgroundSlicingProcess 在本 pass 之後**無條件**全檔跑一次。
+       本函式回到單一職責＝只把整行 T<n> 換成 M605x。抽出去時順便修掉它的兩個毛病，見 hpp 宣告處。 */
     while (true) {
         size_t nl = gcode.find('\n', start);
         const size_t line_end = (nl == std::string::npos) ? N : nl;
@@ -488,20 +481,6 @@ int build_photo_tile_gcode(const std::string& gcode,
         if (b > a && gcode[b - 1] == '\r') --b;
         while (a < b && (gcode[a] == ' ' || gcode[a] == '\t')) ++a;
         bool replaced = false;
-        // ── 回抽狀態機（只認行首指令）
-        bool skip_line = false, flush_held_after = false;
-        if (b - a >= 3 && gcode[a] == 'G' && gcode[a + 1] == '1' && (gcode[a + 2] == '0' || gcode[a + 2] == '1') && cmd_ends_at(a + 3, b)) {
-            if (gcode[a + 2] == '0') retracted = true;
-            else { retracted = false; flush_held_after = !held_set_retraction.empty(); }
-        } else if (retracted && b - a >= 14 && gcode.compare(a, 14, "SET_RETRACTION") == 0 && cmd_ends_at(a + 14, b)) {
-            held_set_retraction.assign(gcode, start, line_end - start);   // 保留原行（含前導空白／尾 \r）
-            skip_line = true;
-        }
-        if (skip_line) {
-            if (nl == std::string::npos) break;
-            start = nl + 1;
-            continue;
-        }
         // 「T＋純數字」開頭、數字後是行尾/空白/註解 → 才是換料指令
         //（M104 T0 這類行首是 M；行中 T 參數永遠不會被看到）
         if (b - a >= 2 && gcode[a] == 'T' && std::isdigit((unsigned char)gcode[a + 1])) {
@@ -524,18 +503,9 @@ int build_photo_tile_gcode(const std::string& gcode,
             }
         }
         if (!replaced) out.append(gcode, start, line_end - start);
-        if (flush_held_after) {                 // G11 已原樣輸出 → 現在才吐出被延後的 SET_RETRACTION
-            out.push_back('\n');
-            out += held_set_retraction;
-            held_set_retraction.clear();
-        }
         if (nl == std::string::npos) break;
         out.push_back('\n');
         start = nl + 1;
-    }
-    if (!held_set_retraction.empty()) {          // 檔尾仍在回抽態（末段 G10 無 G11）：照樣吐出，不吞掉使用者的設定
-        out.push_back('\n');
-        out += held_set_retraction;
     }
     return count;
 }
@@ -643,6 +613,67 @@ bool recipe_from_string(const std::string& s, Recipe& recipe)
     }
     recipe.mode = mode;
     return true;
+}
+
+
+
+// ── 回抽態的 SET_RETRACTION 一律延到 G11 之後（`#353` 丙；說明見 hpp 宣告處）──────────────────
+// 判準只有一條：任何時刻 SET_RETRACTION 不得出現在「G10 之後、下一個 G11 之前」。
+int defer_set_retraction(const std::string& gcode, std::string& out, DeferSetRetractionStats* stats)
+{
+    out.clear();
+    out.reserve(gcode.size() + gcode.size() / 64);
+    DeferSetRetractionStats st;
+    size_t       start = 0;
+    const size_t N     = gcode.size();
+    bool         retracted = false;                 // 看到 G10 起、G11 止
+    std::vector<std::string> held;                  // 保序**全部**暫存——不是「只留最後一行」：
+                                                    // 先改長度、再單獨改速度時，只留最後一行會把長度丟掉。
+    auto cmd_ends_at = [&gcode](size_t p, size_t b) {
+        return p == b || gcode[p] == ' ' || gcode[p] == '\t' || gcode[p] == ';' || gcode[p] == '\r';
+    };
+    while (true) {
+        const size_t nl       = gcode.find('\n', start);
+        const size_t line_end = (nl == std::string::npos) ? N : nl;
+        // 行內容 [a,b)：去尾 \r、容忍前導空白（正常 gcode 沒有）
+        size_t a = start, b = line_end;
+        if (b > a && gcode[b - 1] == '\r') --b;
+        while (a < b && (gcode[a] == ' ' || gcode[a] == '\t')) ++a;
+        bool skip_line = false, flush_held_after = false;
+        // 只認行首指令：G10 / G11（含 "G10 ; 註解" 這種尾隨註解型）
+        if (b - a >= 3 && gcode[a] == 'G' && gcode[a + 1] == '1' && (gcode[a + 2] == '0' || gcode[a + 2] == '1') && cmd_ends_at(a + 3, b)) {
+            if (gcode[a + 2] == '0') retracted = true;
+            else { retracted = false; flush_held_after = !held.empty(); }
+        } else if (retracted && b - a >= 14 && gcode.compare(a, 14, "SET_RETRACTION") == 0 && cmd_ends_at(a + 14, b)) {
+            held.emplace_back(gcode, start, line_end - start);   // 保留原行（含前導空白／尾 \r）
+            skip_line = true;
+            ++st.deferred;
+        }
+        // 其他行（SET_PRESSURE_ADVANCE／M104／M6051…）一律不動。
+        if (skip_line) {
+            if (nl == std::string::npos) break;
+            start = nl + 1;
+            continue;
+        }
+        out.append(gcode, start, line_end - start);
+        if (flush_held_after) {                     // G11 已原樣輸出 → 現在才依原順序全部吐出
+            for (const std::string& line : held) { out.push_back('\n'); out += line; }
+            held.clear();
+        }
+        if (nl == std::string::npos) break;
+        out.push_back('\n');
+        start = nl + 1;
+    }
+    if (!held.empty()) {
+        // 檔尾／取消點仍在回抽態（沒有後續 G11）：**不得**在這裡吐出——那等於在回抽態重發，
+        // 違反判準本身。直接丟棄，只留一行註解供日後統計（Codex gpt-6-astra 2026-09-09 對抗審）。
+        st.dropped = (int) held.size();
+        held.clear();
+        if (!out.empty() && out.back() != '\n') out.push_back('\n');
+        out += "; PING: SET_RETRACTION deferred but no G11 followed (dropped)\n";
+    }
+    if (stats) *stats = st;
+    return st.deferred;
 }
 
 } // namespace PingMix
