@@ -170,6 +170,7 @@ class MainFrame : public DPIFrame
         size_t FindFileInHistory(const wxString &file);
 
         void LoadThumbnails();
+        void RefreshThumbnail(const wxString &file);   // PING(2026-09-09)：某檔事後補了 plate_1.png → 只重讀那一格
 
         void SetMaxFiles(int max);
     private:
@@ -354,6 +355,7 @@ public:
     bool save_project_as(const wxString& filename = wxString());
 
     void        add_to_recent_projects(const wxString& filename);
+    void        refresh_recent_project_thumbnail(const wxString& filename);   // PING(2026-09-09，c-0909-TH-01)：重讀縮圖並重送首頁清單
     void        get_recent_projects(boost::property_tree::wptree &tree, int images);
     void        open_recent_project(size_t file_id, wxString const & filename);
     void        remove_recent_project(size_t file_id, wxString const &filename);

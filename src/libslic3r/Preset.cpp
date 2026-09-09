@@ -1671,6 +1671,9 @@ void PresetCollection::set_sync_info_and_save(std::string name, std::string sett
             preset->setting_id = setting_id;
             if (update_time > 0)
                 preset->updated_time = update_time;
+            // PING(2026-09-09 診斷，牌 c-0909-TH-01)：sync_info=update 會 save(nullptr)＝全量重存；留軌跡看 inherits 此刻是不是已經空了。
+            BOOST_LOG_TRIVIAL(warning) << "PING preset sync-save: name=" << name << " syncinfo=" << syncinfo << " sync_info=" << preset->sync_info
+                                       << " inherits=" << preset->inherits() << (preset->sync_info == "update" ? " -> save(nullptr) full" : " -> save_info only");
             preset->sync_info == "update" ? preset->save(nullptr) : preset->save_info();
             break;
         }
@@ -2447,6 +2450,10 @@ void PresetCollection::save_current_preset(const std::string &new_name, bool det
             return;
         }
         // Overwriting an existing preset.
+        // PING(2026-09-09 診斷，牌 c-0909-TH-01／Q3 甲前置)：使用者 printer preset 的 inherits 被清空的案子
+        // （FD300 同進照片磚.json：151 鍵全量、sync_info=update）走的是這條覆寫分支；留 warning 軌跡：誰以什麼 detach 覆寫了誰。
+        BOOST_LOG_TRIVIAL(warning) << "PING preset overwrite: type=" << (int)m_type << " name=" << new_name << " detach=" << detach
+                                   << " inherits_before=" << preset.inherits() << " curr_is_system=" << curr_preset.is_system;
         preset.config = std::move(curr_preset.config);
         // The newly saved preset will be activated -> make it visible.
         preset.is_visible = true;

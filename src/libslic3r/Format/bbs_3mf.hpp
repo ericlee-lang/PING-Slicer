@@ -251,6 +251,11 @@ extern bool load_bbs_3mf(const char* path, DynamicPrintConfig* config, ConfigSub
         bool* is_bbl_3mf, Semver* file_version, Import3mfProgressFn proFn = nullptr, LoadStrategy strategy = LoadStrategy::Default, BBLProject *project = nullptr, int plate_id = 0);
 
 extern std::string bbs_3mf_get_thumbnail(const char * path);
+// PING(2026-09-09，牌 c-0909-TH-01，Eric 裁 Q4-2 甲)：把列印板 3D 縮圖補進「沒有 Metadata/plate_1.png」的 3MF。
+// 照片磚工作室的 3MF 是瀏覽器端組的、從沒嵌過縮圖 ⇒ 首頁「最近打開」那格一直是空的。
+// 做法＝整包 entry 原樣複製到暫存檔＋只多一個 plate_1.png，再原子換檔；既有 entry（ping_phototile.json／原圖）位元組不動；
+// 已有 plate_1.png（例如使用者 Ctrl+S 存過）＝不動、回 true。回 false＝寫失敗（原檔保持原樣）。
+extern bool bbs_3mf_add_plate_thumbnail(const char* path, const ThumbnailData& thumbnail);
 
 extern bool load_gcode_3mf_from_stream(std::istream & data, DynamicPrintConfig* config, Model* model, PlateDataPtrs* plate_data_list,
        Semver* file_version);

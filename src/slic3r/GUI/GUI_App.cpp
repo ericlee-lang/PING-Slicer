@@ -79,6 +79,8 @@
 #include "GUI_Utils.hpp"
 #include "3DScene.hpp"
 #include "MainFrame.hpp"
+#include "PartPlate.hpp"                       // PING c-0909-TH-01：列印板縮圖
+#include "libslic3r/Format/bbs_3mf.hpp"      // PING c-0909-TH-01：bbs_3mf_add_plate_thumbnail
 #include "Plater.hpp"
 #include <wx/timer.h>               // C-2 第 3 項：閒置預熱 timer（原本靠傳遞式引入，改成顯式）
 #include "PhotoTileCapability.hpp"
@@ -6001,6 +6003,38 @@ void GUI_App::request_open_project(std::string project_id)
         CallAfter([this, project_id] { mainframe->open_recent_project(-1, wxString::FromUTF8(project_id)); });
 }
 
+
+// PING(2026-09-09，牌 c-0909-TH-01)：見 .hpp。
+void GUI_App::ping_phototile_write_plate_thumbnail(const std::string& project_path, int retries_left)
+{
+    if (plater() == nullptr || mainframe == nullptr)
+        return;
+    PartPlate* plate = plater()->get_partplate_list().get_plate(0);
+    bool same_project = false;
+    {
+        boost::system::error_code ec;
+        const boost::filesystem::path cur(into_u8(plater()->get_project_filename(".3mf")));
+        const boost::filesystem::path want(project_path);
+        same_project = !cur.empty() && boost::filesystem::exists(cur, ec) && boost::filesystem::exists(want, ec) &&
+                       boost::filesystem::equivalent(cur, want, ec) && !ec;
+    }
+    if (plate == nullptr || plate->empty() || !same_project) {
+        if (retries_left > 0) {
+            CallAfter([this, project_path, retries_left] { ping_phototile_write_plate_thumbnail(project_path, retries_left - 1); });
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: plate not ready or project changed, give up: " << project_path;
+        }
+        return;
+    }
+    plater()->update_all_plate_thumbnails(true);   // 與 Ctrl+S（export_3mf）同一條渲染路徑
+    if (!plate->thumbnail_data.is_valid()) {
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: render produced no data for " << project_path;
+        return;
+    }
+    if (bbs_3mf_add_plate_thumbnail(project_path.c_str(), plate->thumbnail_data))
+        mainframe->refresh_recent_project_thumbnail(wxString::FromUTF8(project_path));
+}
+
 /* 照片磚機型的安裝（**2026-09-07 Eric 裁 #99 Q3 甲後重寫**）。
 
    ▍原本是什麼、為什麼砍掉
@@ -9880,6 +9914,8 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
             return;
         }
         request_open_project(project_path);
+        // PING 0909 Q4-2 甲：載入排在上一個 CallAfter，這個排在它後面 ⇒ 板上有物件後才渲染縮圖寫回 3MF
+        CallAfter([this, project_path] { ping_phototile_write_plate_thumbnail(project_path, 3); });
         // 覆審 I-2：成功回推排在上盤動作之後。未存變更提示按取消（case b）這層攔不到
         // ——那是使用者親眼看著對話框做的決定，不算靜默失敗。
         if (done)

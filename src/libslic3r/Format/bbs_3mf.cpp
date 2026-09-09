@@ -8650,6 +8650,74 @@ std::string bbs_3mf_get_thumbnail(const char *path)
     return data;
 }
 
+// PING(2026-09-09，牌 c-0909-TH-01)：見 .hpp。用 miniz reader→writer 整包複製而不是 mz_zip_writer_init_from_reader 原地 append，
+// 因為後者會用窄字元 freopen 重開檔案，中文 Temp 路徑會炸；複製法走 open_zip_reader／open_zip_writer（寬字元路徑）。
+bool bbs_3mf_add_plate_thumbnail(const char* path, const ThumbnailData& thumbnail)
+{
+    if (path == nullptr || !thumbnail.is_valid()) {
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: invalid input for " << (path ? path : "(null)");
+        return false;
+    }
+    const std::string src_path(path);
+    mz_zip_archive reader;
+    mz_zip_zero_struct(&reader);
+    if (!open_zip_reader(&reader, src_path)) {
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: cannot open " << src_path;
+        return false;
+    }
+    if (mz_zip_reader_locate_file(&reader, THUMBNAIL_FILE.c_str(), nullptr, 0) >= 0) {
+        close_zip_reader(&reader);
+        BOOST_LOG_TRIVIAL(info) << "PING plate thumbnail: already present, untouched: " << src_path;
+        return true;
+    }
+    const std::string tmp_path = src_path + ".thumb.tmp";
+    mz_zip_archive writer;
+    mz_zip_zero_struct(&writer);
+    if (!open_zip_writer(&writer, tmp_path)) {
+        close_zip_reader(&reader);
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: cannot create " << tmp_path;
+        return false;
+    }
+    bool ok = true;
+    const mz_uint n = mz_zip_reader_get_num_files(&reader);
+    for (mz_uint i = 0; i < n && ok; ++i) {
+        mz_zip_archive_file_stat stat;
+        if (!mz_zip_reader_file_stat(&reader, i, &stat)) { ok = false; break; }
+        if (mz_zip_reader_is_file_a_directory(&reader, i)) continue;
+        size_t size = 0;
+        void*  data = mz_zip_reader_extract_to_heap(&reader, i, &size, 0);
+        if (data == nullptr) { ok = false; break; }
+        // 沿用原 entry 的壓縮與否（method 0＝stored），內容逐位元組相同
+        ok = mz_zip_writer_add_mem(&writer, stat.m_filename, data, size,
+                                   stat.m_method == 0 ? MZ_NO_COMPRESSION : MZ_DEFAULT_COMPRESSION) != 0;
+        mz_free(data);
+    }
+    if (ok) {
+        size_t png_size = 0;
+        void*  png_data = tdefl_write_image_to_png_file_in_memory_ex((const void*)thumbnail.pixels.data(), thumbnail.width, thumbnail.height, 4, &png_size, MZ_DEFAULT_COMPRESSION, 1);
+        ok = png_data != nullptr && mz_zip_writer_add_mem(&writer, THUMBNAIL_FILE.c_str(), png_data, png_size, MZ_NO_COMPRESSION) != 0;
+        if (png_data != nullptr) mz_free(png_data);
+    }
+    close_zip_reader(&reader);
+    ok = close_zip_writer(&writer) && ok;
+    if (!ok) {
+        boost::system::error_code ec;
+        boost::filesystem::remove(boost::filesystem::path(tmp_path), ec);
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: FAILED for " << src_path;
+        return false;
+    }
+    // 原子換檔：rename 蓋不過既有檔（Windows）⇒ 先移走原檔再換入，失敗就把原檔放回去
+    boost::system::error_code ec;
+    const boost::filesystem::path src(src_path), tmp(tmp_path), bak(src_path + ".thumb.bak");
+    boost::filesystem::rename(src, bak, ec);
+    if (ec) { boost::filesystem::remove(tmp, ec); BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: cannot move original aside: " << ec.message(); return false; }
+    boost::filesystem::rename(tmp, src, ec);
+    if (ec) { boost::filesystem::rename(bak, src, ec); boost::filesystem::remove(tmp, ec); BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: cannot swap in new file: " << ec.message(); return false; }
+    boost::filesystem::remove(bak, ec);
+    BOOST_LOG_TRIVIAL(info) << "PING plate thumbnail: added " << THUMBNAIL_FILE << " (" << thumbnail.width << "x" << thumbnail.height << ", " << n << " entries kept) into " << src_path;
+    return true;
+}
+
 bool load_gcode_3mf_from_stream(std::istream &data, DynamicPrintConfig *config, Model *model, PlateDataPtrs *plate_data_list, Semver *file_version)
 {
     CNumericLocalesSetter locales_setter;

@@ -4355,6 +4355,13 @@ void MainFrame::add_to_recent_projects(const wxString& filename)
     }
 }
 
+void MainFrame::refresh_recent_project_thumbnail(const wxString& filename)
+{
+    m_recent_projects.RefreshThumbnail(filename);
+    if (m_webview != nullptr)
+        m_webview->SendRecentList(0);
+}
+
 std::wstring MainFrame::FileHistory::GetThumbnailUrl(int index) const
 {
     if (m_thumbnails[index].empty()) return L"";
@@ -4373,6 +4380,16 @@ void MainFrame::FileHistory::AddFileToHistory(const wxString &file)
         m_thumbnails.push_front(bbs_3mf_get_thumbnail(into_u8(file).c_str()));
     else
         m_thumbnails.push_front("");
+}
+
+// PING(2026-09-09，c-0909-TH-01)：工作室 3MF 載入時還沒有縮圖（AddFileToHistory 讀到空字串），
+// 事後 bbs_3mf_add_plate_thumbnail 補進檔案後只重讀那一格，不重掃整份清單。
+void MainFrame::FileHistory::RefreshThumbnail(const wxString &file)
+{
+    size_t i = FindFileInHistory(file);
+    if (i >= m_thumbnails.size())   // wxNOT_FOUND 轉 size_t 也落在這裡
+        return;
+    m_thumbnails[i] = bbs_3mf_get_thumbnail(into_u8(file).c_str());
 }
 
 void MainFrame::FileHistory::RemoveFileFromHistory(size_t i)

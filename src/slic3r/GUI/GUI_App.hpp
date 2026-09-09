@@ -568,6 +568,11 @@ public:
                                            const std::string* result_env_json,
                                            std::function<void(bool ok, const std::string& err_code,
                                                               const std::string& err_msg)> done = nullptr);
+    // PING(2026-09-09，牌 c-0909-TH-01，Eric 裁 Q4-2 甲)：工作室 3MF 載入完成後，用 Ctrl+S 同一條渲染路徑
+    // （Plater::update_all_plate_thumbnails）產列印板 3D 縮圖、補進該 3MF 的 Metadata/plate_1.png，再刷新首頁
+    // 「最近打開」那一格。載入走 CallAfter 非同步 ⇒ 板上還沒物件、或使用者已開別的檔就再排一次（最多 retries_left 次），
+    // 永不寫空板縮圖（寫進去就換不掉）。
+    void            ping_phototile_write_plate_thumbnail(const std::string& project_path, int retries_left);
     // 【C-2 第 2 項】「此刻」的環境快照 JSON（printer preset 名＋專案檔名）；
     // 蓋章（host provider）與上盤 guard 兩端共用同一支＝同一把尺。
     std::string     photo_tile_current_env_json();
