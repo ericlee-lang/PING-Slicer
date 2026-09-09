@@ -672,7 +672,7 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
             洗料柱的用途就是把上一個混比的殘料擠掉，量變少＝可能洗不乾淨。這是 Eric 知情下的取捨；
             實印若出現串色，第一個要調回來的就是這裡。 */
       `      <metadata key="sparse_infill_density" value="0%"/>\n`+
-      `      <metadata key="wall_loops" value="1"/>
+      `      <metadata key="wall_loops" value="${Math.max(1, Math.round(2.0/(P.nozzle||0.4)))}"/>
 `+
       `      <metadata key="top_shell_layers" value="0"/>
 `+

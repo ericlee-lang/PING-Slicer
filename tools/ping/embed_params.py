@@ -1206,6 +1206,12 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
             d["wall_loops"] = "1"
             for _k in ("line_width", "initial_layer_line_width", "outer_wall_line_width", "inner_wall_line_width"):
                 d[_k] = _pt_lw
+        # ★ 頂底鋪滿 4 層、中間維持空心（Eric 2026-09-09「頂底層的部分能夠鋪滿至少三四層，而內部維持一樣的樣式」，牌 c-0909-PTP-02）：
+        #   top/bottom_shell_layers 0→4（厚度鍵 0.8 不動，Orca 取層數與厚度較大者）。色塊交界不會被當頂面——interface_shells=0
+        #   ＝拿整個物件的上一層判頂面，只有磚的最頂／最底才是；0% 填充 ⇒ 頂 4 層是內部橋接＋實心，中間照舊只有牆。
+        #   ⚠ 磚體零件沒有物件層覆蓋（engine.js 只對「洗料柱」寫 wall_loops／上下殼 0），製程規則直接生效。
+        d["top_shell_layers"] = "4"
+        d["bottom_shell_layers"] = "4"
         # 檔名：照片磚自成一模式（Eric 2026-07-26 裁）⇒ `照片磚_機型(口徑)_檔名_時間_重量`。
         # ⚠ 照片磚製程從範本檔複製、**不走 filename_tpl()**，範本裡連主體都還是 0610 舊佔位符
         #   （{filament_type}_{total_weight_str}_{print_time_hm}）⇒ 這裡整條覆蓋才會真的跟上。
