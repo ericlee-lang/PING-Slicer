@@ -6005,6 +6005,18 @@ void GUI_App::request_open_project(std::string project_id)
 
 
 // PING(2026-09-09，牌 c-0909-TH-01)：見 .hpp。
+// 延遲重試：第一版用 CallAfter 立刻重排，實測 3 次都在載入的巢狀事件迴圈裡跑掉（21:26:02 log），板還是空的就放棄了。
+// 改 wxTimer 一次性 500 ms；timer 在自己的 handler 裡不能 delete，交給 CallAfter 收。
+static void ping_phototile_thumbnail_retry_later(GUI_App* app, const std::string& project_path, int retries_left)
+{
+    wxTimer* t = new wxTimer();
+    t->Bind(wxEVT_TIMER, [app, project_path, retries_left, t](wxTimerEvent&) {
+        app->CallAfter([t] { delete t; });
+        app->ping_phototile_write_plate_thumbnail(project_path, retries_left);
+    });
+    t->StartOnce(500);
+}
+
 void GUI_App::ping_phototile_write_plate_thumbnail(const std::string& project_path, int retries_left)
 {
     if (plater() == nullptr || mainframe == nullptr)
@@ -6020,9 +6032,11 @@ void GUI_App::ping_phototile_write_plate_thumbnail(const std::string& project_pa
     }
     if (plate == nullptr || plate->empty() || !same_project) {
         if (retries_left > 0) {
-            CallAfter([this, project_path, retries_left] { ping_phototile_write_plate_thumbnail(project_path, retries_left - 1); });
+            ping_phototile_thumbnail_retry_later(this, project_path, retries_left - 1);
         } else {
-            BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: plate not ready or project changed, give up: " << project_path;
+            BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: give up after retries: plate_empty=" << (plate == nullptr || plate->empty())
+                                       << " same_project=" << same_project << " cur=" << into_u8(plater()->get_project_filename(".3mf"))
+                                       << " want=" << project_path;
         }
         return;
     }
@@ -6031,8 +6045,10 @@ void GUI_App::ping_phototile_write_plate_thumbnail(const std::string& project_pa
         BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: render produced no data for " << project_path;
         return;
     }
-    if (bbs_3mf_add_plate_thumbnail(project_path.c_str(), plate->thumbnail_data))
+    if (bbs_3mf_add_plate_thumbnail(project_path.c_str(), plate->thumbnail_data)) {
         mainframe->refresh_recent_project_thumbnail(wxString::FromUTF8(project_path));
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: written and recent-list refreshed: " << project_path;   // warning 等級＝log 預設等級看得到
+    }
 }
 
 /* 照片磚機型的安裝（**2026-09-07 Eric 裁 #99 Q3 甲後重寫**）。
@@ -6148,9 +6164,18 @@ void GUI_App::open_photo_tile(const wxString& image_path)
         // 選「先進去看看」＝照樣開（入口保持可點），只是他已經知道最後會卡在哪。
     }
 
+    /* PING(2026-09-09，Eric「如果這是設計上的問題，那是否不要去清除它呢？」)：**沒帶新圖＝續用工作室**。
+       實錄：產生→回列印板→按側欄「照片磚」要改圈數，圖與設定全沒了——因為這裡把來源清掉、
+       WebViewPanel::ShowPhotoTile 又把頁面重載。續用時：不取消現役 job、不清來源／風格化／AI 紀錄、
+       不刪記帳暫存、頁面不重載（見 ShowPhotoTile）。真的換圖（帶路徑進來，或頁內開檔／貼上走
+       phototile_image_*）才照原規則作廢舊圖。已知邊界：中途去過首頁＝頁面已被頂掉，還是會空（要救得靠從 3MF 讀回，另案）。 */
+    const bool resume_studio = image_path.IsEmpty();
+    if (resume_studio)
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：續用（沒帶新圖，不清狀態、不重載）source=" << m_photo_tile_source_path;
+
     /* 覆審 I-3（配套）：進工作室（含拖圖直入）＝任何現役生成作廢——同 phototile_home，
-       遲到的結果不得上盤。 */
-    if (!m_photo_tile_active_job.empty()) {
+       遲到的結果不得上盤。（續用時不作廢：頁面還在顯示它的進度。） */
+    if (!resume_studio && !m_photo_tile_active_job.empty()) {
         const std::string leaving = m_photo_tile_active_job;
         m_photo_tile_active_job.clear();
         if (m_photo_tile_host)
@@ -6161,7 +6186,8 @@ void GUI_App::open_photo_tile(const wxString& image_path)
     /* C-2 接線設計（0804）：C++ 端持有「目前這張圖」的路徑。有路徑的入口（拖放/開檔）
        記在這裡；頁內選檔/貼上由 phototile_image_begin|chunk|end 落暫存檔後更新。
        空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
-    m_photo_tile_source_path = image_path.IsEmpty() ? std::string() : into_u8(image_path);
+    if (!resume_studio) {                       // PING 0909：續用不清（見上）
+    m_photo_tile_source_path = into_u8(image_path);
     m_photo_tile_origin_path.clear();          // 甲案：同上，換圖即作廢風格化原圖記錄
     m_photo_tile_ai_path.clear();              // 另存 AI 圖：同上
 
@@ -6171,6 +6197,7 @@ void GUI_App::open_photo_tile(const wxString& image_path)
         try { boost::filesystem::remove(boost::filesystem::path(m_photo_tile_owned_temp)); }
         catch (...) {}
         m_photo_tile_owned_temp.clear();
+    }
     }
 
     /* C-2 第 3 項 W3：進工作室＝立即預熱。使用者已經打開照片磚工作室＝比「選中照片磚機」
@@ -9915,7 +9942,7 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
         }
         request_open_project(project_path);
         // PING 0909 Q4-2 甲：載入排在上一個 CallAfter，這個排在它後面 ⇒ 板上有物件後才渲染縮圖寫回 3MF
-        CallAfter([this, project_path] { ping_phototile_write_plate_thumbnail(project_path, 3); });
+        CallAfter([this, project_path] { ping_phototile_write_plate_thumbnail(project_path, 20); });   // 20 × 500 ms（載入在巢狀迴圈裡，立刻重排會全部撲空）
         // 覆審 I-2：成功回推排在上盤動作之後。未存變更提示按取消（case b）這層攔不到
         // ——那是使用者親眼看著對話框做的決定，不算靜默失敗。
         if (done)

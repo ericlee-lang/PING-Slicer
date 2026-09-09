@@ -8699,6 +8699,9 @@ bool bbs_3mf_add_plate_thumbnail(const char* path, const ThumbnailData& thumbnai
         if (png_data != nullptr) mz_free(png_data);
     }
     close_zip_reader(&reader);
+    // ⚠ close_zip_writer 只做 mz_zip_writer_end、**不** finalize（miniz_extension.cpp close_zip）——第一版漏了這行，
+    //   寫出來的檔沒有 central directory、不是合法 zip（21:35 實測 Python zipfile：not a zip file）。exporter 也是自己先 finalize。
+    ok = ok && mz_zip_writer_finalize_archive(&writer) != 0;
     ok = close_zip_writer(&writer) && ok;
     if (!ok) {
         boost::system::error_code ec;
@@ -8714,7 +8717,7 @@ bool bbs_3mf_add_plate_thumbnail(const char* path, const ThumbnailData& thumbnai
     boost::filesystem::rename(tmp, src, ec);
     if (ec) { boost::filesystem::rename(bak, src, ec); boost::filesystem::remove(tmp, ec); BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: cannot swap in new file: " << ec.message(); return false; }
     boost::filesystem::remove(bak, ec);
-    BOOST_LOG_TRIVIAL(info) << "PING plate thumbnail: added " << THUMBNAIL_FILE << " (" << thumbnail.width << "x" << thumbnail.height << ", " << n << " entries kept) into " << src_path;
+    BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: added " << THUMBNAIL_FILE << " (" << thumbnail.width << "x" << thumbnail.height << ", " << n << " entries kept) into " << src_path;
     return true;
 }
 

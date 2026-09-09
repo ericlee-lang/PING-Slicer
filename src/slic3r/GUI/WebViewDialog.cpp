@@ -295,6 +295,20 @@ void WebViewPanel::ShowPhotoTile(const wxString& image_path)
 {
     m_pending_photo_tile_image = image_path;
     wxString url = photo_tile_url();
+    /* PING(2026-09-09，Eric「不要去清除它」)：頁面已經停在工作室、又沒有新圖 ⇒ **不重載**——
+       圖／尺寸／色階／圈數原地保留（回列印板時頁面只是被藏起來）。只補送一次機型料數與 AI 可用性
+       （使用者可能在列印板換了機器；頁面的 setMachineCapability 料數沒變時只重畫款式清單，不動使用者設定）。
+       有新圖、或頁面在別處（首頁／STEP 修補）才真的載入。 */
+    // ⚠ 不能拿字串相等比：WebView2 回報的 URL 是正規化過的（file:///D:/… 三斜線、正斜線），photo_tile_url() 組出來的是
+    //   file://D:\…（反斜線）——第一版這樣比永遠不等 ⇒ 每次都重載（21:35 實測）。改用與 OnNavigationRequest 同法的 Contains。
+    if (image_path.IsEmpty() && m_browser != nullptr &&
+        m_browser->GetCurrentURL().Contains("/web/phototile/index.html")) {
+        m_pending_photo_tile_image.clear();
+        SendPhotoTileMachineCapability();
+        SendPhotoTileAiAvailability();
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile: studio page kept alive (no reload)";
+        return;
+    }
     load_url(url);
 }
 
