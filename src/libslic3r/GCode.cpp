@@ -4315,8 +4315,14 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
     for (size_t si = 0; si < stages.size(); ++si) {
         const PingCycle::Stage& st = stages[si];
         gcode += st.recipe_cmd + " ; PING photo-tile cycle " + st.channel + "\n";
-        for (int lap = st.first_lap; lap <= st.last_lap; ++lap)
+        for (int lap = st.first_lap; lap <= st.last_lap; ++lap) {
             extrude_ring(g.loops[lap - 1], "PING cycle tower");
+            // Eric 2026-09-10（牌 c-0910-WT-09）：最淺段（純 E0、最後一段）**每一圈畫完都回抽一次**（含機型設定的抬升）；
+            // 下一圈由 extrude_path → _extrude 的 travel_to／unretract 自動回填。其餘（較深）段不動。
+            // 起因＝0909 實印：牆 1 圈＋線寬 1.5× 那件出塔後有牽絲與混色，Eric 要淺色圈逐圈回抽當對照實驗。
+            if (si + 1 == stages.size())
+                gcode += this->retract();
+        }
         // 首層 brim 接在**最後一段（純 E0 最淺）之後**、由內往外長（Eric 2026-09-09 圈序反向後的必然結果）：
         // brim 在塔身之外，若還用第一段的深色，塔底就會有一圈深色 ⇒ 正是「垂直方向看到顏色變化」。
         if (si + 1 == stages.size())

@@ -392,7 +392,7 @@ let lastDeltaE = null;
 const slotList = document.getElementById('slotList');
 /* WT 線：循環洗料塔 UI。圈數欄依料數渲染（雙料：彩料 E1／最淺 E0；四料：E3 E2 E1 E0）；
    開啟時舊洗料柱列收起（循環塔取代它）。長度不符（切換雙／四料）就回該模式預設。 */
-function cycleDefaultLaps(){ return slotCount===4 ? [1,1,1,2] : [1,2]; }   // Eric 2026-09-08 第 4 階段裁（原 2,2,2,4／2,4）
+function cycleDefaultLaps(){ return slotCount===4 ? [1,1,1,2] : [1,3]; }   // Eric 2026-09-08 第 4 階段裁（原 2,2,2,4／2,4）；雙料 E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」（牌 c-0910-WT-09）
 function cycleLaps(){ const d=cycleDefaultLaps(); return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
 function renderCycleUI(){
   const box=document.getElementById('cycleLaps'); if(!box) return;
