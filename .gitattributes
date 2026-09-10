@@ -1,2 +1,6 @@
 # Set the default behavior, in case people don't have core.autocrlf set.
 * text=auto
+
+# SVG 床貼圖／向量資源鎖 LF（2026-09-10 T038 打包實抓：Windows CI checkout 以 text=auto 把 SVG 轉 CRLF，
+# 成品與 repo 差 20 行換行、verify 床貼圖 SHA fixture 紅；內容無差。鎖 LF 讓各平台 checkout 一致。）
+*.svg text eol=lf
