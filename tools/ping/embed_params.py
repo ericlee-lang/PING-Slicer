@@ -1201,9 +1201,12 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   每個色塊只走一圈較寬的外牆（0.4→0.6、0.6→0.9、1.0→1.5）；只動預設／首層／外牆／內牆四鍵（Eric 截圖改的就是這四個），
         #   頂面／稀疏／實心填充／支撐線寬不動——磚 0 殼、0 填充、關支撐，改了也無效、還會讓 verify 的支撐線寬查表紅。
         #   ⚠ 工作室 3MF 物件層另寫 wall_loops（engine.js）＝物件覆蓋製程 ⇒ 同批把它從 round(2/口徑) 改成 1，兩處要一起看。
+        #   🔴 **Eric 2026-09-10 回改（牌 c-0910-WT-09）：牆回 2 圈、線寬回 1.0×口徑**——0909 實印（牆 1／線寬 1.5×）出現
+        #   牽絲（0.4 噴嘴擠 0.6 線寬＝流量 1.5×、噴嘴內壓高、固定 1.3 mm 回抽卸不掉）與色塊內不均（單圈外牆＝混色比偏差直接是外皮）。
+        #   結構保留、只改倍率與圈數；再要改回去只動下面兩行。
         if m_nz_pt:
-            _pt_lw = "%g" % round(float(m_nz_pt.group(1)) * 1.5, 2)
-            d["wall_loops"] = "1"
+            _pt_lw = "%g" % round(float(m_nz_pt.group(1)) * 1.0, 2)
+            d["wall_loops"] = "2"
             for _k in ("line_width", "initial_layer_line_width", "outer_wall_line_width", "inner_wall_line_width"):
                 d[_k] = _pt_lw
         # ★ 頂底鋪滿 4 層、中間維持空心（Eric 2026-09-09「頂底層的部分能夠鋪滿至少三四層，而內部維持一樣的樣式」，牌 c-0909-PTP-02）：
