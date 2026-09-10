@@ -1830,7 +1830,15 @@ def main(src_base):
         #    這是刻意的（FD300 是雙料一般流量硬體）。改這兩支的名字前先回頭看這行。
         is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
         is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)   # ④ 照片磚系＝零回抽
-        fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
+        # 🔴 四料照片磚額外回填 0.6 → 0.2（Eric 2026-09-10：「額外裝填 0.6 會擠出蠻多的，
+        #    幫我把照片磚的額外擠出量改成 0.2 看看」——實物照片上換色後有明顯凸起的料點）。
+        #    ⛔ **只降四料照片磚那一支**：`PING PLA(照片磚 FD300)` 現行是 `nil`（＝吃機器層 0），
+        #       把它設 0.2 是**增加**、方向與 Eric 的意圖相反；`PING PLA(照片磚 FD高流量)` 也是
+        #       0.6，但 Eric 這次只在四料上看到問題、也一路都把四料與雙料分開裁，不擅自擴大。
+        if bn == PT_FIL_PLA:
+            fd["filament_retract_restart_extra"] = ["0.2"]
+        else:
+            fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
         # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF 回抽 3/40/40——**只改線材層**。
         #    機器層一字不動、韌體回抽維持開：韌體回抽開啟時線材 start gcode 的
         #    SET_RETRACTION 會把 3/40/40 推給 Klipper ⇒ 行為等同他關掉韌體回抽自己下 E 值，

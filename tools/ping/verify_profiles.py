@@ -440,7 +440,10 @@ for name, (kind, d) in presets.items():
 
                 # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
                 #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
-                _want_extra = "0.6" if is_hf else "nil"
+                # 🔴 四料照片磚 0.2（Eric 2026-09-10「額外裝填 0.6 會擠出蠻多的」）；
+                #    FD300 照片磚維持 nil（它本來就沒有額外回填，設 0.2 是增加、方向相反）、
+                #    FD高流量照片磚與其餘高流量家族維持 0.6。
+                _want_extra = "0.2" if name == "PING PLA(照片磚)" else ("0.6" if is_hf else "nil")
                 if _v("filament_retract_restart_extra") != _want_extra:
                     err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
                 # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30
