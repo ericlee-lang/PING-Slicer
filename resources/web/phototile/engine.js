@@ -111,7 +111,7 @@ function normalizeRequest(req){
     cycle: (function(c){
       if (!c || !c.enabled) return { enabled:false };
       // 雙料 "1,3"＝E1 1 圈、E0 3 圈（E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」；本行 0910 前是 [1,2]＝沒跟上 index.html，已對齊）
-      const def  = mode === 'quad' ? 'E123:2,E0:4' : '1,3';
+      const def  = mode === 'quad' ? 'E123:8,E0:8' : '1,3';   // 四料 2/4→8/8（Eric 2026-09-10）
       const nch  = mode === 'quad' ? 4 : 2;
       const laps = (function(s){
         const items = String(s || '').split(/[,;]+/).map(x=>x.trim()).filter(Boolean);
