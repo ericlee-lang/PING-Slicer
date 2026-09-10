@@ -1608,9 +1608,18 @@ def main(src_base):
             #    compatible 綁死照片磚機。⚠ 刻意不掛 renamed_from（舊名只能有一個接手者）。
             if not sup:
                 pt = json.loads(json.dumps(fp))          # 深拷貝（本檔未 import copy）
+                # 🔴 噴溫 190（Eric 2026-09-10 裁：「四料照片磚跟雙料照片磚用的噴頭不一樣，
+                #    四料使用的照片磚參數要特別降到 190 度」）。**只降照片磚專用支**——
+                #    上面母體 fp（`PING PLA - 四料同進噴頭`）維持 210 不動。
+                #    ⚠️ **與 2026-07-17 的裁定直接相反**：那次 fp 的 210 就是因為「0.6 實機 190 塞頭」
+                #       才定的（見上方註解），而照片磚支與同進支是同型的四進一出高流量噴頭。
+                #       0910 這條是 Eric 明確指名照片磚支要 190；**塞頭風險已回報、由他承擔**，
+                #       實印若再塞頭，回退點就是這兩行（改回 210 即可，不必動別處）。
+                #    溫度統一鐵律：兩個噴溫鍵一起設，不可只設其中一個（同進噴頭不一致會空燒等達溫）。
                 pt.update({"name":PT_FIL_PLA, "alias":PT_FIL_PLA,
                            "setting_id":"PINGFILPTPLA", "filament_id":"PINGFILPTPLA",
-                           "filament_max_volumetric_speed":["30"]})
+                           "filament_max_volumetric_speed":["30"],
+                           "nozzle_temperature":["190"], "nozzle_temperature_initial_layer":["190"]})
                 pt.pop("renamed_from", None)
                 pt["compatible_printers"] = sorted(
                     x["name"] for x in mac_list
@@ -2040,6 +2049,32 @@ def main(src_base):
             print("  收縮補償統一 %s：%s" % (SHRINK_UNIFORM, os.path.basename(fp_path)))
     if shr_fixed:
         print("  線材收縮補償全庫一致（%s）：改 %d 支" % (SHRINK_UNIFORM, shr_fixed))
+
+    # 4b-5c. ★ Z 抬升＝口徑（Eric 2026-09-10 裁）：一般機的 `z_hop` 改成「該機口徑值」
+    #   ——0.4→0.4（本來就是、無變動）／0.6→**0.6**／1.0→**1.0**。原況＝全口徑一律 0.4。
+    #
+    #   ⛔ **照片磚機（19 台）不套**：維持 0.1（Eric 2026-09-07「零回抽 → 韌體回抽＋抬升 0.1」）。
+    #      本段自己就排除照片磚，**不倚賴後面 PT_RETRACTION 覆寫回來的順序**——順序是隱形依賴，
+    #      哪天有人把 PT 段落搬到前面，這裡就會靜默把照片磚的 0.1 蓋成 0.6。
+    #   ⛔ **0.2／0.25 口徑不套**：維持 0.4（Eric 2026-09-10 裁）。照規則它們會從 0.4 **降到**
+    #      0.2／0.25，方向與另外三個相反（那三個是變高）、撞件風險反而上升；要套需另行實測。
+    #   ⚠ **線材層會蓋過機器層**（同 0819「零回抽被線材層靜默蓋掉」的形狀）：
+    #      `PING PVA`／`PING SupTPE`／`PING TPE - 210` 三支寫死 `filament_z_hop=0.6`
+    #      ⇒ 在 1.0 口徑機上用這三支，實際抬升仍是 0.6、不是 1.0。那是材料特性值，本批不動。
+    ZHOP_BY_NOZZLE = {"0.6": ["0.6"], "1": ["1"], "1.0": ["1"]}
+    zh_set = 0
+    for _fp in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*nozzle.json"))):
+        if "照片磚" in os.path.basename(_fp):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        _want = ZHOP_BY_NOZZLE.get(str((_d.get("nozzle_diameter") or [""])[0]))
+        if not _want or _d.get("z_hop") == _want:
+            continue
+        _d["z_hop"] = _want
+        jdump(_fp, _d)
+        zh_set += 1
+    if zh_set:
+        print("  Z 抬升＝口徑（0.6→0.6／1.0→1.0；照片磚與 0.2/0.25 不套）：改 %d 台" % zh_set)
 
     # 4b-6. ★ 支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；純參數、零 C++）
     #

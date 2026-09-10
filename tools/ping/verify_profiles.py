@@ -413,6 +413,20 @@ for name, (kind, d) in presets.items():
                 #   回抽 3、靜默蓋掉零回抽 20 天。正本＝embed_params.PT_FIL_SPECS。
                 is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)",
                                  "PING PLA(照片磚 FD高流量)")
+                # 🔴 四料照片磚噴溫 190（Eric 2026-09-10 裁「四料使用的照片磚參數要特別降到 190 度」）。
+                #    只有 `PING PLA(照片磚)`＝FF600／FF800 照片磚六台專用支；雙料照片磚兩支維持 210
+                #    （Eric 同日裁「雙料不改」）。溫度統一鐵律 ⇒ 兩個噴溫鍵必須同值。
+                #    ⚠️ 與 2026-07-17「0.6 實機 190 塞頭」相反，是 Eric 0910 明確改裁；若實印再塞頭，
+                #       回退點＝embed_params 的 PT_FIL_PLA 那兩行＋本條。
+                if name == "PING PLA(照片磚)":
+                    for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
+                        if _v(_tk) != "190":
+                            err(f"[四料照片磚噴溫 190 0910] {name}: {_tk}={_v(_tk)!r}, expected '190'")
+                elif name in ("PING PLA(照片磚 FD300)", "PING PLA(照片磚 FD高流量)"):
+                    for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
+                        if _v(_tk) != "210":
+                            err(f"[雙料照片磚噴溫 210 0910] {name}: {_tk}={_v(_tk)!r}, expected '210'")
+
                 # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
                 #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
                 _want_extra = "0.6" if is_hf else "nil"
@@ -719,6 +733,22 @@ for _pm in sorted(_phototile_machines):
         _got = _pd.get(_k)
         if _got != _want:
             err(f"[照片磚機器層回抽政策 0907] {_pm}: {_k}={_got!r} 應 {_want!r}")
+
+# ★ Z 抬升＝口徑（Eric 2026-09-10 裁）：**一般機**（非照片磚）0.6→0.6、1.0→1.0；0.4 維持 0.4。
+#   0.2／0.25 維持 0.4（Eric 同日裁不套：照規則會從 0.4 降到 0.2/0.25，方向與另外三個相反、撞件風險反升）。
+#   照片磚 19 台維持 0.1 由上面那條把關，兩條各管各的、不重疊。
+#   ⚠ 線材層 `filament_z_hop` 會蓋過機器層（PING PVA／SupTPE／TPE - 210 三支寫死 0.6）——那是材料
+#      特性值、不在本條範圍；但要記得「機器層設了不等於印出來就是那個值」。
+_ZHOP_BY_NOZZLE = {"0.2": ["0.4"], "0.25": ["0.4"], "0.4": ["0.4"], "0.6": ["0.6"], "1": ["1"]}
+for _n, (_k, _d) in presets.items():
+    if _k != "machine" or _d.get("instantiation") != "true" or _n in _phototile_machines:
+        continue
+    _nz = (_d.get("nozzle_diameter") or [""])[0]
+    _want = _ZHOP_BY_NOZZLE.get(str(_nz))
+    if _want is None:
+        continue
+    if _d.get("z_hop") != _want:
+        err(f"[Z 抬升＝口徑 0910] {_n}（口徑 {_nz}）: z_hop={_d.get('z_hop')!r} 應 {_want!r}")
 
 _model_variants = {}
 for _n, (_k, _d) in presets.items():
