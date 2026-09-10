@@ -356,7 +356,7 @@ def def_fil_ff(nz):
 #   apply_default_materials() post-pass 全族重算（Eric 0807 裁）。死名 PING ABS - 250／
 #   PING PolyABS（0725 ABS 整併已移除）在此一併清掉，post-pass 也會再擋一次。
 DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
-                        "PING SupABS;PING PETG;PING ABS;PING PA-CF;"
+                        "PING SupABS;PING PETG;PING ABS;PING ABS(玻璃);PING PA-CF;"
                         # 高流量噴頭支入精靈預設清單（FD450+ 預設線材要看得見；任何 FD 換噴頭可選）
                         "PING PLA - 高流量噴頭;PING SupPLA - 高流量噴頭;PING PETG - 高流量噴頭")
 # 床模型依機台直徑（300mm 原盤 XY 等比縮放產生；2026-06-10 修 FF600 黑色床板不滿版）

@@ -434,6 +434,10 @@ for name, (kind, d) in presets.items():
                 #   _v 只看葉檔不解析繼承 ⇒ 葉檔必須明寫，靠基底繼承會在這裡被抓成缺值。
                 if "ABS" in name and _v("overhang_fan_speed") != "30":
                     err(f"[ABS 懸空風扇 30% 0908] {name}: overhang_fan_speed={_v('overhang_fan_speed')!r} 應 30")
+                # 🆕 Eric 2026-09-10 裁（牌 c-0910-ABS-01）：ABS 拆 PEI／玻璃。`PING ABS` 名不動＝PEI 版
+                #   （C++ Tab.cpp 組合連動硬寫此名，不改名＝不 build）；玻璃版首層床溫 60、其它層 100。
+                if name == "PING ABS(玻璃)" and (_v("hot_plate_temp_initial_layer") != "60" or _v("hot_plate_temp") != "100"):
+                    err(f"[ABS 玻璃床溫 0910] {name}: 首層={_v('hot_plate_temp_initial_layer')!r} 應 60、其它層={_v('hot_plate_temp')!r} 應 100")
                 # ★ PA 分流量家族（Eric 2026-07-25 裁「PA 0.12 只限一般流量」→ 2026-07-28 三輪裁
                 #   「材料如果不是高流量跟火山口或四料，它的壓力提前是 0.08」＝一般流量 0.12→0.08）
                 #   現況表（0728 起、以下為權威）：
