@@ -283,32 +283,35 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     }
 }
 
-// ---- PING `#353` 丙：回抽態的 SET_RETRACTION 一律延到 G11 之後（Eric 2026-09-09；PM 交辦 x-0909-PM-01）----
-// 為什麼放在這層而不是 GCode.cpp::set_extruder：判準是「**任何時刻** SET_RETRACTION 不得出現在 G10..G11 之間」，
-// 而 SET_RETRACTION 是從 profile 的 filament_start_gcode 樣板來的、可能從多個地方發出 ⇒ 只有全檔掃描保證得了。
-// 純 worker thread 上執行（同上面兩支）。天然冪等：跑完就沒有 SET_RETRACTION 落在 G10..G11 之間，再跑一次延後 0 行。
-static void ping_defer_set_retraction(const std::string& gcode_path)
+// ---- PING `#353` 丙：回抽態的 SET_RETRACTION／混色指令一律延到 G11 之後 ----
+// （Eric 2026-09-09 裁 SET_RETRACTION，PM 交辦 x-0909-PM-01；2026-09-10 擴到 M6051／M6052，牌 c-0910-WT-10）
+// 為什麼放在這層而不是 GCode.cpp::set_extruder：判準是「**任何時刻** 不得出現在 G10..G11 之間」，
+// 而 SET_RETRACTION 來自 profile 的 filament_start_gcode 樣板、混色 M605x 則由照片磚後處理逐層插，
+// 兩者都可能從多個地方發出 ⇒ 只有全檔掃描保證得了。
+// 純 worker thread 上執行（同上面兩支）。天然冪等：跑完就沒有受管指令落在 G10..G11 之間，再跑一次延後 0 行。
+static void ping_defer_in_retract_state(const std::string& gcode_path)
 {
 	try {
 		std::string gcode;
 		{
 			boost::nowide::ifstream ifs(gcode_path.c_str(), std::ios::binary);
-			if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: cannot open " << gcode_path; return; }
+			if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: cannot open " << gcode_path; return; }
 			std::stringstream ss;
 			ss << ifs.rdbuf();
 			gcode = ss.str();
 		}
 		std::string out;
 		PingMix::DeferSetRetractionStats st;
-		PingMix::defer_set_retraction(gcode, out, &st);
-		BOOST_LOG_TRIVIAL(info) << "PING defer SET_RETRACTION: deferred=" << st.deferred << " dropped=" << st.dropped;
-		if (st.deferred == 0 && st.dropped == 0)
+		PingMix::defer_in_retract_state(gcode, out, &st);
+		BOOST_LOG_TRIVIAL(info) << "PING defer in-retract cmds: SET_RETRACTION=" << st.deferred
+		                        << " M605x=" << st.deferred_mix << " dropped=" << st.dropped;
+		if (st.deferred == 0 && st.deferred_mix == 0 && st.dropped == 0)
 			return;                     // 沒有一行需要動 ⇒ 不重寫檔（連時間戳都不動）
 		boost::nowide::ofstream ofs(gcode_path.c_str(), std::ios::binary | std::ios::trunc);
-		if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: cannot write " << gcode_path; return; }
+		if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: cannot write " << gcode_path; return; }
 		ofs << out;
 	} catch (const std::exception& e) {
-		BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: failed: " << e.what();
+		BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: failed: " << e.what();
 	}
 }
 
@@ -510,9 +513,9 @@ void BackgroundSlicingProcess::process_fff()
 			BOOST_LOG_TRIVIAL(error) << "PING photo-tile: post-processing skipped because material assignments are incomplete";
 		}
 	}
-	// PING `#353` 丙：把回抽態裡的 SET_RETRACTION 延到 G11 之後。**無條件跑**——判準是「任何時刻」，
-	// 不是「照片磚時」：上面三條分支（照片磚／混色曲線／髒照片磚跳過）跑完都要過這一關。
-	ping_defer_set_retraction(m_temp_output_path);
+	// PING `#353` 丙：把回抽態裡的 SET_RETRACTION 與混色指令 M6051／M6052 延到 G11 之後。**無條件跑**
+	// ——判準是「任何時刻」，不是「照片磚時」：上面三條分支（照片磚／混色曲線／髒照片磚跳過）跑完都要過這一關。
+	ping_defer_in_retract_state(m_temp_output_path);
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
 			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));
