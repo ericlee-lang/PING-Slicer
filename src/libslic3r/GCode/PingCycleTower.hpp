@@ -29,21 +29,32 @@ class Model;
 
 namespace PingCycle {
 
-struct Settings {
-    bool                enabled   = false;
-    std::string         mode;                 // "dual" | "quad"
-    std::vector<int>    laps;                 // 由外往內每段圈數：dual {1,3}＝E1,E0（E0 2→3＝Eric 0909 實印裁）；quad {1,1,1,2}＝E3,E2,E1,E0（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4）
-    float               size_mm   = 0.f;      // 0＝預設 25 mm 固定（Eric 2026-09-08；原式 44 × 口徑/0.4 已停用）
-    float               gap_mm    = 15.f;     // 塔與模型外緣距離
-    float               brim_mm   = 8.f;      // 首層外擴 brim（用第一段的料）
-    int                 channels() const { return (int) laps.size(); }
-    int                 total_laps() const { int n = 0; for (int l : laps) n += l; return n; }
+// 一段的規格：這一段要**同時**擠出的料路 ＋ 連續幾圈。
+// channels 只有 1 支＝純料；多支＝等比混合一起擠。
+// 🔴 Eric 2026-09-10（牌 c-0910-WT-10）：四料改成「深色三支一起洗 2 圈 → 純白洗 4 圈」——
+//    2/3/4 三支深色互相汙染不影響結果，分三段各洗一圈是白花料與時間；真正要洗乾淨的是最後那段白色，
+//    所以把省下來的圈數全給白色（白 2→4 圈＝洗料量 2.2 倍，全塔總量只多 18%）。
+struct StageSpec {
+    std::vector<int> channels;   // 料路索引 0＝E0（第 1 路最淺／白）…3＝E3；quad 對應 M6052 的 A/B/C/D
+    int              laps = 1;
 };
 
-// 一個材料段：由內往外連續幾圈同一純料配方（loops[0]＝最內圈）
+struct Settings {
+    bool                   enabled = false;
+    std::string            mode;              // "dual" | "quad"
+    std::vector<StageSpec> stages;            // **由內往外**：stages[0]＝最內圈那一段（最深），最後一段＝最外圈（純 E0 最淺）
+                                              // 預設 dual {E1:1, E0:3}（E0 2→3＝Eric 0909 實印裁）；quad {E1+E2+E3:2, E0:4}（Eric 0910）
+    float                  size_mm = 0.f;     // 0＝預設 25 mm 固定（Eric 2026-09-08；原式 44 × 口徑/0.4 已停用）
+    float                  gap_mm  = 15.f;    // 塔與模型外緣距離
+    float                  brim_mm = 8.f;     // 首層外擴 brim（用**最後一段**＝最淺那段的料，見 GCode.cpp）
+    int                    stage_count() const { return (int) stages.size(); }
+    int                    total_laps() const { int n = 0; for (const StageSpec& s : stages) n += s.laps; return n; }
+};
+
+// 一個材料段：由內往外連續幾圈同一配方（loops[0]＝最內圈）
 struct Stage {
-    std::string channel;      // "E3"…"E0"
-    std::string recipe_cmd;   // "M6051 S1" | "M6052 A100 B0 C0 D0" …
+    std::string channel;      // 段標籤，只進 G-code 註解："E0"｜"E1+E2+E3"…
+    std::string recipe_cmd;   // "M6051 S1" | "M6052 A100 B0 C0 D0" | "M6052 A0 B34 C33 D33" …
     int         first_lap = 0, last_lap = 0;   // 1-based
 };
 
@@ -62,7 +73,11 @@ struct LayerGeometry {
 std::unique_ptr<class Tower> create(const Print& print, std::string& why);
 
 // 純料配方命令（給 ToolOrdering／GCode 共用）
-const char* pure_recipe(const std::string& mode, const std::string& channel);
+// 一段的配方指令：channels 單支＝純料、多支＝等比混合，餘數給**第一支**
+//（例：quad {E1,E2,E3} → "M6052 A0 B34 C33 D33"＝Eric 2026-09-10 指定的比例）。
+std::string recipe_for(const std::string& mode, const std::vector<int>& channels);
+// 段標籤（"E0"｜"E1+E2+E3"），只進 G-code 註解
+std::string stage_label(const std::vector<int>& channels);
 bool        is_pure_light_recipe(const std::string& cmd);   // 雙料 S==1；四料 A==100 其餘 0
 // 配方的「亮度分數」0..1（1＝最淺、0＝最深）。Eric 2026-09-09 裁「丙」：
 //   雙料＝S（E0 佔比）；四料＝(A×3 + B×2 + C×1 + D×0) / 300

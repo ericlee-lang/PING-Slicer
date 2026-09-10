@@ -23,16 +23,40 @@ static const std::vector<std::string>& channels_for(const std::string& mode)
     return mode == "dual" ? dual : mode == "quad" ? quad : none;
 }
 
-const char* pure_recipe(const std::string& mode, const std::string& channel)
+std::string stage_label(const std::vector<int>& channels)
 {
+    std::string s;
+    for (size_t i = 0; i < channels.size(); ++i) {
+        if (i) s += '+';
+        s += 'E';
+        s += char('0' + channels[i]);
+    }
+    return s;
+}
+
+std::string recipe_for(const std::string& mode, const std::vector<int>& channels)
+{
+    if (channels.empty()) return "";
     if (mode == "dual") {
-        if (channel == "E0") return "M6051 S1";
-        if (channel == "E1") return "M6051 S0";
-    } else if (mode == "quad") {
-        if (channel == "E0") return "M6052 A100 B0 C0 D0";
-        if (channel == "E1") return "M6052 A0 B100 C0 D0";
-        if (channel == "E2") return "M6052 A0 B0 C100 D0";
-        if (channel == "E3") return "M6052 A0 B0 C0 D100";
+        // S＝E0（第 1 路最淺）在本段的佔比：純 E0→S1、純 E1→S0、兩支一起→S0.5
+        int e0 = 0;
+        for (int c : channels) { if (c < 0 || c > 1) return ""; if (c == 0) ++e0; }
+        std::ostringstream os;
+        os << "M6051 S" << (double(e0) / double(channels.size()));
+        return os.str();
+    }
+    if (mode == "quad") {
+        // 料路索引直接對應 M6052 的 A/B/C/D（E0→A…E3→D）。等比分配、**餘數給第一支**
+        // ⇒ {E1,E2,E3} 得 "M6052 A0 B34 C33 D33"（Eric 2026-09-10 指定的比例）。
+        // M6052 只吃整數百分比且和必須＝100（見 PingColorMix.hpp），所以不能寫 33.3。
+        int       pct[4] = {0, 0, 0, 0};
+        const int n      = (int) channels.size();
+        const int base   = 100 / n;
+        for (int c : channels) { if (c < 0 || c > 3) return ""; pct[c] = base; }
+        pct[channels.front()] += 100 - base * n;
+        std::ostringstream os;
+        os << "M6052 A" << pct[0] << " B" << pct[1] << " C" << pct[2] << " D" << pct[3];
+        return os.str();
     }
     return "";
 }
@@ -113,16 +137,69 @@ bool collect_palette(const Model& model, std::map<int, std::string>& palette, st
     return true;
 }
 
-static std::vector<int> parse_laps(const std::string& s)
+// `ping_pt_cycle_laps` 支援兩種寫法，都是**由內往外**：
+//   舊格式：純數字逗號串 "1,1,1,2" ⇒ 段數必須等於料路數，依 channels_for(mode) 的順序各配一支純料
+//           （quad＝E3,E2,E1,E0）。既有 3MF 走這條，語意一字不變。
+//   新格式：每段寫 "<料路集合>:<圈數>"，料路集合＝E 後接一串路號 ⇒ 一段可以多支料**同時**擠出。
+//           quad 預設 "E123:2,E0:4"＝最內 2 圈 E1+E2+E3 一起洗、最外 4 圈純白（Eric 2026-09-10，牌 c-0910-WT-10）。
+static bool parse_stages(const std::string& s, const std::string& mode,
+                         std::vector<StageSpec>& out, std::string& why)
 {
-    std::vector<int> out;
-    std::vector<std::string> toks;
+    out.clear();
+    const auto& chans = channels_for(mode);
+    if (chans.empty()) { why = "ping_pt_cycle_mode must be dual or quad, got '" + mode + "'"; return false; }
+    const int n_ch = (int) chans.size();
+
+    std::vector<std::string> toks, items;
     boost::split(toks, s, boost::is_any_of(",; "), boost::token_compress_on);
-    for (auto& t : toks) {
-        if (t.empty()) continue;
-        try { out.push_back(std::stoi(t)); } catch (...) { return {}; }
+    for (std::string t : toks) { boost::trim(t); if (!t.empty()) items.push_back(t); }
+    if (items.empty()) { why = "ping_pt_cycle_laps is empty"; return false; }
+
+    const bool legacy = std::none_of(items.begin(), items.end(),
+                                     [](const std::string& t) { return t.find(':') != std::string::npos; });
+    if (legacy) {
+        if ((int) items.size() != n_ch) {
+            why = "ping_pt_cycle_laps needs " + std::to_string(n_ch) + " entries for " + mode; return false;
+        }
+        for (int i = 0; i < n_ch; ++i) {
+            StageSpec sp;
+            sp.channels.push_back(chans[i][1] - '0');          // "E3" → 3
+            try { sp.laps = std::stoi(items[i]); } catch (...) { why = "bad lap count '" + items[i] + "'"; return false; }
+            out.push_back(std::move(sp));
+        }
+    } else {
+        for (const std::string& it : items) {
+            const size_t colon = it.find(':');
+            if (colon == std::string::npos) { why = "stage '" + it + "' needs <channels>:<laps>"; return false; }
+            std::string cs = it.substr(0, colon), ls = it.substr(colon + 1);
+            boost::trim(cs); boost::trim(ls);
+            if (cs.size() < 2 || (cs[0] != 'E' && cs[0] != 'e')) {
+                why = "stage '" + it + "': channels must look like E0 or E123"; return false;
+            }
+            StageSpec sp;
+            for (size_t k = 1; k < cs.size(); ++k) {
+                if (cs[k] < '0' || cs[k] > '9') { why = "stage '" + it + "': bad channel id"; return false; }
+                const int c = cs[k] - '0';
+                if (c >= n_ch) { why = "stage '" + it + "': E" + std::to_string(c) + " does not exist in " + mode; return false; }
+                if (std::find(sp.channels.begin(), sp.channels.end(), c) != sp.channels.end()) {
+                    why = "stage '" + it + "': channel repeated"; return false;
+                }
+                sp.channels.push_back(c);
+            }
+            try { sp.laps = std::stoi(ls); } catch (...) { why = "bad lap count '" + ls + "'"; return false; }
+            out.push_back(std::move(sp));
+        }
     }
-    return out;
+    for (const StageSpec& sp : out) {
+        if (sp.laps < 1)        { why = "every lap count must be >= 1"; return false; }
+        if (sp.channels.empty()) { why = "every stage needs at least one channel"; return false; }
+    }
+    // 最外一段必須是純 E0：塔的最後一段負責把腔內洗成最淺色，模型段才接得上（模型是淺→深排序），
+    // 而首層 brim 也是接在最後一段之後長出去的（GCode.cpp）——不是純 E0 的話塔底會出現一圈深色。
+    if (!(out.back().channels.size() == 1 && out.back().channels[0] == 0)) {
+        why = "the outermost stage must be pure E0 (the lightest channel)"; return false;
+    }
+    return true;
 }
 
 std::unique_ptr<Tower> create(const Print& print, std::string& why)
@@ -136,15 +213,10 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     Settings st;
     st.enabled = true;
     st.mode    = owner->config().ping_pt_cycle_mode.value;
-    st.laps    = parse_laps(owner->config().ping_pt_cycle_laps.value);
+    if (!parse_stages(owner->config().ping_pt_cycle_laps.value, st.mode, st.stages, why)) return nullptr;
     st.size_mm = (float) owner->config().ping_pt_cycle_size.value;
     st.gap_mm  = (float) owner->config().ping_pt_cycle_gap.value;
     st.brim_mm = (float) owner->config().ping_pt_cycle_brim.value;
-    const auto& chans = channels_for(st.mode);
-    if (chans.empty()) { why = "ping_pt_cycle_mode must be dual or quad, got '" + st.mode + "'"; return nullptr; }
-    if (st.laps.size() != chans.size()) { why = "ping_pt_cycle_laps needs " + std::to_string(chans.size()) + " entries for " + st.mode; return nullptr; }
-    for (int l : st.laps) if (l < 1) { why = "every lap count must be >= 1"; return nullptr; }
-
     std::map<int, std::string> palette;
     if (!collect_palette(print.model(), palette, why)) return nullptr;
 
@@ -190,16 +262,15 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
 Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, float)
     : m_settings(std::move(s)), m_palette(std::move(palette)), m_nozzle(nozzle), m_size(size), m_center(center)
 {
-    const auto& chans = channels_for(m_settings.mode);
     int lap = 1;
-    for (size_t i = 0; i < chans.size(); ++i) {
+    for (const StageSpec& sp : m_settings.stages) {
         Stage st;
-        st.channel    = chans[i];
-        st.recipe_cmd = pure_recipe(m_settings.mode, chans[i]);
+        st.channel    = stage_label(sp.channels);
+        st.recipe_cmd = recipe_for(m_settings.mode, sp.channels);
         st.first_lap  = lap;
-        st.last_lap   = lap + m_settings.laps[i] - 1;
+        st.last_lap   = lap + sp.laps - 1;
         lap           = st.last_lap + 1;
-        m_stages.push_back(st);
+        m_stages.push_back(std::move(st));
     }
     for (const auto& kv : m_palette)
         if (is_pure_light_recipe(kv.second))

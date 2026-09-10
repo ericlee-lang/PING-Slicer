@@ -105,12 +105,25 @@ function normalizeRequest(req){
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
        開啟＝不再產舊固定比洗料柱（Eric 裁 3），3MF 物件層寫 ping_pt_cycle* 六鍵給切片器（PrintObjectConfig）。
-       laps 字串 "1,2"｜"1,1,1,2"（由外往內＝E(n-1)…E0），長度不符或空＝依模式預設（Eric 0908 第 4 階段裁；原 2,4／2,2,2,4）。 */
+       laps 兩種寫法（都由**內**往外，與 C++ parse_stages 同語法）：舊格式純數字串 "1,3"｜"1,1,1,2"＝每段一支純料；
+       新格式 "<料路集合>:<圈數>"＝一段可多支料同時擠，四料預設 "E123:2,E0:4"（Eric 2026-09-10，牌 c-0910-WT-10）。
+       壞格式或空＝回該模式預設。真正的 fail loud 在切片器端（C++），這裡只做防呆。 */
     cycle: (function(c){
       if (!c || !c.enabled) return { enabled:false };
-      const def = mode === 'quad' ? [1,1,1,2] : [1,2];
-      let laps = String(c.laps || '').split(/[,; ]+/).filter(Boolean).map(n=>Math.max(1, Math.round(Number(n)||0)));
-      if (laps.length !== def.length || laps.some(n=>!Number.isFinite(n)||n<1)) laps = def;
+      // 雙料 "1,3"＝E1 1 圈、E0 3 圈（E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」；本行 0910 前是 [1,2]＝沒跟上 index.html，已對齊）
+      const def  = mode === 'quad' ? 'E123:2,E0:4' : '1,3';
+      const nch  = mode === 'quad' ? 4 : 2;
+      const laps = (function(s){
+        const items = String(s || '').split(/[,;]+/).map(x=>x.trim()).filter(Boolean);
+        if (!items.length) return def;
+        if (items.every(x=>/^\d+$/.test(x)))                       // 舊格式：段數＝料路數、每段 ≥1 圈
+          return (items.length === nch && items.every(x=>+x >= 1)) ? items.join(',') : def;
+        const segs = items.map(x=>/^E([0-9]+):(\d+)$/i.exec(x));   // 新格式：E<路號串>:<圈數>
+        if (segs.some(m=>!m)) return def;
+        if (segs.some(m=>+m[2] < 1 || new Set(m[1]).size !== m[1].length || [...m[1]].some(d=>+d >= nch))) return def;
+        if (segs[segs.length-1][1] !== '0') return def;            // 最外段必須純 E0（同 C++ 判準）
+        return segs.map(m=>`E${m[1]}:${m[2]}`).join(',');
+      })(c.laps);
       // sizeMm 預設 25（Eric 2026-09-08「固定 25」；缺席／0 都給 25，不再回退成「讓切片器自動等比放大」）
       const _size = Number(c.sizeMm) > 0 ? Number(c.sizeMm) : 25;
       return { enabled:true, laps, sizeMm: _size,
@@ -578,7 +591,7 @@ function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
    ⇒ 輸出位元組逐位元相同（黃金閘門複驗把關）。hooks 缺席＝行為與原版完全一致。 */
 /* WT 線：循環塔開啟時寫進 3MF 物件層的六個切片器鍵（bbs_3mf 匯入時進 ModelObject::config → PrintObjectConfig）。 */
 function cycleObjectMeta(P){
-  const rows = [['ping_pt_cycle','1'], ['ping_pt_cycle_mode',P.mode], ['ping_pt_cycle_laps',P.cycle.laps.join(',')],
+  const rows = [['ping_pt_cycle','1'], ['ping_pt_cycle_mode',P.mode], ['ping_pt_cycle_laps',P.cycle.laps],
                 ['ping_pt_cycle_size',String(P.cycle.sizeMm)], ['ping_pt_cycle_gap',String(P.cycle.gapMm)], ['ping_pt_cycle_brim',String(P.cycle.brimMm)]];
   return rows.map(([k,v])=>`    <metadata key="${k}" value="${xmlEsc(v)}"/>`).join('\n') + '\n';
 }

@@ -296,9 +296,10 @@
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
       </details>
-      <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；圈數依料數渲染。 -->
+      <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；
+           圈數依料數渲染：雙料＝彩料／最淺兩欄，四料＝深色（料2+3+4 同時擠）／白色兩欄（Eric 2026-09-10 兩段制）。 -->
       <div class="row" id="cycleRow"><label>循環洗料</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="cycleOn" checked> 每層讓每一路都吐一次料、最淺料最後清洗（圈數為試印設定）</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="cycleOn" checked> 每層先洗深色料、最後用最淺料把噴頭清乾淨（圈數為試印設定）</label>
         <span id="cycleLaps" style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap"></span>
       </div>
       <div class="row" id="pillarRow"><label>洗料柱</label>
@@ -326,7 +327,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260909b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260910a"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -364,7 +365,7 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
                noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:20,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
-               cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 1,2／quad 1,1,1,2（Eric 0908 第 4 階段裁：原 2,4／2,2,2,4 真切塔比模型重 3 倍）
+               cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 1／3、quad 深色 2／白 4（Eric 0910 兩段制，牌 c-0910-WT-10）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
                p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
@@ -392,14 +393,20 @@ let lastDeltaE = null;
 const slotList = document.getElementById('slotList');
 /* WT 線：循環洗料塔 UI。圈數欄依料數渲染（雙料：彩料 E1／最淺 E0；四料：E3 E2 E1 E0）；
    開啟時舊洗料柱列收起（循環塔取代它）。長度不符（切換雙／四料）就回該模式預設。 */
-function cycleDefaultLaps(){ return slotCount===4 ? [1,1,1,2] : [1,3]; }   // Eric 2026-09-08 第 4 階段裁（原 2,2,2,4／2,4）；雙料 E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」（牌 c-0910-WT-09）
+/* 四料 2 段（Eric 2026-09-10，牌 c-0910-WT-10）：料 2/3/4 三支深色**同時**擠出洗 2 圈 → 純白洗 4 圈。
+   理由＝三支深色互相汙染不影響結果，分三段各洗一圈是白花料與時間；真正要洗乾淨的是最後那段白色，
+   省下的圈數全給白（白 2→4 圈＝洗料量 2.2 倍，全塔每層總量只多 18%）。雙料維持 1／3 不動。 */
+function cycleDefaultLaps(){ return slotCount===4 ? [2,4] : [1,3]; }   // 雙料 E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」（牌 c-0910-WT-09）
 function cycleLaps(){ const d=cycleDefaultLaps(); return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
+/* 送進 3MF 的 laps 字串：四料＝段語法（一段多支料同時擠），雙料＝舊的純數字串。兩種 C++ parse_stages 都認。 */
+function cycleLapsSpec(){ const l=cycleLaps(); return slotCount===4 ? `E123:${l[0]},E0:${l[1]}` : l.join(','); }
 function renderCycleUI(){
   const box=document.getElementById('cycleLaps'); if(!box) return;
-  const names = slotCount===4 ? ['E3','E2','E1','E0 最淺'] : ['彩料 E1','最淺 E0'];
+  const names = slotCount===4 ? ['深色（料2+3+4 同時）','白色（料1）'] : ['彩料 E1','最淺 E0'];
   const laps=cycleLaps();
-  box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('');
-  box.querySelectorAll('input').forEach(inp=>inp.onchange=e=>{ const l=cycleLaps().slice(); const i=+e.target.dataset.i; l[i]=Math.max(1,Math.min(8,Math.round(+e.target.value)||1)); params.cycleLaps=l; e.target.value=l[i]; });
+  box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('')
+                + `<span style="color:#6F7773">共 ${laps.reduce((a,b)=>a+b,0)} 圈</span>`;
+  box.querySelectorAll('input').forEach(inp=>inp.onchange=e=>{ const l=cycleLaps().slice(); const i=+e.target.dataset.i; l[i]=Math.max(1,Math.min(8,Math.round(+e.target.value)||1)); params.cycleLaps=l; e.target.value=l[i]; renderCycleUI(); });
   const on=!!params.cycle; box.style.display=on?'':'none';
   const cb=document.getElementById('cycleOn'); if(cb) cb.checked=on;
   const pr=document.getElementById('pillarRow'); if(pr) pr.style.display=on?'none':'';
@@ -1514,7 +1521,7 @@ function buildRequest(){
        1.0＝12.5 mm，25 mm 餘裕兩倍；25 mm 可容 0.4 25 圈／0.6 18 圈／1.0 10 圈，現行只用 3～5 圈。等比放大真正的代價是佔床：
        0.6 變 66 mm ⇒ 100 mm 磚在 FD300（Ø300）上，塔含 brim 的最遠角算出來是半徑 152.9 mm、**超過床的 150 mm**；固定 25 mm 後降到 108.3 mm。
        **明寫數值而不是送 0**，3MF 就記得住實際邊長，切片器端不必再猜。 */
-    cycle:{enabled:!!params.cycle, laps:cycleLaps().join(','), sizeMm:25, gapMm:15, brimMm:8},
+    cycle:{enabled:!!params.cycle, laps:cycleLapsSpec(), sizeMm:25, gapMm:15, brimMm:8},
     seam:{teeth:params.teeth, p2aBlock:params.p2aBlock},
     slots: slots.slice(0,slotCount).map(s=>({...s}))
   };

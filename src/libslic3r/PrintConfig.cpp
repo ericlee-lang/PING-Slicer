@@ -1555,7 +1555,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("ping_pt_cycle", coBool);
     def->label = L("PING photo-tile cycle tower");
     def->category = L("PING");
-    def->tooltip = L("Per-layer purge cycle tower for PING photo tiles: every physical channel purges each layer, lightest channel (E0) last; model pure-E0 regions print first.");
+    def->tooltip = L("Per-layer purge cycle tower for PING photo tiles: each layer purges the darker channels first and the lightest channel (E0) last; model pure-E0 regions print first.");
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionBool(false));
 
@@ -1569,7 +1569,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("ping_pt_cycle_laps", coString);
     def->label = L("PING cycle tower laps");
     def->category = L("PING");
-    def->tooltip = L("Laps per channel from outside to inside, e.g. 1,2 (E1,E0) or 1,1,1,2 (E3,E2,E1,E0).");
+    def->tooltip = L("Tower stages from inside to outside. Either plain lap counts, one per channel (e.g. 1,3 = E1,E0 or 1,1,1,2 = E3,E2,E1,E0), or explicit stages \"<channels>:<laps>\" where one stage may purge several channels at once (e.g. E123:2,E0:4 = 2 laps with channels 2/3/4 extruding together, then 4 laps of pure white). The outermost stage must be pure E0.");
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionString(""));
 
