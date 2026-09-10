@@ -50,7 +50,7 @@
         "0"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
         "10"
@@ -84,6 +84,9 @@
     ],
     "default_filament_colour": [
         "#D3D3D3"
+    ],
+    "slow_down_min_speed": [
+        "25"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
 }

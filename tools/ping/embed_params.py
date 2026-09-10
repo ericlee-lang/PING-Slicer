@@ -2006,19 +2006,37 @@ def main(src_base):
     # ⇒ ground truth＝實機實測，**不是疏漏、是有依據的翻案**；下一棒看到 0 不要「修正」回 1。
     # 引擎預設是 true（PrintConfig.cpp set_default_value true），所以必須每支明寫 0 才擋得住。
     # ⚠ `slow_down_layer_time` 維持 10 不動——那顆同時驅動「最大風扇速度臨界值」的風扇轉速插值。
-    CD_SLOWDOWN = ["0"]      # ← 要翻回開啟只改這一行
+    # 🔴 **2026-09-10 Eric 再裁：降速回「開」＋最小列印速度 25，但照片磚系三支除外。**
+    #    起因＝**其他同事回報「尖端成型不好」**（不是照片磚線；Eric 明說「並非我正在測試的照片磚」）。
+    #    這**不算翻 0807**：0807 原話本來就寫「它是在特殊情況下才需要進行勾選」——0807 關的是
+    #    「一律開」，這次開的是「一般件需要」，照片磚反而成了那個要保持關的例外。
+    #    ⛔ 照片磚系維持 `0`：它每層面積小、又在低流量下換色，降速會把層時間再拉長，
+    #       和 0910 那批「洗料要夠、但別讓塔比模型重」的方向相反；且照片磚線正在實印驗證中，
+    #       不在這次同事回報的範圍內，不動它才能保持那條線的對照乾淨。
+    #    ⚠ `slow_down_layer_time` 仍維持 10 不動（同 0807：那顆同時驅動風扇轉速插值曲線）。
+    CD_SLOWDOWN      = ["1"]      # ← 一般線材；要全面關回去改這一行
+    CD_SLOWDOWN_PT   = ["0"]      # ← 照片磚系（例外）
+    CD_MIN_SPEED     = ["25"]     # ← 最小列印速度，只在降速生效時有作用 ⇒ 只寫給有開降速的
     cd_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        if fd.get("slow_down_for_layer_cooling") == CD_SLOWDOWN and fd.get("slow_down_layer_time") == ["10"]:
-            continue
-        fd["slow_down_for_layer_cooling"] = list(CD_SLOWDOWN)
+        _is_pt = os.path.basename(fp_path)[:-5] in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)
+        _want  = CD_SLOWDOWN_PT if _is_pt else CD_SLOWDOWN
+        _before = json.dumps(fd, sort_keys=True)
+        fd["slow_down_for_layer_cooling"] = list(_want)
         fd["slow_down_layer_time"] = ["10"]
+        # ⚠ 照片磚系也要**明寫**最小速度，不能只是「不設」：那三支是從母體（PING PLA - 210／
+        #   高流量支／四料同進支）深拷貝派生的，母體這輪被設成 25 之後，**下一次 regen 派生就把
+        #   25 帶進來**，而「不設」攔不住繼承 ⇒ 值會跨 regen 漂。實測：第一次 regen 還是 10，
+        #   第二次就變 25（同一個坑先前已在噴溫上咬過一次）。維持 10＝照片磚原值，本批不動它。
+        fd["slow_down_min_speed"] = list(CD_MIN_SPEED) if _want == ["1"] else ["10"]
+        if json.dumps(fd, sort_keys=True) == _before:
+            continue
         jdump(fp_path, fd)
         cd_set += 1
     if cd_set:
-        print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
-              % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
+        print("  冷卻降速（一般線材降速%s＋最小速度 %s；照片磚系維持關）：改 %d 支"
+              % ("開" if CD_SLOWDOWN == ["1"] else "關", CD_MIN_SPEED[0], cd_set))
 
     # 4b-5b. ★ 線材收縮補償全庫一致＝100%（Eric 2026-08-09 裁 A；回報中心「線材收縮補償將被停用」單）
     #

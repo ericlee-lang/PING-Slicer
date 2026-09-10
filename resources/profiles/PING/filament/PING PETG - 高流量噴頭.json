@@ -52,7 +52,7 @@
         "0.2"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
         "10"
@@ -85,5 +85,8 @@
         "30"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "slow_down_min_speed": [
+        "25"
+    ],
     "alias": "PING PETG - 高流量噴頭"
 }

@@ -85,6 +85,9 @@
     "filament_deretraction_speed": [
         "30"
     ],
+    "slow_down_min_speed": [
+        "10"
+    ],
     "compatible_printers": [
         "FD300 Pro 同進照片磚 0.4 nozzle",
         "FD300 Pro 同進照片磚 0.6 nozzle",

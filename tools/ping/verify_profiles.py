@@ -388,8 +388,19 @@ for name, (kind, d) in presets.items():
             # 🔴 冷卻降速一律**關**（Eric 2026-08-07 裁，翻 0718 自己那條「一律開」）
             #    原話：「經過實測…它是在特殊情況下才需要進行勾選，因此大部分情況下都要取消」
             #    ⇒ 實測為據的翻案，不是迴歸；引擎預設 true 故必須每支明寫 0 才擋得住。
-            if d.get("slow_down_for_layer_cooling") != ["0"]:
-                err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
+            # 🔴 2026-09-10 Eric 再裁：一般線材降速**開**＋最小列印速度 25；**照片磚系三支維持關**。
+            #    起因＝其他同事回報「尖端成型不好」（Eric 明說不是照片磚線）。不算翻 0807——
+            #    0807 原話就寫「特殊情況下才需要勾選」，這次是把「一般件」歸進那個情況、照片磚成為例外。
+            _cd_is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)", "PING PLA(照片磚 FD高流量)")
+            _cd_want = ["0"] if _cd_is_pt else ["1"]
+            if d.get("slow_down_for_layer_cooling") != _cd_want:
+                _tag = "照片磚系應關 0910" if _cd_is_pt else "一般線材應開 0910"
+                err(f"[冷卻降速 {_tag}] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected {_cd_want!r}")
+            # 照片磚系明寫 10（不是「不管」）——那三支是深拷貝派生的，母體改 25 之後
+            #   「不設」會讓 25 跨 regen 漂進來（0910 實撞，噴溫也栽過同一個坑）。
+            _ms_want = ["10"] if _cd_is_pt else ["25"]
+            if d.get("slow_down_min_speed") != _ms_want:
+                err(f"[最小列印速度 0910] {name}: {d.get('slow_down_min_speed')!r}, expected {_ms_want!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）

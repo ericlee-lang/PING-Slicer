@@ -47,7 +47,7 @@
         "1"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "fan_max_speed": [
         "100"
@@ -81,5 +81,8 @@
     ],
     "slow_down_layer_time": [
         "10"
+    ],
+    "slow_down_min_speed": [
+        "25"
     ]
 }

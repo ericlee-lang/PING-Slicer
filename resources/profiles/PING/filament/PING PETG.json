@@ -52,7 +52,7 @@
         "0.08"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
         "10"
@@ -84,5 +84,8 @@
     "filament_deretraction_speed": [
         "30"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/"
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
+    "slow_down_min_speed": [
+        "25"
+    ]
 }
