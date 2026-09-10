@@ -666,6 +666,10 @@ for name, (kind, d) in presets.items():
             #   基底 fdm_filament_abs 同改、葉檔明寫（這裡只看葉檔不解析繼承）。與開發線同一條斷言。
             if "ABS" in name and d.get("overhang_fan_speed") != ["30"]:
                 err(f"[ABS 懸空風扇 30% 0908] {name}: overhang_fan_speed={d.get('overhang_fan_speed')!r} 應 ['30']")
+            # 🆕 Eric 2026-09-10 裁（牌 c-0910-ABS-01）：ABS 拆 PEI／玻璃。`PING ABS` 名不動＝PEI 版
+            #   （C++ Tab.cpp 組合連動硬寫此名，不改名＝不 build）；玻璃版首層床溫 60、其它層 100。
+            if name == "PING ABS(玻璃)" and (d.get("hot_plate_temp_initial_layer") != ["60"] or d.get("hot_plate_temp") != ["100"]):
+                err(f"[ABS 玻璃床溫 0910] {name}: 首層={d.get('hot_plate_temp_initial_layer')!r} 應 60、其它層={d.get('hot_plate_temp')!r} 應 100")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
             # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
             #    專屬護欄在檔尾「Classic 材料層回抽覆蓋 0807」。
