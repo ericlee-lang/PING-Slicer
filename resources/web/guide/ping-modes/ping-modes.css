@@ -1,0 +1,182 @@
+/* PING 選機頁「認識列印模式」說明區（v12 定案・Eric 2026-09-08「好，定案」）
+   版型＝C 版：上排五個文字頁籤、下面左說明右圖（一張或多張），圖的用途文字放圖下、不寫進點陣圖。
+   位置＝PING 廠牌區塊內、機器卡片區上方。頁籤只切換說明內容，不動機型勾選。
+   色票＝ping-cis（cis-palette.json 快照）：炭黑 #202221／品牌橘 #EA4E16／冷灰 #EFEFEF／白 #FFFFFF／中灰 #6F7773。
+   字體沿用頁面既有（common.css），不另引網路字型。所有樣式鎖在 #PingModeHelp 底下，不外溢到卡片區。 */
+#PingModeHelp {
+  --pmh-ink: #202221;
+  --pmh-orange: #EA4E16;
+  --pmh-gray: #EFEFEF;
+  --pmh-paper: #FFFFFF;
+  --pmh-muted: #6F7773;
+  --pmh-line: #E3E7E4;
+  --pmh-hover: #F5F6F5;
+  --pmh-copy-width: 210px;
+  --pmh-art-gap: 8px;
+  box-sizing: border-box;
+  color-scheme: light;
+  background: var(--pmh-paper);
+  color: var(--pmh-ink);
+  border-bottom: 1px solid var(--pmh-line);
+  margin: 4px 0 2px;
+  padding: 4px 0 0;   /* 0908 第三輪：heading 已拿掉，頂部只留 4px */
+  font-size: 14px;
+  line-height: 1.65;
+  text-align: left;
+}
+#PingModeHelp * { box-sizing: border-box; }
+#PingModeHelp [hidden] { display: none !important; }
+#PingModeHelp .pmh-heading {
+  margin: 0 0 6px;
+  color: var(--pmh-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+#PingModeHelp .pmh-modes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));   /* 0908 第四輪：ABS 關門頁籤拿掉，剩四個 */
+  border-bottom: 1px solid var(--pmh-line);
+}
+#PingModeHelp .pmh-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  margin: 0 0 -1px;
+  padding: 5px 5px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--pmh-ink);
+  background: var(--pmh-paper);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+  cursor: pointer;
+}
+#PingModeHelp .pmh-mode:hover { background: var(--pmh-hover); }
+#PingModeHelp .pmh-mode:focus-visible { outline: 2px solid var(--pmh-orange); outline-offset: -2px; }
+#PingModeHelp .pmh-mode[aria-selected="true"] {
+  color: var(--pmh-ink);
+  background: var(--pmh-paper);
+  border-bottom-color: var(--pmh-orange);
+  font-weight: 700;
+}
+#PingModeHelp .pmh-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0 10px;
+  /* Eric 2026-09-08：五個模式的說明區要同高，否則切頁時下方卡片被推動的量不同。
+     做法＝圖框固定高：三圖／兩圖版每張圖 150px＋圖下標籤一行；單圖版 176px（＝150＋標籤列），
+     再以 min-height 兜底，讓文字較長的語言也不會把區塊撐高。 */
+  min-height: 150px;      /* 0908 第三輪：圖 150→104px，區塊 202→150px（含 8/10 內距） */
+}
+#PingModeHelp .pmh-detail[data-layout="applications"] {
+  grid-template-columns: var(--pmh-copy-width) minmax(0, 1fr);
+}
+#PingModeHelp .pmh-copy { min-width: 0; }
+#PingModeHelp .pmh-title {
+  margin: 0 0 6px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--pmh-ink);
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-benefit {
+  margin: 0 0 7px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--pmh-ink);
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-body {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--pmh-muted);
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-limit {
+  margin: 5px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--pmh-ink);
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-material-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--pmh-muted);
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-cases {
+  display: grid;
+  grid-template-columns: repeat(var(--pmh-case-count, 3), minmax(0, 1fr));
+  align-items: start;
+  gap: var(--pmh-art-gap);
+  min-width: 0;
+}
+#PingModeHelp .pmh-case { margin: 0; min-width: 0; }
+#PingModeHelp .pmh-case img {
+  display: block;
+  width: 100%;
+  height: 104px;           /* 固定高（等高規則）；0908 第三輪 150→104，與下方機器卡（約 96px 圖）成比例 */
+  object-fit: contain;
+  background: var(--pmh-paper);
+}
+#PingModeHelp .pmh-case figcaption {
+  padding: 4px 2px 0;
+  color: var(--pmh-ink);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+#PingModeHelp .pmh-single-art {
+  display: block;
+  width: 100%;
+  height: 130px;           /* ＝三圖版 104px 圖＋標籤列 26px，五模式等高 */
+  object-fit: contain;
+  background: var(--pmh-paper);
+}
+/* 窄視窗（Windows 縮放 150% 以上時內容寬度不足）：頁籤三欄、說明改單欄堆疊 */
+@media (max-width: 620px) {
+  #PingModeHelp .pmh-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #PingModeHelp .pmh-mode { margin-bottom: 0; }
+  #PingModeHelp .pmh-detail,
+  #PingModeHelp .pmh-detail[data-layout="applications"],
+  #PingModeHelp .pmh-detail[data-mode="closed"] {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  #PingModeHelp .pmh-single-art { width: 210px; max-width: 100%; justify-self: center; }
+}
+@media (max-width: 420px) {
+  #PingModeHelp .pmh-cases { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #PingModeHelp .pmh-case { width: 180px; max-width: 100%; justify-self: center; }
+}
+
+/* ── 收合／展開（Eric 2026-09-08：「點 PING 把下方縮起來；箭頭展開時朝上、收起時朝下」，裁 A 案＋記狀態）──
+   本檔唯一作用在 #PingModeHelp 之外的一段：開關長在 PING 標頭列的標籤上（21／24 的 HtmlNewVendor），
+   行為在 ping-modes.js（PingModeHelpToggleHtml／TogglePingModeHelp），三者屬同一功能所以放一起。 */
+.BlockBanner a.ModeHelpToggle { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 8px; }
+.BlockBanner a.ModeHelpToggle:focus-visible { outline: 2px solid #202221; outline-offset: -2px; }
+.ModeHelpChev { width: 12px; height: 12px; flex: 0 0 auto; transition: transform .15s ease; }
+.OneVendorBlock.ModeHelpCollapsed .ModeHelpChev { transform: rotate(180deg); }   /* 收起＝箭頭朝下 */
+.OneVendorBlock.ModeHelpCollapsed #PingModeHelp { display: none; }

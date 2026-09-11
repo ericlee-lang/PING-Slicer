@@ -61,6 +61,29 @@ let PingSearchKeyword = '';
 const PING_VARIANT_SUFFIX = /\s*(單料頭|單噴頭|同進|3in1|關門)$/;
 function PingBaseModel(model) { return model.replace(PING_VARIANT_SUFFIX, ''); }
 
+/* PING 2026-09-08（Eric「機器圖再大一點、大概紅框這麼大」）：系列卡的機器圖改用 ../img/cards/<系列>.png——
+   由 profiles/PING/<系列>_cover.png 裁掉透明留白、統一 3:4 直式（270×360）產生（原 cover 是 600×600、機器只佔寬 36%，
+   contain 進卡片後只剩六成大）。18 張變體 cover 本來就是全透明佔位檔（1,476 B），所以一律用「系列名」對應、不用 cover 檔名。
+   onerror 退回 C++ 給的 cover 路徵，新增系列忘了產卡片圖也不會破圖。 */
+function PingCardImgHtml(series, cover) {
+	var card = '../img/cards/' + encodeURIComponent(series) + '.png';
+	return '<img src="' + card + '" onerror="this.onerror=null;this.src=' + "'" + String(cover).replace(/\\/g, '/').replace(/'/g, '%27') + "'" + ';" />';
+}
+
+// PING 2026-09-07（Eric 裁・回報中心 #99 Q3 甲）：**照片磚機不再列進本頁**。
+// 理由：「FD300／FF600／FF800 同進照片磚」不是使用者要挑的機器，是照片磚功能的內部載體
+// （64 個虛擬料槽＋零回抽），由照片磚工作室在載入時自己裝、自己切。列在這裡的後果就是 #99：
+// 只有 FD300 的人也會看到 FF600／FF800 兩台永遠用不到的機器。
+// ⓘ 連帶效果（刻意的）：既有使用者只要再跑一次本頁存檔，那三台就會從 AppConfig 消失
+//    ——OnExitFilter() 只送 ModelNozzleSelected 裡的機型，而 C++ 端是整組覆蓋
+//    （GuideFrame::apply_config → app_config->set_vendors）⇒ 沒送到的就不存在。
+//    這正是 #99 回報者手上那兩台的清除路徑，不必另外寫一次性清理。
+// ⚠ 判準是機型名含「照片磚」，與 C++ 端 PhotoTileCapability 的 PHOTO_TILE_MARKER
+//    （「同進照片磚」）同源；C++ 那支是單一來源，網頁端引用不到它 ⇒ 改判準時兩邊要一起改。
+function PingIsPhotoTileModel(vendor, model) {
+	return vendor == 'PING' && model.indexOf('照片磚') != -1;
+}
+
 // PING 2026-08-13（Eric 裁丙案）：本體變體（無後綴）的顯示名＝該機的**料數**。
 // 值域由實查各系列本體的 default_filament_profile 槽數定（2026-08-13）：
 //   FF600／FF800 ＝ 4 槽 ⇒ 四料｜FD 系與 DUAL 系 ＝ 2 槽 ⇒ 雙料｜其餘（FP300／EDU 200／
@@ -79,7 +102,11 @@ function PingBaseLabel(series) {
 // 例：FD300 → 雙料｜FD300 同進 → 同進｜FF800 3in1 → 3in1｜FD300 同進照片磚 → 同進照片磚
 function PingVariantLabel(model, series) {
 	let s = model.slice(series.length).trim();
-	return s === '' ? PingBaseLabel(series) : s;
+	if (s === '') return PingBaseLabel(series);
+	// PING 2026-09-08（Eric）：「ABS 關門」不是一個列印模式，只是 FD300／FP300 關門時列印範圍縮到 Ø200 的限制
+	// ⇒ 說明區的 ABS 頁籤拿掉，改在變體列旁註明用途。
+	if (s === '關門') return '關門（ABS）';
+	return s;
 }
 
 function ProductLineOf(vendor, model) {
@@ -92,13 +119,24 @@ function ProductLineOf(vendor, model) {
 	return vendor == 'PING' && PingClassicModels.has(PingBaseModel(model)) ? 'classic' : 'fast';
 }
 
+// 2026-09-08：「全選／清空」兩顆鈕的 markup 抽成一支——PING 放在產品線分頁列左側，其他廠牌仍在標頭列。
+function VendorSelectBtnsHtml(vendor) {
+	return '<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll(\'' + vendor + '\')">all</div>' +
+	       '<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone(\'' + vendor + '\')">none</div>';
+}
+
 function ProductLineTabs(vendor) {
 	if (vendor != 'PING') return '';
-	return '<div class="ProductLineTabs" role="tablist" aria-label="PING product line">' +
+	return '<div class="ProductLineTabs">' +
+		/* 2026-09-08（Eric）：全選／清空從 PING 標頭列搬到這裡——它們管的是下方卡片，該跟卡片同一列 */
+		'<div class="LineBtns">' + VendorSelectBtnsHtml(vendor) + '</div>' +
+		'<div class="LineTabs" role="tablist" aria-label="PING product line">' +
 		'<button type="button" class="ProductLineTab" data-line="fast" onclick="SetPingProductLine(\'fast\')">Fast</button>' +
 		'<button type="button" class="ProductLineTab" data-line="classic" onclick="SetPingProductLine(\'classic\')">Classic</button>' +
-		'<button type="button" class="ProductLineTab" data-line="phototile" onclick="SetPingProductLine(\'phototile\')">照片磚</button>' +
-		'</div>';
+		/* 照片磚分頁 2026-09-07 移除（#99 Q3 甲）——照片磚機已不列進本頁，分頁會是空的。
+		   ProductLineOf() 的 'phototile' 分支刻意留著：萬一日後有照片磚機漏擋進來，
+		   它會被歸到一個沒有分頁的產品線而**被隱藏**（fail-safe），不會混進 Fast。 */
+		'</div></div>';
 }
 
 function SetPingProductLine(line) {
@@ -147,12 +185,11 @@ function HandleModelList( pVal )
 
 			let HtmlNewVendor='<div class="OneVendorBlock" Vendor="'+strVendor+'">'+
 '<div class="BlockBanner">'+
-'	<div class="BannerBtns">'+
-'		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll('+"\'"+strVendor+"\'"+')">all</div>'+
-'		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone('+"\'"+strVendor+"\'"+')">none</div>'+
-'	</div>'+
-'	<a>'+sVV+'</a>'+
+/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
+(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>')+
+(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>')+
 '</div>'+
+PingModeHelpHtml(strVendor)+   /* PING v12（Eric 2026-09-08 定案）：「認識列印模式」說明區，放產品線分頁之上、卡片區之上 */
 ProductLineTabs(strVendor)+
 '<div class="PrinterArea">	'+
 '</div>'+
@@ -162,6 +199,7 @@ ProductLineTabs(strVendor)+
 		}
 		
 		let ModelName=OneModel['model'];
+		if (PingIsPhotoTileModel(strVendor, ModelName)) continue;   // #99 Q3 甲：照片磚機不列出
 
 		//Collect Html Node Nozzel Html
 		//PING: 依「家族」分組(機型名去掉模式字尾 單料頭/同進)，每家族一列(基本/單料頭/同進 三卡)
@@ -191,7 +229,7 @@ ProductLineTabs(strVendor)+
 		{
 			let g=ModelHtml[key][series];
 			pArea.append('<div class="PrinterBlock" data-product-line="'+g.line+'" data-series="'+series+'">'+
-'	<div class="PImg"><img src="'+g.cover+'"  /></div>'+
+'	<div class="PImg">'+PingCardImgHtml(series, g.cover)+'</div>'+
 '	<div class="SeriesName">'+series+'</div>'+ g.rows +'</div>');
 		}
 	}
@@ -202,6 +240,7 @@ ProductLineTabs(strVendor)+
 	{
 		let OneModel=pModel[m];
 
+		if (PingIsPhotoTileModel(OneModel['vendor'], OneModel['model'])) continue;   // #99 Q3 甲：不回填、也不送回 C++
 		let SelectList=OneModel['nozzle_selected'];
 		if(SelectList!='')
 		{
@@ -223,6 +262,7 @@ ProductLineTabs(strVendor)+
 	// }
 	
 	ApplyPingProductLine();
+	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：說明區渲染（語言同 TranslatePage） */
 	TranslatePage();
 }
 
@@ -331,6 +371,7 @@ function FilterModelList(keyword) {
 
 		let strVendor = OneModel['vendor'];
 		let ModelName = OneModel['model'];
+		if (PingIsPhotoTileModel(strVendor, ModelName)) continue;   // #99 Q3 甲：搜尋結果也不列出
 		if (ModelName.toLowerCase().indexOf(keyword.toLowerCase()) == -1)
 			continue;
 
@@ -346,12 +387,11 @@ function FilterModelList(keyword) {
 
 			let HtmlNewVendor = '<div class="OneVendorBlock" Vendor="' + strVendor + '">' +
 				'<div class="BlockBanner">' +
-				'	<div class="BannerBtns">' +
-				'		<div class="SmallBtn_Green trans" tid="t11" onClick="SelectPrinterAll(' + "\'" + strVendor + "\'" + ')">all</div>' +
-				'		<div class="SmallBtn trans" tid="t12" onClick="SelectPrinterNone(' + "\'" + strVendor + "\'" + ')">none</div>' +
-				'	</div>' +
-				'	<a>' + sVV + '</a>' +
+				/* 2026-09-08（Eric）：PING 的「全選／清空」搬到產品線分頁列（那是屬於下方卡片區的控制項）；標頭列只剩可收合的 PING 標籤 */
+				(strVendor=='PING' ? '' : '	<div class="BannerBtns">'+VendorSelectBtnsHtml(strVendor)+'	</div>') +
+				(strVendor=='PING' ? PingModeHelpToggleHtml(sVV) : '	<a>'+sVV+'</a>') +
 				'</div>' +
+				PingModeHelpHtml(strVendor) +   /* PING v12：搜尋重繪也要有說明區 */
 				ProductLineTabs(strVendor) +
 				'<div class="PrinterArea">	' +
 				'</div>' +
@@ -383,7 +423,7 @@ function FilterModelList(keyword) {
 		for (let series in ModelHtml[key]) {
 			let g = ModelHtml[key][series];
 			obj.append('<div class="PrinterBlock" data-product-line="' + g.line + '" data-series="' + series + '">' +
-				'	<div class="PImg"><img src="' + g.cover + '"  /></div>' +
+				'	<div class="PImg">' + PingCardImgHtml(series, g.cover) + '</div>' +
 				'	<div class="SeriesName">' + series + '</div>' + g.rows + '</div>');
 		}
 	}
@@ -400,6 +440,7 @@ function FilterModelList(keyword) {
 	// }
 
 	ApplyPingProductLine();
+	if (typeof PingModeHelpInit === 'function') PingModeHelpInit();   /* PING v12：搜尋重繪後重掛說明區 */
 	TranslatePage();
 }
 

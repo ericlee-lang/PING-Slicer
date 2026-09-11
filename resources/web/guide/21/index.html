@@ -6,7 +6,8 @@
 <title>引导_P21</title>
 <link rel="stylesheet" type="text/css" href="../../include/global.css" />	<!-- ORCA One for all-->
 <link rel="stylesheet" type="text/css" href="../css/common.css" />	
-<link rel="stylesheet" type="text/css" href="21.css" />
+<link rel="stylesheet" type="text/css" href="21.css?v=20260908c" />
+<link rel="stylesheet" type="text/css" href="../ping-modes/ping-modes.css?v=20260908c" />	<!-- ?v= 是快取破壞字串，改了模組就一起改（SOP_WebView2 §N） -->	<!-- PING v12 列印模式說明區 -->
 <link rel="stylesheet" type="text/css" href="../css/dark.css" />	
 <script type="text/javascript" src="test.js"></script>	
 <script type="text/javascript" src="../js/jquery-3.6.0.min.js"></script>
@@ -14,7 +15,8 @@
 <script type="text/javascript" src="../../data/text.js"></script>	
 <script type="text/javascript" src="../js/globalapi.js"></script>	
 <script type="text/javascript" src="../js/common.js"></script>
-<script type="text/javascript" src="21.js"></script>		
+<script type="text/javascript" src="../ping-modes/ping-modes.js?v=20260908c"></script>	<!-- PING v12 列印模式說明區（21/24 共用） -->
+<script type="text/javascript" src="21.js?v=20260908c"></script>		
 </head>
 <body onLoad="OnInit()">
 <div id="Title">
@@ -121,6 +123,7 @@
 	
 </div>
 <div id="AcceptArea">
+	<div class="ButtonStyleRegular ButtonTypeChoice trans" id="PreBtn" tid="t8"  onclick="window.open('../1/index.html','_self')">Back</div>
 	<div class="ButtonStyleConfirm ButtonTypeChoice trans" id="AcceptBtn" tid="t9"  onclick="GotoFilamentPage()">Next</div>
 </div>
 	
