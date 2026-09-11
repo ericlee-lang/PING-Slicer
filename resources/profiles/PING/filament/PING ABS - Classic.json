@@ -46,7 +46,7 @@
         "; Classic Marlin filament - machine retraction only\n"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
         "10"
@@ -85,5 +85,8 @@
     "filament_shrink": [
         "99.75%"
     ],
-    "alias": "PING ABS - Classic"
+    "alias": "PING ABS - Classic",
+    "slow_down_min_speed": [
+        "25"
+    ]
 }

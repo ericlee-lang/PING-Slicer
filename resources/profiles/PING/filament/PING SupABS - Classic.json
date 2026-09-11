@@ -70,7 +70,7 @@
         "; Classic Marlin filament - machine retraction only\n"
     ],
     "slow_down_for_layer_cooling": [
-        "0"
+        "1"
     ],
     "slow_down_layer_time": [
         "10"
@@ -91,5 +91,8 @@
         "0"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/",
-    "alias": "PING SupABS - Classic"
+    "alias": "PING SupABS - Classic",
+    "slow_down_min_speed": [
+        "25"
+    ]
 }

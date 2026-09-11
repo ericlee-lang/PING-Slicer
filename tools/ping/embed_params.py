@@ -609,6 +609,11 @@ def scale_circle_area_from(area_pts, source_diameter, target_diameter):
 #     Type::Convex 精準路徑（BuildVolume.cpp:400/543）。日後要改形狀，**凸性是硬條件**。
 #   ⚠ 床身 STL 仍是圓盤（BED_S）＝刻意不換：深色圓盤是模型、可印區格線才是 printable_area，
 #     兩者疊起來就是「圓盤上一塊三角亮區」＝Eric 2026-08-11 看圖確認的樣子。
+# ★ 「這台是不是前代 Classic（Marlin）機」的**單一判準**（2026-09-11，牌 c-0911-MCH-01）。
+#   抽成一處的理由＝今天實抓：verify 用口徑窮舉表判 Classic、產生器用本正則判，兩邊漂開之後
+#   新加的 0.25／0.2 變體在 verify 那邊被當成 Klipper 機，90 項紅（見 SOP_參數入版紀律 §S-6）。
+#   凡是「Fast 專屬的正規化」要略過前代機，一律用這一個，不要再各處手寫正則。
+CLASSIC_MACHINE_RE = re.compile(r"^(EDU|DUAL|PING 2|PING 3)")
 BED_TRI_R_IN, BED_TRI_R_OUT = 100.0, 150.0
 BED_TRI_APEX_DEG = 90.0     # 尖端方位：90°＝朝 +Y（後方）、平邊朝前（門側）＝Eric 圖面
 BED_TRI_ARC_STEP = 2.0      # 圓弧取樣間隔（度）；39 點，與原 72 點圓同量級
@@ -2768,7 +2773,7 @@ def main(src_base):
         if md_.get("type") != "machine" or "machine_max_acceleration_x" not in md_:
             continue
         mname = md_.get("name", "")
-        if "DL1016" in mname or re.match(r"^(EDU|DUAL|PING 2|PING 3)", mname):
+        if "DL1016" in mname or CLASSIC_MACHINE_RE.match(mname):   # 判準見檔頭 CLASSIC_MACHINE_RE
             continue
         V, A, J = ("200", "1500", "56") if "FF" in mname else ("400", "5000", "7")
         want = {"machine_max_speed_x": [V, V], "machine_max_speed_y": [V, V],
@@ -2794,19 +2799,72 @@ def main(src_base):
     # 引擎預設是 true（PrintConfig.cpp:1709 set_default_value true），所以必須每支明寫 0 才擋得住。
     # ⚠ `slow_down_layer_time` 維持 10 不動——那顆同時驅動「最大風扇速度臨界值」的風扇轉速插值，
     #    不是只驅動降速；Eric 只指名取消勾選那一格。
-    CD_SLOWDOWN = ["0"]      # ← 要翻回開啟只改這一行
+    # 🔴 **2026-09-10 Eric 再裁（移植進出貨線 2026-09-11，牌 c-0911-MCH-01）：降速回「開」＋最小列印速度 25，
+    #    但照片磚系除外。** 起因＝其他同事回報「尖端成型不好」（Eric 明說不是照片磚線）。
+    #    **這不算翻 0807**：0807 原話本來就寫「它是在特殊情況下才需要進行勾選」——0807 關的是「一律開」，
+    #    這次開的是「一般件需要」，照片磚反而成了那個要保持關的例外。
+    #    ⛔ 照片磚系維持 0、最小速度 10：每層面積小又在低流量下換色，降速會把層時間再拉長。
+    #    ⚠ `slow_down_layer_time` 仍維持 10 不動（同 0807：那顆同時驅動風扇轉速插值）。
+    #    ⚠ 照片磚系也要**明寫**最小速度，不能只是「不設」：那些支是從母體深拷貝派生的，
+    #       母體被設成 25 之後，下一次 regen 派生就把 25 帶進來，「不設」攔不住繼承 ⇒ 值會跨 regen 漂。
+    #    🔵 前代 Classic 線材**一起套**（與上面 4b-4c 的 z_hop 相反）：0807 那條的範圍本來就是
+    #       「所有材料」，0910 只挖掉照片磚一個例外；而 z_hop 那條 Eric 寫的是「一般機」、
+    #       Classic 另有 emit_classic 成組給定的值。兩條範圍不同是因為原裁定範圍就不同，不是筆誤。
+    CD_SLOWDOWN    = ["1"]   # ← 一般線材；要全面關回去改這一行
+    CD_SLOWDOWN_PT = ["0"]   # ← 照片磚系（例外）
+    CD_MIN_SPEED   = ["25"]  # ← 最小列印速度，只在降速生效時有作用
+    CD_MIN_SPEED_PT = ["10"] # ← 照片磚系維持原值
     cd_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        if fd.get("slow_down_for_layer_cooling") == CD_SLOWDOWN and fd.get("slow_down_layer_time") == ["10"]:
+        _is_pt = os.path.basename(fp_path)[:-5] in (PT_FIL_PLA, PT_FIL_PLA_FD)
+        _want  = CD_SLOWDOWN_PT if _is_pt else CD_SLOWDOWN
+        _spd   = CD_MIN_SPEED_PT if _is_pt else CD_MIN_SPEED
+        if (fd.get("slow_down_for_layer_cooling") == _want and fd.get("slow_down_layer_time") == ["10"]
+                and fd.get("slow_down_min_speed") == _spd):
             continue
-        fd["slow_down_for_layer_cooling"] = list(CD_SLOWDOWN)
+        fd["slow_down_for_layer_cooling"] = list(_want)
         fd["slow_down_layer_time"] = ["10"]
+        fd["slow_down_min_speed"] = list(_spd)
         jdump(fp_path, fd)
         cd_set += 1
     if cd_set:
         print("  冷卻降速統一（降速%s＋層時間 10 秒）：改 %d 支"
               % ("開" if CD_SLOWDOWN == ["1"] else "關", cd_set))
+
+    # 4b-4c. ★ Z 抬升＝口徑（Eric 2026-09-10 裁，牌 c-0910-WT-10；2026-09-11 移植進出貨線 c-0911-MCH-01）：
+    #   一般機的 `z_hop` 改成「該機口徑值」——0.4→0.4（本來就是、無變動）／0.6→**0.6**／1.0→**1**。
+    #   ⛔ **照片磚機不套**。⚠ 註解跨線搬要對著本線查：開發線的照片磚是 0.1（Eric 2026-09-07 把零回抽
+    #      改成韌體回抽 1.3＋抬升 0.1），**但出貨線實查是 0**——0907 那條也還沒搬過來。
+    #      本段只負責「不動它」，不負責把它改成 0.1；要改是另一條規則的事。
+    #      本段自己排除照片磚，**不倚賴後面覆寫回來的順序**
+    #      ——順序是隱形依賴，哪天有人把 PT 段搬到前面，這裡就會靜默把 0.1 蓋成 0.6。
+    #   ⛔ **0.2／0.25 口徑不套**：維持 0.4（Eric 同日裁）。照規則它們會從 0.4 **降到** 0.2／0.25，
+    #      方向與另外三個相反、撞件風險反升，要套需另測。
+    #   🔴 **出貨線專屬加碼：前代 Classic 機也不套，維持 emit_classic 給的 0.5。**
+    #      理由＝開發線沒有 Classic，Eric 那條裁定寫「一般機」時不存在這條路徑（同 SOP §S-3 的形狀）。
+    #      Classic 是 Marlin 舊板、z_hop 與 wipe 由 emit_classic 成組給定，把它改成 0.6/1.0 等於替
+    #      前代機做一個 Eric 沒裁過的行為變更。本檔既有慣例也是這樣（機器動力學、支撐速度都略過 Classic）。
+    #      要納入的話改這一行的 `or CLASSIC_MACHINE_RE.match(_bn)` 即可。
+    #   ⚠ **線材層會蓋過機器層**：`PING PVA`／`PING SupTPE`／`PING TPE - 210` 三支寫死 filament_z_hop=0.6
+    #      ⇒ 在 1.0 機上用這三支實際仍是 0.6。那是材料特性值，本批不動。
+    ZHOP_BY_NOZZLE = {"0.6": ["0.6"], "1": ["1"], "1.0": ["1"]}
+    zh_set = 0
+    for _fp in sorted(glob.glob(os.path.join(PINGDIR, "machine", "*nozzle.json"))):
+        _bn = os.path.basename(_fp)[:-5]
+        if "照片磚" in _bn or CLASSIC_MACHINE_RE.match(_bn):
+            continue
+        _d = json.load(io.open(_fp, encoding="utf-8"))
+        if _d.get("type") != "machine":
+            continue
+        _want = ZHOP_BY_NOZZLE.get(str(_d.get("printer_variant")))
+        if not _want or _d.get("z_hop") == _want:
+            continue
+        _d["z_hop"] = list(_want)
+        jdump(_fp, _d)
+        zh_set += 1
+    if zh_set:
+        print("  Z 抬升＝口徑（0.6→0.6／1.0→1；照片磚與 Classic 與 0.2/0.25 不套）：改 %d 台" % zh_set)
 
     # 4b-5b. ★ 線材收縮補償全庫一致＝100%（Eric 2026-08-09 裁 A；回報中心「線材收縮補償將被停用」單）
     #

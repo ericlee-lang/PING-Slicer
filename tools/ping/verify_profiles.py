@@ -43,6 +43,9 @@ errors = []
 COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆",      "易拆水溶"
 COMBO_CAT_EASYPAL                    = "易拆+筏層"
 COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL}
+# 照片磚系線材（冷卻降速 0910 的例外名單）；與 embed_params 的 PT_FIL_PLA／PT_FIL_PLA_FD 同值，
+# 兩支檔各自宣告＝既有慣例（verify 刻意不 import 產生器，避免驗證對象驗自己）。
+PT_FIL_PLA_V, PT_FIL_PLA_FD_V = "PING PLA(照片磚)", "PING PLA(照片磚 FD300)"
 # 🆕 0907 #153（Eric 四裁）：3in1 兩支改名成「… - 高流量噴頭」。名字集中在這裡，
 #   下方所有 exact 比對一律引用這兩個常數——SOP §N 第 3 條（內聯複製的條件要改成共用變數）。
 #   ⚠ 新名仍含 `(3in1)` 與 `高流量` ⇒ is_hf／PA 豁免／清料 120 三處子字串判定**都還命中**，
@@ -264,6 +267,18 @@ for name, (kind, d) in presets.items():
             # 12-d 照片磚機＝照片磚專用支（0816 裁「甲」＝照片磚維持舊值、不吃流量 50）
             if _dfp and set(_dfp) != {"PING PLA(照片磚)"}:
                 err(f"[FF 照片磚機必為照片磚專用支] {name} -> {sorted(set(_dfp))!r}")
+        # 🆕 檢查 10-b（Eric 2026-09-10 裁「Z 抬升＝口徑」；2026-09-11 移植進出貨線 c-0911-MCH-01）：
+        #   Fast 一般機的 z_hop＝該機口徑（0.6→0.6、1.0→1），0.4／0.25／0.2 維持 0.4。
+        #   ⛔ 照片磚機與前代 Classic 機不套（Classic 由 emit_classic 成組給 0.5；出貨線專屬排除，
+        #      理由見 embed_params 4b-4c 註解——Eric 那條裁定寫「一般機」時開發線根本沒有 Classic）。
+        #   ⚠ 本條 2026-09-11 補上：移植當天只做了產生器規則、**漏了守衛**，反向測試（把 0.6 機改回 0.4）
+        #      verify 照樣 exit 0 才抓到。規則三件套＝產生器＋守衛＋反向測試，缺一件等於沒做。
+        _zh_nz = str((d.get("printer_variant") or "")).strip()
+        if ("machine_max_acceleration_x" in d and "照片磚" not in name
+                and not classic_model_for_machine(name) and _zh_nz):
+            _zh_want = {"0.6": ["0.6"], "1.0": ["1"], "1": ["1"]}.get(_zh_nz, ["0.4"])
+            if d.get("z_hop") != _zh_want:
+                err(f"[Z 抬升＝口徑 0910] {name}: z_hop={d.get('z_hop')!r}, expected {_zh_want!r}")
         # 檢查 10（Eric 2026-07-17 裁「全機隊」）：機器動力學＝Klipper 實值（時間預估校正）；
         # DL1016 與 Classic 前代機跳過
         if ("machine_max_acceleration_x" in d and "DL1016" not in name
@@ -646,11 +661,20 @@ for name, (kind, d) in presets.items():
             if name in TI_FIL_OLD:
                 err(f"[3in1 舊名不得復活 0907] {name}: 已於 #153 改名，舊名只能待在 renamed_from")
             # 檢查 11：降速層時間一律 10 秒（Eric 2026-07-18 裁「擴及所有材料」）＋
-            # 🔴 冷卻降速一律**關**（Eric 2026-08-07 裁，翻 0718 自己那條「一律開」）
-            #    原話：「經過實測…它是在特殊情況下才需要進行勾選，因此大部分情況下都要取消」
-            #    ⇒ 實測為據的翻案，不是迴歸；引擎預設 true 故必須每支明寫 0 才擋得住。
-            if d.get("slow_down_for_layer_cooling") != ["0"]:
-                err(f"[冷卻降速應關 0807] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected ['0']")
+            # 🔴 冷卻降速：**一般線材開、照片磚系關**（Eric 2026-09-10 裁；2026-09-11 移植進出貨線 c-0911-MCH-01）。
+            #    沿革：0718「一律開」→ 0807「一律關」（實測翻案）→ 0910「一般件要開、照片磚是例外」。
+            #    0910 不算翻 0807——0807 原話就寫「特殊情況才需要勾選」，關掉的是「一律開」；
+            #    這次開的是「一般件需要」，照片磚反而成為那個要保持關的例外。起因＝同事回報尖端成型不好。
+            #    ⚠ 本條 2026-09-11 才更新：在那之前守衛仍寫死「一律關」，比裁定舊了一天，
+            #       移植當下實抓 29 項紅——同 0911 ABS 收縮守衛那一型（守衛比引擎/裁定嚴）。
+            #       **規則改了要回頭改守衛**，否則守衛會把合法的新值擋下來。
+            _cd_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V)
+            _cd_want = ["0"] if _cd_pt else ["1"]
+            _cd_spd  = ["10"] if _cd_pt else ["25"]
+            if d.get("slow_down_for_layer_cooling") != _cd_want:
+                err(f"[冷卻降速 0910] {name}: {d.get('slow_down_for_layer_cooling')!r}, expected {_cd_want!r}")
+            if d.get("slow_down_min_speed") != _cd_spd:
+                err(f"[降速最小速度 0910] {name}: {d.get('slow_down_min_speed')!r}, expected {_cd_spd!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
             # 🆕 G1（Eric 2026-08-13 裁・連動規格批1）：配料屬性必須**顯式**帶兩鍵。
