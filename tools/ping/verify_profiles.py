@@ -163,24 +163,32 @@ CLASSIC_VARIANT_NOZZLES = {
 }
 CLASSIC_VARIANTS = ("同進", "單料頭")
 
-def classic_base_nozzles(model, spec):
-    """
-    base 機的口徑集合。2026-09-01（牌 c-0901-CLS-01・Eric 裁「四台一起」）之前，
-    四台 DUAL base 各只有一個口徑；補齊後與它們的變體同一組口徑，故直接共用同一張表。
-    非 DUAL 的 Classic（EDU 200／PING 2xx／300+）維持單一口徑。
-    """
-    return CLASSIC_VARIANT_NOZZLES.get(model, (spec["nozzle"],))
+_CLASSIC_MACHINE_RE = re.compile(r"^(.+?) ([0-9.]+) nozzle$")
 
 
 def classic_model_for_machine(name):
-    for model, spec in CLASSIC.items():
-        for base_nz in classic_base_nozzles(model, spec):
-            if name == f"{model} {base_nz} nozzle":
-                return model
-        for variant in CLASSIC_VARIANTS:
-            for nz in CLASSIC_VARIANT_NOZZLES.get(model, ()):
-                if name == f"{model} {variant} {nz} nozzle":
-                    return model
+    """這台機是不是前代 Classic（Marlin）機。判準＝它是哪一台，不是它裝幾號噴嘴。
+    🔴 2026-09-11 實抓（牌 c-0911-NZ-01）：原本是拿 CLASSIC_VARIANT_NOZZLES 窮舉口徑去比對整個機名。
+       NZ 棒替 DUAL 450/600/800 加了 同進(0.25)／單料頭(0.2) 之後，那些新變體機在這裡回 None
+       ⇒ 被當成 Klipper 機，verify 對它要求 Klipper 動力學與 jerk 7（實測 54+36 項紅）；
+       而 embed_params 那邊用 ^(EDU|DUAL|PING 2|PING 3) 正則**正確地**跳過它。
+       **兩邊對「什麼是 Classic」的判準不一致，而錯的是這裡**——同 0911 ABS 收縮守衛那一型：
+       守衛比引擎嚴，於是擋掉合法的東西。規則要貼著真實約束寫：一台機是不是 Marlin 前代機，
+       取決於機型（含同進／單料頭變體）本身，跟口徑無關。
+    ⚠ CLASSIC_VARIANT_NOZZLES 沒有廢除，但**只留給「哪些變體機必須存在」那個斷言**（見檔尾
+      〈Classic 變體完整性〉）——那個問題才真的需要窮舉口徑。**同一張表被兩個目的共用**，
+      其中一個需要窮舉、另一個不需要，正是這次靜默失效的成因：表過期時，
+      需要窮舉的那個目的會大聲報錯，不需要窮舉的那個目的則安靜地答錯。
+    （原 classic_base_nozzles() 只被本函式呼叫，改判準後即成孤兒，一併移除；
+      它原本的註記＝DUAL base 0901 補齊後與變體共用同一組口徑，已併入上面的表註解。）
+    """
+    m = _CLASSIC_MACHINE_RE.match(name)
+    if not m:
+        return None
+    stem = m.group(1)
+    for model in CLASSIC:
+        if stem == model or any(stem == f"{model} {v}" for v in CLASSIC_VARIANTS):
+            return model
     return None
 
 
