@@ -2703,14 +2703,34 @@ def main(src_base):
     #
     # ⇒ 統一為 100%：警告消失，**列印行為零改變**（本來就沒在補償）。
     # 日後若真要做收縮補償，**必須整組同時設同一個值**（同一次列印會用到的所有料），否則等於沒設。
-    SHRINK_UNIFORM = "100%"      # ← 要真的開補償時改這裡，並確認全庫同值
+    # 🆕 2026-09-11（Eric：「ABS 的收縮率是 99.75%，之前講到 100.25% 是錯誤的」；
+    #    回報中心 ABS 收縮率單，劉勝賢回報）：**ABS 族改 99.75%，其餘維持 100%**。
+    #    這是上面那條引擎規則的合法用法——約束是「同一次列印用到的所有料要同值」，
+    #    不是「全庫要同值」。ABS 件只會用到 ABS 族（ABS 本體＋SupABS 支撐），族內同值 ⇒ 補償生效；
+    #    PLA 件只用到 PLA 族（全 100%）⇒ 也一致。ABS×PLA 混用不是既有使用情境。
+    #    ⚠ 行為改變：0809 統一 100% 時「列印行為零改變」（本來就沒在補償）；
+    #      本次讓 ABS 族的補償**首次真正生效**，ABS 件 XY 會縮 0.25%。這是預期中的尺寸變化。
+    #    🔴 ABS 族必須**明寫**這個鍵（原本 PING ABS／ABS(玻璃)／ABS - Classic 沒有這個鍵＝
+    #      吃引擎預設 100%），否則族內不一致 ⇒ 引擎把整個補償關掉＝等於沒改。
+    SHRINK_UNIFORM = "100%"      # 非 ABS 族的統一值
+    SHRINK_ABS = "99.75%"        # ABS 族 XY（Z 不動＝吃引擎預設 100%，族內本就一致）
+    ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING ABS - Classic",
+                         "PING SupABS", "PING SupABS - Classic")
     shr_fixed = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
+        _name = os.path.basename(fp_path)[:-5]
+        _is_abs = _name in ABS_SHRINK_FAMILY
+        _xy = SHRINK_ABS if _is_abs else SHRINK_UNIFORM
         changed = False
+        # ABS 族：一律明寫 filament_shrink（沒有就補上）；其餘沿用舊行為＝只修正已存在的鍵
+        if _is_abs and fd.get("filament_shrink") != [_xy]:
+            fd["filament_shrink"] = [_xy]
+            changed = True
         for _k in ("filament_shrink", "filament_shrinkage_compensation_z"):
-            if _k in fd and fd[_k] != [SHRINK_UNIFORM]:
-                fd[_k] = [SHRINK_UNIFORM]
+            _want = _xy if _k == "filament_shrink" else SHRINK_UNIFORM
+            if _k in fd and fd[_k] != [_want]:
+                fd[_k] = [_want]
                 changed = True
         if changed:
             jdump(fp_path, fd)
