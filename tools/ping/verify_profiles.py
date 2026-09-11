@@ -1454,6 +1454,7 @@ if _g2_checked == 0:
 
 # ★ 功能歸類普查（0730 改名批）：五 token × 18 支 exact；舊材料對名歸零
 _combo_census = {}
+_combo_cover = {}   # token -> {「機型 (口徑)」}；判準改成「三個 token 覆蓋同一組機型×口徑」，見下方
 for _n, (_k, _d) in presets.items():
     if _k != "process":
         continue
@@ -1465,12 +1466,29 @@ for _n, (_k, _d) in presets.items():
     _t = combo_token(_n)
     if _t:
         _combo_census[_t] = _combo_census.get(_t, 0) + 1
+        _combo_cover.setdefault(_t, set()).add(_n.split(" %s @" % _t, 1)[1])
     for _old in COMBO_OLD_TOKENS:
         if (" %s @" % _old) in _n:
             err(f"[功能歸類・舊材料對名殘留] {_n}")
+# 🔴 2026-09-11 改判準（牌 `c-0911-NZ-01`）：原本是「每個 token 恰 18 支」的硬寫數字。
+#    那個 18 是「當時有幾組 機型×口徑」的快照，**每加一個口徑就會過期一次**——
+#    0909 替 FD450/600/800 Pro 加 0.25 之後它就變 21，而數字本身說不出哪裡不對。
+#    真正要守的不變量是：**三個 token 必須覆蓋完全相同的一組「機型 (口徑)」**
+#    （每一組雙料機×口徑都要備齊 易拆／易拆水溶／易拆+筏層 三支）。
+#    這條比數字嚴：數字相同但少一組、多一組也會被抓；而且加口徑不會讓它過期。
+#    ⚠ 另留一道下限，擋「三個 token 一起掉光」這種數字仍相等的退化；
+#      合法地拿掉機型時才需要調它，調的時候請連同理由一起改。
+_COMBO_COVER_FLOOR = 18   # 下限＝歷史最低（0.25 那批之前的組數），**不是**期望值。
+#                            刻意設在 18 而非當前的 21：這支 verify 要能同時跑在「已 regen」與
+#                            「未 regen」的樹上（CI 跑的是後者）。設 21 會讓現行出貨線直接紅。
+_cov = {_t: _combo_cover.get(_t, set()) for _t in COMBO_TOKENS}
+_union = set().union(*_cov.values()) if _cov else set()
 for _t in sorted(COMBO_TOKENS):
-    if _combo_census.get(_t, 0) != 18:
-        err(f"[功能歸類・{_t} 應 18 支] 實得 {_combo_census.get(_t, 0)}")
+    _missing = _union - _cov[_t]
+    if _missing:
+        err(f"[功能歸類・{_t} 覆蓋缺口] 缺 {len(_missing)} 組：{sorted(_missing)[:6]}")
+if len(_union) < _COMBO_COVER_FLOOR:
+    err(f"[功能歸類・覆蓋組數低於下限] 實得 {len(_union)} < {_COMBO_COVER_FLOOR}")
 # id baseline（二輪必改 14／四輪修訂 C）：改名前快照＝舊名→新名→setting_id 90 條 exact，
 # 防重構位移／PVA 插回主迴圈／依新名重排 emission（fixture＝regen 前 dump、進 repo）。
 _idb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "combo_rename_id_baseline.json")
