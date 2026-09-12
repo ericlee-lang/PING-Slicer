@@ -171,6 +171,9 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           CERTIFICATE_ID: ${{ secrets.MACOS_CERTIFICATE_ID }}
         run: |
+          # PING(2026-09-12 Eric 裁「帶」)：hdiutil create 在 GitHub macOS runner 偶發 `Resource busy`（diskimages-helper 搶盤），
+          # 0817／0819／0911 同一點紅三次、每次都是純 flake（整顆重跑即過）。重試 5 次、間隔 15 秒；仍失敗才真的紅。
+          hdiutil_retry() { local i; for i in 1 2 3 4 5; do hdiutil create "$@" && return 0; echo "hdiutil create failed (attempt $i/5), retrying in 15s"; sleep 15; done; return 1; }
           CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
@@ -193,7 +196,7 @@ jobs:
           rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
           cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app "${{ github.workspace }}/build/universal/OrcaSlicer_dmg/PING Slicer.app"
           ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "PING Slicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO PING_Slicer_Mac_universal_${{ env.ver }}.dmg
+          hdiutil_retry -volname "PING Slicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO PING_Slicer_Mac_universal_${{ env.ver }}.dmg
           codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" PING_Slicer_Mac_universal_${{ env.ver }}.dmg
           
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
@@ -202,7 +205,7 @@ jobs:
             rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
             cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
             ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+            hdiutil_retry -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
             codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
           
@@ -220,11 +223,14 @@ jobs:
         if: github.ref != 'refs/heads/main' && runner.os == 'macOS' && inputs.macos-combine-only
         working-directory: ${{ github.workspace }}
         run: |
+          # PING(2026-09-12 Eric 裁「帶」)：hdiutil create 在 GitHub macOS runner 偶發 `Resource busy`（diskimages-helper 搶盤），
+          # 0817／0819／0911 同一點紅三次、每次都是純 flake（整顆重跑即過）。重試 5 次、間隔 15 秒；仍失敗才真的紅。
+          hdiutil_retry() { local i; for i in 1 2 3 4 5; do hdiutil create "$@" && return 0; echo "hdiutil create failed (attempt $i/5), retrying in 15s"; sleep 15; done; return 1; }
           mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_dmg
           rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
           cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app "${{ github.workspace }}/build/universal/OrcaSlicer_dmg/PING Slicer.app"
           ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "PING Slicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO PING_Slicer_Mac_universal_${{ env.ver }}.dmg
+          hdiutil_retry -volname "PING Slicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO PING_Slicer_Mac_universal_${{ env.ver }}.dmg
           
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
           if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
@@ -232,7 +238,7 @@ jobs:
             rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
             cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
             ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+            hdiutil_retry -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
           fi
 
       - name: Upload artifacts mac
@@ -281,7 +287,16 @@ jobs:
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
         run: |
           dir "C:/Program Files (x86)/Windows Kits/10/Include"
-          choco install nsis
+          # choco 社群源偶發 504（2026-07-14 run 29296142180 實例：裝 0 套件仍過關、1 小時後 cpack 才炸）
+          # → 重試 5 次＋裝完驗 makensis 存在，失敗就當場紅、不拖到 cpack
+          $ok = $false
+          foreach ($i in 1..5) {
+            choco install nsis -y --no-progress
+            if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") { $ok = $true; break }
+            Write-Host "choco install nsis 第 $i 次未成功，60 秒後重試…"
+            Start-Sleep -Seconds 60
+          }
+          if (-not $ok) { throw "choco install nsis 重試 5 次仍失敗（makensis 不存在）" }
 
       - name: Build slicer Win
         if: runner.os == 'Windows'
