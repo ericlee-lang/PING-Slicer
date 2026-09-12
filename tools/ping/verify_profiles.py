@@ -382,6 +382,19 @@ for name, (kind, d) in presets.items():
                 # 支撐開關關閉（Eric 2026-07-25 追裁）：照片磚不需要支撐，開關直接關，
                 # 不再停留在「開著但平貼床永遠不生成」的誤導狀態。
                 "enable_support": "0",
+                # 🆕 2026-09-12 Eric 裁「當正式預設」（牌 c-0912-PTI-08）：絨毛表面＋速度 ×2。
+                #    這裡只查「不隨機型變的那幾個」——normalize_fast_speed 先把 outer/sparse
+                #    壓成 60/100、首層範本一律 40、bridge 一律 50，再 ×2 ⇒ 全庫同值。
+                #    inner/top/solid/gap/skirt 的範本值因機型而異（FD 60／FF 75~100），
+                #    逐機型寫死只會變成第二份範本，改由下面的「≥120」下限守。
+                "fuzzy_skin": "external",
+                "fuzzy_skin_thickness": "0.3",
+                "fuzzy_skin_point_distance": "0.8",
+                "outer_wall_speed": "120",
+                "sparse_infill_speed": "200",
+                "initial_layer_speed": "80",
+                "initial_layer_infill_speed": "80",
+                "bridge_speed": "100",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
                 "travel_acceleration": "5000",

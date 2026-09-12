@@ -1044,6 +1044,62 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
         proc["sparse_infill_acceleration"] = "5000"
     return proc
 
+# ★ 照片磚製程「速度 ×2 ＋ 絨毛表面」（Eric 2026-09-12 裁「當正式預設」，牌 `c-0912-PTI-08`）
+#   來歷＝0912 實切並上機的那一件：50 mm 雙料白狗磚（FD300 同進照片磚 0.4），
+#   250 層／`verify_cycle_gcode --mode dual` PASS／與 1× 版 M6051 1816 及噴溫回抽牆頂底逐項相同。
+#
+# 🔴 三件實測事實，動這段之前先知道：
+#   ① **「×2」不等於「快兩倍」，多數口徑其實被線材流量上限夾住。**
+#      Orca 的 `filament_max_volumetric_speed` 是硬上限，超過就**靜默降速**、不報錯。
+#      照片磚線材：`PING PLA(照片磚 FD300)` 繼承 `fdm_filament_pla` ＝ **12 mm³/s**；
+#      `PING PLA(照片磚)`／`PING PLA(照片磚 FD高流量)` ＝ **30**。
+#      體積流量 ≈ 線寬 × 層高 × 速度（照片磚線寬＝口徑×1.0）⇒ 外牆 120 時：
+#        · FD300 0.4 ：0.4×0.2 ×120 ＝ 9.6  < 12 ⇒ **真的生效**（Eric 驗的就是這台）
+#        · FD300 0.6 ：0.6×0.3 ×120 ＝ 21.6 > 12 ⇒ 夾到 ~67 mm/s（≈原本 60，等於沒變）
+#        · Pro/FF 0.6：0.6×0.35×120 ＝ 25.2 < 30 ⇒ 生效
+#        · 1.0 口徑  ：1.0×0.45~0.5×120 ＝ 54~60 > 30 ⇒ 夾到 ~67；**原本 75 就已經超了**
+#      ⇒ 真正受益的是 0.4（與部分 0.6）；1.0 口徑改了等於沒改。**不會壞，只是沒效果。**
+#   ② **估時反而變長。** 同一件 50 mm 磚實測：1× ＝ 1h59m18s、2×＋絨毛 ＝ 2h11m38s（**+10.4%**）。
+#      絨毛讓外牆路徑點數暴增、細碎移動吃不到設定速度（受加速度限制）
+#      ⇒ **這組的價值在表面觸感，不在速度**，已當面回報 Eric、他仍裁「當預設」。
+#   ③ **sparse 改了幾乎沒差**：照片磚 `sparse_infill_density` ＝ 0（實心），沒有稀疏填充可跑。
+#
+# ⚠️ **首層 40→80 是唯一有實機風險、而且切片驗不出來的一項。**
+#    全庫規則 `normalize_fast_speed` 明文「首層速度 `initial_layer_speed` 不動」（首層慢＝附著），
+#    本規則照 Eric 0912 的參數清單逐項照做 ⇒ **照片磚成為該慣例的唯一例外**。
+#    第一件實印務必看第一層附著；不好就把 `initial_layer_speed` 收回 `40`（只改下面那一行）。
+#
+# 只動「絕對值、且屬列印動作」的速度鍵；**百分比相對值一律不動**
+#（`internal_bridge_speed` 150%／`small_perimeter_speed` 50%／`scarf_joint_speed` 100%／
+#  `initial_layer_travel_speed` 100%——它們的基準是 `outer_wall_speed`，基準翻倍它們自然跟著翻）。
+# 也不動 `travel_speed`（空駛，與流量無關）、`ironing_speed`、`wipe_*`（非磚體表面）。
+PT_2X_SPEED_KEYS = (
+    "outer_wall_speed", "inner_wall_speed", "top_surface_speed", "internal_solid_infill_speed",
+    "sparse_infill_speed", "initial_layer_speed", "initial_layer_infill_speed",
+    "gap_infill_speed", "bridge_speed", "skirt_speed",
+    "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed",
+    "support_speed", "support_interface_speed",
+)
+PT_FUZZY = {"fuzzy_skin": "external", "fuzzy_skin_thickness": "0.3",
+            "fuzzy_skin_point_distance": "0.8", "fuzzy_skin_first_layer": "0"}
+
+
+def apply_phototile_2x_fuzzy(proc):
+    """在 normalize_fast_speed 之後套照片磚專屬的 2× 速度＋絨毛。**只給照片磚製程用**。"""
+    for k in PT_2X_SPEED_KEYS:
+        v = proc.get(k)
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s.endswith("%"):
+            continue   # 相對值不動（基準翻倍時它自己會跟著翻）
+        try:
+            proc[k] = "%g" % (float(s) * 2.0)
+        except (TypeError, ValueError):
+            continue   # 不是數字就原樣留著，不猜
+    proc.update(PT_FUZZY)
+    return proc
+
 # ★ 換料塔預設（2026-07-08 Eric 拍板・規格 _切片規則同步_來自pingslicer_換料塔與棧板雙版本_20260708.md）：
 # 全庫統一 寬 30→15＋外牆肋條（rib）。肋寬/圓角吃引擎預設（肋寬 8；寬 15 時被引擎夾到 7.5
 # ＝正常行為，PrintConfig.cpp wipe_tower_rib_width tooltip）。單料機不顯示換料塔、寫入無副作用
@@ -1486,6 +1542,10 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
     for name in PHOTOTILE_PROCS:
         d = json.load(io.open(os.path.join(PHOTOTILE, "process", "%s.json" % name), encoding="utf-8"))
         normalize_fast_speed(d, preserve_sparse_acceleration=True)
+        # 🆕 2026-09-12 Eric 裁「當正式預設」（牌 c-0912-PTI-08）：速度 ×2 ＋ 絨毛表面。
+        #    必須在 normalize_fast_speed **之後**——它會把 outer/inner/sparse 壓回 60/≤80/100，
+        #    先乘後壓就整組被吃掉（順序反了不會報錯，只會靜默失效）。
+        apply_phototile_2x_fuzzy(d)
         # 照片磚特調稀疏填充加速度＝10000（verify 期望；0715 主線下修 5000 不套照片磚）。
         # 範本源檔殘留 '100%' 舊值（%APPDATA% 建置當時的相對值）→ 比照範本速度值「進 repo 時對齊」。
         d["sparse_infill_acceleration"] = "10000"
