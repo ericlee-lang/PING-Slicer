@@ -1067,7 +1067,8 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 # ⚠️ **首層 40→80 是唯一有實機風險、而且切片驗不出來的一項。**
 #    全庫規則 `normalize_fast_speed` 明文「首層速度 `initial_layer_speed` 不動」（首層慢＝附著），
 #    本規則照 Eric 0912 的參數清單逐項照做 ⇒ **照片磚成為該慣例的唯一例外**。
-#    第一件實印務必看第一層附著；不好就把 `initial_layer_speed` 收回 `40`（只改下面那一行）。
+#    ✅ **已處理（Eric 2026-09-12 晚二裁）**：首層不跟著 ×2，明設 **60**（見 `PT_INITIAL_LAYER_SPEED`）。
+#    0912 那件實印用的是首層 80、Eric 回「品質還可以」，但他仍選保守值 60；再動要有新裁定。
 #
 # 只動「絕對值、且屬列印動作」的速度鍵；**百分比相對值一律不動**
 #（`internal_bridge_speed` 150%／`small_perimeter_speed` 50%／`scarf_joint_speed` 100%／
@@ -1075,11 +1076,19 @@ def normalize_fast_speed(proc, is_pacf=False, preserve_sparse_acceleration=False
 # 也不動 `travel_speed`（空駛，與流量無關）、`ironing_speed`、`wipe_*`（非磚體表面）。
 PT_2X_SPEED_KEYS = (
     "outer_wall_speed", "inner_wall_speed", "top_surface_speed", "internal_solid_infill_speed",
-    "sparse_infill_speed", "initial_layer_speed", "initial_layer_infill_speed",
+    "sparse_infill_speed",
     "gap_infill_speed", "bridge_speed", "skirt_speed",
     "overhang_1_4_speed", "overhang_2_4_speed", "overhang_3_4_speed", "overhang_4_4_speed",
     "support_speed", "support_interface_speed",
 )
+# 🔴 首層**不跟著 ×2**（Eric 2026-09-12 晚二裁，牌 `c-0912-PTI-09`）。
+#   原話：「首層如果是 80 的話，確實有點風險，改成 60 好了」。
+#   背景＝首層慢才附著，這是整組參數裡**唯一切片驗不出來、只能靠實機**的風險項：
+#   0912 那件實印（首層 80）Eric 回「目前列印的品質還可以」，但他仍選保守值。
+#   60 ＝ 範本 40 的 1.5×，落在「全庫慣例 40」與「×2 的 80」之間。
+#   ⚠️ 要再動這個值一定要有 Eric 新的一次裁定，不是實作者順手改。
+PT_INITIAL_LAYER_SPEED = "60"
+
 PT_FUZZY = {"fuzzy_skin": "external", "fuzzy_skin_thickness": "0.3",
             "fuzzy_skin_point_distance": "0.8", "fuzzy_skin_first_layer": "0"}
 
@@ -1097,6 +1106,9 @@ def apply_phototile_2x_fuzzy(proc):
             proc[k] = "%g" % (float(s) * 2.0)
         except (TypeError, ValueError):
             continue   # 不是數字就原樣留著，不猜
+    # 首層獨立設值（不在 ×2 清單裡）——見 PT_INITIAL_LAYER_SPEED 上面那段裁定。
+    proc["initial_layer_speed"] = PT_INITIAL_LAYER_SPEED
+    proc["initial_layer_infill_speed"] = PT_INITIAL_LAYER_SPEED
     proc.update(PT_FUZZY)
     return proc
 

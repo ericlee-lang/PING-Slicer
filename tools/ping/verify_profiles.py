@@ -392,8 +392,9 @@ for name, (kind, d) in presets.items():
                 "fuzzy_skin_point_distance": "0.8",
                 "outer_wall_speed": "120",
                 "sparse_infill_speed": "200",
-                "initial_layer_speed": "80",
-                "initial_layer_infill_speed": "80",
+                # 首層不跟著 ×2：Eric 2026-09-12 晚二裁 80 → 60（牌 c-0912-PTI-09）
+                "initial_layer_speed": "60",
+                "initial_layer_infill_speed": "60",
                 "bridge_speed": "100",
             } if "照片磚" in name else {
                 "sparse_infill_acceleration": "5000",
