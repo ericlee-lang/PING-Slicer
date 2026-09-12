@@ -3,6 +3,16 @@
   "version": "0.1",
   "updated": "2026-08-17",
   "constants": {
+    "aiImage": {
+      "sizes": ["1024x1024", "1536x1024", "1024x1536"],
+      "quality": "low",
+      "maxRetry": 2,
+      "unitCostNtd": { "low": 0.3, "medium": 1.3, "high": 5.5 },
+      "_sizes": "R9-8：gpt-image-2 只有這三種尺寸，照磚體長寬比自動挑、不讓使用者選——選錯會讓 prompt 裡的 {minPx} 失準，而使用者沒有判斷依據。",
+      "_quality": "R9-8：預設 low。理由不是省錢——生出來的圖接下來會被壓成 4~8 個平色階再過三道濾除，high 多出來的細節在量化那一步就沒了。但這條尚未用數據定案：驗收時要用同一張照片跑 low vs medium 比 keyRegion 的關鍵區色階數（成本 NT$1.6）。",
+      "_maxRetry": "R9-5：只在『自動驗沒過』時重試，最多 2 次；逾時／網路錯／401 一律不重試（那只是重複燒錢）。",
+      "_unitCostNtd": "R9-6：單價講死、總額講上限。每張固定級距計費 ⇒ 單張寫「NT$0.3」不要寫「約」；總額因為允許重試 2 次 ⇒ 寫「最多 NT$0.9」。兩個都用『約』是懶惰，兩個都寫死是說謊。"
+    },
     "minWidthFactor": 2,
     "_minWidthFactor": "最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。",
     "nozzles": [
@@ -198,7 +208,7 @@
         "note": "四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤",
         "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
       },
-      "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster using a warm ramp. No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+      "promptTemplate": "Convert this animal photo into a flat {tones}-tone poster using ONLY this warm palette: warm paper white (#F2F0EB), light amber (#E6B072), burnt orange (#C26A1C) and dark brown (#3A2416). No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
       "priority": 1,
       "deltaEBySubject": {
         "pet_long": 5.49
@@ -287,7 +297,7 @@
         "note": "最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標",
         "_note_ΔE": "ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"
       },
-      "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
+      "promptTemplate": "Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use bold saturated ink colours that suit this photo — never a grayscale image. A classic reference palette is warm paper white, sky blue, deep navy and near-black, but feel free to choose a different ink family that fits the subject. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.",
       "priority": 2,
       "deltaEBySubject": {
         "portrait_closeup": 7.86

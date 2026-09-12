@@ -14,29 +14,10 @@
 namespace Slic3r {
 namespace GUI {
 
-AboutDialogLogo::AboutDialogLogo(wxWindow* parent)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize)
-{
-    this->SetBackgroundColour(*wxWHITE);
-    this->logo = ScalableBitmap(this, Slic3r::var("OrcaSlicer_192px.png"), wxBITMAP_TYPE_PNG);
-    this->SetMinSize(this->logo.GetBmpSize());
-
-    this->Bind(wxEVT_PAINT, &AboutDialogLogo::onRepaint, this);
-}
-
-void AboutDialogLogo::onRepaint(wxEvent &event)
-{
-    wxPaintDC dc(this);
-    dc.SetBackgroundMode(wxTRANSPARENT);
-
-    wxSize size = this->GetSize();
-    int logo_w = this->logo.GetBmpWidth();
-    int logo_h = this->logo.GetBmpHeight();
-    dc.DrawBitmap(this->logo.bmp(), (size.GetWidth() - logo_w)/2, (size.GetHeight() - logo_h)/2, true);
-
-    event.Skip();
-}
-
+// PING 2026-08-16: AboutDialogLogo implementation removed - see AboutDialog.hpp for why.
+// It was the last reader of resources/images/OrcaSlicer_192px.png in a "logo" role;
+// with it gone, every remaining use of that asset is an app-icon role, which is what
+// let the icon set be unified (192px now matches the 32/128/256px square tiles).
 
 // -----------------------------------------
 // CopyrightsDialog

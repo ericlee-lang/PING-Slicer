@@ -1,6 +1,8 @@
 #include "ExtrusionEntity.hpp"
 #include "Print.hpp"
 #include "ToolOrdering.hpp"
+#include "GCode/PingCycleTower.hpp"
+#include <boost/log/trivial.hpp>
 #include "Layer.hpp"
 #include "ClipperUtils.hpp"
 #include "ParameterUtils.hpp"
@@ -411,6 +413,9 @@ void ToolOrdering::sort_and_build_data(const Print& print, unsigned int first_ex
         this->fill_wipe_tower_partitions(print.config(), object_bottom_z, max_layer_height);
     }
 
+    /* PING WT：省沖刷量重排會把「純 E0 先」洗掉（0908 真切實測：層首又變彩料），所以在最後再套一次；統計要在重排之後算 */
+    this->ping_reorder_for_cycle_tower(print);
+
     this->collect_extruder_statistics(prime_multi_material);
 }
 
@@ -535,9 +540,56 @@ ToolOrdering::ToolOrdering(const Print &print, unsigned int first_extruder, bool
     else
         this->handle_dontcare_extruder(first_extruder);
 
+    this->ping_reorder_for_cycle_tower(print);   // PING WT：照片磚循環塔模式下，模型段淺→深完全排序（未開＝不動）
+
     this->collect_extruder_statistics(prime_multi_material);
 
     this->mark_skirt_layers(print.config(), max_layer_height);
+}
+
+void ToolOrdering::ping_reorder_for_cycle_tower(const Print& print)
+{
+    if (!PingCycle::enabled_for(print))
+        return;
+    std::map<int, std::string> palette; std::string reason;
+    if (!PingCycle::collect_palette(print.model(), palette, reason)) {
+        BOOST_LOG_TRIVIAL(warning) << "PING photo-tile cycle tower: palette not usable, keep native tool order: " << reason;
+        return;
+    }
+    // 模型段一律「淺→深」完全排序（Eric 2026-09-09 裁「丙」）。
+    // 為什麼不是原本的「純 E0 搬到最前、其餘保序」：塔的最後一段固定是純 E0，出塔那一刻噴頭是乾淨的白；
+    // 但原生順序是 Orca 的省換料蛇行（一層淺→深、下一層深→淺），實測 333 層只有 24 層（7.2%）碰巧是淺→深，
+    // **有 65 層剛把噴頭洗成純白、模型第一段就上純黑** ⇒ 那趟洗料整個白費。
+    // 排成淺→深之後兩個接縫都同色：出塔純白→模型最淺；模型最深→下一層塔的第一段（固定純最深）。
+    // 原生那個「層尾接下一層層首」的省換料優化在循環塔模式下本來就作廢（層間一定經過塔），沒有損失。
+    std::map<unsigned int, double> score;
+    for (const auto& kv : palette) {
+        const double s = PingCycle::light_score(kv.second);
+        if (s >= 0.)
+            score[(unsigned int) kv.first] = s;
+    }
+    if (score.size() < 2)
+        return;
+    // 此時 extruders 已是 0-based（handle_dontcare 尾段已 reindex）
+    for (LayerTools& lt : m_layer_tools) {
+        // 只重排「認得的」那幾格，不在 palette 裡的（洗料塔／idle purge 之類插進來的）留在原位不動——
+        // 把它們一律推到最後會改到本功能範圍外的行為。
+        std::vector<size_t> slots;
+        for (size_t i = 0; i < lt.extruders.size(); ++i)
+            if (score.count(lt.extruders[i]))
+                slots.push_back(i);
+        if (slots.size() < 2)
+            continue;
+        std::vector<unsigned int> known;
+        known.reserve(slots.size());
+        for (size_t i : slots)
+            known.push_back(lt.extruders[i]);
+        // stable_sort：亮度同分維持原生相對順序（四料 A 佔比相同的兩支不會被亂動）
+        std::stable_sort(known.begin(), known.end(),
+                         [&score](unsigned int a, unsigned int b) { return score.at(a) > score.at(b); });
+        for (size_t k = 0; k < slots.size(); ++k)
+            lt.extruders[slots[k]] = known[k];
+    }
 }
 
 static void apply_first_layer_order(const DynamicPrintConfig* config, std::vector<unsigned int>& tool_order) {

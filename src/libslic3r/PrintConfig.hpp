@@ -1035,6 +1035,15 @@ PRINT_CONFIG_CLASS_DEFINE(
 
     // Orca: internal use only
     ((ConfigOptionBool,  calib_flowrate_topinfill_special_order)) // ORCA: special flag for flow rate calibration
+
+    // PING 照片磚「每層循環洗料塔」（WT 線 2026-09-08）：工作室寫進 3MF 物件層 metadata，不在 UI 露出；
+    // 未開＝GCode／ToolOrdering 完全不介入。正本＝設計提案/照片磚循環洗料塔_20260908_01a07fef/CLAUDE_PLAN.md
+    ((ConfigOptionBool,   ping_pt_cycle))
+    ((ConfigOptionString, ping_pt_cycle_mode))   // dual | quad
+    ((ConfigOptionString, ping_pt_cycle_laps))   // 由外往內每段圈數："2,4"（E1,E0）｜"2,2,2,4"（E3,E2,E1,E0）
+    ((ConfigOptionFloat,  ping_pt_cycle_size))   // 塔身 mm；0＝44×(口徑/0.4)
+    ((ConfigOptionFloat,  ping_pt_cycle_gap))    // 與模型外緣距離 mm
+    ((ConfigOptionFloat,  ping_pt_cycle_brim))   // 首層外擴 brim mm
 )
 
 // This object is mapped to Perl as Slic3r::Config::PrintRegion.

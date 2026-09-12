@@ -374,6 +374,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/PingQuotePack.cpp
     GUI/PingQuotePack.hpp
     GUI/PingQuoteFormat.cpp
+    GUI/PingQuoteSmoke.cpp
+    GUI/PingQuoteSmoke.hpp
     GUI/Plater.cpp
     GUI/Plater.hpp
     GUI/PlateSettingsDialog.cpp
@@ -483,6 +485,20 @@ set(SLIC3R_GUI_SOURCES
     GUI/WebUserLoginDialog.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
+    GUI/PhotoTileEngineHost.cpp
+    GUI/PhotoTileEngineHost.hpp
+    GUI/PhotoTileSmoke.cpp
+    GUI/PhotoTileSmoke.hpp
+    GUI/PhotoTileLimitsGate.cpp
+    GUI/PhotoTileLiveGate.cpp
+    GUI/PhotoTileCapability.cpp
+    GUI/PhotoTileCapability.hpp
+    GUI/PingAiKeyDialog.cpp
+    GUI/PingAiKeyDialog.hpp
+    GUI/PhotoTileGateJson.hpp
+    GUI/PhotoTileSleepVigil.cpp
+    GUI/PhotoTileGoldenGate.cpp
+    GUI/PhotoTileCancelLatency.cpp
     GUI/Widgets/AMSControl.cpp
     GUI/Widgets/AMSControl.hpp
     GUI/Widgets/AMSItem.cpp
@@ -613,6 +629,10 @@ set(SLIC3R_GUI_SOURCES
     Utils/IPrinterAgent.hpp
     Utils/OrcaCloudServiceAgent.cpp
     Utils/OrcaCloudServiceAgent.hpp
+    Utils/PingAiKeyStore.cpp
+    Utils/PingAiKeyStore.hpp
+    Utils/PingAiImage.cpp
+    Utils/PingAiImage.hpp
     Utils/OrcaPrinterAgent.cpp
     Utils/OrcaPrinterAgent.hpp
     Utils/QidiPrinterAgent.cpp

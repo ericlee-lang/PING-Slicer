@@ -170,6 +170,7 @@ class MainFrame : public DPIFrame
         size_t FindFileInHistory(const wxString &file);
 
         void LoadThumbnails();
+        void RefreshThumbnail(const wxString &file);   // PING(2026-09-09)：某檔事後補了 plate_1.png → 只重讀那一格
 
         void SetMaxFiles(int max);
     private:
@@ -266,6 +267,13 @@ public:
     void update_filament_tab_ui();
 
     void        update_title();
+    /* C-2 第 7 項（0803 事故防呆真修）：閘門/守夜模式（設了 PING_PHOTOTILE_SMOKE）的視窗掛牌。
+       C-1 只在建構時 SetTitle 一次，之後 Plater 的 set_project_name()/update_title_dirty_status()
+       會把 frame 與 topbar 都覆寫回專案名 ⇒ 壓測視窗與正式版無法分辨（0803 下午實查）。
+       單一來源＝ping_gate_title_prefix()：frame 側由 SetTitle override 全路徑攔截、
+       topbar 側由兩個呼叫點（Plater.cpp）套同一支。驗收＝實查視窗標題字串，不是看 code。 */
+    static wxString ping_gate_title_prefix();
+    void        SetTitle(const wxString& title) override;
     void        set_max_recent_count(int max);
 
     void        show_publish_button(bool show);
@@ -298,6 +306,9 @@ public:
     void        update_side_preset_ui();
     // PING：依「機型是否同進」與「混色是否啟用」刷新上方列混色鈕的顯示與標籤
     void        update_ping_mix_side_button();
+    // PING(2026-09-07 Eric 裁・回報中心 #99)：照片磚入口從首頁搬到上方列，只在同進機顯示。
+    // 由 update_ping_mix_side_button() 末尾一併呼叫（兩顆鈕的觸發時機完全相同：換機型／上方列顯示切換）。
+    void        update_ping_phototile_side_button();
     void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
@@ -344,6 +355,7 @@ public:
     bool save_project_as(const wxString& filename = wxString());
 
     void        add_to_recent_projects(const wxString& filename);
+    void        refresh_recent_project_thumbnail(const wxString& filename);   // PING(2026-09-09，c-0909-TH-01)：重讀縮圖並重送首頁清單
     void        get_recent_projects(boost::property_tree::wptree &tree, int images);
     void        open_recent_project(size_t file_id, wxString const & filename);
     void        remove_recent_project(size_t file_id, wxString const &filename);
@@ -409,6 +421,16 @@ public:
     SideButton* m_print_option_btn{ nullptr };
 
     SidePopup*  m_slice_option_pop_up{ nullptr };
+
+    // PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：照片磚入口。判準＝目前機型是同進
+    // （is_ping_tongjin_selected，**含照片磚機本身**，否則做完第一張磚就找不到入口了）。
+    // ⚠ 不可用 is_ping_mix_available()——那把尺對照片磚機回 false（0822 令混色鈕在照片磚機隱藏）。
+    wxPanel*    m_phototile_panel{ nullptr };
+    SideButton* m_phototile_btn{ nullptr };
+    // 🆕 2026-09-08（Eric 裁 B 案）：下拉不是為了對齊而加的裝飾——它裝的是**同一個行動的兩個
+    // 入口變體**（空手進工作室／選一張圖直接帶進去），與旁邊三顆「這個行動有變體可挑」同語意。
+    SideButton* m_phototile_option_btn{ nullptr };
+    SidePopup*  m_phototile_option_pop_up{ nullptr };
 
     // PING(2026-08-19 Eric 令)：混色開關搬上方列，格式比照切片那組（SideButton ＋ SidePopup）。
     // 原本是預覽頁畫布右上角的浮動鈕（Preview::m_ping_mix_strip，已移除）。

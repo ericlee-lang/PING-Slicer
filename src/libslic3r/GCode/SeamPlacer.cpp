@@ -402,10 +402,44 @@ struct GlobalModelInfo {
 }
 ;
 
+// PING(2026-09-09，牌 c-0909-SEAM-01，Eric「為什麼使用絨毛表面的時候，縫線位置會跑到外面來」→「修」)：
+// 絨毛表面在 PerimeterGenerator 就把外牆路徑每點隨機位移 ±厚度，SeamPlacer 卻拿這條抖動過的路徑當縫線候選，
+// 於是阻擋／可見度／轉角／懸空全在抖動幾何上算——照片磚正背面貼了 paint_seam 阻擋、縫應落在色塊交界，實際卻散到正面。
+// 修法：絨毛 region 的候選改用**未絨毛**的輪廓（region slices 內縮半個外牆線寬＝外牆中心線），
+// 用質心找對應那圈；place_seam 選完點本來就會 get_closest_path_and_point 投影回真的路徑，所以 G-code 路徑不變、只有縫的落點變。
+// 找不到對應（質心差 >3 mm）就退回原本的抖動路徑，行為與修前相同。
+static Polygon ping_unfuzzed_seam_polygon(const LayerRegion *region, const Polygon &fuzzed,
+                                          Polygons &clean_cache, bool &clean_ready)
+{
+  if (region == nullptr || fuzzed.size() < 3) return fuzzed;
+  if (!clean_ready) {
+    clean_ready = true;
+    const coord_t inset = coord_t(0.5 * region->flow(FlowRole::frExternalPerimeter).scaled_width());
+    clean_cache = offset(to_expolygons(region->slices.surfaces), -float(inset));
+  }
+  if (clean_cache.empty()) return fuzzed;
+  const Point c = fuzzed.centroid();
+  const Polygon *best = nullptr;
+  double best_d2 = std::numeric_limits<double>::max();
+  for (const Polygon &cand : clean_cache) {
+    if (cand.size() < 3) continue;
+    const double d2 = (cand.centroid() - c).cast<double>().squaredNorm();
+    if (d2 < best_d2) { best_d2 = d2; best = &cand; }
+  }
+  const double tol = double(scale_(3.0));
+  if (best == nullptr || best_d2 > tol * tol) return fuzzed;
+  Polygon out = *best;
+  if (out.is_clockwise() != fuzzed.is_clockwise()) out.reverse();   // 洞與外輪廓方向要跟原路徑一致
+  return out;
+}
+
 //Extract perimeter polygons of the given layer
 Polygons extract_perimeter_polygons(const Layer *layer, std::vector<const LayerRegion*> &corresponding_regions_out) {
   Polygons polygons;
   for (const LayerRegion *layer_region : layer->regions()) {
+    // PING c-0909-SEAM-01：這個 region 有開絨毛才換候選幾何；快取每 region 算一次
+    const bool fuzzy_on = layer_region->region().config().fuzzy_skin.value != FuzzySkinType::None;
+    Polygons clean_cache; bool clean_ready = false;
     for (const ExtrusionEntity *ex_entity : layer_region->perimeters.entities) {
       if (ex_entity->is_collection()) { //collection of inner, outer, and overhang perimeters
         for (const ExtrusionEntity *perimeter : static_cast<const ExtrusionEntityCollection*>(ex_entity)->entities) {
@@ -421,7 +455,8 @@ Polygons extract_perimeter_polygons(const Layer *layer, std::vector<const LayerR
           if (role == ExtrusionRole::erExternalPerimeter) {
             Points p;
             perimeter->collect_points(p);
-            polygons.emplace_back(std::move(p));
+            Polygon fuzzed(std::move(p));
+            polygons.emplace_back(fuzzy_on ? ping_unfuzzed_seam_polygon(layer_region, fuzzed, clean_cache, clean_ready) : fuzzed);
             corresponding_regions_out.push_back(layer_region);
           }
         }

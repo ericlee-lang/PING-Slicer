@@ -75,13 +75,25 @@
 				<div class="MenuDesc">3mf</div>
 			</div>
 		</div>
+		<!-- 「雙料照片」入口 2026-08-07 依 Eric 裁示收起（他問「雙料照片是以前的功能嗎」→ 是）。
+		     出處：a11ee870（2026-07-02）一次性 MVP，1 顆 commit、生下來沒再動過；
+		     現行開發線是「照片磚」（29 顆 commit、活到 0805）。兩張卡片並排會讓人不知道該點哪個。
+		     ⚠ 只收入口，photo-mixer 網頁與 OnClickPhotoMixer() 都留著——要復原就把這段註解拆掉。 -->
+		<!-- 「照片磚」入口 2026-09-07 依 Eric 裁示從首頁移到**準備頁側工具列**（回報中心 #99 Q1 甲）。
+		     為什麼搬：首頁這顆是任何人、任何機型都點得到的，而點下去會把「同進照片磚」的三個機型
+		     （8 個口徑變體）整組裝進他的印表機清單 ⇒ 只有 FD300 的人也會多出 FF600／FF800 兩台
+		     用不到的機器，而且取消勾選後下次再進工作室又會裝回來（#99 的原文抱怨）。
+		     照片磚只有同進機做得到 ⇒ 入口跟著硬體能力走，放在準備頁與「混色停用」同一列
+		     （MainFrame::update_ping_phototile_side_button()）。
+		     ⚠ 只收首頁這顆入口：OnClickPhotoTile()、homepage_phototile 指令與工作室網頁都留著
+		        （拖圖片直入那條路仍走 open_photo_tile()）——要復原就把這段註解拆掉。
 		<div class="MenuItem" onClick="OnClickPhotoTile()">
 			<div class="MenuIcon"><img src="img/photo_tile.svg"></div>
 			<div>
 				<div class="TextS1">照片磚</div>
 				<div class="MenuDesc">圖片轉 3MF</div>
 			</div>
-		</div>
+		</div>	-->
 		<div class="MenuItem" onClick="OnClickStepRepair()">
 			<div class="MenuIcon"><img src="img/step_repair.svg"></div>
 			<div>

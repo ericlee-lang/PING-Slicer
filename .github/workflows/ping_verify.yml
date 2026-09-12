@@ -2,9 +2,16 @@
 # build_all 只證 C++ 編譯；本 job 跑 tools/ping/verify_profiles.py＝參照完整性＋
 # 連動表/跨層護欄/renamed_from/id 斷言。過去這層只在本機跑、CI 缺席。
 name: PING verify
+#
+# 🆕 2026-08-17（PM 牌 x-0817-PM-09）：branches 補 'claude/**'。
+# 原因：AI session 用 worktree 開工時，分支名是 `claude/<自動產生>`，不在上面兩個 pattern 裡
+# ⇒ 改到 profiles／tools/ping 也**一次都不會跑，而且不會報錯**（「以為有 CI 其實沒有」）。
+# 成本量過才加的：本 workflow 實測一次 **16 秒**（ubuntu＋一支 Python）。
+# ⚠️ 對照組：`build_all.yml` 實測一次 **76 分鐘**，所以那支**刻意不加** claude/**——
+#    AI 分支要驗 C++ 編譯請手動：gh workflow run "Build all" --ref <branch>（它已有 workflow_dispatch）。
 on:
   push:
-    branches: ['release/*', 'ping/*']
+    branches: ['release/*', 'ping/*', 'claude/**']
     paths:
       - 'tools/ping/**'
       - 'resources/profiles/**'
@@ -13,7 +20,7 @@ on:
       - 'src/libslic3r/GCode.cpp'
       - '.github/workflows/ping_verify.yml'
   pull_request:
-    branches: ['release/*', 'ping/*']
+    branches: ['release/*', 'ping/*', 'claude/**']
     paths:
       - 'tools/ping/**'
       - 'resources/profiles/**'

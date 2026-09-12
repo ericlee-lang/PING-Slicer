@@ -23,7 +23,7 @@
 #include "libslic3r/PrintConfig.hpp"
 #include "libslic3r/SLAPrint.hpp"
 #include "libslic3r/PresetBundle.hpp"
-#include "libslic3r/Utils.hpp"   // PING: resources_dir() 供色彩校正選單開啟內建 HTML
+#include "libslic3r/Utils.hpp"   // PING: resources_dir() 供照片磚選單開啟內建 HTML
 
 #include "Tab.hpp"
 #include "ProgressStatusBar.hpp"
@@ -39,7 +39,11 @@
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"
+#include "PhotoTileSmoke.hpp"
+#include "PingAiKeyDialog.hpp"
+#include "libslic3r_version.h"   // 建置時產生（build/src/libslic3r/），不帶目錄前綴
 #include "PingQuotePack.hpp"
+#include "PingQuoteSmoke.hpp"
 #include "../Utils/Process.hpp"
 #include "format.hpp"
 // BBS
@@ -619,6 +623,9 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         // propagate event
 
         wxGetApp().remove_mall_system_dialog();
+        /* 覆審 B-2 修法 B：主迴圈還活著時先拆照片磚隱形宿主（WebView2 controller 的收攤
+           時機才確定；只靠 OnExit 那次已在迴圈停止後）。冪等，OnExit 保留當第二道網。 */
+        wxGetApp().photo_tile_shutdown_host();
         event.Skip();
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": mainframe finished process close_widow event";
     });
@@ -753,6 +760,67 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     // bind events from DiffDlg
 
     bind_diff_dialog();
+
+    // PING C-1 閘門①：設了 PING_PHOTOTILE_SMOKE 就自動跑 smoke、跑完自己關閉。
+    // 目的是讓閘門可以無人值守重跑（AI 自己跑測試，不勞人去點選單）；
+    // 一般啟動完全不受影響（沒設環境變數就什麼都不做）。
+    if (::getenv("PING_PHOTOTILE_SMOKE") != nullptr) {
+        // PING_PHOTOTILE_SMOKE_DELAY_MS：延後起跑，讓 app 自己的初始化先做完。
+        // 用途＝把「冷啟動漂移」歸因清楚——不延後量到的是 app 初始化＋引擎冷啟動的總和，
+        // 延後後量到的才是引擎自己的成本。
+        const char* delay_env = ::getenv("PING_PHOTOTILE_SMOKE_DELAY_MS");
+        const int   delay_ms  = delay_env ? ::atoi(delay_env) : 0;
+        // PING_PHOTOTILE_SMOKE=limits ⇒ 跑閘門③（OOM／低記憶體），其餘值＝閘門①
+        const std::string what = ::getenv("PING_PHOTOTILE_SMOKE");
+        /* 【2026-08-03 事故修】閘門/守夜視窗與正式版**外觀完全無法分辨**（同標題），Eric 不知情
+           在 4GB 記憶體帽的壓測實例上手動切片 → 切片 AV 硬崩跳 modal → CallAfter 佇列被 modal
+           餓死 → 整輪吊死＋數據作廢。根因＝人無法分辨測試機 ⇒ 標題掛牌就是防呆。
+           【C-2 第 7 項真修】只在這裡 SetTitle 一次擋不住——之後 Plater 的 set_project_name()/
+           update_title_dirty_status() 會把 frame＋topbar 都覆寫回專案名（0803 守夜實查＝「未命名」）。
+           掛牌本體改由 SetTitle override 強制前綴（單一來源 ping_gate_title_prefix），這裡只放內容。 */
+        SetTitle(wxString::FromUTF8("PING Slicer PhotoTile ") + wxString::FromUTF8(what.c_str()) + " gate");
+        auto launch = [what]() {
+            if (what == "limits")      run_photo_tile_limits_gate();
+            else if (what == "live")   run_photo_tile_live_gate();
+            else if (what == "vigil")  run_photo_tile_sleep_vigil();   // 閘門②：產品宿主過夜守夜
+            else if (what == "golden") run_photo_tile_golden_gate();   // 黃金六案（真 importer／真 zip reader）
+            else if (what == "cancellat") run_photo_tile_cancel_latency(); // #11 取消延遲量測
+            else                     run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+        };
+        if (delay_ms > 0) {
+            auto* t = new wxTimer(this);
+            this->Bind(wxEVT_TIMER, [t, launch](wxTimerEvent&) { t->Stop(); launch(); }, t->GetId());
+            t->StartOnce(delay_ms);
+        } else {
+            CallAfter(launch);
+        }
+    }
+
+    // PING 報價包：設了 PING_QUOTE_SMOKE 就自動載模型→產包→自己關閉（無人值守驗證）。
+    // 同樣的理由與同樣的掛牌保護——見 PingQuoteSmoke.hpp 檔頭與上面 0803 事故註解。
+    run_ping_quote_smoke(this);
+}
+
+/* C-2 第 7 項：閘門/守夜掛牌的單一來源（宣告處有完整說明）。
+   一般模式（沒設 PING_PHOTOTILE_SMOKE）回空字串＝行為與現行完全相同。 */
+wxString MainFrame::ping_gate_title_prefix()
+{
+    /* PING 報價包 smoke 一併納入：Eric 的正式 Slicer 常常整天開著，兩個視窗長得
+       一模一樣時他會分不出哪個是自動化在跑的——那正是 0803 事故的成因。
+       任何無人值守模式都必須掛牌，不能只有照片磚那條線有。 */
+    if (::getenv("PING_PHOTOTILE_SMOKE") == nullptr && ::getenv("PING_QUOTE_SMOKE") == nullptr)
+        return wxString();
+    return wxString::FromUTF8("⚠【壓測中・勿操作】");
+}
+
+void MainFrame::SetTitle(const wxString& title)
+{
+    // 閘門模式：所有改標題路徑（含 Plater 專案名覆寫、dirty 星號更新）強制帶掛牌。
+    const wxString prefix = ping_gate_title_prefix();
+    if (!prefix.empty() && !title.StartsWith(prefix))
+        wxFrame::SetTitle(prefix + title);
+    else
+        wxFrame::SetTitle(title);
 }
 
 void MainFrame::bind_diff_dialog()
@@ -1240,6 +1308,45 @@ void MainFrame::update_ping_mix_side_button()
         Layout();
         fit_tab_labels();   // 同切片改標籤時的處置（上方列寬度變了）
     }
+
+    /* 照片磚鈕的觸發時機與混色鈕**完全相同**（換機型／上方列顯示切換），
+       所以掛在這裡一併刷新，而不是要每個呼叫點各記得叫兩支——漏叫一處的失效是靜默的
+       （鈕留在上一台機器的狀態，看起來像它自己壞掉）。呼叫點：show_option()、
+       混色鈕自己的 handler、on_select_default_preset()、GUI_Preview.cpp:327。 */
+    update_ping_phototile_side_button();
+}
+
+// PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：上方列「照片磚」鈕的顯示。
+// 判準＝目前機型是同進（`is_ping_tongjin_selected`）——照片磚只有同進硬體做得到，
+// 非同進機顯示這顆等於給一條走不通的路（上方列也擠，不留永遠不能按的鈕佔位）。
+// 🔴 **刻意不用 `is_ping_mix_available()`**：那把尺對照片磚機回 false（Eric 0822 令混色鈕
+//    在照片磚機整組隱藏）⇒ 照抄的話「做完第一張磚、被自動切到照片磚機之後入口就消失」。
+// 🔴 Classic 前代（DUAL 同進・Marlin）**也會看到這顆**，這是 Eric 2026-09-07 裁的 Q2 乙：
+//    看得到、點下去被告知為什麼不支援，勝過入口神秘地不存在。擋下與說明在 open_photo_tile()。
+void MainFrame::update_ping_phototile_side_button()
+{
+    if (m_phototile_panel == nullptr)
+        return;
+    const bool tongjin = (m_plater != nullptr) && m_plater->is_ping_tongjin_selected();
+    const bool show    = tongjin && m_side_tools_shown;
+    if (m_phototile_panel->IsShown() != show) {
+        m_phototile_panel->Show(show);
+        Layout();
+        fit_tab_labels();
+    }
+
+    /* PING(2026-09-08 Eric 裁「變灰」)：**預覽頁停用這一組（主鈕＋左邊下拉箭頭），不隱藏。**
+       為什麼：切片完跳到預覽後，這顆點下去會把人帶回工作室，回來時盤上原本的內容找不到
+       （Eric 0908 實走）。停用而非隱藏——同一列右邊的「列印」在預覽頁本來就是灰底停用，
+       同款長相學一次就通（ping-ux LAY-12）；隱藏會讓上方列每次切分頁重排寬度。
+       屬 HIE-16 三分邊界②「當下狀態不成立＝不可點」，不是 HIE-50 那種硬體不可用要展示成果的情境。
+       兩顆一起停：只停主鈕、箭頭還能點＝從下拉繞進去，等於沒停。
+       觸發點＝分頁切換 handler（init_tabpanel）多叫一次本函式；其餘既有呼叫點重算一次是冪等的。 */
+    const bool enable = (m_tabpanel == nullptr) || (m_tabpanel->GetSelection() != tpPreview);
+    if (m_phototile_btn != nullptr && m_phototile_btn->IsEnabled() != enable)
+        m_phototile_btn->Enable(enable);
+    if (m_phototile_option_btn != nullptr && m_phototile_option_btn->IsEnabled() != enable)
+        m_phototile_option_btn->Enable(enable);
 }
 
 void MainFrame::init_tabpanel() {
@@ -1286,6 +1393,10 @@ void MainFrame::init_tabpanel() {
         else if (panel == m_monitor) {
             //monitor
         }
+        /* PING(2026-09-08)：分頁換了就重算照片磚鈕的可按性（預覽頁＝停用），
+           見 update_ping_phototile_side_button()。放在 plater 分支外面：從預覽跳首頁、
+           再回準備頁時也要回到可按。 */
+        update_ping_phototile_side_button();
 #ifndef __APPLE__
         if (sel == tp3DEditor) {
             m_topbar->EnableUndoRedoItems();
@@ -1847,10 +1958,26 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_mix_btn = new SideButton(m_mix_panel, wxString::FromUTF8("混色停用"), "");
     m_mix_option_btn = new SideButton(m_mix_panel, "", "sidebutton_dropdown", 0, 14);
 
+    /* PING(2026-09-07 Eric 裁・回報中心 #99 Q1 甲)：照片磚入口從首頁搬來這裡。
+       為什麼搬：首頁那顆任何人、任何機型都點得到，而點下去會把三個「同進照片磚」機型
+       （8 個口徑變體）整組裝進印表機清單 ⇒ 只有 FD300 的人也會多出 FF600／FF800 兩台
+       用不到的機器（＝#99 原文）。照片磚只有同進機做得到 ⇒ 入口跟著硬體能力走。
+       沒有下拉小箭頭：這顆是「開一個功能」，不是切換狀態，沒有第二個選項可挑。 */
+    m_phototile_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTRANSPARENT_WINDOW);
+    m_phototile_btn = new SideButton(m_phototile_panel, wxString::FromUTF8("照片磚"), "");
+    m_phototile_option_btn = new SideButton(m_phototile_panel, "", "sidebutton_dropdown", 0, 14);
+
     m_slice_btn = new SideButton(slice_panel, _L("Slice plate"), "");
     m_slice_option_btn = new SideButton(slice_panel, "", "sidebutton_dropdown", 0, 14);
     m_print_btn = new SideButton(print_panel, _L("Print plate"), "");
     m_print_option_btn = new SideButton(print_panel, "", "sidebutton_dropdown", 0, 14);
+
+    auto phototile_sizer = new wxBoxSizer(wxHORIZONTAL);
+    phototile_sizer->Add(m_phototile_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
+    phototile_sizer->Add(m_phototile_btn, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
+    // 右側間距放在面板內＝整組隱藏時連空隙一起收掉（同混色組的處置）
+    phototile_sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    m_phototile_panel->SetSizer(phototile_sizer);
 
     auto mix_sizer = new wxBoxSizer(wxHORIZONTAL);
     mix_sizer->Add(m_mix_option_btn, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(1));
@@ -1873,6 +2000,8 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_slice_option_btn->Enable();
     m_print_option_btn->Enable();
     //sizer->Add(FromDIP(15), 0, 0, 0, 0);
+    sizer->Add(m_phototile_panel);    // PING：照片磚鈕排在混色鈕左邊
+    m_phototile_panel->Hide();        // 預設藏著，等 update_ping_phototile_side_button() 依機型決定
     sizer->Add(m_mix_panel);          // PING：混色鈕排在切片鈕左邊（Eric 圖示位置）
     m_mix_panel->Hide();              // 預設藏著，等 update_ping_mix_side_button() 依機型決定
     sizer->Add(slice_panel);
@@ -1995,6 +2124,52 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     m_mix_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
         set_ping_mix(m_plater != nullptr && !m_plater->is_ping_mix_enabled());
+    });
+
+    // PING(#99 Q1 甲)：走與首頁入口相同的 open_photo_tile()——機型檢查、指引與工作室
+    // 都在那一支裡，這裡不重複判斷（判準漂移＝鬼故事）。
+    m_phototile_btn->Bind(wxEVT_BUTTON, [](wxCommandEvent&) {
+        wxGetApp().open_photo_tile();
+    });
+
+    /* 🆕 2026-09-08（Eric 裁 B 案）：下拉的內容＝**同一個行動的兩個入口變體**。
+       起因：Eric 看實機說「直接拿掉那個小箭頭，就感覺少了一塊東西，畫面怪怪的」。
+       ⚠ 但**不是為了對齊補一個空箭頭**——那等於謊稱這顆有變體可挑，違反 ping-ux
+       「以功能描述長相」。照七律#1「用途先於畫法」先定用途：這顆只有一個行動
+       （開工作室），而它真的有兩種入口——空手進、或帶著一張圖進（拖放走的就是後者）。
+       把「帶圖進」提前到這裡＝省掉每次都要在工作室裡再點一次「開啟圖片」（七律#1：
+       常態性每次都要做的步驟把它做順）。 */
+    m_phototile_option_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        if (m_phototile_option_pop_up)
+            delete m_phototile_option_pop_up;
+        m_phototile_option_pop_up = new SidePopup(this);
+        SideButton* open_btn = new SideButton(m_phototile_option_pop_up,
+                                              wxString::FromUTF8("開啟照片磚工作室"), "");
+        SideButton* pick_btn = new SideButton(m_phototile_option_pop_up,
+                                              wxString::FromUTF8("選一張圖片開始…"), "");
+        open_btn->SetCornerRadius(0);
+        pick_btn->SetCornerRadius(0);
+        open_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (m_phototile_option_pop_up) m_phototile_option_pop_up->Dismiss();
+            CallAfter([] { wxGetApp().open_photo_tile(); });
+        });
+        pick_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            if (m_phototile_option_pop_up) m_phototile_option_pop_up->Dismiss();
+            /* 先收掉 popup 再開 modal——popup 還在時開對話框，關掉後 popup 會殘留。 */
+            CallAfter([this] {
+                /* ⚠ 副檔名清單與拖放那條路**必須一致**（Plater.cpp 的 OnDropFiles：
+                   png/jpg/jpeg/webp/bmp）。兩處分別寫死是已知的耦合，改一邊要改兩邊。 */
+                wxFileDialog dlg(this, wxString::FromUTF8("選一張圖片開始做照片磚"),
+                                 "", "",
+                                 wxString::FromUTF8("圖片檔|*.png;*.jpg;*.jpeg;*.webp;*.bmp"),
+                                 wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+                if (dlg.ShowModal() == wxID_OK && !dlg.GetPath().IsEmpty())
+                    wxGetApp().open_photo_tile(dlg.GetPath());
+            });
+        });
+        m_phototile_option_pop_up->append_button(open_btn);
+        m_phototile_option_pop_up->append_button(pick_btn);
+        m_phototile_option_pop_up->Popup(m_phototile_btn);
     });
 
     m_mix_option_btn->Bind(wxEVT_BUTTON, [this, set_ping_mix](wxCommandEvent&) {
@@ -2404,6 +2579,22 @@ void MainFrame::update_side_button_style()
     // m_publish_btn->SetBackgroundColour(wxColour(59,68,70));
     // m_publish_btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
 
+    if (m_phototile_option_btn != nullptr) {
+        m_phototile_option_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Center);
+        m_phototile_option_btn->SetCornerRadius(FromDIP(12));
+        m_phototile_option_btn->SetExtraSize(wxSize(FromDIP(10), FromDIP(10)));
+        m_phototile_option_btn->SetIconOffset(FromDIP(2));
+        m_phototile_option_btn->SetMinSize(wxSize(FromDIP(24), FromDIP(24)));
+    }
+
+    // PING：照片磚鈕與混色／切片組同度量
+    if (m_phototile_btn != nullptr) {
+        m_phototile_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
+        m_phototile_btn->SetCornerRadius(FromDIP(12));
+        m_phototile_btn->SetExtraSize(wxSize(FromDIP(38), FromDIP(10)));
+        m_phototile_btn->SetMinSize(wxSize(-1, FromDIP(24)));
+    }
+
     // PING：混色組套用與切片組完全相同的度量（Eric 令「格式設定一樣」）
     if (m_mix_btn != nullptr) {
         m_mix_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
@@ -2620,6 +2811,15 @@ static wxMenu* generate_help_menu()
     // Show Beginner's Tutorial
     append_menu_item(helpMenu, wxID_ANY, _L("Setup Wizard"), _L("Setup Wizard"), [](wxCommandEvent &) {wxGetApp().ShowUserGuide();});
 
+    // PING: 照片磚產生器（開啟內建 HTML 工具，拖照片→出彩色 3MF）
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("照片磚產生器"),
+        wxString::FromUTF8("產生照片磚彩色 3MF（於瀏覽器開啟）"),
+        [](wxCommandEvent&) {
+            std::string html_path = Slic3r::resources_dir() + "/web/phototile/index.html";
+            wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
+        });
+
     /* PING：色彩校正（Eric 2026-08-17 裁「獨立選單項、兩線都進」）。
        流程＝印一塊 48 格校正塊 → 拍照 → 在工具裡點色塊的**四個外角** → 讀出 48 格實際顏色。
        ⚠ 用 wxLaunchDefaultBrowser 開**外部瀏覽器**（與「照片磚產生器」同一招）：
@@ -2633,6 +2833,27 @@ static wxMenu* generate_help_menu()
             std::string html_path = Slic3r::resources_dir() + "/web/phototile/calibration.html";
             wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
         });
+
+    // PING C-1 閘門①：照片磚引擎 wx 整合 smoke。**只在開發者模式出現**（客戶端看不到）。
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("照片磚引擎 smoke（開發）"),
+        wxString::FromUTF8("量 wx 事件圈成本並與守夜基準比對 SHA-256（C-1 閘門①）"),
+        [](wxCommandEvent&) {
+            run_photo_tile_wx_smoke(wxGetApp().mainframe, PHOTOTILE_SMOKE_EXPECTED_SHA);
+        }, "", nullptr,
+        []() { return wxGetApp().app_config->get_bool("developer_mode"); });
+
+    /* PING P3「子」：AI 生圖服務金鑰設定。**只在開發者模式出現**——
+       Eric 2026-08-16 裁「做子但先不對客戶露出」；產品內生圖「丑」2026-09-02 做完、
+       舊理由（沒有 AI 款式可解鎖）失效後，Eric 2026-09-03 複裁「先不要」＝門檻維持，
+       要露出等他另裁，勿因理由過期自行拿掉。裁定與安全理由見 PingAiKeyDialog.hpp。 */
+    append_menu_item(helpMenu, wxID_ANY,
+        wxString::FromUTF8("設定 AI 生圖服務金鑰（開發）"),
+        wxString::FromUTF8("填入／測試／移除 AI 生圖金鑰；存進系統憑證保管庫，不進專案檔、匯出包與 log"),
+        [](wxCommandEvent&) {
+            show_ping_ai_key_dialog(wxGetApp().mainframe);
+        }, "", nullptr,
+        []() { return wxGetApp().app_config->get_bool("developer_mode"); });
 
     helpMenu->AppendSeparator();
     // Open Config Folder
@@ -2649,10 +2870,24 @@ static wxMenu* generate_help_menu()
     //    [](wxCommandEvent&) {
     //        //TODO
     //    });
-    // Check New Version
+    /* Check New Version — PING 改「告知型」（Eric 2026-08-16 裁「做②」）
+       改之前：這一項呼叫 check_new_version_sf()，而那支第一行就 return
+       （GUI_App.cpp，本 fork 無自有更新伺服器、刻意停用）⇒ 使用者按下去**完全沒有反應**，
+       是一顆死按鈕。現在改成誠實告知：講清楚「不會自動更新」並給對外入口。
+       ⚠ 不做真的自動更新——那要更新 feed 伺服器＋程式碼簽章＋回滾，
+       而簽章買不買尚未裁定（見待確認「軟體對外上架」）。這裡刻意不預留半套機制。 */
     append_menu_item(helpMenu, wxID_ANY, _L("Check for Updates"), _L("Check for Updates"),
         [](wxCommandEvent&) {
-            wxGetApp().check_new_version_sf(true, 1);
+            const wxString msg = wxString::FromUTF8(
+                "目前版本：V" SoftFever_VERSION "\n\n"   // 與標題列同一組數字（3.5.5）
+                "本軟體不會自動更新，也不會自己連網查版本。\n"
+                "要取得新版，請聯絡 PING，或到官網的下載頁看看。");
+            MessageDialog dlg(wxGetApp().mainframe, msg, wxString::FromUTF8("檢查更新"), wxYES_NO);
+            dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("打開官網"));
+            dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("關閉"));
+            if (dlg.ShowModal() == wxID_YES)
+                wxLaunchDefaultBrowser("https://ping3dp.com/software_and_tools/ping-slicer/",
+                                       wxBROWSER_NEW_WINDOW);
         }, "", nullptr, []() {
             return true;
         });
@@ -4120,6 +4355,13 @@ void MainFrame::add_to_recent_projects(const wxString& filename)
     }
 }
 
+void MainFrame::refresh_recent_project_thumbnail(const wxString& filename)
+{
+    m_recent_projects.RefreshThumbnail(filename);
+    if (m_webview != nullptr)
+        m_webview->SendRecentList(0);
+}
+
 std::wstring MainFrame::FileHistory::GetThumbnailUrl(int index) const
 {
     if (m_thumbnails[index].empty()) return L"";
@@ -4138,6 +4380,16 @@ void MainFrame::FileHistory::AddFileToHistory(const wxString &file)
         m_thumbnails.push_front(bbs_3mf_get_thumbnail(into_u8(file).c_str()));
     else
         m_thumbnails.push_front("");
+}
+
+// PING(2026-09-09，c-0909-TH-01)：工作室 3MF 載入時還沒有縮圖（AddFileToHistory 讀到空字串），
+// 事後 bbs_3mf_add_plate_thumbnail 補進檔案後只重讀那一格，不重掃整份清單。
+void MainFrame::FileHistory::RefreshThumbnail(const wxString &file)
+{
+    size_t i = FindFileInHistory(file);
+    if (i >= m_thumbnails.size())   // wxNOT_FOUND 轉 size_t 也落在這裡
+        return;
+    m_thumbnails[i] = bbs_3mf_get_thumbnail(into_u8(file).c_str());
 }
 
 void MainFrame::FileHistory::RemoveFileFromHistory(size_t i)

@@ -345,8 +345,7 @@ public:
     bool is_ping_tongjin_selected(bool* is_quad = nullptr) const;
     // 混色功能對目前機型是否適用＝同進 AND 非照片磚機（Eric 2026-08-22 令）。
     // 所有混色 UI 一律問這一把尺，不要直接問 is_ping_tongjin_selected()——照片磚機也是同進，
-    // 但它有自己的逐零件配方，混色曲線對它沒有意義。照片磚判準＝PingMix::is_photo_tile_printer()；
-    // worker 端的同一把尺是 PingMix::printer_supports_color_mix()（兩者同源，見該檔）。
+    // 但它有自己的逐零件配方，混色曲線對它沒有意義。照片磚判準走 PhotoTileCapability 單一來源。
     bool is_ping_mix_available(bool* is_quad = nullptr) const;
     // 依目前配方重烘 GCodeViewer 的 per-layer 混色色表（gcode 已載入時）
     void refresh_ping_mix_preview();

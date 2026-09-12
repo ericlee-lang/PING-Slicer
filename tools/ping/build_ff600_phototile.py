@@ -17,20 +17,9 @@ SOP 遵守點：
 """
 import json, io, os, re, shutil, argparse, sys
 
-# Windows 主控台預設 cp950，吐「✅／❌」會直接 UnicodeEncodeError 中斷（不是顯示問題，是崩潰）。
-try:
-    sys.stdout.reconfigure(encoding="utf-8")
-except Exception:
-    pass
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 PT = os.path.join(HERE, "base", "phototile")
-# 【2026-08-07 出貨線移植時改掉】參照源從 %APPDATA% 換成 repo 內的 base 母版。
-# 開發線原版讀 `%APPDATA%\PingSlicer\system\PING\machine`，那是**本機安裝的一份快照**：
-#   ① 它會漂——Eric 機上現在是 bundle 89，出貨線已經 92，用它算出的 FF600 delta 可能是舊的；
-#   ② 出貨線的成品不該依賴某台機器上的檔案才產得出來（換一台電腦就重現不了）。
-# base/ff_extra 裡的 FF600 同進／FF800 同進是**進版控管的母版**，才是這條線的單一真實來源。
-REF = os.path.join(HERE, "base", "ff_extra", "machine")
+APPDATA = os.path.join(os.environ["APPDATA"], "PingSlicer", "system", "PING", "machine")
 NOZZLES = ["0.4", "0.6", "1.0"]
 # 照片磚製程檔名：層高隨口徑（沿用 FF800 既有命名）
 PROC_LH = {"0.4": "0.25mm", "0.6": "0.35mm", "1.0": "0.45mm"}
@@ -54,8 +43,8 @@ def main():
     # ── 1. 取「FF800→FF600」的權威差異：從已知正確的一般同進機實檔取，不手打 ──────
     ff600_ref = {}
     for nz in NOZZLES:
-        f6 = os.path.join(REF, "FF600 同進 %s nozzle.json" % nz)
-        f8 = os.path.join(REF, "FF800 同進 %s nozzle.json" % nz)
+        f6 = os.path.join(APPDATA, "FF600 同進 %s nozzle.json" % nz)
+        f8 = os.path.join(APPDATA, "FF800 同進 %s nozzle.json" % nz)
         if not (os.path.exists(f6) and os.path.exists(f8)):
             problems.append("缺參照機型：%s 或 %s" % (f6, f8))
             continue
@@ -74,7 +63,7 @@ def main():
 
     # ── 2. machine_model ────────────────────────────────────────────────────
     src_mm = load(os.path.join(PT, "machine", "FF800 同進照片磚.json"))
-    ref600_mm = load(os.path.join(REF, "FF600 同進.json"))
+    ref600_mm = load(os.path.join(APPDATA, "FF600 同進.json"))
     mm = dict(src_mm)
     mm["name"] = "FF600 同進照片磚"
     mm["model_id"] = "PING_FF600_tongjin_phototile"

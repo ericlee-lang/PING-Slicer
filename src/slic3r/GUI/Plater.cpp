@@ -74,6 +74,7 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "PhotoTileCapability.hpp"
 #include "GuiColor.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_Utils.hpp"
@@ -5856,8 +5857,10 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
                                 << " recipe " << palette.recipes.at((int) i);
     }
 
-    /* PING(2026-08-22 Eric 裁「丁」)：零回抽護欄——fail loud，不要再靜默。
-       照片磚的零回抽只寫在**機器層**（retraction_length=0），而線材層的
+    /* PING(2026-08-22 Eric 裁「丁」)：回抽護欄——fail loud，不要再靜默。
+       🔴 2026-09-08 Eric「『必須零回抽』這個解凍」：0907 起照片磚回抽政策已是**機器層 1.3 mm＋抬升 0.1**（#99 棒），
+       不再是零回抽；本護欄的邏輯不變（線材層非 nil 仍會覆蓋機器層），只是文案不再說「必須零回抽」。
+       原註解保留：照片磚的回抽只寫在**機器層**（0718 時 retraction_length=0），而線材層的
        filament_retraction_length 只要不是 nil 就會**覆蓋掉它**。0730 實錄：FF 照片磚支被掃成 3，
        零回抽就這樣破了 20 天沒人發現——因為壞掉的時候什麼都不會說。
        「甲」（照片磚機的線材下拉只剩專用支）已經堵住主要入口；這一條是背水的那道：
@@ -5889,9 +5892,9 @@ static bool ping_apply_photo_tile_materials(Plater* plater,
                 names += (names.empty() ? wxString() : wxString::FromUTF8("、")) + wxString::FromUTF8(n);
             ping_notify_photo_tile_import(
                 plater, NotificationManager::NotificationLevel::WarningNotificationLevel,
-                wxString::FromUTF8("照片磚：這些線材會覆蓋掉機台的零回抽 —— ") + names +
-                wxString::FromUTF8("。照片磚必須零回抽，否則換色處會抽出縫。請改用照片磚專用線材"
-                                   "（回抽長度為 nil＝沿用機台設定）再切片。"));
+                wxString::FromUTF8("照片磚：這些線材會覆蓋掉機台的照片磚回抽設定 —— ") + names +
+                wxString::FromUTF8("。照片磚的回抽由機台設定（目前 1.3 mm、抬升 0.1）統一管，線材自帶回抽會蓋掉它。"
+                                   "請改用照片磚專用線材（回抽長度為 nil＝沿用機台設定）再切片。"));
         }
     }
 
@@ -10743,8 +10746,10 @@ void Plater::priv::set_project_name(const wxString& project_name)
     if (!m_project_name.IsEmpty())
         wxGetApp().mainframe->update_title_colour_after_set_title();
 #else
+    // C-2 第 7 項：frame 由 MainFrame::SetTitle override 帶掛牌；app 自繪 topbar 走不到
+    // OS 標題路徑，呼叫點套同一支前綴（單一來源 ping_gate_title_prefix，一般模式＝空字串）。
     wxGetApp().mainframe->SetTitle(m_project_name + " - PING Slicer");
-    wxGetApp().mainframe->topbar()->SetTitle(m_project_name);
+    wxGetApp().mainframe->topbar()->SetTitle(MainFrame::ping_gate_title_prefix() + m_project_name);
 #endif
 }
 
@@ -10764,8 +10769,9 @@ void Plater::priv::update_title_dirty_status()
     wxGetApp().mainframe->update_title_colour_after_set_title();
 #else
     wxGetApp().mainframe->SetTitle(title);
-    wxGetApp().mainframe->topbar()->SetTitle(title);
-#endif    
+    // C-2 第 7 項：dirty 星號更新也是覆寫路徑之一，topbar 同樣要帶掛牌前綴
+    wxGetApp().mainframe->topbar()->SetTitle(MainFrame::ping_gate_title_prefix() + title);
+#endif
 }
 
 void Plater::priv::set_project_filename(const wxString& filename)
@@ -13639,12 +13645,12 @@ bool Plater::is_ping_tongjin_selected(bool* is_quad) const
 // 照片磚機也是同進機（printer_model＝「FD300 同進照片磚」等），所以 is_ping_tongjin_selected()
 // 對它是 true——但它帶的是逐零件配方（T→M605x），跟隨高度變化的混色曲線互斥，
 // 兩者同時出現在畫面上只會讓人以為要自己調混色。⇒ 混色相關的顯示一律走這裡。
+// 照片磚的判準不自己比字串，走 PhotoTileCapability 單一來源（見該檔檔頭「判準漂移＝鬼故事」）。
 bool Plater::is_ping_mix_available(bool* is_quad) const
 {
     if (!is_ping_tongjin_selected(is_quad))
         return false;
-    const Preset& printer = wxGetApp().preset_bundle->printers.get_selected_preset();
-    return !PingMix::is_photo_tile_printer(printer.config.opt_string("printer_model"));
+    return !photo_tile_capability_of_selected_printer().has_photo_tile_marker;
 }
 
 void Plater::set_ping_mix_state(const PingMixState& state)

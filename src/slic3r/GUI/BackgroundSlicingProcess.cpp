@@ -2,6 +2,7 @@
 #include "GUI_App.hpp"
 #include "GUI.hpp"
 #include "MainFrame.hpp"
+#include "PhotoTileCapability.hpp"
 #include "format.hpp"
 
 #include <wx/app.h>
@@ -210,10 +211,13 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     // 同進判定：printer_model 含「同進」→ FF 系列走四料 M6052、其餘（FD）走雙料 M6051
     const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
     const std::string printer_model = pm != nullptr ? pm->value : std::string();
-    // PING(2026-08-22 Eric 令)：照片磚機排除在外。上面的照片磚分支只擋「配方完整的照片磚專案」，
-    // 在照片磚機上開一個普通模型會落到這條路——GUI 已經把混色整組藏起來，但 AppConfig 那個開關
-    // 可能還是上一台同進機留下的 1 ⇒ 不在這裡擋，就會有看不見的曲線插進 G-code。
-    const bool tongjin = PingMix::printer_supports_color_mix(printer_model);
+    /* PING(2026-08-22 Eric 令)：照片磚機排除在外，且判準走 PhotoTileCapability 單一來源
+       （同 ping_apply_photo_tile，不要在這裡自己比字串——那正是該模組要消滅的漂移）。
+       為什麼 worker 也要擋：下面的照片磚分支只攔「配方完整的照片磚專案」，在照片磚機上開一個
+       普通模型會落到這條路；GUI 雖已把混色整組藏起來，AppConfig 的開關卻可能還是上一台同進機
+       留下的 1 ⇒ 不在這裡擋就會有看不見的曲線插進 G-code。 */
+    const PhotoTileCapability mix_cap = photo_tile_capability_of_config(config);
+    const bool tongjin = mix_cap.is_mixing && !mix_cap.has_photo_tile_marker;
     const bool is_quad = printer_model.rfind("FF", 0) == 0; // 以 FF 開頭 = 四進一出
     // Classic 前代 DUAL（printer_model 以「DUAL」開頭＝Marlin 韌體，Eric 2026-07-26 裁）：
     // 逐層混色用 M6050 S 舊格式——前代韌體無 M6051；兩者同為 S 單參數同構，
@@ -279,32 +283,35 @@ static void ping_apply_color_mix(const std::string& gcode_path, const DynamicPri
     }
 }
 
-// ---- PING `#353` 丙：回抽態的 SET_RETRACTION 一律延到 G11 之後（Eric 2026-09-09；PM 交辦 x-0909-PM-01）----
-// 為什麼放在這層而不是 GCode.cpp::set_extruder：判準是「**任何時刻** SET_RETRACTION 不得出現在 G10..G11 之間」，
-// 而 SET_RETRACTION 是從 profile 的 filament_start_gcode 樣板來的、可能從多個地方發出 ⇒ 只有全檔掃描保證得了。
-// 純 worker thread 上執行（同上面兩支）。天然冪等：跑完就沒有 SET_RETRACTION 落在 G10..G11 之間，再跑一次延後 0 行。
-static void ping_defer_set_retraction(const std::string& gcode_path)
+// ---- PING `#353` 丙：回抽態的 SET_RETRACTION／混色指令一律延到 G11 之後 ----
+// （Eric 2026-09-09 裁 SET_RETRACTION，PM 交辦 x-0909-PM-01；2026-09-10 擴到 M6051／M6052，牌 c-0910-WT-10）
+// 為什麼放在這層而不是 GCode.cpp::set_extruder：判準是「**任何時刻** 不得出現在 G10..G11 之間」，
+// 而 SET_RETRACTION 來自 profile 的 filament_start_gcode 樣板、混色 M605x 則由照片磚後處理逐層插，
+// 兩者都可能從多個地方發出 ⇒ 只有全檔掃描保證得了。
+// 純 worker thread 上執行（同上面兩支）。天然冪等：跑完就沒有受管指令落在 G10..G11 之間，再跑一次延後 0 行。
+static void ping_defer_in_retract_state(const std::string& gcode_path)
 {
 	try {
 		std::string gcode;
 		{
 			boost::nowide::ifstream ifs(gcode_path.c_str(), std::ios::binary);
-			if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: cannot open " << gcode_path; return; }
+			if (!ifs) { BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: cannot open " << gcode_path; return; }
 			std::stringstream ss;
 			ss << ifs.rdbuf();
 			gcode = ss.str();
 		}
 		std::string out;
 		PingMix::DeferSetRetractionStats st;
-		PingMix::defer_set_retraction(gcode, out, &st);
-		BOOST_LOG_TRIVIAL(info) << "PING defer SET_RETRACTION: deferred=" << st.deferred << " dropped=" << st.dropped;
-		if (st.deferred == 0 && st.dropped == 0)
+		PingMix::defer_in_retract_state(gcode, out, &st);
+		BOOST_LOG_TRIVIAL(info) << "PING defer in-retract cmds: SET_RETRACTION=" << st.deferred
+		                        << " M605x=" << st.deferred_mix << " dropped=" << st.dropped;
+		if (st.deferred == 0 && st.deferred_mix == 0 && st.dropped == 0)
 			return;                     // 沒有一行需要動 ⇒ 不重寫檔（連時間戳都不動）
 		boost::nowide::ofstream ofs(gcode_path.c_str(), std::ios::binary | std::ios::trunc);
-		if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: cannot write " << gcode_path; return; }
+		if (!ofs) { BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: cannot write " << gcode_path; return; }
 		ofs << out;
 	} catch (const std::exception& e) {
-		BOOST_LOG_TRIVIAL(error) << "PING defer SET_RETRACTION: failed: " << e.what();
+		BOOST_LOG_TRIVIAL(error) << "PING defer in-retract cmds: failed: " << e.what();
 	}
 }
 
@@ -347,23 +354,26 @@ static PingMix::PhotoPaletteStatus ping_collect_photo_palette(const Print& print
 static void ping_apply_photo_tile(const std::string& gcode_path, const DynamicPrintConfig& config,
                                   const std::map<int, std::string>& palette)
 {
-    const ConfigOptionString* pm = config.option<ConfigOptionString>("printer_model");
-    const std::string printer_model = pm != nullptr ? pm->value : std::string();
-    if (printer_model.find("同進") == std::string::npos) {
+    /* 判定一律走 PhotoTileCapability（單一來源，2026-08-01 Codex #10）——
+       這裡原本自己 find("同進")／rfind("DUAL")／rfind("FF")，與 GUI 那邊各判各的，
+       判準一漂移就會出現「側卡認得、後處理不認得」的鬼故事。 */
+    const PhotoTileCapability cap = photo_tile_capability_of_config(config);
+    const std::string& printer_model = cap.printer_model;
+    if (!cap.is_mixing) {
         BOOST_LOG_TRIVIAL(warning) << "PING photo-tile: palette present but printer '" << printer_model
                                    << "' is not a mixing (tongjin) machine; gcode untouched";
         return;
     }
     // Classic 前代 DUAL 同進（Marlin 韌體）不支援照片磚後處理——palette 只產 M6051/M6052、
     // 前代韌體不認。寧可留 Tn 顯性報錯，不默默下錯指令（同下方機型×配比互驗原則）。
-    if (printer_model.rfind("DUAL", 0) == 0) {
+    if (cap.is_classic) {
         BOOST_LOG_TRIVIAL(error) << "PING photo-tile: printer '" << printer_model
                                  << "' is a Classic (Marlin) machine; photo-tile unsupported; gcode untouched";
         return;
     }
     // 機型×配比互驗：FF（四進一出）↔M6052、FD↔M6051。開錯機型寧可不動——
     // 留著 Tn 讓韌體顯性報錯，勝過默默下錯混色指令。
-    const bool is_quad_machine = printer_model.rfind("FF", 0) == 0;
+    const bool is_quad_machine = (cap.mode == "quad");
     for (const auto& kv : palette) {
         const bool is_quad_cmd = kv.second.compare(0, 5, "M6052") == 0;
         if (is_quad_cmd != is_quad_machine) {
@@ -503,9 +513,9 @@ void BackgroundSlicingProcess::process_fff()
 			BOOST_LOG_TRIVIAL(error) << "PING photo-tile: post-processing skipped because material assignments are incomplete";
 		}
 	}
-	// PING `#353` 丙：把回抽態裡的 SET_RETRACTION 延到 G11 之後。**無條件跑**——判準是「任何時刻」，
-	// 不是「照片磚時」：上面三條分支（照片磚／混色曲線／髒照片磚跳過）跑完都要過這一關。
-	ping_defer_set_retraction(m_temp_output_path);
+	// PING `#353` 丙：把回抽態裡的 SET_RETRACTION 與混色指令 M6051／M6052 延到 G11 之後。**無條件跑**
+	// ——判準是「任何時刻」，不是「照片磚時」：上面三條分支（照片磚／混色曲線／髒照片磚跳過）跑完都要過這一關。
+	ping_defer_in_retract_state(m_temp_output_path);
 	if (this->set_step_started(bspsGCodeFinalize)) {
 	    if (! m_export_path.empty()) {
 			wxQueueEvent(GUI::wxGetApp().mainframe->m_plater, new wxCommandEvent(m_event_export_began_id));

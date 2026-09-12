@@ -19,9 +19,11 @@
 #include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
+#include <set>
 #include <iterator>
 #include <set>          // ping_install_photo_tile_printers()：機型去重（不賭傳遞包含）
 #include <exception>
+#include <cmath>
 #include <cstdlib>
 #include <regex>
 #include <thread>
@@ -41,8 +43,10 @@
 #include <wx/display.h>
 #include <wx/menu.h>
 #include <wx/menuitem.h>
+#include <wx/file.h>
 #include <wx/filedlg.h>
 #include <wx/file.h>
+#include <wx/datetime.h>
 #include <wx/progdlg.h>
 #include <wx/busyinfo.h>
 #include <wx/dir.h>
@@ -77,7 +81,19 @@
 #include "GUI_Utils.hpp"
 #include "3DScene.hpp"
 #include "MainFrame.hpp"
+#include "PartPlate.hpp"                       // PING c-0909-TH-01：列印板縮圖
+#include "libslic3r/Format/bbs_3mf.hpp"      // PING c-0909-TH-01：bbs_3mf_add_plate_thumbnail
 #include "Plater.hpp"
+#include <wx/timer.h>               // C-2 第 3 項：閒置預熱 timer（原本靠傳遞式引入，改成顯式）
+#include "PhotoTileCapability.hpp"
+#include "PhotoTileEngineHost.hpp"   // C-2：工作室生成改走隱形宿主（unique_ptr 成員的完整型別也在這）
+#include "libslic3r/PingPhotoStylize.hpp"   // 甲案（c-0822-PT-06）：本地風格化（OpenCV，已是本 repo 相依）
+#include "slic3r/Utils/PingAiImage.hpp"     // 丙案（P3「丑」）：AI 生圖。⚠ 金鑰明文只在那個檔裡，本檔不碰
+#include "PhotoTileGateJson.hpp"     // C-2 第 2 項：env 快照組字（#14 真 JSON writer——中文機名/反斜線路徑都要正確跳脫）
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include "GLCanvas3D.hpp"
 #include "EncodedFilament.hpp"
 #include "GeneratedConfig.hpp"
@@ -458,13 +474,35 @@ public:
                        int(width * 0.224),
                        int(height * 0.527) - ver_ext.GetHeight() / 2);
 
+        /* PING 2026-08-16（Eric 令「加一條『開發線試用包』」）：試用包要一眼看得出來。
+           起因＝試用包與正式版視窗長得一模一樣、資料夾名只差 `-dev`，Eric 0816 連續開錯兩次
+           （找不到只有開發線才有的「產生報價包」）。版本治理本來就要求廠內測試版雙標。
+           判準＝**exe 旁邊有沒有 data_dir 資料夾**——那是試用包獨有的獨立資料根
+           （SOP_開發線Portable試用包 §4；正式版與安裝版都走 %APPDATA%）。
+           ⚠ 這裡刻意自己重算而不讀 data_dir()：splash 早於 set_data_dir() 執行。 */
+        {
+            namespace fs = boost::filesystem;
+            const fs::path exe_dir =
+                fs::path(wxStandardPaths::Get().GetExecutablePath().ToUTF8().data()).parent_path();
+            if (fs::is_directory(exe_dir / "data_dir")) {
+                wxFont tag_font = m_constant_text.version_font;
+                tag_font.SetPixelSize(wxSize(0, int(height * 0.030)));
+                memDc.SetFont(tag_font);
+                memDc.SetTextForeground(wxColour(0xEA, 0x4E, 0x16));   // Raised Orange（深色底上的 accent）
+                const wxString tag = wxString::FromUTF8("開發線試用包");
+                memDc.DrawText(tag,
+                               int(width * 0.224),
+                               int(height * 0.527) + ver_ext.GetHeight() / 2 + int(height * 0.008));
+            }
+        }
+
         // Dynamic Text — 載入狀態文字（Loading configuration...），保留於底部
         m_action_line_y_position = int(height * 0.90);
     }
 
     static wxBitmap MakeBitmap()
     {
-        int width = FromDIP(700, nullptr);   // PING: landscape to fit branded splash PNG (923x594)
+        int width = FromDIP(700, nullptr);   // PING: landscape to fit branded splash PNG (1400x900 = 2x DIP，200% 縮放內皆縮小取樣)
         int height = FromDIP(450, nullptr);
 
         wxImage image(width, height);
@@ -619,7 +657,7 @@ private:
             // title
             //title = wxGetApp().is_editor() ? SLIC3R_APP_FULL_NAME : GCODEVIEWER_APP_NAME;
 
-            // PING: 啟動畫面版號跟實際三碼（Eric 2026-07-22 裁，取代舊品牌短版號）；
+            // PING: 啟動畫面版號跟實際三碼（Eric 2026-07-22 裁，取代舊品牌短版號 V3.5）；
             // 與關於頁同源 SoftFever_VERSION，日後升版免改此處
             version = "V" + wxString::FromUTF8(GUI_App::format_display_version());
 
@@ -1251,6 +1289,10 @@ void GUI_App::post_init()
            }
         }
     }
+    /* C-2 第 3 項 W1：閒置預熱排程。放在 post_init 尾端＝app 該做的都做完了，
+       再等一段閒置才判定點火（判定含「選中的是不是照片磚機」，見 photo_tile_schedule_warmup）。 */
+    photo_tile_schedule_warmup();   // 延遲＝預設 15 秒（可用 PING_PHOTOTILE_WARMUP_DELAY_MS 覆寫，驗證用）
+
     BOOST_LOG_TRIVIAL(info) << "finished post_init";
 //BBS: remove the single instance currently
 #ifdef _WIN32
@@ -2772,6 +2814,9 @@ bool GUI_App::OnInit()
 
 int GUI_App::OnExit()
 {
+    // C-2：照片磚隱形宿主先收乾淨（先標 Closing，晚到的 COM/thread/CallAfter 回呼安靜退場）
+    photo_tile_shutdown_host();
+
     stop_sync_user_preset();
 
     if (m_device_manager) {
@@ -4728,11 +4773,32 @@ int GUI_App::request_user_unbind(std::string dev_id)
 // 依工作室送來的 mode（dual/quad）＋口徑，從 preset bundle「實資料」解析目標同進照片磚機：
 // printer_model 含「同進照片磚」＋ dual→FD／quad→FF 家族 ＋ printer_variant 對口徑。
 // 不寫死機名＝日後加新照片磚機（或 C 案準備頁整合要列可選機）都吃同一來源。
+/* 機型名去掉變體字尾＝「系列」。與選機頁 `resources/web/guide/21/21.js` 的
+   `PING_VARIANT_SUFFIX` 同一條規則（那邊是分組用，這邊是配對用）——**改一邊要改兩邊**，
+   網頁端引用不到 C++ 的常數。
+   例：`FF800 同進` → `FF800`／`FF800 同進照片磚` → `FF800`／`FD450 Pro 同進` → `FD450 Pro`。 */
+static std::string ping_printer_series(const std::string& printer_model)
+{
+    static const std::string SUFFIXES[] = { " 同進照片磚", " 單料頭", " 單噴頭", " 同進", " 3in1", " 關門" };
+    for (const std::string& suffix : SUFFIXES) {
+        const size_t n = suffix.size();
+        if (printer_model.size() > n && printer_model.compare(printer_model.size() - n, n, suffix) == 0)
+            return printer_model.substr(0, printer_model.size() - n);
+    }
+    return printer_model;
+}
+
 struct PingPhotoTilePrinter
 {
     bool        known_mode       = false; // mode 欄位可辨識（舊版網頁沒帶＝false，行為照舊）
     bool        already_selected = false; // 目前機器（含其衍生 user preset）已符合＝不切不打擾
     std::string preset_name;              // 需要切換時的目標；解析不到＝空
+    /* 2026-09-07：配到的是**別的系列**的照片磚機（例：FD450 Pro 同進 沒有專屬照片磚版本，
+       只好用 FD300 同進照片磚）。列印範圍與起始碼會是那一台的 ⇒ 要在通知裡講出來，不能靜默。 */
+    bool        cross_series     = false;
+    /* 🗑 2026-09-07 移除 `exists_but_hidden`（Eric 裁 #99 Q3 甲）：那個欄位是 0815 A 案的產物，
+       用來分辨「有這台機但使用者沒在選機清單勾」。照片磚機已從選機清單整批移除 ⇒ 它永遠是
+       「沒勾」，那條分支恆真、訊息也永遠是錯的（叫人去一個已經沒有照片磚分頁的地方勾）。 */
 };
 
 static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& mode, const std::string& nozzle)
@@ -4742,15 +4808,16 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
         return out;
     out.known_mode = true;
 
+    // C-1：照片磚機的判定收斂到 PhotoTileCapability（單一來源），這裡只再加
+    // 「家族要對得上 mode」與「口徑要等於網頁送來的值」兩個本流程專屬條件。
+    // 判準若要改（例如日後 preset 欄位化），只改 PhotoTileCapability 一處。
     const std::string family  = mode == "dual" ? "FD" : "FF";
     const auto        matches = [&](const Preset& preset) {
-        const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
-        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
-        if (pm == nullptr || pv == nullptr)
+        const PhotoTileCapability cap = photo_tile_capability_of(preset);
+        if (!cap.is_photo_tile || cap.family != family)
             return false;
-        return pm->value.find("同進照片磚") != std::string::npos &&
-               pm->value.rfind(family, 0) == 0 &&
-               pv->value == nozzle;
+        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
+        return pv != nullptr && pv->value == nozzle;
     };
 
     PresetBundle* bundle = wxGetApp().preset_bundle;
@@ -4760,69 +4827,38 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
         out.already_selected = true;
         return out;
     }
-    for (const Preset& preset : bundle->printers)
-        if (preset.is_system && matches(preset)) {
-            out.preset_name = preset.name;
-            return out;
-        }
-    return out;
-}
-
-// ---- PING 照片磚：進工作室時自動安裝照片磚機型（Eric 2026-08-07 需求）----
-// 起因：ping_resolve_photo_tile_printer() 只在**已安裝**的機型裡找；使用者若沒在設定精靈
-// 勾過同進照片磚機，匯出到最後才會跳「找不到對應口徑的同進照片磚機型，請手動選擇」
-// ——那是**做完整張圖之後**才告訴他缺東西，最該擋的時機是進門的時候。
-//
-// 安裝＝AppConfig::set_variant(vendor, model, variant, true) → PresetBundle::load_installed_printers()
-// 讓 Preset::is_visible 生效（與設定精靈同一條路徑，不是另闢蹊徑）。
-//
-// 【取值範圍的判斷，交代清楚】Eric 的原話是「四色→FF800＋FF600、雙色→FD300」。
-// 但**進門的當下還不知道使用者要做雙料還是四料**（mode 是在工作室裡面選的，匯出時才回傳）。
-// 因此這裡裝的是「printer_model 含『同進照片磚』」的**全部**機型＝恰好是 FD300／FF600／FF800
-// 三家族的聯集，涵蓋他列的兩種情形。mode→機型的對應仍由既有的 ping_resolve_photo_tile_printer()
-// 在匯出時負責，本函式只保證「候選機一定存在」。
-// ⚠ 若日後 Eric 要求嚴格依 mode 只裝該用的那幾台，掛勾點要改到工作室回報 mode 的時機，
-//   不是這裡；屆時把本函式加一個 family 參數即可（比對邏輯與 resolve 共用同一套）。
-//
-// 不寫死機名（同 resolve 的取向）＝日後再加照片磚機型自動吃到。
-// 回傳「新裝了幾個口徑變體」與「涵蓋幾個機型」——兩個數字不一樣（一個機型有多個口徑），
-// 報給使用者看的訊息必須講對，不能拿變體數當機型數。
-struct PingPhotoTileInstallResult
-{
-    int variants = 0;   // 新裝的口徑變體數（FD300×2＋FF600×3＋FF800×3 全新裝＝8）
-    int models   = 0;   // 涵蓋的機型數（＝3）
-};
-
-static PingPhotoTileInstallResult ping_install_photo_tile_printers()
-{
-    PingPhotoTileInstallResult out;
-    PresetBundle* bundle = wxGetApp().preset_bundle;
-    AppConfig*    config = wxGetApp().app_config;
-    if (bundle == nullptr || config == nullptr)
-        return out;
-
-    std::set<std::string> touched_models;
+    /* 【2026-09-07 Eric 裁 #99 Q3 甲——**取代** 2026-08-15 的 A 案】不再要求 `is_visible`。
+       0815 A 案（只認使用者已加入的機型）的理由是「不要自動切到一台他沒勾選、可能根本沒有的
+       機器」，**那條的前提是「照片磚機是使用者要自己在選機清單裡挑的機器」**。
+       0907 之後前提沒了：照片磚機已從「選擇 3D 列印機」整批移除（guide/21・24 的
+       `PingIsPhotoTileModel`），它是照片磚功能的內部載體（64 個虛擬料槽＋零回抽），
+       **永遠不會是 is_visible** ⇒ 沿用舊判準等於照片磚從此配不到任何機型。
+       ⇒ 改成「找得到就用」，安裝交給 `ping_install_photo_tile_printer()` 在切換前當場做。
+       0815 想防的事沒有回來：那時的風險是「整組裝八台又自動切過去」，現在**一次只裝一台、
+       而且是他這張磚真正要用的那一台**。 */
+    /* 🔴 2026-09-07 順手修掉一個同型的舊 bug：原本是「掃到第一個家族對得上的就用」，
+       而 printer 預設集是**按名字排序**的（`Preset::operator<` 比 name）⇒ 四料那一組永遠先掃到
+       `FF600 同進照片磚`（'6' < '8'）⇒ **手上是 FF800 同進的人，做四料照片磚一律被切到 FF600**
+       ——床 600 不是 800，而且畫面上只會說「已自動切換機型」，看不出換錯了。
+       ⇒ 改成兩段：**同系列優先**（FF800 同進 → FF800 同進照片磚），沒有同系列的才退回家族比對，
+       而且退回時把 `cross_series` 立起來讓上層講出來（例：FD450 Pro 同進 目前沒有專屬照片磚版本）。 */
+    const std::string cur_series =
+        ping_printer_series(bundle->printers.get_selected_preset().config.opt_string("printer_model"));
+    const Preset* family_hit = nullptr;
     for (const Preset& preset : bundle->printers) {
-        if (!preset.is_system || preset.vendor == nullptr)
+        if (!preset.is_system || !matches(preset))
             continue;
         const ConfigOptionString* pm = preset.config.option<ConfigOptionString>("printer_model");
-        const ConfigOptionString* pv = preset.config.option<ConfigOptionString>("printer_variant");
-        if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
-            continue;
-        if (pm->value.find("同進照片磚") == std::string::npos)
-            continue;
-        if (config->get_variant(preset.vendor->id, pm->value, pv->value))
-            continue;   // 已安裝＝不動（使用者自己取消勾選的情形也不強制裝回，只補從沒裝過的）
-        config->set_variant(preset.vendor->id, pm->value, pv->value, true);
-        ++out.variants;
-        touched_models.insert(pm->value);
+        if (pm != nullptr && !cur_series.empty() && ping_printer_series(pm->value) == cur_series) {
+            out.preset_name = preset.name;      // 同系列＝首選，直接收工
+            return out;
+        }
+        if (family_hit == nullptr)
+            family_hit = &preset;               // 家族對得上的第一台，當退路
     }
-    out.models = int(touched_models.size());
-
-    if (out.variants > 0) {
-        // 只在真的有新增時才落盤與重算可見性——沒事不要動使用者的 conf。
-        bundle->load_installed_printers(*config);
-        config->save();
+    if (family_hit != nullptr) {
+        out.preset_name  = family_hit->name;
+        out.cross_series = true;
     }
     return out;
 }
@@ -5094,12 +5130,54 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     step_repair_page_result(true, "修補版本已另存並載入。", into_u8(output_path));
                 });
             }
-            else if (command_str.compare("phototile_home") == 0) {
+            else if (command_str.compare("phototile_query_capability") == 0) {
+                /* 【2026-08-15】頁面主動要料數。DocumentLoaded 那次推送保留當備援，
+                   但這條才是可靠的一條——頁面開口時一定已經 ready。 */
                 CallAfter([this] {
-                    if (mainframe && mainframe->m_webview)
-                        mainframe->m_webview->ShowHomepage();
+                    if (mainframe != nullptr && mainframe->m_webview != nullptr) {
+                        mainframe->m_webview->SendPhotoTileMachineCapability();
+                        /* 丙案：同一個開口一起回。金鑰是使用者隨時可以在說明選單改的東西
+                           ⇒ 每次頁面開口都重問一次，不要只在 app 啟動時問一次。 */
+                        mainframe->m_webview->SendPhotoTileAiAvailability();
+                    }
                 });
             }
+            /* FBK-11：訊息叫使用者去「選擇 3D 列印機」，就要給得出那扇門
+               （Eric 2026-09-02 實走時問「這個畫面並沒有讓我選擇的位置」）。
+               🔴 一定要 CallAfter：wizard 是 modal，直接在 web 訊息處理裡開會把 WebView2 的
+                  訊息迴圈卡住——同一個坑頁面註解裡記過（面板隱藏時跳 alert，renderer 停住、
+                  連 CDP 都進不去）。 */
+            else if (command_str.compare("phototile_open_printer_wizard") == 0) {
+                CallAfter([this] { run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
+            }
+            else if (command_str.compare("phototile_home") == 0) {
+                /* 覆審 I-3：離開工作室＝取消現役生成（**同步**清，賽跑窗＝零）。
+                   C-1 時頁面卸載＝生成自然中止；C-2 把工作搬進 C++ 後這個天然保護消失
+                   ——不取消的話，人已在首頁，數秒後結果落盤：被強制彈進 3D 編輯器、
+                   盤被換、機型被切。清了 active ⇒ 遲到結果被 result handler 丟棄。 */
+                if (!m_photo_tile_active_job.empty()) {
+                    const std::string leaving = m_photo_tile_active_job;
+                    m_photo_tile_active_job.clear();
+                    if (m_photo_tile_host)
+                        m_photo_tile_host->cancel(leaving);
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：離開頁面，取消現役 job=" << leaving;
+                }
+                CallAfter([this] {
+                    if (!mainframe)
+                        return;
+                    if (mainframe->m_webview)
+                        mainframe->m_webview->ShowHomepage();
+                    /* PING(2026-09-08 Eric 裁)：返回落「準備」頁，不落首頁。
+                       入口在準備頁（#99 Q1 甲搬過去的），返回就該回到入口所在的那一頁；
+                       首頁自 #99 起沒有照片磚入口，落首頁＝走進死巷（Eric 0908 實走）。
+                       上面 ShowHomepage() 保留：之後點「首頁」分頁看到的才是首頁，不是殘留的工作室。
+                       STEP 破面檢查的返回維持落首頁——它的入口在首頁；兩個工具同一條原則。 */
+                    mainframe->select_tab(size_t(MainFrame::tp3DEditor));
+                });
+            }
+            /* ⚠ phototile_export_begin|chunk|end 三支＝頁面自建 3MF 鏈的舊收件口——
+               build3mf 已退役（C-2 第 1 項）＝**現無任何送出端，保留僅為 rollback**。
+               它與下面的 phototile_image_* 鏈幾乎同形：改協定時兩鏈都要看（或屆時直接刪本鏈）。 */
             else if (command_str.compare("phototile_export_begin") == 0) {
                 constexpr size_t max_photo_tile_bytes = 512ULL * 1024ULL * 1024ULL;
                 const size_t expected_size = root.get<size_t>("data.size", 0);
@@ -5158,47 +5236,570 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     return "";
                 }
 
-                const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
-                    boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
-                boost::nowide::ofstream output(output_path.string(), std::ios::binary);
-                output.write(reinterpret_cast<const char*>(m_photo_tile_export_buffer.data()),
-                             static_cast<std::streamsize>(m_photo_tile_export_buffer.size()));
-                output.close();
-
-                const bool write_ok = output.good();
+                std::vector<unsigned char> three_mf;
+                three_mf.swap(m_photo_tile_export_buffer);
                 m_photo_tile_export_active = false;
-                m_photo_tile_export_buffer.clear();
                 m_photo_tile_export_expected_size = 0;
                 m_photo_tile_export_expected_chunks = 0;
                 m_photo_tile_export_next_chunk = 0;
 
-                if (!write_ok) {
-                    BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+                // 寫暫存→先切機→開檔＝與宿主生成鏈共用同一支（C-2 抽出；行為與 C-1 逐字同）。
+                // env＝nullptr：此鏈協定沒有 env（頁面自建 3MF 直送、使用者同步操作、無「遲到」
+                // 問題；發送端 build3mf 已於 C-2 第 1 項退役）＝#9 guard 豁免，不是漏網。
+                photo_tile_deliver_3mf(three_mf, root.get<std::string>("data.mode", ""),
+                                       root.get<std::string>("data.nozzle", ""), nullptr);
+            }
+            /* ── C-2 第 1 項：工作室 → 隱形宿主的生成鏈（2026-08-04）──────────────
+               頁面只送參數（含使用者挑的料色 slotsJson＝C-1 缺口的正主），影像一律用
+               C++ 手上的檔案路徑：拖放/首頁入口＝open_photo_tile 記下；頁內選檔/貼上＝
+               phototile_image_begin|chunk|end 回送位元組落成暫存檔。進度/結果由宿主
+               handler 回推頁面（photo_tile_ensure_host 掛的三支）。 */
+            else if (command_str.compare("phototile_generate") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const std::string mode   = root.get<std::string>("data.mode", "");
+                const std::string nozzle = root.get<std::string>("data.nozzle", "");
+                // 失敗一律用 jobResult 回推頁面（與宿主結果同一條通道），不靜默。
+                const auto fail_to_page = [this](const std::string& job, const std::string& code, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                        "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job) + "\",ok:false,errorCode:\"" +
+                        ping_js_escape(code) + "\",errorMessage:\"" + ping_js_escape(msg) + "\"});");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_generate 缺 jobId，忽略";
+                    return "";
+                }
+                if (m_photo_tile_source_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_source_path))) {
+                    fail_to_page(job_id, "bad_image", "沒有可用的影像來源，請重新載入圖片再試。");
+                    return "";
+                }
+                /* slots 只驗「是陣列＋可解析」就原文直通（會被逐字拼進 generate 請求，
+                   壞字串會毀掉整包 JSON）。驗不過＝fail-closed 回錯誤——絕不靜默退回自動配色，
+                   那正是 C-1 被抓到的缺口。缺席／空字串也一樣擋（🟡覆審：頁面 buildRequest
+                   一定送 slots，缺席只可能是壞掉的呼叫端——放行＝fail-open 自動配色）。
+                   探針斷言恰一鍵（🟡覆審：`[{…}],"pillar":{…}` 這種夾帶可用重複鍵繞過單次解析）。 */
+                std::string slots_json = root.get<std::string>("data.slotsJson", "");
+                {
+                    bool slots_ok = false;
+                    const size_t first_ch = slots_json.find_first_not_of(" \t\r\n");
+                    if (first_ch != std::string::npos && slots_json[first_ch] == '[') {
+                        try {
+                            std::stringstream slots_ss("{\"a\":" + slots_json + "}");
+                            pt::ptree probe;
+                            pt::read_json(slots_ss, probe);
+                            slots_ok = probe.size() == 1 && probe.count("a") == 1;
+                        } catch (...) { slots_ok = false; }
+                    }
+                    if (!slots_ok) {
+                        fail_to_page(job_id, "bad_request", "料色資料（slots）格式錯誤，請重試或重開工作室。");
+                        return "";
+                    }
+                }
+
+                PhotoTileEngineRequest engine_req;
+                engine_req.job_id     = job_id;
+                engine_req.mode       = mode;
+                try { engine_req.nozzle = std::stod(nozzle); } catch (...) { engine_req.nozzle = 0.0; }
+                engine_req.width_mm     = root.get<double>("data.size.widthMm", 100.0);
+                engine_req.height_mm    = root.get<double>("data.size.heightMm", 75.0);
+                engine_req.thick_mm     = root.get<double>("data.size.thickMm", 6.0);
+                /* 覆審 I-5：整數欄用 get<double>＋lround——get<int> 收到 "5.5" 會因殘留
+                   ".5" 靜默回退預設值（同一個 5.5，瀏覽器開發路徑做 6 階、這裡做 8 階）。
+                   頁面 handler 也補了 Math.round＝兩端一致。 */
+                engine_req.klevels      = (int) std::lround(root.get<double>("data.klevels", 8.0));
+                engine_req.noise_mm     = root.get<double>("data.noiseMm", 2.0);
+                engine_req.pillar       = root.get<bool>("data.pillar.enabled", true);
+                engine_req.pillar_xy_mm = (int) std::lround(root.get<double>("data.pillar.xyMm", 25.0));
+                // WT 線：循環洗料塔設定原封轉送引擎（laps 走逗號字串，ptree 不必解陣列）
+                engine_req.cycle         = root.get<bool>("data.cycle.enabled", false);
+                engine_req.cycle_laps    = root.get<std::string>("data.cycle.laps", "");
+                engine_req.cycle_size_mm = root.get<double>("data.cycle.sizeMm", 0.0);
+                engine_req.cycle_gap_mm  = root.get<double>("data.cycle.gapMm", 15.0);
+                engine_req.cycle_brim_mm = root.get<double>("data.cycle.brimMm", 8.0);
+                engine_req.teeth        = root.get<bool>("data.seam.teeth", false);
+                engine_req.p2a_block    = root.get<bool>("data.seam.p2aBlock", false);
+                engine_req.slots_json   = slots_json;
+                engine_req.image_path   = m_photo_tile_source_path;
+                // 產品路徑＝metadata on（裁決 6：ping_phototile.json＋內嵌原圖）。
+                // 黃金 12 案自組請求、自帶 off ⇒ 基準不受影響。
+                engine_req.want_metadata = true;
+                engine_req.embed_source  = true;
+                engine_req.group_uuid = boost::uuids::to_string(boost::uuids::random_generator()());
+                /* 覆審 I-4：解碼後像素 OOM 帽——C-1 設計的 gate 在唯一產品入口原本沒帶
+                   （limits 全 0＝不設防；48Mpx 相片＋quad 在 4GB 下 engine_crashed 已實測）。
+                   依可用實體記憶體推（宿主 static，夾 8e6～48e6；查不到＝保守 8e6）。
+                   ⚠ 不動 grid_max：0＝引擎預設 3200＝工作室歷史行為，動了會改變輸出
+                   位元組、打到黃金 12 案基準。
+                   env_json 這裡不填＝交給宿主 generate() 蓋章（C-2 第 2 項已接：
+                   ensure_host 註冊的 current-env provider；上盤前 env_is_fresh 比對、過期即棄）。 */
+                engine_req.max_decoded_pixels = PhotoTileEngineHost::suggest_max_decoded_pixels();
+
+                photo_tile_ensure_host();
+                m_photo_tile_active_job    = job_id;
+                m_photo_tile_active_mode   = mode;
+                m_photo_tile_active_nozzle = nozzle;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：generate 分派 job=" << job_id << ", mode=" << mode
+                                        << ", nozzle=" << nozzle << ", source=" << m_photo_tile_source_path;
+                /* 覆審 I-1：generate 同步失敗不再丟棄回傳值。多數失敗路（runtime 缺、CreateEnv
+                   立即失敗）已由宿主 fail_active_and_queued → result handler 同步回推頁面並清
+                   active；這裡是最後一道網（Closing 等不經 handler 的 false）——仍持有本 job
+                   才補回推，不會重複。否則進度條無限轉、產生鈕鎖死、原因永遠看不到。 */
+                if (!m_photo_tile_host->generate(engine_req) && m_photo_tile_active_job == job_id) {
+                    m_photo_tile_active_job.clear();
+                    fail_to_page(job_id, "engine_unavailable", "照片磚引擎無法啟動，請重開 PING Slicer 再試。");
+                }
+            }
+            else if (command_str.compare("phototile_cancel") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                /* A 案（Eric 0804 裁）：取消＝頁面當下自行恢復 UI、盤上舊磚不動。這裡清 active
+                   ⇒ 這個 job 之後任何遲到的結果（含引擎未就緒期間排隊補跑完的）一律被
+                   result handler 丟棄，絕不上盤。 */
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：cancel job=" << job_id
+                                        << "（active=" << m_photo_tile_active_job << "）";
+                if (!job_id.empty() && job_id == m_photo_tile_active_job)
+                    m_photo_tile_active_job.clear();
+                if (!job_id.empty() && m_photo_tile_host)
+                    m_photo_tile_host->cancel(job_id);
+            }
+            /* ── 甲案（c-0822-PT-06）：本地風格化 ────────────────────────────────
+               把 dev 端 pipeline.py 的 bilateral→mean-shift→k-means→medianBlur 跑在 C++，
+               結果**回送頁面當新的來源影像**——不是只在生成時做。
+               🔴 只在生成時做＝預覽跑原圖、輸出跑風格化圖＝兩把尺，正是本專案一再付學費的
+                  失效形態（分箱vs顯色、④-2 梯子vs分箱、開發線的兩份梯子）。規格＝R6-9／R6-11。
+               ⚠ 800px 約 2 秒 ⇒ 一定要背景執行緒；UI 執行緒只負責推 chunk。
+               ℹ️ 這條「C++ 給頁面一張圖」的回送鏈，日後丙案（AI 生圖）回圖走同一條。 */
+            else if (command_str.compare("phototile_stylize") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const auto style_fail = [this](const std::string& job, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.styleError && "
+                        "window.PINGPhotoTile.styleError(\"") + ping_js_escape(job) + "\",\"" +
+                        ping_js_escape(msg) + "\");");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_stylize 缺 jobId，忽略";
+                    return "";
+                }
+                if (m_photo_tile_source_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_source_path))) {
+                    style_fail(job_id, "沒有可用的影像來源，請重新載入圖片再試。");
+                    return "";
+                }
+                /* 要壓平「哪一張」由頁面指定（預設 origin，行為與 2026-08-22 相同）。
+                   ・origin ＝使用者的原照片：本地款式走這條。**不取目前來源**，否則第二次
+                     風格化會拿已經風格化過的圖再跑一次，色塊越滾越大。
+                   ・current＝目前的來源影像，也就是**剛回來的 AI 圖**（丙案，Eric 2026-09-02 裁「甲」）。
+                     AI 圖不壓平就直接分箱的話，它那片主色會騎在色階門檻上——實測同款式同照片
+                     連生三次，身體中位 L* ＝69.8／71.4／72.6 而門檻在 71.1 ⇒ 乾淨／爆白斑／
+                     整片消失三種結局。壓平後每一區的 L* 等於某一階的 L*，離門檻最遠。 */
+                const std::string style_input = root.get<std::string>("data.input", "origin");
+                PhotoStylizeParams sp;
+                if (style_input == "current") {
+                    sp.src_path = m_photo_tile_source_path;
+                } else {
+                    if (m_photo_tile_origin_path.empty())
+                        m_photo_tile_origin_path = m_photo_tile_source_path;
+                    sp.src_path = m_photo_tile_origin_path;
+                }
+                sp.work_width = static_cast<int>(std::lround(root.get<double>("data.workWidth", 800.0)));
+                sp.tones      = static_cast<int>(std::lround(root.get<double>("data.tones", 4.0)));
+                /* mapping（2026-09-03，Eric 裁③「四料款式也走壓平」）：
+                   rank（預設，雙料）＝ramp 是恰 K 階的梯子；nearest（四料）＝ramp 是 ≥K 個候選色（≤64）。
+                   舊頁面不送這個欄位 ⇒ 預設 rank ＝ 行為與 0902 完全相同。 */
+                const std::string mapping = root.get<std::string>("data.mapping", "rank");
+                sp.mapping = (mapping == "nearest") ? PhotoStylizeMapping::NearestDistinct
+                                                    : PhotoStylizeMapping::Rank;
+                for (const auto& kv : root.get_child("data.ramp", pt::ptree()))
+                    sp.ramp_hex.push_back(kv.second.get_value<std::string>());
+                const int ramp_n = static_cast<int>(sp.ramp_hex.size());
+                if (sp.mapping == PhotoStylizeMapping::Rank ? (ramp_n != sp.tones)
+                                                            : (ramp_n < sp.tones || ramp_n > 64)) {
+                    style_fail(job_id, "色階資料不完整，請重開工作室再試。");
+                    return "";
+                }
+                /* 後發蓋先發：使用者連點款式時只認最後一次。舊 job 的結果回來會被
+                   下面的 job_id 比對丟掉——不清 active 會出現「畫面已經是新款式、
+                   圖卻換成上一款」這種靜默錯配。 */
+                m_photo_tile_style_job = job_id;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：分派 job=" << job_id
+                                        << ", cw=" << sp.work_width << ", K=" << sp.tones
+                                        << ", mapping=" << mapping << ", palette=" << ramp_n;
+                std::thread([this, sp, job_id]() {
+                    PhotoStylizeResult r = ping_photo_stylize(sp);
+                    wxTheApp->CallAfter([this, r, job_id]() {
+                        if (m_photo_tile_style_job != job_id)      // 已被更新的請求取代
+                            return;
+                        m_photo_tile_style_job.clear();
+                        const auto fail = [this, &job_id](const std::string& msg) {
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.styleError && "
+                                "window.PINGPhotoTile.styleError(\"") + ping_js_escape(job_id) + "\",\"" +
+                                ping_js_escape(msg) + "\");");
+                        };
+                        if (!r.ok || r.png.empty()) {
+                            fail(r.error.empty() ? std::string("風格化失敗，請重試。") : r.error);
+                            return;
+                        }
+                        /* 🔴 風格化的結果要成為**生成時真正吃的那張**。
+                           只把圖回送頁面而不換來源，會變成「畫面看到風格化、印出來是原圖」——
+                           這正是本案一開始就決定要避免的那件事，漏這一步等於整個白做。
+                           原圖路徑留在 m_photo_tile_origin_path，重新風格化時還吃得到。 */
+                        {
+                            const boost::filesystem::path styled_path =
+                                boost::filesystem::temp_directory_path() /
+                                boost::filesystem::unique_path("PING_photo_tile_styled_%%%%-%%%%-%%%%.png");
+                            boost::nowide::ofstream out(styled_path.string(), std::ios::binary);
+                            out.write(reinterpret_cast<const char*>(r.png.data()),
+                                      static_cast<std::streamsize>(r.png.size()));
+                            out.close();
+                            if (!out.good()) {
+                                /* fail-honest：寫不成就別換來源，並誠實告訴頁面——
+                                   保留舊來源＝預覽會換、輸出不會換，那比失敗更糟。 */
+                                BOOST_LOG_TRIVIAL(warning) << "風格化暫存檔寫入失敗：" << styled_path.string();
+                                fail("風格化結果寫入失敗，請重試。");
+                                return;
+                            }
+                            m_photo_tile_source_path = styled_path.string();
+                            BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：來源已切換為 " << m_photo_tile_source_path;
+                        }
+                        /* 分塊回送：96 KB 原始塊（可被 3 整除 ⇒ base64 無中段 padding，
+                           與頁面回送圖片那條鏈同法）。chunk 大小改了兩邊都要改。 */
+                        constexpr size_t raw_chunk = 96 * 1024;
+                        const size_t total  = r.png.size();
+                        const size_t chunks = (total + raw_chunk - 1) / raw_chunk;
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.styleBegin && "
+                            "window.PINGPhotoTile.styleBegin({jobId:\"") + ping_js_escape(job_id) +
+                            "\",size:" + std::to_string(total) + ",chunks:" + std::to_string(chunks) +
+                            ",w:" + std::to_string(r.width) + ",h:" + std::to_string(r.height) +
+                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) + "});");
+                        for (size_t i = 0; i < chunks; ++i) {
+                            const size_t off = i * raw_chunk;
+                            const size_t len = std::min(raw_chunk, total - off);
+                            std::string b64;
+                            b64.resize(boost::beast::detail::base64::encoded_size(len));
+                            b64.resize(boost::beast::detail::base64::encode(b64.data(), r.png.data() + off, len));
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.styleChunk && "
+                                "window.PINGPhotoTile.styleChunk({jobId:\"") + ping_js_escape(job_id) +
+                                "\",index:" + std::to_string(i) + ",base64:\"" + b64 + "\"});");
+                        }
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.styleEnd && "
+                            "window.PINGPhotoTile.styleEnd({jobId:\"") + ping_js_escape(job_id) + "\"});");
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile 風格化：回送完成 job=" << job_id
+                                                << ", bytes=" << total << ", chunks=" << chunks
+                                                << ", " << r.elapsed_ms << " ms";
+                    });
+                }).detach();
+            }
+            /* ── 丙案（P3「丑」）：AI 生圖 ──────────────────────────────────────
+               規格＝`照片磚_核心規格.md` §9（Eric 2026-08-22 一輪八題）。
+               走的是甲案那條「C++ 給頁面一張圖」的回送鏈（當初就是照這個打算蓋的），
+               差別只有兩件：①圖是跟 OpenAI 要的，不是本機算的 ②失敗要分類（R9-5）。
+
+               🔴 **金鑰明文一步都不進這個檔**：prompt 從頁面來、圖回頁面去，中間那段
+                  （load 金鑰／打 API）整段在 `Utils/PingAiImage.cpp`——那是白名單管制的檔。
+                  這裡連 `PingAiKeyStore.hpp` 都沒有 include，是刻意的。
+               🔴 **回送的結果會成為新的來源影像**，與甲案同一個理由：只給頁面看不換來源＝
+                  預覽是 AI 圖、輸出是原照片＝兩把尺。順帶把甲案的「風格化原圖」記錄作廢——
+                  AI 生的圖就是新的原圖，之後要本地風格化要從它開始。 */
+            else if (command_str.compare("phototile_ai_generate") == 0) {
+                const std::string job_id = root.get<std::string>("data.jobId", "");
+                const auto ai_fail = [this](const std::string& job, const std::string& kind, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.aiError && "
+                        "window.PINGPhotoTile.aiError(\"") + ping_js_escape(job) + "\",\"" +
+                        ping_js_escape(kind) + "\",\"" + ping_js_escape(msg) + "\");");
+                };
+                if (job_id.empty()) {
+                    BOOST_LOG_TRIVIAL(warning) << "phototile_ai_generate 缺 jobId，忽略";
+                    return "";
+                }
+                PingAiImage::Params ap;
+                ap.prompt = root.get<std::string>("data.prompt", "");
+                /* 🔴 輸入一律是**使用者那張真照片**：origin 有值＝目前的 source 已經是
+                   風格化或上一輪 AI 的產物，拿它再生成一次會在生成物上再生成、越滾越遠
+                   （與甲案同一條紀律，↳ 規格 R6-9）。 */
+                ap.src_path = m_photo_tile_origin_path.empty() ? m_photo_tile_source_path
+                                                               : m_photo_tile_origin_path;
+                /* R9-8：尺寸由磚體長寬比決定、**不讓使用者選**。
+                   **決定權在頁面**，不是這裡——因為 prompt 裡的 `{minPx}` 要用生圖寬度去算
+                   （minPx = 2×口徑 ÷ 磚寬 × 生圖解析度），頁面若不知道自己會拿到哪個尺寸，
+                   那個數字就會失準（而使用者沒有判斷依據）。這裡只當**守門的**：
+                   收到的不是三種合法值之一（舊頁面／被改壞）就自己按長寬比補一個，
+                   絕不把非法值送進 API 換一個看不懂的 400。 */
+                ap.size = root.get<std::string>("data.size", "");
+                if (ap.size != "1024x1024" && ap.size != "1536x1024" && ap.size != "1024x1536")
+                    ap.size = PingAiImage::size_for_tile(root.get<double>("data.widthMm", 0.0),
+                                                         root.get<double>("data.heightMm", 0.0));
+                ap.quality = root.get<std::string>("data.quality", "low");
+                if (ap.prompt.empty()) {
+                    ai_fail(job_id, "response", "這個款式沒有可用的生圖描述，請換一個款式。");
+                    return "";
+                }
+                // 後發蓋先發：同甲案。使用者連點款式時只認最後一次，舊 job 的結果回來會被丟掉。
+                m_photo_tile_ai_job = job_id;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：分派 job=" << job_id
+                                        << ", size=" << ap.size << ", quality=" << ap.quality;
+                std::thread([this, ap, job_id]() {
+                    PingAiImage::Result r = PingAiImage::generate(ap);
+                    wxTheApp->CallAfter([this, r, job_id]() {
+                        if (m_photo_tile_ai_job != job_id)      // 已被更新的請求取代
+                            return;
+                        m_photo_tile_ai_job.clear();
+                        /* 內層自己的回報 helper——外層那顆在 UI 執行緒的 lambda 裡捕獲不到
+                           （同甲案：那邊也是在 CallAfter 內另立一顆 fail）。 */
+                        const auto ai_fail_page = [this, &job_id](const std::string& kind, const std::string& msg) {
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.aiError && "
+                                "window.PINGPhotoTile.aiError(\"") + ping_js_escape(job_id) + "\",\"" +
+                                ping_js_escape(kind) + "\",\"" + ping_js_escape(msg) + "\");");
+                        };
+                        if (!r.ok || r.png.empty()) {
+                            /* R9-5：把「重試有沒有意義」交給頁面決定，所以要把種類送過去。
+                               只回一句錯誤字串的話，頁面唯一能做的就是無差別重試＝重複燒錢。 */
+                            const char* kind = "response";
+                            switch (r.fail) {
+                            case PingAiImage::FailKind::NoKey:   kind = "nokey";   break;
+                            case PingAiImage::FailKind::Auth:    kind = "auth";    break;
+                            case PingAiImage::FailKind::Quota:   kind = "quota";   break;
+                            case PingAiImage::FailKind::Network: kind = "network"; break;
+                            default: break;
+                            }
+                            ai_fail_page(kind, r.error.empty() ? std::string("AI 生圖失敗，請重試。") : r.error);
+                            return;
+                        }
+                        /* 落成暫存檔並換成新的來源——與甲案同一段邏輯、同一個 fail-honest：
+                           寫不成就不要換來源，並誠實回報（換一半＝預覽與輸出不同源）。 */
+                        const boost::filesystem::path ai_path =
+                            boost::filesystem::temp_directory_path() /
+                            boost::filesystem::unique_path("PING_photo_tile_ai_%%%%-%%%%-%%%%.png");
+                        boost::nowide::ofstream out(ai_path.string(), std::ios::binary);
+                        out.write(reinterpret_cast<const char*>(r.png.data()),
+                                  static_cast<std::streamsize>(r.png.size()));
+                        out.close();
+                        if (!out.good()) {
+                            BOOST_LOG_TRIVIAL(warning) << "AI 生圖暫存檔寫入失敗：" << ai_path.string();
+                            ai_fail_page("response", "生成的圖片寫入失敗，請重試。");
+                            return;
+                        }
+                        /* 換來源前先把「真照片」記下來（第一次才記）——之後不論再生一次、
+                           或改跑本地風格化，輸入都還是那張真照片，不會疊在生成物上。
+                           換圖時這個記錄會被作廢（image_end／open_photo_tile 都有清）。 */
+                        if (m_photo_tile_origin_path.empty())
+                            m_photo_tile_origin_path = m_photo_tile_source_path;
+                        m_photo_tile_source_path = ai_path.string();
+                        m_photo_tile_ai_path     = ai_path.string();   // 另存 AI 圖用（壓平後 source 會被換掉，這個不動）
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：來源已切換為 " << m_photo_tile_source_path;
+
+                        /* 用量計數（Eric 2026-09-02「提醒他使用了多少的數量」）。
+                           🔴 **只在真的拿到圖時才加**——失敗的呼叫（401／429／逾時）不計費，
+                              把它們算進去會讓使用者看到一個比帳單大的數字，那比不顯示更糟。
+                           落點＝AppConfig（張數不是機密；金鑰存取層碰 AppConfig 才是閘門 C4 禁的事）。 */
+                        int ai_count = 0;
+                        if (app_config != nullptr) {
+                            try { ai_count = std::max(0, std::stoi(app_config->get("ping_ai_image_count"))); }
+                            catch (...) { ai_count = 0; }
+                            ++ai_count;
+                            app_config->set("ping_ai_image_count", std::to_string(ai_count));
+                        }
+
+                        // 分塊回送：與甲案同規格（96 KB 可被 3 整除 ⇒ base64 無中段 padding）。
+                        constexpr size_t raw_chunk = 96 * 1024;
+                        const size_t total  = r.png.size();
+                        const size_t chunks = (total + raw_chunk - 1) / raw_chunk;
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.aiBegin && "
+                            "window.PINGPhotoTile.aiBegin({jobId:\"") + ping_js_escape(job_id) +
+                            "\",size:" + std::to_string(total) + ",chunks:" + std::to_string(chunks) +
+                            ",ms:" + std::to_string(static_cast<long long>(r.elapsed_ms)) +
+                            ",count:" + std::to_string(ai_count) + "});");   // 累計張數：金額由頁面用款式庫的單價算
+                        for (size_t i = 0; i < chunks; ++i) {
+                            const size_t off = i * raw_chunk;
+                            const size_t len = std::min(raw_chunk, total - off);
+                            std::string b64;
+                            b64.resize(boost::beast::detail::base64::encoded_size(len));
+                            b64.resize(boost::beast::detail::base64::encode(b64.data(), r.png.data() + off, len));
+                            photo_tile_page_script(std::string(
+                                "window.PINGPhotoTile && window.PINGPhotoTile.aiChunk && "
+                                "window.PINGPhotoTile.aiChunk({jobId:\"") + ping_js_escape(job_id) +
+                                "\",index:" + std::to_string(i) + ",base64:\"" + b64 + "\"});");
+                        }
+                        photo_tile_page_script(std::string(
+                            "window.PINGPhotoTile && window.PINGPhotoTile.aiEnd && "
+                            "window.PINGPhotoTile.aiEnd({jobId:\"") + ping_js_escape(job_id) + "\"});");
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 生圖：回送完成 job=" << job_id
+                                                << ", bytes=" << total << ", chunks=" << chunks;
+                    });
+                }).detach();
+            }
+            /* ── 另存 AI 圖（Eric 2026-09-03 裁①：存**壓平前**那張＝真正花錢拿到的圖）────────
+               生圖成功時 m_photo_tile_ai_path 記著暫存檔；之後壓平會把 source 換成壓平圖，
+               但這個記錄不動，所以壓平後仍存得到原 AI 圖。換照片即作廢（與 origin_path 同步清）。
+               **複製**而不是搬移：%TEMP% 那份仍是產品內的來源影像。
+               對話框走 STEP「另存並使用修補」同一套寫法；差別是這裡允許覆寫（wxFD_OVERWRITE_PROMPT
+               由 OS 自己問）——存圖不像 STEP 那樣有「覆寫到原始檔」的風險。 */
+            else if (command_str.compare("phototile_ai_save") == 0) {
+                const std::string style_name = root.get<std::string>("data.styleName", "AI");
+                const auto ai_saved = [this](bool ok, const std::string& path, const std::string& msg) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.aiSaved && "
+                        "window.PINGPhotoTile.aiSaved({ok:") + (ok ? "true" : "false") + ",path:\"" +
+                        ping_js_escape(path) + "\",message:\"" + ping_js_escape(msg) + "\"});");
+                };
+                if (m_photo_tile_ai_path.empty() ||
+                    !boost::filesystem::exists(boost::filesystem::path(m_photo_tile_ai_path))) {
+                    ai_saved(false, "", "目前沒有可另存的 AI 圖——先用一個 AI 款式生一張。");
+                    return "";
+                }
+                const std::string src = m_photo_tile_ai_path;
+                CallAfter([this, src, style_name, ai_saved]() {
+                    const wxString suggested = from_u8("PING照片磚_AI_") + from_u8(style_name) + "_" +
+                                               wxDateTime::Now().Format("%Y%m%d-%H%M") + ".png";
+                    wxFileDialog dialog(GetTopWindow(), from_u8("另存 AI 生成圖"),
+                        from_u8(app_config->get_last_output_dir(app_config->get_last_dir())), suggested,
+                        "PNG (*.png)|*.png", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+                    if (dialog.ShowModal() != wxID_OK) {
+                        ai_saved(false, "", "已取消，未存檔。");
+                        return;
+                    }
+                    wxFileName out(dialog.GetPath());
+                    out.SetExt("png");
+                    const wxString out_path = out.GetFullPath();
+                    if (!wxCopyFile(from_u8(src), out_path, true)) {
+                        ai_saved(false, "", "寫入失敗，請改用有寫入權限的位置。");
+                        return;
+                    }
+                    app_config->update_last_output_dir(into_u8(out.GetPath()));
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile AI 圖另存：" << into_u8(out_path);
+                    ai_saved(true, into_u8(out_path), "");
+                });
+            }
+            /* 頁內「開啟圖片」與 Ctrl+V 的圖只存在頁面裡（C++ 沒有路徑），而宿主吃檔案路徑
+               ⇒ 頁面回送原始位元組、這裡落成暫存檔（鏡像 export 鏈的四項驗證：連號/塊數/總長度/上限）。 */
+            else if (command_str.compare("phototile_image_begin") == 0) {
+                constexpr size_t max_image_bytes = 64ULL * 1024ULL * 1024ULL;   // 與宿主 MAX_IMAGE_BYTES、拖放路同值
+                const size_t expected_size   = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+
+                m_photo_tile_image_buffer.clear();
+                m_photo_tile_image_expected_size = 0;
+                m_photo_tile_image_expected_chunks = 0;
+                m_photo_tile_image_next_chunk = 0;
+                m_photo_tile_image_active = false;
+                m_photo_tile_image_mime.clear();
+
+                /* fail-closed（覆審 B-1）：begin 當下就作廢舊來源——之後不論傳輸失敗、
+                   或送了 begin 就沒下文，generate 都誠實回「沒有可用的影像來源」，絕不
+                   靜默沿用上一張圖（預覽是新圖、生成用舊圖＝與 slots 缺口同形狀）。
+                   舊暫存檔的清理與作廢無關：走 m_photo_tile_owned_temp 記帳（覆審 I-7）。 */
+                m_photo_tile_source_path.clear();
+
+                if (expected_size == 0 || expected_size > max_image_bytes || expected_chunks == 0 || expected_chunks > 8192) {
+                    BOOST_LOG_TRIVIAL(warning) << "Rejected invalid photo tile image upload: size=" << expected_size
+                                               << ", chunks=" << expected_chunks;
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片檔案過大（上限 64 MB）或傳輸資料異常，請重新選一次圖片。');");
+                } else {
+                    m_photo_tile_image_buffer.reserve(expected_size);
+                    m_photo_tile_image_expected_size = expected_size;
+                    m_photo_tile_image_expected_chunks = expected_chunks;
+                    m_photo_tile_image_mime = root.get<std::string>("data.mime", "image/png");
+                    m_photo_tile_image_active = true;
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送開始 size=" << expected_size
+                                            << ", chunks=" << expected_chunks << ", mime=" << m_photo_tile_image_mime;
+                }
+            }
+            else if (command_str.compare("phototile_image_chunk") == 0) {
+                if (!m_photo_tile_image_active)
+                    return "";
+
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.base64", "");
+                if (index != m_photo_tile_image_next_chunk || encoded.empty()) {              // ①連號
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk out of sequence: expected="
+                                               << m_photo_tile_image_next_chunk << ", got=" << index;
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
+                    // 來源已在 begin 作廢＝維持 fail-closed；這裡只補「讓失敗顯性」（覆審 B-1）
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸中斷，請重新選一次圖片。');");
                     return "";
                 }
 
-                const std::string project_path = output_path.string();
-                // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
-                const auto target = ping_resolve_photo_tile_printer(root.get<std::string>("data.mode", ""),
-                                                                    root.get<std::string>("data.nozzle", ""));
-                CallAfter([this, project_path, target] {
-                    if (!target.preset_name.empty()) {
-                        Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
-                        if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
-                            plater() != nullptr)
-                            plater()->get_notification_manager()->push_notification(
-                                NotificationType::CustomNotification,
-                                NotificationManager::NotificationLevel::RegularNotificationLevel,
-                                std::string("照片磚：已自動切換機型「") + target.preset_name + "」，製程與線材隨機型預設。");
-                    } else if (target.known_mode && !target.already_selected && plater() != nullptr) {
-                        // 唯一已知情境＝雙料×1.0 口徑（FD 家族無 1.0 機）：不硬切、提醒手選
-                        plater()->get_notification_manager()->push_notification(
-                            NotificationType::CustomNotification,
-                            NotificationManager::NotificationLevel::WarningNotificationLevel,
-                            "照片磚：找不到對應口徑的同進照片磚機型，未自動切換；請手動選擇照片磚機再切片。");
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto decode_result = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(decode_result.first);
+                if (decoded.empty() || m_photo_tile_image_buffer.size() + decoded.size() > m_photo_tile_image_expected_size) {
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image chunk could not be decoded";   // ③總長上限
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸資料異常，請重新選一次圖片。');");
+                    return "";
+                }
+
+                m_photo_tile_image_buffer.insert(m_photo_tile_image_buffer.end(), decoded.begin(), decoded.end());
+                ++m_photo_tile_image_next_chunk;
+            }
+            else if (command_str.compare("phototile_image_end") == 0) {
+                if (!m_photo_tile_image_active ||
+                    m_photo_tile_image_next_chunk != m_photo_tile_image_expected_chunks ||     // ②塊數
+                    m_photo_tile_image_buffer.size() != m_photo_tile_image_expected_size) {    // ③總長度
+                    BOOST_LOG_TRIVIAL(warning) << "Photo tile image upload ended before all data arrived";
+                    m_photo_tile_image_active = false;
+                    m_photo_tile_image_buffer.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片傳輸不完整，請重新選一次圖片。');");
+                    return "";
+                }
+
+                // 副檔名跟著 mime：宿主注入時會再從路徑副檔名推回 mime（PhotoTileEngineHost 背景讀檔）
+                // 🟡覆審：補 gif/avif（頁面收 image/*；缺列會落成 .png、metadata 的 mime 記錯）
+                std::string ext = "png";
+                if (m_photo_tile_image_mime == "image/jpeg" || m_photo_tile_image_mime == "image/jpg") ext = "jpg";
+                else if (m_photo_tile_image_mime == "image/webp") ext = "webp";
+                else if (m_photo_tile_image_mime == "image/bmp")  ext = "bmp";
+                else if (m_photo_tile_image_mime == "image/gif")  ext = "gif";
+                else if (m_photo_tile_image_mime == "image/avif") ext = "avif";
+
+                const boost::filesystem::path image_path = boost::filesystem::temp_directory_path() /
+                    boost::filesystem::unique_path("PING_photo_tile_src_%%%%-%%%%-%%%%." + ext);
+                boost::nowide::ofstream output(image_path.string(), std::ios::binary);
+                output.write(reinterpret_cast<const char*>(m_photo_tile_image_buffer.data()),
+                             static_cast<std::streamsize>(m_photo_tile_image_buffer.size()));
+                output.close();
+                const bool write_ok = output.good();
+
+                m_photo_tile_image_active = false;
+                m_photo_tile_image_buffer.clear();
+                m_photo_tile_image_expected_size = 0;
+                m_photo_tile_image_expected_chunks = 0;
+                m_photo_tile_image_next_chunk = 0;
+
+                if (!write_ok) {
+                    /* fail-honest：寫檔失敗就維持來源為空（begin 已清）——保留舊路徑會讓
+                       「預覽是新圖、生成用舊圖」靜默發生；generate 會誠實回「沒有可用的影像來源」。 */
+                    BOOST_LOG_TRIVIAL(warning) << "Unable to write photo tile source image: " << image_path.string();
+                    m_photo_tile_source_path.clear();
+                    photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.imageError('圖片暫存檔寫入失敗，請重新選一次圖片。');");
+                    return "";
+                }
+                /* 覆審 I-7：刪舊來源＝記帳制——只刪 m_photo_tile_owned_temp 記過帳的那顆
+                   （唯一設值點＝自己寫暫存成功這一刻），**絕不憑檔名長相刪**：舊版 substring
+                   比對整條路徑，使用者留存的真實照片（如 D:\照片\PING_photo_tile_src_0001.png）
+                   會被連帶刪掉、不進資源回收筒。拖放／開檔的真實路徑永不入帳＝不可能被刪。
+                   現役 job 可能還在讀舊檔（冷啟動排隊窗，🟡覆審）＝那就不刪、留給 %TEMP%（寧漏勿誤）。 */
+                const std::string previous_owned = m_photo_tile_owned_temp;
+                m_photo_tile_source_path = image_path.string();
+                /* 甲案：換圖＝風格化原圖記錄作廢。不清的話，下一次風格化會拿**上一張圖**
+                   當輸入，而畫面上是新圖——又是「預覽一張、輸出另一張」那型。 */
+                m_photo_tile_origin_path.clear();
+                m_photo_tile_ai_path.clear();      // 換圖＝上一張 AI 圖作廢（另存按鈕在頁面同步收掉）
+                m_photo_tile_owned_temp  = image_path.string();
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：影像回送落檔 " << m_photo_tile_source_path;
+                if (!previous_owned.empty() && previous_owned != m_photo_tile_source_path) {
+                    if (m_photo_tile_active_job.empty()) {
+                        try { boost::filesystem::remove(boost::filesystem::path(previous_owned)); }
+                        catch (...) {}
+                    } else {
+                        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：現役 job 進行中，延後不刪舊暫存 " << previous_owned;
                     }
-                    request_open_project(project_path);
-                });
+                }
             }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
@@ -5404,30 +6005,208 @@ void GUI_App::request_open_project(std::string project_id)
         CallAfter([this, project_id] { mainframe->open_recent_project(-1, wxString::FromUTF8(project_id)); });
 }
 
+
+// PING(2026-09-09，牌 c-0909-TH-01)：見 .hpp。
+// 延遲重試：第一版用 CallAfter 立刻重排，實測 3 次都在載入的巢狀事件迴圈裡跑掉（21:26:02 log），板還是空的就放棄了。
+// 改 wxTimer 一次性 500 ms；timer 在自己的 handler 裡不能 delete，交給 CallAfter 收。
+static void ping_phototile_thumbnail_retry_later(GUI_App* app, const std::string& project_path, int retries_left)
+{
+    wxTimer* t = new wxTimer();
+    t->Bind(wxEVT_TIMER, [app, project_path, retries_left, t](wxTimerEvent&) {
+        app->CallAfter([t] { delete t; });
+        app->ping_phototile_write_plate_thumbnail(project_path, retries_left);
+    });
+    t->StartOnce(500);
+}
+
+void GUI_App::ping_phototile_write_plate_thumbnail(const std::string& project_path, int retries_left)
+{
+    if (plater() == nullptr || mainframe == nullptr)
+        return;
+    PartPlate* plate = plater()->get_partplate_list().get_plate(0);
+    bool same_project = false;
+    {
+        boost::system::error_code ec;
+        const boost::filesystem::path cur(into_u8(plater()->get_project_filename(".3mf")));
+        const boost::filesystem::path want(project_path);
+        same_project = !cur.empty() && boost::filesystem::exists(cur, ec) && boost::filesystem::exists(want, ec) &&
+                       boost::filesystem::equivalent(cur, want, ec) && !ec;
+    }
+    if (plate == nullptr || plate->empty() || !same_project) {
+        if (retries_left > 0) {
+            ping_phototile_thumbnail_retry_later(this, project_path, retries_left - 1);
+        } else {
+            BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: give up after retries: plate_empty=" << (plate == nullptr || plate->empty())
+                                       << " same_project=" << same_project << " cur=" << into_u8(plater()->get_project_filename(".3mf"))
+                                       << " want=" << project_path;
+        }
+        return;
+    }
+    plater()->update_all_plate_thumbnails(true);   // 與 Ctrl+S（export_3mf）同一條渲染路徑
+    if (!plate->thumbnail_data.is_valid()) {
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: render produced no data for " << project_path;
+        return;
+    }
+    if (bbs_3mf_add_plate_thumbnail(project_path.c_str(), plate->thumbnail_data)) {
+        mainframe->refresh_recent_project_thumbnail(wxString::FromUTF8(project_path));
+        BOOST_LOG_TRIVIAL(warning) << "PING plate thumbnail: written and recent-list refreshed: " << project_path;   // warning 等級＝log 預設等級看得到
+    }
+}
+
+/* 照片磚機型的安裝（**2026-09-07 Eric 裁 #99 Q3 甲後重寫**）。
+
+   ▍原本是什麼、為什麼砍掉
+   原本是 `ping_install_photo_tile_printers()`：一進工作室就掃全部 system preset，把
+   `printer_model` 含「同進照片磚」的**整組裝上**（FD300×2＋FF600×3＋FF800×3＝3 個機型 8 個
+   口徑變體）。出發點是 Eric 2026-08-07 的「不要等到匯出才說找不到機型」，但代價就是回報中心
+   **#99**：只有 FD300 的人也會被塞進 FF600／FF800 兩台永遠用不到的機器。
+   🔴 而且**弄不掉**——選機精靈是整組覆蓋（`GuideFrame::apply_config` → `set_vendors`），
+   取消勾選是真的移除，但下次一開工作室這裡又會判「未安裝」而裝回去，中間沒有任何訊息。
+   （舊註解寫「使用者自己取消勾選的情形也不強制裝回」，與 `AppConfig::set_variant(false)`
+   會 erase 的實際行為不符，是錯的。）
+
+   ▍現在是什麼
+   照片磚機**已從「選擇 3D 列印機」整批移除**（`resources/web/guide/21|24` 的
+   `PingIsPhotoTileModel`）——它不是使用者要挑的機器，是照片磚功能的內部載體
+   （64 個虛擬料槽＋零回抽）。所以這裡改成**只在要切過去的那一刻、只裝那一台**。
+   Eric 2026-08-07「不要等到匯出才說找不到機型」那條沒有被丟掉，換成了進門的
+   `ping_photo_tile_entry_block_reason()`：機型做不到就在**進門當下**講，而不是做完一整張磚
+   才講。 */
+
+// 只裝一台（`preset_name` ＝ 解析器挑出來的目標機）。回傳 true＝這次真的新裝了。
+static bool ping_install_photo_tile_printer(const std::string& preset_name)
+{
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    AppConfig*    config = wxGetApp().app_config;
+    if (bundle == nullptr || config == nullptr || preset_name.empty())
+        return false;
+
+    const Preset* preset = bundle->printers.find_preset(preset_name, false);
+    if (preset == nullptr || !preset->is_system || preset->vendor == nullptr)
+        return false;
+    const ConfigOptionString* pm = preset->config.option<ConfigOptionString>("printer_model");
+    const ConfigOptionString* pv = preset->config.option<ConfigOptionString>("printer_variant");
+    if (pm == nullptr || pv == nullptr || pm->value.empty() || pv->value.empty())
+        return false;
+    if (config->get_variant(preset->vendor->id, pm->value, pv->value))
+        return false;                       // 已裝＝什麼都不要動（含使用者自己勾的情形）
+
+    config->set_variant(preset->vendor->id, pm->value, pv->value, true);
+    bundle->load_installed_printers(*config);
+    config->save();
+    BOOST_LOG_TRIVIAL(info) << "Photo tile: installed printer on demand: " << preset_name;
+    return true;
+}
+
+/* 這台機的**家族**有沒有任何照片磚機。進門當下還不知道口徑與 dual/quad
+   （那要等工作室回報），所以只問到家族這一層——口徑對不上的情形仍由匯出時的解析器
+   誠實回報（「找不到符合這個模式與口徑的…」）。 */
+static bool ping_family_has_photo_tile_printer(const std::string& family)
+{
+    if (family.empty())
+        return false;
+    PresetBundle* bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr)
+        return false;
+    for (const Preset& preset : bundle->printers) {
+        if (!preset.is_system)
+            continue;
+        const PhotoTileCapability cap = photo_tile_capability_of(preset);
+        if (cap.is_photo_tile && cap.family == family)
+            return true;
+    }
+    return false;
+}
+
+/* 進門守門（Eric 2026-09-07 裁 #99 Q2 乙）：**入口保持可點，點下去給一個有出口的指引**。
+   回傳空字串＝這台機做得到，直接進工作室；非空＝擋下來的理由（給對話框顯示）。
+   為什麼是「說明」不是「藏起來」：入口神秘地不存在，是最難問出口的一種壞掉。
+   ⚠ 上方列那顆鈕只在同進機顯示，但**拖圖片直入**這條路任何機型都走得到 ⇒ 守門要放在這裡
+     （兩條路都經過 open_photo_tile()），不能只靠鈕的顯示條件。 */
+static std::string ping_photo_tile_entry_block_reason()
+{
+    const PhotoTileCapability cap = photo_tile_capability_of_selected_printer();
+    const std::string model = cap.printer_model.empty() ? std::string("（未知）") : cap.printer_model;
+
+    if (cap.is_classic)
+        return "「" + model + "」是 Classic 前代機型，韌體不支援照片磚。\n\n"
+               "照片磚是靠 M6051／M6052 這組逐段混色指令印出來的，前代韌體沒有這組指令"
+               "（前代的 M6050 只能整支設一個固定混色比例，做不出一張圖需要的逐段變化）。";
+    if (!cap.is_mixing)
+        return "照片磚需要「同進」機型才印得出來（兩料或四料同時進同一個噴頭，靠混色比例做出色階）。\n\n"
+               "你目前選的是「" + model + "」。";
+    if (!ping_family_has_photo_tile_printer(cap.family))
+        return "「" + model + "」目前還沒有對應的照片磚機型。\n\n"
+               "照片磚現在支援 FD300（雙料）與 FF600／FF800（四料）。"
+               "它需要一組專屬設定（64 個虛擬料槽＋零回抽），不是換個參數就能用同一台機器跑。";
+    return std::string();
+}
+
 void GUI_App::open_photo_tile(const wxString& image_path)
 {
     if (!mainframe || !mainframe->m_webview)
         return;
 
-    // 進門就先把照片磚機型補裝好（Eric 2026-08-07）——不要等到匯出才說「找不到機型」。
-    // 掛在 open_photo_tile() 而不是某個 web 指令：首頁入口與「拖圖片進來」兩條路都走這裡。
-    const PingPhotoTileInstallResult installed = ping_install_photo_tile_printers();
-    if (installed.variants > 0) {
-        BOOST_LOG_TRIVIAL(info) << "Photo tile: auto-installed " << installed.variants
-                                << " printer variant(s) across " << installed.models << " model(s)";
-        // 系統代替使用者做了事就要說（否則他會發現印表機清單莫名多出幾台，不知道哪來的）
-        if (Tab* printer_tab = get_tab(Preset::TYPE_PRINTER))
-            printer_tab->update_tab_ui();
-        if (plater() != nullptr) {
-            plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
-            plater()->get_notification_manager()->push_notification(
-                NotificationType::CustomNotification,
-                NotificationManager::NotificationLevel::RegularNotificationLevel,
-                std::string("照片磚：已自動加入 ") + std::to_string(installed.models) +
-                    " 種同進照片磚機型（共 " + std::to_string(installed.variants) +
-                    " 個口徑）到你的印表機清單——照片磚需要它們才切得了片。");
+    /* #99 Q2 乙：做不到就在**進門當下**說，並給兩個出口（去選機／還是先進去看看）——
+       不要讓人做完一整張磚，到上盤那一步才知道沒有機器可以放。 */
+    const std::string block_reason = ping_photo_tile_entry_block_reason();
+    if (!block_reason.empty()) {
+        BOOST_LOG_TRIVIAL(info) << "Photo tile: entry guidance shown: " << block_reason;
+        MessageDialog dlg(mainframe,
+                          wxString::FromUTF8(block_reason + "\n\n"
+                              "你可以先到「選擇 3D 列印機」把機型加進來，或直接用左上角的印表機下拉切換。"),
+                          wxString::FromUTF8("照片磚"),
+                          wxOK | wxCANCEL | wxICON_INFORMATION);
+        dlg.SetButtonLabel(wxID_OK, wxString::FromUTF8("開啟「選擇 3D 列印機」"));
+        dlg.SetButtonLabel(wxID_CANCEL, wxString::FromUTF8("還是先進去看看"));
+        if (dlg.ShowModal() == wxID_OK) {
+            CallAfter([this] { run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS); });
+            return;                         // 去換機型＝這次不進工作室
         }
+        // 選「先進去看看」＝照樣開（入口保持可點），只是他已經知道最後會卡在哪。
     }
+
+    /* PING(2026-09-09，Eric「如果這是設計上的問題，那是否不要去清除它呢？」)：**沒帶新圖＝續用工作室**。
+       實錄：產生→回列印板→按側欄「照片磚」要改圈數，圖與設定全沒了——因為這裡把來源清掉、
+       WebViewPanel::ShowPhotoTile 又把頁面重載。續用時：不取消現役 job、不清來源／風格化／AI 紀錄、
+       不刪記帳暫存、頁面不重載（見 ShowPhotoTile）。真的換圖（帶路徑進來，或頁內開檔／貼上走
+       phototile_image_*）才照原規則作廢舊圖。已知邊界：中途去過首頁＝頁面已被頂掉，還是會空（要救得靠從 3MF 讀回，另案）。 */
+    const bool resume_studio = image_path.IsEmpty();
+    if (resume_studio)
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：續用（沒帶新圖，不清狀態、不重載）source=" << m_photo_tile_source_path;
+
+    /* 覆審 I-3（配套）：進工作室（含拖圖直入）＝任何現役生成作廢——同 phototile_home，
+       遲到的結果不得上盤。（續用時不作廢：頁面還在顯示它的進度。） */
+    if (!resume_studio && !m_photo_tile_active_job.empty()) {
+        const std::string leaving = m_photo_tile_active_job;
+        m_photo_tile_active_job.clear();
+        if (m_photo_tile_host)
+            m_photo_tile_host->cancel(leaving);
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：重新進入，取消現役 job=" << leaving;
+    }
+
+    /* C-2 接線設計（0804）：C++ 端持有「目前這張圖」的路徑。有路徑的入口（拖放/開檔）
+       記在這裡；頁內選檔/貼上由 phototile_image_begin|chunk|end 落暫存檔後更新。
+       空路徑入口（首頁按鈕）＝清掉——避免舊圖殘留造成「預覽是新圖、生成用舊圖」。 */
+    if (!resume_studio) {                       // PING 0909：續用不清（見上）
+    m_photo_tile_source_path = into_u8(image_path);
+    m_photo_tile_origin_path.clear();          // 甲案：同上，換圖即作廢風格化原圖記錄
+    m_photo_tile_ai_path.clear();              // 另存 AI 圖：同上
+
+    /* 覆審 I-7（記帳制順手清，🟡「覆蓋不刪」）：來源已改指別處＝記帳那顆暫存檔沒人用了。
+       只刪自己記過帳的；上面剛清掉 active（真實路徑永不入帳＝這裡刪不到使用者的檔）。 */
+    if (!m_photo_tile_owned_temp.empty() && m_photo_tile_owned_temp != m_photo_tile_source_path) {
+        try { boost::filesystem::remove(boost::filesystem::path(m_photo_tile_owned_temp)); }
+        catch (...) {}
+        m_photo_tile_owned_temp.clear();
+    }
+    }
+
+    /* C-2 第 3 項 W3：進工作室＝立即預熱。使用者已經打開照片磚工作室＝比「選中照片磚機」
+       更強的意圖訊號（而且這條路接住「app 一開就拖照片」——W1 的 15 秒還沒到）。
+       不設機型條件：工作室本來就能在非照片磚機上用（上盤時 resolver 會自動切機）。
+       非阻塞：引擎建立全程非同步，頁面照常立刻顯示。 */
+    photo_tile_warmup_now("進入工作室");
 
     BOOST_LOG_TRIVIAL(info) << "Opening embedded photo tile studio";
     mainframe->select_tab(size_t(MainFrame::tpHome));
@@ -8763,6 +9542,452 @@ bool is_support_filament(int extruder_id, bool strict_check)
     if (support_option == nullptr) return false;
     return support_option->get_at(0);
 };
+
+// =====================================================================
+// C-2 第 1 項：工作室 → 隱形宿主（PhotoTileEngineHost）的接線（2026-08-04）
+// 頁面（resources/web/phototile/index.html）只送參數；影像來源、生成、進度、
+// 交付全在 C++。這四支＝這條鏈的全部接點；宣告在 GUI_App.hpp。
+// 執行緒：宿主 handler 一律在 UI 執行緒回呼（COM 回呼／CallAfter），這裡不需再 marshal。
+// =====================================================================
+
+void GUI_App::photo_tile_ensure_host()
+{
+    if (m_photo_tile_host)
+        return;
+
+    /* runtime 檢測：缺 WebView2 也照樣建宿主——generate 排隊後 start_engine 同步失敗
+       會走 fail_active_and_queued（覆審 I-1 才補上；先前這句註解描述的失敗路其實只存在
+       非 Windows stub）＝誠實回 engine_unavailable → result handler → 頁面顯示原因。
+       這裡的狀態推播是輔助：頁面 engineStatus 在生成中也會顯示原因（I-1 頁面半邊）。 */
+    const PhotoTileEngineHost::Availability avail = PhotoTileEngineHost::check_runtime();
+    if (!avail.available)
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.engineStatus && "
+            "window.PINGPhotoTile.engineStatus({status:\"unavailable\",detail:\"") +
+            ping_js_escape(avail.reason) + "\"});");
+
+    m_photo_tile_host.reset(new PhotoTileEngineHost());
+
+    /* 【C-2 第 2 項・一輪 #9】env 蓋章來源：納入 host API ⇒ 每個 generate 自動帶
+       「使用者按下產生那一刻」的環境快照，呼叫端忘不掉；上盤入口用同一支函式
+       取「此刻」再比對＝同一把尺。 */
+    m_photo_tile_host->set_current_env_provider([this]() { return photo_tile_current_env_json(); });
+
+    m_photo_tile_host->set_progress_handler([this](const std::string& job_id, const std::string& stage,
+                                                   const std::string& stage_label, double pct) {
+        if (job_id != m_photo_tile_active_job)
+            return;                                   // 舊 job 殘響：不回推
+        char pct_buf[32];
+        ::snprintf(pct_buf, sizeof(pct_buf), "%.4f", pct);
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobProgress && "
+            "window.PINGPhotoTile.jobProgress({jobId:\"") + ping_js_escape(job_id) +
+            "\",stage:\"" + ping_js_escape(stage) +
+            "\",stageLabel:\"" + ping_js_escape(stage_label) +
+            "\",pct:" + pct_buf + "});");
+    });
+
+    m_photo_tile_host->set_status_handler([this](const std::string& status, const std::string& detail) {
+        // 頁面拿來顯示 pct 還是 0 的階段說明（引擎啟動中/重建中/不可用）
+        photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.engineStatus && "
+            "window.PINGPhotoTile.engineStatus({status:\"") + ping_js_escape(status) +
+            "\",detail:\"" + ping_js_escape(detail) + "\"});");
+    });
+
+    m_photo_tile_host->set_result_handler([this](const PhotoTileEngineResult& r) {
+        if (r.job_id != m_photo_tile_active_job) {
+            /* 取消後遲到的結果／被 supersede 的舊 job／引擎未就緒期間排隊補跑完的：
+               一律丟棄（A 案：取消當下頁面已自行恢復、盤上舊磚不動）。 */
+            BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：丟棄非現役 job 的結果 " << r.job_id
+                                    << "（active=" << m_photo_tile_active_job << "）";
+            return;
+        }
+        const std::string mode   = m_photo_tile_active_mode;
+        const std::string nozzle = m_photo_tile_active_nozzle;
+        m_photo_tile_active_job.clear();
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：result 回推 job=" << r.job_id << ", ok=" << r.ok
+                                << (r.ok ? std::string() : ("，error=" + r.error_code));
+
+        if (!r.ok) {
+            photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(r.job_id) +
+                "\",ok:false,errorCode:\"" + ping_js_escape(r.error_code) +
+                "\",errorMessage:\"" + ping_js_escape(r.error_message) + "\"});");
+            return;
+        }
+
+        // 成功文案素材（零件數等）從引擎 result 訊息撈；撈不到就 0，頁面自動用簡版文案
+        int  parts = 0, extruders = 0;
+        bool pillar = false;
+        try {
+            std::stringstream result_ss(r.result_json);
+            pt::ptree t;
+            pt::read_json(result_ss, t);
+            parts     = t.get<int>("stats.parts", 0);
+            extruders = t.get<int>("stats.extruders", 0);
+            pillar    = t.get<bool>("stats.pillar", false);
+        } catch (...) {}
+
+        /* 覆審 I-2：上盤是非同步動作（CallAfter＋切片中可能拒載）——「✓ 已產生並載入
+           列印板」只准在上盤動作真的執行後說；寫檔失敗／切片中拒載誠實回錯誤，
+           不再有「頁面說成功、盤上停在上一顆磚」。 */
+        const std::string job_id  = r.job_id;
+        const int         wall_ms = r.wall_ms;
+        /* env＝引擎原封回傳的請求快照（#9 guard 用）；deliver 內同步取值複製，
+           不會留住這個指標。echo 掉了＝空字串＝guard fail-closed 誠實棄。 */
+        photo_tile_deliver_3mf(r.three_mf, mode, nozzle, &r.env_json,
+            [this, job_id, wall_ms, parts, extruders, pillar](bool ok, const std::string& err_code,
+                                                              const std::string& err_msg) {
+                if (!ok) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                        "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job_id) +
+                        "\",ok:false,errorCode:\"" + ping_js_escape(err_code) +
+                        "\",errorMessage:\"" + ping_js_escape(err_msg) + "\"});");
+                    return;
+                }
+                photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.jobResult && "
+                    "window.PINGPhotoTile.jobResult({jobId:\"") + ping_js_escape(job_id) +
+                    "\",ok:true,wallMs:" + std::to_string(wall_ms) +
+                    ",parts:" + std::to_string(parts) +
+                    ",extruders:" + std::to_string(extruders) +
+                    ",pillar:" + (pillar ? "true" : "false") + "});");
+            });
+    });
+}
+
+void GUI_App::photo_tile_shutdown_host()
+{
+    m_photo_tile_active_job.clear();
+    /* C-2 第 3 項：預熱 timer 跟宿主同生共死。先收 timer 再收宿主——否則收攤途中
+       到點的 tick 會把剛拆掉的宿主又建回來（本函式由 MainFrame 關窗與 OnExit 各呼叫
+       一次，中間主迴圈還活著＝timer 真的還會跳）。這裡不是在 Notify() 內，delete 安全。 */
+    m_photo_tile_warmup_fired = true;
+    if (m_photo_tile_warmup_timer) {
+        m_photo_tile_warmup_timer->Stop();
+        delete m_photo_tile_warmup_timer;
+        m_photo_tile_warmup_timer = nullptr;
+    }
+    if (!m_photo_tile_host)
+        return;
+    m_photo_tile_host->shutdown();
+    m_photo_tile_host.reset();
+}
+
+// =====================================================================
+// C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A・2026-08-04 落地）
+//
+// 要解的問題（C-1 閘門①實錄，不是臆測）：開 app 後第一次生成要 6,579ms、UI 漂移
+// 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額＝「建 WebView2 環境＋controller
+// ＋導頁」的冷啟動成本撞上 app 自己的初始化。它完全可以在使用者還沒動作的閒置期先付掉，
+// ⇒ 閘門① 的 startup 才有資格轉正（`smoke_gate1_nodelay_20260801.json` 的 productImplication）。
+//
+// 兩個點火點（**刻意只有兩個**）：
+//   W1 閒置預熱＝post_init 尾端排 timer，到點才判「選中的是不是照片磚機」（Eric 裁 A 的條件）。
+//   W3 進工作室＝`open_photo_tile()` 立即點火（使用者已經開了照片磚工作室＝比機型選擇
+//      更強的意圖訊號；也接住「app 一開就拖照片」那條 W1 還沒到點的動線）。
+//   W2（切換機型時預熱）**刻意不做**：它只多賺「切到照片磚機後、還沒進工作室」那段，
+//      而 W3 已經在進工作室當下就點火了；為它去改 preset 切換路徑（多個呼叫點、與別線共用）
+//      不划算。要補的話單獨一刀、單獨驗。
+//
+// 不點火的兩種情況（都要留 log，不可靜默）：
+//   ①閘門／守夜模式（`PING_PHOTOTILE_SMOKE` 有設）——各閘門自己建宿主並量測記憶體與漂移，
+//     多一顆長命宿主會污染數字；黃金基準也維持「閘門路徑零擾動」的保命索。
+//   ②kill switch `PING_PHOTOTILE_NO_WARMUP`——對照組（驗預熱有效必須跑的 A/B）與緊急關閉。
+// =====================================================================
+
+namespace {
+/* 自帶 Notify() 的 timer：預設建構的 wxTimer 不掛 owner、不走事件佇列，到點直接回呼。
+   **刻意不用 `wxTimer(this)`＋Bind**——GUI_App 既有那個 `Bind(wxEVT_TIMER, …)`
+   （on_start_subscribe_again，GUI_App.cpp:2654）沒有 id 過濾，共用 owner 會兩邊互收
+   對方的 tick（對方 handler 會去動 subscribe_counter）。 */
+class PingPhotoTileWarmupTimer : public wxTimer
+{
+public:
+    explicit PingPhotoTileWarmupTimer(std::function<void()> fn) : m_fn(std::move(fn)) {}
+    void Notify() override { if (m_fn) m_fn(); }
+private:
+    std::function<void()> m_fn;
+};
+
+// 預熱被關掉了嗎（回 true 並填 why）
+bool ping_photo_tile_warmup_disabled(std::string& why)
+{
+    if (::getenv("PING_PHOTOTILE_SMOKE") != nullptr)     { why = "閘門/守夜模式"; return true; }
+    if (::getenv("PING_PHOTOTILE_NO_WARMUP") != nullptr) { why = "kill switch PING_PHOTOTILE_NO_WARMUP"; return true; }
+    return false;
+}
+
+/* 延遲取值：預設 15 秒——這不是拍腦袋的數字，是 C-1 閘門①實證過的靜置點
+   （`PING_PHOTOTILE_SMOKE_DELAY_MS=15000` 那輪冷啟動漂移只剩 63ms＝那時 app 已經靜下來）。
+   `PING_PHOTOTILE_WARMUP_DELAY_MS` 可覆寫＝**驗證用**（不必為了看一次預熱等 15 秒）。 */
+int ping_photo_tile_warmup_delay_ms()
+{
+    if (const char* env = ::getenv("PING_PHOTOTILE_WARMUP_DELAY_MS")) {
+        const int v = ::atoi(env);
+        if (v >= 0)
+            return v;
+    }
+    return 15000;
+}
+
+const int PING_PHOTOTILE_WARMUP_DEFER_MS   = 10000;  // 切片中＝延後再問
+const int PING_PHOTOTILE_WARMUP_MAX_DEFERS = 3;      // 有上限＝不無限期空轉（放棄後仍有 W3）
+} // namespace
+
+void GUI_App::photo_tile_schedule_warmup(int delay_ms)
+{
+    if (m_photo_tile_warmup_fired || is_closing())
+        return;
+    if (delay_ms < 0)
+        delay_ms = ping_photo_tile_warmup_delay_ms();      // 預設 15 秒／env 覆寫（宣告處有說明）
+    std::string why;
+    if (ping_photo_tile_warmup_disabled(why)) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：不排程（" << why << "）";
+        m_photo_tile_warmup_fired = true;                 // 這個 app 生命週期內不再問
+        return;
+    }
+    if (!m_photo_tile_warmup_timer) {
+        m_photo_tile_warmup_timer = new PingPhotoTileWarmupTimer([this]() {
+            /* 判斷放在**到點時**而不是排程時：使用者可能在這段時間內換了機型。 */
+            if (m_photo_tile_warmup_fired || is_closing() || mainframe == nullptr)
+                return;
+            /* 切片中就別去搶 CPU／記憶體（引擎樹＝5 個 WebView2 行程）：延後重排。
+               有上限，用完就放棄——放棄不等於沒有預熱，進工作室那條路（W3）仍會點火。 */
+            Plater* p = plater();
+            if (p != nullptr && p->is_background_process_slicing() &&
+                m_photo_tile_warmup_defers < PING_PHOTOTILE_WARMUP_MAX_DEFERS) {
+                ++m_photo_tile_warmup_defers;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：切片中，延後 " << PING_PHOTOTILE_WARMUP_DEFER_MS
+                                        << "ms 再問（第 " << m_photo_tile_warmup_defers << " 次）";
+                /* ⚠ 重排走 CallAfter，**不在 Notify() 內直接 StartOnce**：一次性 timer 的
+                   Stop() 與 Notify() 的先後順序各 wx 版本／平台不一致，在自己的回呼裡重啟
+                   有機會被隨後的 Stop() 吃掉 ⇒ 延後這條路就此靜默死掉（而且不會有人發現，
+                   因為「沒預熱」看起來跟「還沒到點」一模一樣）。丟回事件圈就沒有這個疑慮。 */
+                CallAfter([this]() {
+                    if (m_photo_tile_warmup_fired || is_closing() || !m_photo_tile_warmup_timer)
+                        return;
+                    m_photo_tile_warmup_timer->StartOnce(PING_PHOTOTILE_WARMUP_DEFER_MS);
+                });
+                return;
+            }
+            /* Eric 0802 裁 A 的條件本體：**只有目前選中的機器是照片磚機才預建**。
+               不是照片磚機就不付那份記憶體（判定走 capability 單一來源，不自己比字串）。
+               沒中就不再重排——真的要用時 W3 會即時點火。 */
+            const PhotoTileCapability cap = photo_tile_capability_of_selected_printer();
+            if (!cap.is_photo_tile) {
+                m_photo_tile_warmup_fired = true;
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：跳過——目前機型不是照片磚機（preset="
+                                        << cap.preset_name << "）";
+                return;
+            }
+            photo_tile_warmup_now("閒置預熱・選中照片磚機 " + cap.preset_name);
+        });
+    }
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：排程 " << delay_ms << "ms 後判定點火（C-2 第 3 項）";
+    m_photo_tile_warmup_timer->StartOnce(delay_ms);
+}
+
+void GUI_App::photo_tile_warmup_now(const std::string& why)
+{
+    if (is_closing() || mainframe == nullptr)
+        return;
+    std::string disabled_why;
+    if (ping_photo_tile_warmup_disabled(disabled_why)) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：不點火（" << disabled_why << "）";
+        m_photo_tile_warmup_fired = true;
+        return;
+    }
+    if (m_photo_tile_warmup_timer)
+        m_photo_tile_warmup_timer->Stop();        // 已由這條路點火＝排程中那次不用再跑
+    m_photo_tile_warmup_fired = true;
+
+    photo_tile_ensure_host();
+    if (!m_photo_tile_host)
+        return;
+    if (m_photo_tile_host->is_ready()) {
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：引擎已就緒，無需點火（why=" << why << "）";
+        return;
+    }
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 預熱：點火（why=" << why
+                            << "）——第一次生成不必再等引擎冷啟動";
+    /* start() 冪等（狀態機設計約束 D）：Ready／建立中都直接回 true，不會建第二棵引擎樹。
+       同步失敗（runtime 缺、CreateEnv 立刻 FAILED）只是預熱沒成，**不回推頁面錯誤**——
+       使用者根本還沒要求生成，這時候彈原因是噪音；真的按下產生時 generate() 會誠實回報
+       （覆審 I-1 那條路）。宿主自己已把 stage/status 寫進 log，診斷追得到。 */
+    m_photo_tile_host->start();
+}
+
+void GUI_App::photo_tile_page_script(const std::string& js)
+{
+    /* webview 不在（app 收攤中、GUI 重建中）＝安靜跳過；每段腳本自帶
+       `window.PINGPhotoTile &&` 守門＝使用者已離開工作室頁時落在別頁也只是 no-op。 */
+    if (!mainframe || !mainframe->m_webview)
+        return;
+    mainframe->m_webview->RunScript(from_u8(js));
+}
+
+std::string GUI_App::photo_tile_current_env_json()
+{
+    /* 【C-2 第 2 項・一輪 #9】「此刻」的環境快照：只放覆審點名、會讓遲到結果變質的
+       兩樣——使用者選中的印表機 preset 與目前專案檔。生成期間使用者切機／開別的專案，
+       遲到的結果就不准再強行切機＋蓋盤。
+       刻意不放線材／盤面編輯狀態：上盤本來就整組切機（製程線材隨機型預設）；
+       未存檔的盤面編輯在 request_open_project 有既有「儲存變更？」對話框保護
+       （I-2 case b 判例＝使用者親眼決定，不算靜默）。欄位少而確定＝正常沒動的
+       生成不可能被誤判成過期（誤殺比漏殺更傷這條動線）。
+       取不到（收攤中）＝回空 ⇒ 蓋章端 log 提示、上盤端 fail-closed。 */
+    if (!preset_bundle || plater() == nullptr)
+        return std::string();
+    return "{" + jfield("printer", preset_bundle->printers.get_selected_preset_name()) +
+           "," + jfield("project", into_u8(plater()->get_project_filename())) + "}";
+}
+
+void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
+                                     const std::string& mode, const std::string& nozzle,
+                                     const std::string* result_env_json,
+                                     std::function<void(bool ok, const std::string& err_code,
+                                                        const std::string& err_msg)> done)
+{
+    /* 【C-2 第 2 項】env 紀律只適用引擎路徑（request 蓋章→引擎原封回傳）；指標當場
+       取值複製＝不留呼叫端的參考跨越 CallAfter。null＝舊 export 鏈豁免（見 .hpp）。 */
+    const bool        enforce_env = result_env_json != nullptr;
+    const std::string result_env  = enforce_env ? *result_env_json : std::string();
+    const boost::filesystem::path output_path = boost::filesystem::temp_directory_path() /
+        boost::filesystem::unique_path("PING_photo_tile_%%%%-%%%%-%%%%.3mf");
+    boost::nowide::ofstream output(output_path.string(), std::ios::binary);
+    if (!bytes.empty())
+        output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    output.close();
+    if (!output.good() || bytes.empty()) {
+        // 覆審 I-2：TEMP 滿／唯讀／防毒鎖檔不再靜默——回報 deliver_failed，盤上停在
+        // 上一顆磚是「已知失敗」不是「假成功」。
+        BOOST_LOG_TRIVIAL(warning) << "Unable to write generated photo tile 3MF: " << output_path.string();
+        if (done)
+            done(false, "deliver_failed",
+                 "產生結果無法寫入暫存檔（" + output_path.string() + "），請檢查磁碟空間與權限後再試。");
+        return;
+    }
+
+    const std::string project_path = output_path.string();
+    // 先切機再開檔（順序鐵律）：載入端會把線材槽縮成配方數，反序會被機器預設 64 槽蓋回。
+    const auto target = ping_resolve_photo_tile_printer(mode, nozzle);
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：3MF 落地 " << project_path
+                            << "，目標機型=" << (target.preset_name.empty() ? std::string("(不切機)") : target.preset_name);
+    CallAfter([this, project_path, target, done, enforce_env, result_env] {
+        /* 【原子上盤 guard・#9 的真正守門點（Eric 0801 裁）】比對與「切機＋開檔」在
+           同一個 UI 事件回呼內一氣呵成＝原子：比完到動手之間插不進任何使用者事件
+           （host 端結果交付與這裡之間隔著一次事件佇列，使用者點擊可能排在前面——
+           所以比對必須放這裡、不能放 result handler）。fail-closed：env 缺失＝視為
+           過期（「缺快照＝不得預設放行」既有規則）。放在 busy_slicing 之前：過期的
+           結果連「等等再載」都不該建議。 */
+        if (enforce_env) {
+            const std::string env_now = photo_tile_current_env_json();
+            if (!PhotoTileEngineHost::env_is_fresh(result_env, env_now)) {
+                BOOST_LOG_TRIVIAL(warning) << "PhotoTile 工作室：結果過期即棄（#9 原子上盤 guard）"
+                                           << " env(request)=" << (result_env.empty() ? "(空)" : result_env)
+                                           << " env(now)="     << (env_now.empty()    ? "(空)" : env_now);
+                if (done)
+                    done(false, "protocol_stale_env",
+                         "產生期間您已切換機器或專案，為避免蓋掉目前的工作，這片照片磚沒有自動載入"
+                         "（檔案保留在 " + project_path + "）。請回到照片磚頁再產生一次。");
+                return;
+            }
+            BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：env 新鮮，上盤放行（#9 guard）env=" << env_now;
+        }
+        /* 覆審 I-2：切片中 request_open_project 會拒載，但機型若先切就已被污染
+           （「跳提示、機型被切、盤上沒磚、頁面說成功」）⇒ 這裡整組擋下：不切機、
+           不開檔、誠實回報並附 3MF 路徑（檔案留著、不是孤兒）。 */
+        if (plater() != nullptr && plater()->is_background_process_slicing()) {
+            BOOST_LOG_TRIVIAL(warning) << "PhotoTile 工作室：切片進行中，暫不載入 " << project_path;
+            if (done)
+                done(false, "busy_slicing",
+                     "切片進行中，暫時無法載入照片磚。請等切片完成後再按一次產生（已生成的檔案在 " +
+                     project_path + "）。");
+            return;
+        }
+        if (!target.preset_name.empty()) {
+            /* #99 Q3 甲：照片磚機不在選機清單裡 ⇒ 切過去之前先把**這一台**裝上。
+               只裝要用的那一台（不是 0907 之前的整組八個變體），而且已裝就不動。 */
+            const bool just_installed = ping_install_photo_tile_printer(target.preset_name);
+            Tab* printer_tab = get_tab(Preset::TYPE_PRINTER);
+            if (printer_tab != nullptr && printer_tab->select_preset(target.preset_name) &&
+                plater() != nullptr) {
+                if (just_installed) {
+                    // 系統代替使用者做了事就要說（否則印表機清單莫名多一台，不知道哪來的）
+                    plater()->sidebar().update_presets(Preset::TYPE_PRINTER);
+                    printer_tab->update_tab_ui();
+                }
+                /* PING(2026-09-12，牌 c-0912-PTI-01)：下面那句「線材隨機型預設」原本只是通知文案，程式沒有真的套——
+                   Orca 切機時把不相容的舊料換成**同型別的 Generic**（Eric 0912 實錄：FD800 Pro＋PETG 切到
+                   FD300 同進照片磚 0.4 nozzle ⇒ 四槽 Generic PETG，並被記進該機的 orca_presets 從此固定）。
+                   這裡把「不相容、或屬別家 vendor（Generic 系）」的槽強制套回機型的 default_filament_profile；
+                   使用者刻意選的相容料（user preset 或另一支照片磚專用支）不動。 */
+                if (PresetBundle* bundle = preset_bundle) {
+                    const Preset& printer_now = bundle->printers.get_selected_preset();
+                    const auto*   dfp = printer_now.config.option<ConfigOptionStrings>("default_filament_profile");
+                    if (dfp != nullptr && !dfp->values.empty()) {
+                        int fixed = 0;
+                        for (size_t i = 0; i < bundle->filament_presets.size(); ++i) {
+                            const Preset* cur = bundle->filaments.find_preset(bundle->filament_presets[i], false);
+                            const bool foreign = cur != nullptr && cur->vendor != nullptr && cur->vendor != printer_now.vendor;
+                            if (cur != nullptr && cur->is_compatible && !foreign)
+                                continue;
+                            const std::string& want = dfp->values[std::min(i, dfp->values.size() - 1)];
+                            if (want == bundle->filament_presets[i] || bundle->filaments.find_preset(want, false) == nullptr)
+                                continue;
+                            bundle->set_filament_preset(i, want);
+                            ++fixed;
+                        }
+                        if (fixed > 0) {
+                            plater()->sidebar().update_presets(Preset::TYPE_FILAMENT);
+                            auto& combos = plater()->sidebar().combos_filament();
+                            for (size_t i = 0; i < combos.size(); ++i)
+                                combos[i]->update_ams_color();
+                            BOOST_LOG_TRIVIAL(info) << "PhotoTile 切機：" << fixed << " 槽不相容／Generic 線材已套回機型預設";
+                        }
+                    }
+                }
+                std::string note = std::string("照片磚：已自動切換機型「") + target.preset_name +
+                                   "」，製程與線材隨機型預設。";
+                if (just_installed)
+                    note += "（這台是照片磚專用機型，剛為你加入印表機清單。）";
+                if (target.cross_series)
+                    note += " ⚠ 你目前的機型沒有專屬的照片磚版本，這是同家族裡最接近的一台"
+                            "——列印範圍與起始 G-code 會以它為準，請確認尺寸放得下。";
+                plater()->get_notification_manager()->push_notification(
+                    NotificationType::CustomNotification,
+                    target.cross_series ? NotificationManager::NotificationLevel::ImportantNotificationLevel
+                                        : NotificationManager::NotificationLevel::RegularNotificationLevel,
+                    note);
+            }
+        } else if (target.known_mode && !target.already_selected) {
+            /* 【2026-08-15 A 案・Eric 裁】配不到「已加入」的照片磚機 ⇒ **誠實報錯、不載入**，
+               並保留 3MF 路徑（與 protocol_stale_env 同一種處置）。
+               修正前是「跳個警告通知、照樣載入」——3MF 會落在當前那台不對的機器上被錯誤切片，
+               而通知很容易被略過。寧可不載入，也不要靜默切錯機。
+               兩種原因分開講，因為使用者能做的事不同：
+                 ・有這台機但沒加入 → 去「選擇 3D 列印機 → 照片磚」加進來（做得到）
+                 ・根本沒有這個組合（例：雙料×1.0 口徑，FD 家族無 1.0 機）→ 換口徑或換模式 */
+            /* 🗑 2026-09-07（#99 Q3 甲）：原本這裡分兩種訊息，其中「有這台機但你還沒加入 ⇒
+               請到『選擇 3D 列印機 → 照片磚』把它加進來」那一支已經**刪掉**——照片磚分頁沒了，
+               那句話會把人送到一個不存在的地方。現在配不到就只有一種原因：這個模式×口徑
+               真的沒有對應機（例：雙料×1.0，FD 家族沒有 1.0 的照片磚機）。 */
+            const std::string msg =
+                std::string("找不到符合這個模式與口徑的同進照片磚機型，為避免切到錯的機器，"
+                            "這片照片磚沒有自動載入（檔案保留在 ") + project_path + "）。";
+            BOOST_LOG_TRIVIAL(warning)
+                << "PhotoTile 工作室：找不到對應的照片磚機型，不載入 " << project_path;
+            if (done)
+                done(false, "no_target_printer", msg);
+            return;
+        }
+        request_open_project(project_path);
+        // PING 0909 Q4-2 甲：載入排在上一個 CallAfter，這個排在它後面 ⇒ 板上有物件後才渲染縮圖寫回 3MF
+        CallAfter([this, project_path] { ping_phototile_write_plate_thumbnail(project_path, 20); });   // 20 × 500 ms（載入在巢狀迴圈裡，立刻重排會全部撲空）
+        // 覆審 I-2：成功回推排在上盤動作之後。未存變更提示按取消（case b）這層攔不到
+        // ——那是使用者親眼看著對話框做的決定，不算靜默失敗。
+        if (done)
+            done(true, std::string(), std::string());
+    });
+}
 
 } // GUI
 } //Slic3r

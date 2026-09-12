@@ -48,6 +48,30 @@ def fail(msg):
     return 1
 
 
+def check_unit_cost(root):
+    """C++ 的單價常數必須等於款式庫正本的 unitCostNtd.low。
+
+    為什麼要這條：頁面從 JSON 讀價、C++ 的金鑰對話框要顯示累計金額也需要價
+    ⇒ 同一個數字存在兩處。這是本檔開頭那個「改了一邊忘了另一邊、畫面不報錯只是安靜錯」
+    的同型風險，差別只在它錯的是**錢**。
+    """
+    hdr = root / "src" / "slic3r" / "Utils" / "PingAiImage.hpp"
+    if not hdr.exists():
+        return []                      # 還沒有丙案的線就不管這條
+    truth = json.loads(LIBJSON.read_text(encoding="utf-8"))
+    want = (truth.get("constants", {}).get("aiImage", {}).get("unitCostNtd", {}) or {}).get("low")
+    if want is None:
+        return ["款式庫正本缺 constants.aiImage.unitCostNtd.low"]
+    m = re.search(r"constexpr\s+double\s+UNIT_COST_NTD_LOW\s*=\s*([0-9.]+)\s*;",
+                  hdr.read_text(encoding="utf-8"))
+    if not m:
+        return ["PingAiImage.hpp 找不到 UNIT_COST_NTD_LOW"]
+    got = float(m.group(1))
+    if abs(got - float(want)) > 1e-9:
+        return ["單價不一致：JSON=%s／PingAiImage.hpp=%s（正本是 JSON）" % (want, got)]
+    return []
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--sync", action="store_true",
@@ -55,6 +79,8 @@ def main():
     args = ap.parse_args()
 
     bad = 0
+    for msg in check_unit_cost(REPO):
+        bad |= fail(msg)
     for p in (INDEX, LIBJSON):
         if not p.exists():
             return fail("找不到 %s" % p)

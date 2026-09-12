@@ -117,23 +117,32 @@ int build_photo_tile_gcode(const std::string& gcode,
                            const std::map<int, std::string>& palette,
                            std::string& out);
 
-// ── 回抽態的 SET_RETRACTION 一律延到 G11 之後（`#353` 丙；Eric 2026-09-09 裁，PM 交辦 x-0909-PM-01）──
+// ── 回抽態的 SET_RETRACTION／混色指令一律延到 G11 之後（`#353` 丙；Eric 2026-09-09 裁，PM 交辦 x-0909-PM-01）──
 // 機制：Klipper 上游 firmware_retraction 的 `SET_RETRACTION` 會把 is_retracted 清成 False，而 `G11` 只在 True 才回吐
 // ⇒ 夾在 G10..G11 之間的 SET_RETRACTION 會讓那一次 G11 整個落空（回抽的料沒回吐、下一段先補料才出料＝缺料）。
-// **判準只有一條：任何時刻 `SET_RETRACTION …` 不得出現在「G10 之後、下一個 G11 之前」。**
+// **判準：任何時刻 `SET_RETRACTION …`／`M6051 …`／`M6052 …` 都不得出現在「G10 之後、下一個 G11 之前」。**
+// 🔴 2026-09-10 擴充（Eric：「四料也出現像雙料一樣的回抽情況，請幫我調整安插指令的位置」）：混色指令一併納入。
+//    夾在 G10..G11 之間的 M605x ⇒ 換色發生在回抽態、G11 回吐的是舊配方的料；照片磚的 M605x 是掃 `;Z:` 層標記
+//    逐層插的，而換層標記正好落在回抽區間裡 ⇒ **每層都中**。循環洗料塔 0910 起最淺段逐圈回抽，段交界同樣會中。
+// ⚠ **`M6050` 刻意不納入**：Classic 前代拿 `M6050 S1 P0` 當換刀指令用（0729 裁），把換刀延到回吐之後
+//    ＝回吐的料從錯的通道出去。照片磚雙料走 M6051、四料走 M6052，只收這兩個就夠。
 // 這一支是**全檔後處理、與是不是照片磚無關**——照片磚換色、雙料 T 換料、3in1 都走同一條規則
 //（2026-09-08 只修了照片磚那半，見 commit 846e974c89；本次擴到全部並修掉它的兩個毛病）。
 // 兩個容易寫錯的地方（Codex gpt-6-astra 2026-09-09 對抗審抓到的）：
 //   ① 暫存要**保序全部吐出**，不是「同段只留最後一行」——先改長度、再單獨改速度時，只留最後一行會把長度丟掉。
 //   ② 檔尾／取消點仍在回抽態（沒有後續 G11）時**必須丟棄**、不得在檔尾吐出——那等於在回抽態重發，違反判準本身；
 //      改成留一行註解 `; PING: SET_RETRACTION deferred but no G11 followed (dropped)` 供日後統計。
-// 其他行（SET_PRESSURE_ADVANCE／M104／M6051…）一律不動。天然冪等：跑完就沒有 SET_RETRACTION 落在 G10..G11 之間。
+// 其他行（SET_PRESSURE_ADVANCE／M104／M6050…）一律不動。天然冪等：跑完就沒有受管指令落在 G10..G11 之間。
+// 檔尾／取消點仍在回抽態時兩類處置**不同**：SET_RETRACTION 丟棄（見②），M605x 照樣吐出——它不碰 is_retracted
+// 旗標（丟棄的理由不成立），而取消點之後若還有列印，丟掉會讓後面整段用錯配方。
 struct DeferSetRetractionStats {
-    int deferred = 0;   // 被延後（改吐在 G11 之後）的行數
-    int dropped  = 0;   // 檔尾／取消點仍在回抽態而丟棄的行數
+    int deferred     = 0;   // 被延後（改吐在 G11 之後）的 SET_RETRACTION 行數
+    int deferred_mix = 0;   // 被延後的混色指令（M6051／M6052）行數
+    int dropped      = 0;   // 檔尾／取消點仍在回抽態而丟棄的 SET_RETRACTION 行數
 };
-// 回傳＝延後的行數（＝stats.deferred）。gcode 原樣進 out 時回 0。
-int defer_set_retraction(const std::string& gcode, std::string& out, DeferSetRetractionStats* stats = nullptr);
+// 回傳＝延後的總行數（＝stats.deferred + stats.deferred_mix）。gcode 原樣進 out 時回 0。
+// （0909 `#353` 丙時本支叫 `defer_set_retraction`；0910 判準擴到混色指令後改今名，舊名只出現在歷史紀錄裡。）
+int defer_in_retract_state(const std::string& gcode, std::string& out, DeferSetRetractionStats* stats = nullptr);
 
 // —— 配方序列化（AppConfig 持久化用；純文字緊湊格式，非 JSON）——
 // 雙料 "linear;0:0.5,1:0.5"、四料 "smooth;0:0.25|0.25|0.25|0.25,..."（分號前=mode）

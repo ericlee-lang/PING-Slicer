@@ -133,6 +133,12 @@ public:
     Http& form_add_file(const std::wstring& name, const boost::filesystem::path& path, boost::filesystem::ifstream::off_type offset = 0, size_t length = 0);
 	// Same as above except also override the file's filename with a custom one
 	Http& form_add_file(const std::string &name, const boost::filesystem::path &path, const std::string &filename, boost::filesystem::ifstream::off_type offset = 0, size_t length = 0);
+	/* Same as above but with an explicit MIME type for the part.
+	   ⚠ 既有的 form_add_file 把 part 的 Content-Type 寫死成 application/octet-stream。
+	     多數 API 不在意，但**以 part 的 MIME 型別判斷檔案格式的 API 會擋**
+	     （PING 用例＝OpenAI /v1/images/edits，需要 image/png｜image/jpeg｜image/webp）。
+	     本多載只是把型別開放給呼叫端；**既有多載行為一個位元組都沒動**。 */
+	Http& form_add_file_typed(const std::string &name, const boost::filesystem::path &path, const std::string &filename, const std::string &content_type);
 
 #ifdef WIN32
 	// Tells libcurl to ignore certificate revocation checks in case of missing or offline distribution points for those SSL backends where such behavior is present.

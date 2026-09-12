@@ -1,6 +1,7 @@
 #ifndef slic3r_GUI_App_hpp_
 #define slic3r_GUI_App_hpp_
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,6 +48,7 @@ class wxMenuBar;
 class wxTopLevelWindow;
 class wxDataViewCtrl;
 class wxBookCtrlBase;
+class wxTimer;              // C-2 第 3 項：閒置預熱用（實體是 .cpp 裡自帶 Notify() 的子類）
 // BBS
 class Notebook;
 struct wxLanguageInfo;
@@ -222,6 +224,8 @@ public:
     }
 };
 
+class PhotoTileEngineHost;   // C-2：照片磚隱形宿主（定義在 PhotoTileEngineHost.hpp，只在 .cpp 引入）
+
 class GUI_App : public wxApp
 {
 public:
@@ -252,6 +256,56 @@ private:
     size_t          m_step_repair_export_next_chunk{ 0 };
     bool            m_step_repair_export_active{ false };
     std::string     m_step_repair_suggested_name;
+    /* ── C-2 第 1 項：工作室接隱形宿主（2026-08-04） ─────────────────────────
+       生成從「工作室頁自己建 3MF」改成「頁面只送參數、C++ 驅動 PhotoTileEngineHost」。
+       這個宿主**刻意做成長命的**（不是每次生成 new 一顆）——它同時是 C-2 第 3 項
+       「閒置預熱」要掛的那個擁有者（Eric 0802 裁 A），現在先讓它存在、預熱下一刀再接。
+       ⚠ 生命週期：只在 UI 執行緒建立／拆除；shutdown() 由 GUI_App 結束時呼叫。 */
+    std::unique_ptr<PhotoTileEngineHost> m_photo_tile_host;
+    std::string     m_photo_tile_active_job;      // 進行中的 jobId（空＝閒置；取消時清空⇒遲到的結果一律丟）
+    // generate 當下記住 mode/nozzle：result 交付時 photo_tile_deliver_3mf 切機要用。
+    // nozzle 存字串形態（"0.4"/"0.6"/"1.0"）＝與 printer_variant 比對同格式，避免 1.0→"1" 的格式化陷阱。
+    std::string     m_photo_tile_active_mode;
+    std::string     m_photo_tile_active_nozzle;
+    std::string     m_photo_tile_source_path;     // 「目前這張圖」的檔案路徑（宿主自己讀）
+    // 頁面內選檔／貼上的圖沒有路徑 ⇒ 頁面把 bytes 回送，這裡落成暫存檔（見 handoff 接線設計）
+    std::vector<unsigned char> m_photo_tile_image_buffer;
+    size_t          m_photo_tile_image_expected_size{ 0 };
+    size_t          m_photo_tile_image_expected_chunks{ 0 };
+    size_t          m_photo_tile_image_next_chunk{ 0 };
+    bool            m_photo_tile_image_active{ false };
+    std::string     m_photo_tile_image_mime;
+    /* 暫存檔記帳（覆審 I-7）：只在「自己寫暫存檔成功」那一刻設值＝我們擁有、可刪的唯一
+       一顆。刪舊來源只刪記過帳的，**絕不憑檔名長相刪**——substring 比對會誤刪使用者
+       留存的真實照片（拖放／開檔進來的真實路徑永遠不寫進這個成員）。空＝沒有待清的。 */
+    std::string     m_photo_tile_owned_temp;
+    /* 甲案（c-0822-PT-06）：目前這一次風格化的 jobId。
+       用途只有一個——**後發蓋先發**：使用者連點款式時只認最後一次，
+       舊 job 的結果從背景執行緒回來會被比對丟掉。不做這件事會出現
+       「畫面已經是新款式、圖卻換成上一款」那種靜默錯配。空＝沒有進行中的風格化。 */
+    std::string     m_photo_tile_style_job;
+    /* 甲案：**風格化之前**的那張圖。風格化會把 m_photo_tile_source_path 換成結果，
+       所以要另外記著原圖——否則第二次風格化（例如使用者改了料色）會拿已經風格化過的
+       圖再跑一次，色塊越滾越大。換圖時作廢。空＝目前的來源就是原圖。 */
+    std::string     m_photo_tile_origin_path;
+    /* 丙案（P3「丑」）：目前這一次 AI 生圖的 jobId。與甲案的 style_job 同一個用途
+       （後發蓋先發），但**刻意分開兩個成員**——兩者可以先後發生（先 AI 生圖、再本地風格化），
+       共用一個會讓後發的那件把前一件的回送誤判成自己的。空＝沒有進行中的生圖。 */
+    std::string     m_photo_tile_ai_job;
+    /* 另存 AI 圖（Eric 2026-09-03 裁①，存**壓平前**那張）：最後一次生圖成功的暫存檔路徑。
+       壓平會把 source 換成壓平圖，但這個記錄不動 ⇒ 壓平後仍存得到真正花錢拿到的那張。
+       換照片即作廢（與 origin_path 同步清）。空＝本張照片還沒生過圖。 */
+    std::string     m_photo_tile_ai_path;
+    /* ── C-2 第 3 項：閒置預熱（Eric 2026-08-02 裁 A） ───────────────────────────
+       C-1 閘門①實錄：「app 一開就拖照片」＝引擎冷啟動撞 app 初始化 ⇒ 首輪 6,579ms、
+       UI 漂移 4,503ms；同一顆引擎穩態只要 900ms／漂移 17ms。差額全在「建 WebView2 環境
+       ＋controller＋導頁」那 0.5~5 秒，而它可以在使用者還沒動作時先付掉。
+       ⚠ 這個 timer **刻意不掛 GUI_App 當 owner**：GUI_App 既有的 `Bind(wxEVT_TIMER, …)`
+       （on_start_subscribe_again）沒有 id 過濾，共用 owner 會互相收到對方的 tick
+       （對方 handler 會去動 subscribe_counter）。改用自帶 Notify() 的 wxTimer 子類＝零事件交叉。 */
+    wxTimer*        m_photo_tile_warmup_timer{ nullptr };
+    bool            m_photo_tile_warmup_fired{ false };  // 已點過火（或已判定不點）＝不再排程
+    int             m_photo_tile_warmup_defers{ 0 };     // 因切片中而延後的次數（有上限，見 .cpp）
 #ifdef __linux__
     bool            m_opengl_initialized{ false };
 #endif
@@ -493,6 +547,35 @@ public:
     bool            open_step_repair();
     void            step_repair_page_result(bool ok, const std::string& message,
                                             const std::string& path = std::string());
+    // ── C-2 第 1 項：工作室→隱形宿主的生成路徑（實作在 GUI_App.cpp 檔尾） ──
+    void            photo_tile_ensure_host();                       // 建立長命宿主（含 runtime 檢測）
+    void            photo_tile_shutdown_host();                     // app 收攤時收乾淨
+    // ── C-2 第 3 項：閒置預熱（Eric 0802 裁 A）──
+    // schedule＝排一次性 timer（app 初始化完才排，讓引擎冷啟動落在閒置期而非撞 app init）；
+    // now＝真的點火（守門：閘門模式／kill switch／收攤中一律不點）。兩支都冪等。
+    void            photo_tile_schedule_warmup(int delay_ms = -1);  // -1＝預設 15 秒（env 可覆寫）
+    void            photo_tile_warmup_now(const std::string& why);
+    void            photo_tile_page_script(const std::string& js);  // 回推頁面（webview 不在就安靜跳過）
+    // 生成完成後的落地：寫暫存 3MF →（照舊）先切機再開檔。與舊 export_end 走同一條路。
+    // done（覆審 I-2）：上盤是非同步動作＝完成/失敗由它回報——寫檔失敗 deliver_failed、
+    // 切片中拒載 busy_slicing、真的執行了才 ok。空＝呼叫端不關心（舊 export 鏈）。
+    // result_env_json（C-2 第 2 項・一輪 #9 原子上盤 guard）：非 null＝engine 路徑，上盤前
+    // 與「此刻」env 比對、過期即棄（fail-closed：echo 掉了也棄）；null＝該鏈無 env 協定
+    // （舊 export 鏈，使用者同步操作）。**刻意不給預設值**：每個呼叫端必須表態，
+    // 「忘了帶」正是 #9 點名的破口。
+    void            photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
+                                           const std::string& mode, const std::string& nozzle,
+                                           const std::string* result_env_json,
+                                           std::function<void(bool ok, const std::string& err_code,
+                                                              const std::string& err_msg)> done = nullptr);
+    // PING(2026-09-09，牌 c-0909-TH-01，Eric 裁 Q4-2 甲)：工作室 3MF 載入完成後，用 Ctrl+S 同一條渲染路徑
+    // （Plater::update_all_plate_thumbnails）產列印板 3D 縮圖、補進該 3MF 的 Metadata/plate_1.png，再刷新首頁
+    // 「最近打開」那一格。載入走 CallAfter 非同步 ⇒ 板上還沒物件、或使用者已開別的檔就再排一次（最多 retries_left 次），
+    // 永不寫空板縮圖（寫進去就換不掉）。
+    void            ping_phototile_write_plate_thumbnail(const std::string& project_path, int retries_left);
+    // 【C-2 第 2 項】「此刻」的環境快照 JSON（printer preset 名＋專案檔名）；
+    // 蓋章（host provider）與上盤 guard 兩端共用同一支＝同一把尺。
+    std::string     photo_tile_current_env_json();
     void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);

@@ -4,8 +4,13 @@
 #include "slic3r/GUI/wxExtensions.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/PhotoTileCapability.hpp"
+#include <sstream>
+#include "slic3r/GUI/Widgets/WebView.hpp"
+#include "libslic3r/PresetBundle.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
+#include "../Utils/PingAiImage.hpp"   // 丙案：只用它的 available()（問有沒有金鑰，不取明文）
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -290,6 +295,20 @@ void WebViewPanel::ShowPhotoTile(const wxString& image_path)
 {
     m_pending_photo_tile_image = image_path;
     wxString url = photo_tile_url();
+    /* PING(2026-09-09，Eric「不要去清除它」)：頁面已經停在工作室、又沒有新圖 ⇒ **不重載**——
+       圖／尺寸／色階／圈數原地保留（回列印板時頁面只是被藏起來）。只補送一次機型料數與 AI 可用性
+       （使用者可能在列印板換了機器；頁面的 setMachineCapability 料數沒變時只重畫款式清單，不動使用者設定）。
+       有新圖、或頁面在別處（首頁／STEP 修補）才真的載入。 */
+    // ⚠ 不能拿字串相等比：WebView2 回報的 URL 是正規化過的（file:///D:/… 三斜線、正斜線），photo_tile_url() 組出來的是
+    //   file://D:\…（反斜線）——第一版這樣比永遠不等 ⇒ 每次都重載（21:35 實測）。改用與 OnNavigationRequest 同法的 Contains。
+    if (image_path.IsEmpty() && m_browser != nullptr &&
+        m_browser->GetCurrentURL().Contains("/web/phototile/index.html")) {
+        m_pending_photo_tile_image.clear();
+        SendPhotoTileMachineCapability();
+        SendPhotoTileAiAvailability();
+        BOOST_LOG_TRIVIAL(info) << "PhotoTile: studio page kept alive (no reload)";
+        return;
+    }
     load_url(url);
 }
 
@@ -312,6 +331,82 @@ bool WebViewPanel::IsStepRepairPage() const
     const wxString current  = m_browser->GetCurrentURL().BeforeFirst('?');
     const wxString expected = step_repair_url().BeforeFirst('?');
     return !expected.IsEmpty() && current.IsSameAs(expected, false);
+}
+
+/* 【2026-08-15・Eric 裁 A 案；判準已於 2026-09-07 被 #99 Q3 甲取代，見下】
+   把「照片磚機有沒有這個模式」告訴工作室頁面，讓四色按鈕在做不到四料時擋得住。
+   頁面端先擋，使用者才不會白做一輪（匯出時才擋＝做完之後才擋）。
+   fail-open：這支沒被呼叫（舊頁面）⇒ 頁面 machineCap 維持 null ⇒ 不擋、行為照舊。
+
+   🔴 **2026-09-08 修回歸**：原本這裡跟 resolver 一樣用 `is_visible`（＝使用者已加入）。
+   #99 Q3 甲把照片磚機從「選擇 3D 列印機」整批移除、改成匯出時才按需安裝之後，
+   **進工作室當下一台都還沒安裝** ⇒ `hasQuad` 恆為 false ⇒ **四色永遠鎖著**。
+   實錄：Eric 2026-09-08 選了 FF600 同進進工作室，四色是鎖的；查他的 conf，
+   已安裝機型只有 6 台、照片磚機 0 台——舊版是「進門整組自動裝」才讓它看起來一直是解鎖的。
+   ⇒ 判準改成 `is_system`，與 `ping_resolve_photo_tile_printer()` 同步
+   （那支已在 0907 改掉，**這一處是同一個假設的第二個落點、當時漏掉**）。
+   語意也跟著正確了：這個閘門要回答的是「這台機做不做得到四色」，
+   不是「使用者有沒有把它加進清單」——後者在新設計裡已經不是使用者的事。 */
+void WebViewPanel::SendPhotoTileMachineCapability()
+{
+    bool has_dual = false, has_quad = false;
+    if (PresetBundle* bundle = wxGetApp().preset_bundle) {
+        for (const Preset& preset : bundle->printers) {
+            if (!preset.is_system)          // 見上：不再要求「已加入」，照片磚機是按需安裝的
+                continue;
+            const PhotoTileCapability cap = photo_tile_capability_of(preset);
+            if (!cap.is_photo_tile)
+                continue;
+            if (cap.mode == "dual")
+                has_dual = true;
+            else if (cap.mode == "quad")
+                has_quad = true;
+        }
+    }
+    /* 2026-09-08（Eric：「點四料的同進進到工作室時，應該只讓我選擇四色；雙料的同進只讓我選雙料，或不需要讓我選擇，
+       下方的模板也跟著改變」→ 裁甲案＝不讓選）：多送「進工作室當下選中的機器」的模式與型號，
+       頁面照它定料數、把雙料／四色切換鈕換成固定標籤、款式只列該料數。
+       非同進機（mode 空）送 null ⇒ 頁面維持切換鈕（fail-open，與 hasDual／hasQuad 同一精神；舊頁面也不受影響）。
+       判定走 photo_tile_capability_of_selected_printer()（與匯出時 ping_resolve_photo_tile_printer 同一支），不自己比字串。 */
+    const PhotoTileCapability cur = photo_tile_capability_of_selected_printer();
+    auto json_str = [](const std::string& v) {
+        std::string out = "\"";
+        for (char ch : v) {
+            if (ch == '\n' || ch == '\r') continue;
+            if (ch == '"' || ch == '\\') out += '\\';
+            out += ch;
+        }
+        return out + "\"";
+    };
+    const std::string cur_mode_json  = cur.mode.empty() ? std::string("null") : json_str(cur.mode);
+    const std::string cur_model_json = cur.mode.empty() ? std::string("null")
+                                     : json_str(cur.printer_model.empty() ? cur.preset_name : cur.printer_model);
+    /* 2026-09-08（Eric：「四料照片磚的口徑可否依照機器選擇的口徑自動變化？」）：一併送進工作室當下機器的噴嘴。
+       為什麼要跟：匯出時 ping_resolve_photo_tile_printer() 用「printer_variant == 頁面口徑」挑照片磚機，
+       頁面口徑沒跟機器走 ⇒ 0.6 的機會被切成 0.4 的照片磚機。nozzle_mm 讀 nozzle_diameter[0]（非同進機也有值）。 */
+    std::string cur_nozzle_json = "null";
+    if (cur.nozzle_mm > 0.0) { std::ostringstream os; os << cur.nozzle_mm; cur_nozzle_json = os.str(); }
+    const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
+                           + ",\"hasQuad\":" + (has_quad ? "true" : "false")
+                           + ",\"current\":" + cur_mode_json
+                           + ",\"currentModel\":" + cur_model_json
+                           + ",\"currentNozzle\":" + cur_nozzle_json + "}";
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
+    RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
+              + from_u8(json) + ");");
+}
+
+/* 丙案（P3「丑」）：告訴頁面「這台機器現在生不生得了圖」＝有沒有存金鑰。
+   🔴 過去的只有一個 bool，**明文一個位元組都不過去**（Eric 2026-08-16 裁 C 案；
+      閘門 C3 也會擋：`resources/web/` 出現任何金鑰識別字就變紅）。
+   ⚠ 與 machineCap 的 fail-open 不同，這裡維持 fail-closed：舊版宿主不呼叫 ⇒ 頁面
+      的 ptAiReady() 維持 false ⇒ AI 款式鎖著。功能真的不存在時，標得出來比裝得出來重要。 */
+void WebViewPanel::SendPhotoTileAiAvailability()
+{
+    const bool ready = PingAiImage::available();
+    BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：AI 生圖可用＝" << (ready ? "是" : "否");
+    RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setAiAvailable(")
+              + (ready ? "true" : "false") + ");");
 }
 
 void WebViewPanel::SendPendingPhotoTileImage()
@@ -349,6 +444,8 @@ void WebViewPanel::SendPendingPhotoTileImage()
     if (extension == "jpg" || extension == "jpeg") mime = "image/jpeg";
     else if (extension == "webp") mime = "image/webp";
     else if (extension == "bmp") mime = "image/bmp";
+    else if (extension == "gif") mime = "image/gif";     // 🟡覆審：三份 mime 表同步
+    else if (extension == "avif") mime = "image/avif";   //（GUI_App 落檔表／宿主讀檔表）
 
     pt::ptree metadata;
     metadata.put("name", into_u8(wxFileName(image_path).GetFullName()));
@@ -734,8 +831,11 @@ void WebViewPanel::OnDocumentLoaded(wxWebViewEvent& evt)
         if (wxGetApp().get_mode() == comDevelop)
             wxLogMessage("%s", "Document loaded; url='" + evt.GetURL() + "'");
     }
-    if (evt.GetURL().Contains("/web/phototile/index.html"))
+    if (evt.GetURL().Contains("/web/phototile/index.html")) {
+        SendPhotoTileMachineCapability();   // 先告知料數，再送圖
+        SendPhotoTileAiAvailability();      // 丙案：再告知 AI 生圖可不可用
         SendPendingPhotoTileImage();
+    }
     UpdateState();
 }
 
