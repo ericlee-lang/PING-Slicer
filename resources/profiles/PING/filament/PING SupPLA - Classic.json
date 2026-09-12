@@ -67,8 +67,8 @@
         "0"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/",
-    "alias": "PING SupPLA - Classic",
     "slow_down_min_speed": [
         "25"
-    ]
+    ],
+    "alias": "PING SupPLA - Classic"
 }

@@ -85,7 +85,7 @@
         "PING PLA(照片磚 FD300)",
         "PING PLA(照片磚 FD300)"
     ],
-    "default_print_profile": "0.3mm @FD300 同進照片磚 (0.6)",
+    "default_print_profile": "0.2mm @FD300 Pro 同進照片磚 (0.4)",
     "deretraction_speed": [
         "20",
         "20"
@@ -190,20 +190,20 @@
         "0"
     ],
     "machine_pause_gcode": "PAUSE",
-    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nM6050 S0.5\nG0 F8000 X-142.35 Y-21.74 Z0.35\nG92 E0\nG3 F800 X-93.88 Y-109.21 I142.35 J21.74 E45\nG92 E0\nG0 F800 X-92.00 Y-108.17 Z0.35\nG92 E0\nG2 F800 X-140.49 Y-20.70 I92.00 J108.17 E45\nG1 Z1 E44\nG92 E0",
+    "machine_start_gcode": "G21\nG90\nM82\nM107 T0\nM140 S[bed_temperature_initial_layer_single]\nM104 S[nozzle_temperature_initial_layer] T0\nM190 S[bed_temperature_initial_layer_single]\nM109 S[nozzle_temperature_initial_layer] T0\nG28 ;Home\nM6050 S0.5\nG0 F8000 X-50 Y-140 Z0.25\nG92 E0\nG1 F800 X50 Y-140 E30\nG92 E0\nG0 F800 X50 Y-138 Z0.25\nG92 E0\nG1 F800 X-50 Y-138 E30\nG1 Z1 E29\nG92 E0",
     "machine_tool_change_time": "0",
     "machine_unload_filament_time": "0",
     "manual_filament_change": "0",
     "max_layer_height": [
-        "0.45",
-        "0.45"
+        "0.3",
+        "0.3"
     ],
     "min_layer_height": [
         "0.1",
         "0.1"
     ],
     "nozzle_diameter": [
-        "0.6"
+        "0.4"
     ],
     "nozzle_height": "2.5",
     "nozzle_hrc": "0",
@@ -230,7 +230,7 @@
         "38.8229x144.889",
         "26.0472x147.721",
         "13.0734x149.429",
-        "9.18485e-15x150",
+        "0x150",
         "-13.0734x149.429",
         "-26.0472x147.721",
         "-38.8229x144.889",
@@ -248,7 +248,7 @@
         "-144.889x38.8229",
         "-147.721x26.0472",
         "-149.429x13.0734",
-        "-150x1.83697e-14",
+        "-150x0",
         "-149.429x-13.0734",
         "-147.721x-26.0472",
         "-144.889x-38.8229",
@@ -266,7 +266,7 @@
         "-38.8229x-144.889",
         "-26.0472x-147.721",
         "-13.0734x-149.429",
-        "-2.75546e-14x-150",
+        "-0x-150",
         "13.0734x-149.429",
         "26.0472x-147.721",
         "38.8229x-144.889",
@@ -284,14 +284,14 @@
         "144.889x-38.8229",
         "147.721x-26.0472",
         "149.429x-13.0734",
-        "150x-3.67394e-14"
+        "150x-0"
     ],
-    "printable_height": "300",
-    "printer_model": "FD300 同進照片磚",
+    "printable_height": "270",
+    "printer_model": "FD300 Pro 同進照片磚",
     "printer_notes": "PHOTOTILE",
     "printer_structure": "undefine",
     "printer_technology": "FFF",
-    "printer_variant": "0.6",
+    "printer_variant": "0.4",
     "printhost_authorization_type": "key",
     "printhost_ssl_ignore_revoke": "0",
     "printing_by_object_gcode": "",
@@ -370,9 +370,9 @@
     ],
     "z_offset": "0",
     "type": "machine",
-    "name": "FD300 同進照片磚 0.6 nozzle",
+    "name": "FD300 Pro 同進照片磚 0.4 nozzle",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGM105",
-    "alias": "FD300 同進照片磚"
+    "setting_id": "PINGM903",
+    "alias": "FD300 Pro 同進照片磚"
 }

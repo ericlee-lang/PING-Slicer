@@ -46,6 +46,7 @@ COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL}
 # 照片磚系線材（冷卻降速 0910 的例外名單）；與 embed_params 的 PT_FIL_PLA／PT_FIL_PLA_FD 同值，
 # 兩支檔各自宣告＝既有慣例（verify 刻意不 import 產生器，避免驗證對象驗自己）。
 PT_FIL_PLA_V, PT_FIL_PLA_FD_V = "PING PLA(照片磚)", "PING PLA(照片磚 FD300)"
+PT_FIL_PLA_FDHF_V = "PING PLA(照片磚 FD高流量)"   # 🆕 0907 #99 丙・雙料高流量家族專用支（0912 移植進出貨線）
 # 🆕 0907 #153（Eric 四裁）：3in1 兩支改名成「… - 高流量噴頭」。名字集中在這裡，
 #   下方所有 exact 比對一律引用這兩個常數——SOP §N 第 3 條（內聯複製的條件要改成共用變數）。
 #   ⚠ 新名仍含 `(3in1)` 與 `高流量` ⇒ is_hf／PA 豁免／清料 120 三處子字串判定**都還命中**，
@@ -668,7 +669,7 @@ for name, (kind, d) in presets.items():
             #    ⚠ 本條 2026-09-11 才更新：在那之前守衛仍寫死「一律關」，比裁定舊了一天，
             #       移植當下實抓 29 項紅——同 0911 ABS 收縮守衛那一型（守衛比引擎/裁定嚴）。
             #       **規則改了要回頭改守衛**，否則守衛會把合法的新值擋下來。
-            _cd_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V)
+            _cd_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V)
             _cd_want = ["0"] if _cd_pt else ["1"]
             _cd_spd  = ["10"] if _cd_pt else ["25"]
             if d.get("slow_down_for_layer_cooling") != _cd_want:
@@ -719,10 +720,24 @@ for name, (kind, d) in presets.items():
                 # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
                 is_hf = (("高流量" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
-                is_pt = name in ("PING PLA(照片磚)", "PING PLA(照片磚 FD300)")
+                # ⚠ 內聯清單，不吃 embed_params 的常數（兩支是獨立程式）。新增照片磚專用線材時兩邊都要加——
+                #   0730 就是漏了這一行，照片磚支被掃成回抽 3、靜默蓋掉零回抽 20 天。正本＝embed_params.pt_fil_specs。
+                is_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V)
+                # 🔴 四料照片磚噴溫 190（Eric 2026-09-10 裁「四料使用的照片磚參數要特別降到 190 度」）。
+                #    只有 `PING PLA(照片磚)`＝FF600／FF800 照片磚六台專用支；雙料照片磚兩支維持 210（Eric 同日裁「雙料不改」）。
+                #    ⚠️ 與 2026-07-17「0.6 實機 190 塞頭」相反，是 Eric 0910 明確改裁；若實印再塞頭，回退點＝embed_params 的 PT_FIL_PLA 那兩行＋本條。
+                if name == PT_FIL_PLA_V:
+                    for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
+                        if _v(_tk) != "190":
+                            err(f"[四料照片磚噴溫 190 0910] {name}: {_tk}={_v(_tk)!r}, expected '190'")
+                elif name in (PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V):
+                    for _tk in ("nozzle_temperature", "nozzle_temperature_initial_layer"):
+                        if _v(_tk) != "210":
+                            err(f"[雙料照片磚噴溫 210 0910] {name}: {_tk}={_v(_tk)!r}, expected '210'")
                 # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
                 #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
-                _want_extra = "0.6" if is_hf else "nil"
+                # 🔴 四料照片磚 0.2（Eric 2026-09-10「額外裝填 0.6 會擠出蠻多的」）；FD300 照片磚維持 nil、FD高流量照片磚與其餘高流量家族維持 0.6。
+                _want_extra = "0.2" if name == PT_FIL_PLA_V else ("0.6" if is_hf else "nil")
                 if _v("filament_retract_restart_extra") != _want_extra:
                     err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
                 # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30
@@ -1093,6 +1108,21 @@ for _n, (_k, _d) in presets.items():
 # 哪些 machine preset 掛了 PHOTOTILE 標記
 _phototile_machines = {n for n, (k, d) in presets.items()
                        if k == "machine" and _PHOTOTILE_MARK in (d.get("printer_notes") or "")}
+# 🆕 **照片磚機器層回抽政策護欄（Eric 2026-09-07 裁，取代 0718 的零回抽；2026-09-12 移植進出貨線）**
+#   這組值 2026-07~08 曾被線材層靜默蓋掉 20 天沒人發現。政策改了，**護欄要跟著改而不是拿掉**。
+#   🔴 `retract_length_toolchange` 必須維持 0：照片磚的 Tn 是後處理要換成 M6051/M6052 的混色指令，不是真的換料頭。
+_PT_MACHINE_POLICY = {
+    "use_firmware_retraction": "1",
+    "retraction_length": ["1.3", "1.3"],
+    "z_hop": ["0.1"],
+    "retract_length_toolchange": ["0", "0"],
+}
+for _pm in sorted(_phototile_machines):
+    _pd = presets[_pm][1]
+    for _k, _want in _PT_MACHINE_POLICY.items():
+        _got = _pd.get(_k)
+        if _got != _want:
+            err(f"[照片磚機器層回抽政策 0907] {_pm}: {_k}={_got!r} 應 {_want!r}")
 _model_variants = {}
 for _n, (_k, _d) in presets.items():
     if _k == "machine" and _d.get("instantiation") == "true" and _d.get("printer_model"):
@@ -1896,7 +1926,14 @@ for _name, (_kind, _d) in presets.items():
         else:
             _exp_census["棧板3" if _is_raft else "支撐0"] += 1
     if "support_line_width" in _d:
-        _nzn = _nominal_nozzle_v(_d.get("line_width"))
+        # 口徑優先從製程名「(口徑)」取（2026-09-09 PTP 棒：照片磚線寬曾 1.5×口徑，line_width 反推會錯一階）
+        _m_nz = re.search(r"\(([\d.]+)\)\s*$", _name)
+        _nzn = None
+        if _m_nz:
+            _c = "%g" % float(_m_nz.group(1))
+            _nzn = _c if _c in _SUP_LW_BY_NOZZLE else None
+        if _nzn is None:
+            _nzn = _nominal_nozzle_v(_d.get("line_width"))
         if _nzn is None:
             err(f"[支撐線寬] {_name}: line_width={_d.get('line_width')!r} 認不出口徑（查表失效）")
         elif _d["support_line_width"] != _SUP_LW_BY_NOZZLE[_nzn]:

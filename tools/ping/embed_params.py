@@ -52,12 +52,30 @@ PHOTOTILE_MACHINES = ["FF800 同進照片磚 0.6 nozzle", "FF800 同進照片磚
                       "FF800 同進照片磚 1.0 nozzle", "FD300 同進照片磚 0.4 nozzle",
                       "FD300 同進照片磚 0.6 nozzle",
                       "FF600 同進照片磚 0.4 nozzle", "FF600 同進照片磚 0.6 nozzle",
-                      "FF600 同進照片磚 1.0 nozzle"]
+                      "FF600 同進照片磚 1.0 nozzle",
+                      # 🆕 2026-09-07 Eric 裁「丙・補機型」（回報中心 #99）：FD 同進的其餘四個家族。
+                      #   母版產法＝tools/ping/build_fd_pro_phototile.py（內建陽性對照）。
+                      #   2026-09-12 隨開發線照片磚整區移植進出貨線（Eric 裁「進、標未實印」，牌 c-0912-PTI-01）。
+                      "FD300 Pro 同進照片磚 0.4 nozzle", "FD300 Pro 同進照片磚 0.6 nozzle",
+                      "FD450 Pro 同進照片磚 0.4 nozzle", "FD450 Pro 同進照片磚 0.6 nozzle",
+                      "FD450 Pro 同進照片磚 1.0 nozzle",
+                      "FD600 Pro 同進照片磚 0.4 nozzle", "FD600 Pro 同進照片磚 0.6 nozzle",
+                      "FD600 Pro 同進照片磚 1.0 nozzle",
+                      "FD800 Pro 同進照片磚 0.4 nozzle", "FD800 Pro 同進照片磚 0.6 nozzle",
+                      "FD800 Pro 同進照片磚 1.0 nozzle"]
 PHOTOTILE_PROCS = ["0.35mm @FF800 同進照片磚 (0.6)", "0.25mm @FF800 同進照片磚 (0.4)",
                    "0.45mm @FF800 同進照片磚 (1.0)", "0.2mm @FD300 同進照片磚 (0.4)",
                    "0.3mm @FD300 同進照片磚 (0.6)",
                    "0.25mm @FF600 同進照片磚 (0.4)", "0.35mm @FF600 同進照片磚 (0.6)",
-                   "0.45mm @FF600 同進照片磚 (1.0)"]
+                   "0.45mm @FF600 同進照片磚 (1.0)",
+                   # 🆕 2026-09-07 同上。層高沿用 FD 家族既有規則（0.4→0.2／0.6→0.3／1.0→0.5）。
+                   "0.2mm @FD300 Pro 同進照片磚 (0.4)", "0.3mm @FD300 Pro 同進照片磚 (0.6)",
+                   "0.2mm @FD450 Pro 同進照片磚 (0.4)", "0.3mm @FD450 Pro 同進照片磚 (0.6)",
+                   "0.5mm @FD450 Pro 同進照片磚 (1.0)",
+                   "0.2mm @FD600 Pro 同進照片磚 (0.4)", "0.3mm @FD600 Pro 同進照片磚 (0.6)",
+                   "0.5mm @FD600 Pro 同進照片磚 (1.0)",
+                   "0.2mm @FD800 Pro 同進照片磚 (0.4)", "0.3mm @FD800 Pro 同進照片磚 (0.6)",
+                   "0.5mm @FD800 Pro 同進照片磚 (1.0)"]
 
 # ---------- 1. OrcaSlicer 權威 key 分類 ----------
 _src = open(PRESET_CPP, encoding="utf-8", errors="ignore").read()
@@ -299,6 +317,38 @@ PT_FIL_PLA = "PING PLA(照片磚)"
 #   ⚠ 名字刻意是「(照片磚 FD300)」而非「(照片磚)」——後者是 is_hf 的判定字串，
 #     這支是一般流量硬體，**不可**落進高流量家族（0816 改名連坐教訓的反向應用）。
 PT_FIL_PLA_FD = "PING PLA(照片磚 FD300)"
+# 🆕 2026-09-07（Eric 裁「丙・補機型」，回報中心 #99；2026-09-12 移植進出貨線）：**雙料高流量**的照片磚專用支。
+#   為什麼還要第三支：實查各家族同進機的 default_filament_profile ——
+#     FD300／FD300 Pro 同進 ＝ `PING PLA - 210`（一般流量）
+#     FD450／600／800 Pro 同進 ＝ `PING PLA - 高流量噴頭`（**高流量**）
+#   ⇒ 新補的三個高流量家族不能吃 PT_FIL_PLA_FD（那支從 PLA-210 派生、是一般流量值），
+#     也不能吃 PT_FIL_PLA（那支是**四料**高流量，PA 0.4／清料 120）。
+#   ⚠ 名字含「高流量」⇒ 天然落進 is_hf（回抽 3/30/30、額外回填 0.6），與四料照片磚支同待遇；
+#     回抽長度仍由 is_pt 釘成 nil（吃機器層）。改名前先回頭看那兩行。
+PT_FIL_PLA_FDHF = "PING PLA(照片磚 FD高流量)"
+
+# ★ 照片磚專用線材 × 機型：**單一對照表**（2026-09-07 立）。
+#   在此之前這件事散在兩處：4b-1e 的產生迴圈，與 4d-2 的「照片磚 default_materials」——
+#   後者寫死成 `FD300 開頭用 FD 支、其餘用四料支`，補機型時 FD450/600/800 Pro
+#   就被指到**四料**那支（PA 0.4／清料 120 是四進一出的值）。判準散兩處＝必然漂移。
+#   ⇒ 兩處都改吃這張表。要加家族＝加一列。
+#   ⓘ 出貨線寫成函式而非模組層常數：BASE_PLA_NEW／HFN_PLA 在本檔的定義位置晚於此處，呼叫時才取值。
+def pt_fil_specs():
+    return [
+        # (專用支名, 基底 PLA, setting_id/filament_id, 吃它的 machine_model)
+        (PT_FIL_PLA_FD,   BASE_PLA_NEW, "PINGFILPTPLAFD",
+         ["FD300 同進照片磚", "FD300 Pro 同進照片磚"]),                                  # 雙料一般流量
+        (PT_FIL_PLA_FDHF, HFN_PLA,      "PINGFILPTPLAFDHF",
+         ["FD450 Pro 同進照片磚", "FD600 Pro 同進照片磚", "FD800 Pro 同進照片磚"]),        # 雙料高流量
+    ]
+
+
+def pt_filament_for_model(model):
+    """這台照片磚機該吃哪支專用線材。表上沒有＝FF 家族（四進一出高流量）。"""
+    for _nm, _base, _id, _models in pt_fil_specs():
+        if model in _models:
+            return _nm
+    return PT_FIL_PLA
 # 🆕 2026-09-07 Eric 四裁（回報中心 #153・reporter 劉勝賢・base_release T035）：
 #   3in1 兩支**改名**而非另開新支——回報者原本要自己在機上建「PING PLA(3in1) - 高流量噴頭」
 #   自訂支才有對應噴頭的料（#153 原文：「不需要自行額外建立或手動調整」）。
@@ -1416,8 +1466,12 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
        ⇒ 既有 id 一個都不變、baseline 不用重錄。代價＝號碼不連續，換取既有 preset 身分穩定。
        日後再加照片磚機型比照辦理。"""
     _pt_res_m = _pt_res_p = 900
+    # §2.8：**後來新增**的照片磚機型一律走保留號段，不動共用計數器
+    #（否則會把後面「棧板雙生／PLA+PVA／高流量」三批整批往後推，打紅 id baseline 的 90 條守衛）。
+    _PT_RESERVED = ("FF600 同進照片磚", "FD300 Pro 同進照片磚", "FD450 Pro 同進照片磚",
+                    "FD600 Pro 同進照片磚", "FD800 Pro 同進照片磚")
     def _is_reserved(nm):
-        return nm.startswith("FF600 同進照片磚") or "@FF600 同進照片磚" in nm
+        return any(nm.startswith(r) or ("@" + r) in nm for r in _PT_RESERVED)
     for name in PHOTOTILE_MACHINES:
         d = json.load(io.open(os.path.join(PHOTOTILE, "machine", "%s.json" % name), encoding="utf-8"))
         rename_ff_filament_refs(d, pt=True)   # 照片磚 64 槽 → 照片磚專用支（0816 裁「甲」）
@@ -1456,6 +1510,19 @@ def emit_phototile(mm_list, mac_list, proc_list, gm, gp):
         #   雖然磚體平貼床不會生成支撐、實務無影響，但「開著卻永遠不生成」本身會誤導使用者，
         #   且一旦有人把磚立起來或加高就會意外長支撐。照片磚不需要支撐 ⇒ 開關直接關。
         d["enable_support"] = "0"
+        # ★ 牆 2 圈＋線寬 1.0×口徑（Eric 2026-09-09 先裁牆 1／1.5×＝牌 c-0909-PTP-01，2026-09-10 實印後回改牆 2／1.0×＝牌 c-0910-WT-09）：
+        #   只動預設／首層／外牆／內牆四鍵；頂面／稀疏／實心填充／支撐線寬不動。
+        #   0909 牆 1／線寬 1.5× 實印出現牽絲（0.4 噴嘴擠 0.6 線寬＝流量 1.5×）與色塊內不均（單圈外牆＝混色比偏差直接是外皮）。
+        #   結構保留、只改倍率與圈數；再要改回去只動下面兩行。2026-09-12 隨照片磚整區移植進出貨線。
+        if m_nz_pt:
+            _pt_lw = "%g" % round(float(m_nz_pt.group(1)) * 1.0, 2)
+            d["wall_loops"] = "2"
+            for _k in ("line_width", "initial_layer_line_width", "outer_wall_line_width", "inner_wall_line_width"):
+                d[_k] = _pt_lw
+        # ★ 頂底鋪滿 4 層、中間維持空心（Eric 2026-09-09「頂底層的部分能夠鋪滿至少三四層，而內部維持一樣的樣式」，牌 c-0909-PTP-02）：
+        #   top/bottom_shell_layers 0→4（厚度鍵 0.8 不動，Orca 取層數與厚度較大者）。0% 填充 ⇒ 頂 4 層是內部橋接＋實心，中間照舊只有牆。
+        d["top_shell_layers"] = "4"
+        d["bottom_shell_layers"] = "4"
         # 檔名：照片磚自成一模式（Eric 2026-07-26 裁）⇒ `照片磚_機型(口徑)_檔名_時間_重量`。
         # ⚠ 照片磚製程從範本檔複製、**不走 filename_tpl()**，範本裡連主體都還是 0610 舊佔位符
         #   （{filament_type}_{total_weight_str}_{print_time_hm}）⇒ 這裡整條覆蓋才會真的跟上。
@@ -1986,6 +2053,20 @@ def apply_printer_family_gates(mac_list, mm_list):
     main() 照樣呼叫它，所以日後任何一次全量 regen 都會帶上這條規則、不會被洗掉。
     """
     PT_NOTE = "PHOTOTILE"
+    # 🆕 **照片磚機器層回抽政策（Eric 2026-09-07 裁，取代 0718 的「零回抽」；2026-09-12 移植進出貨線）**
+    #   原話：「需要做回抽抬升，回抽的距離採用韌體回抽的參數即可，抬升的高度 0.1，不用太高。」
+    #   起因＝短路徑（照片磚某些區塊只繞一圈、或長度 < 1mm）吐料不飽滿，判斷是壓力不足。
+    # ⚠ **這是明文推翻既有定案**：零回抽來自 2026-07 的 %APPDATA% 實印驗證檔；變更權在 Eric（新的實印證據）。
+    # 值的來源＝**不另訂數字**，直接用同進家族既有的韌體回抽組（retraction_length 1.3／use_firmware_retraction 1），
+    #   只有抬升照 Eric 指定改 0.1（一般同進機是 0.4；他說「不用太高」）。
+    # 🔴 **`retract_length_toolchange` 刻意維持 0**：照片磚的 Tn 會被後處理換成 M6051/M6052 混色指令，不是真的換料頭。
+    # 🔴 **`wipe`／`wipe_on_loops`／`seam_gap` 一律不動**：那是 0718 的接縫定案，與回抽是兩件事。
+    # 線材層仍是 `nil`（吃機器層）＝ 0819 那條護欄的形狀不變，只是機器層的值從 0 換成 1.3。
+    PT_RETRACTION = {
+        "use_firmware_retraction": "1",
+        "retraction_length": ["1.3", "1.3"],
+        "z_hop": ["0.1"],
+    }
     PT_COND = "printer_notes!~/.*PHOTOTILE.*/"
 
     # 4d-2c. ★ Classic 前代機 × 標準線材 **雙向隔離**（Eric 2026-09-01 裁，牌 c-0901-GATE-01）
@@ -2032,8 +2113,11 @@ def apply_printer_family_gates(mac_list, mm_list):
             continue
         _d = json.load(io.open(_fp, encoding="utf-8"))
         _note = PT_NOTE if _is_pt else CLASSIC_NOTE
-        if _d.get("printer_notes") != _note:
-            _d["printer_notes"] = _note
+        _before = json.dumps(_d, sort_keys=True)
+        _d["printer_notes"] = _note
+        if _is_pt:
+            _d.update(PT_RETRACTION)          # 🆕 0907：照片磚機器層回抽政策（見 PT_RETRACTION 註解）
+        if json.dumps(_d, sort_keys=True) != _before:
             jdump(_fp, _d)
             if _is_pt:
                 pt_m += 1
@@ -2046,7 +2130,7 @@ def apply_printer_family_gates(mac_list, mm_list):
         if not os.path.isfile(_fp):
             continue
         _d = json.load(io.open(_fp, encoding="utf-8"))
-        _want = PT_FIL_PLA_FD if _e["name"].startswith("FD300") else PT_FIL_PLA
+        _want = pt_filament_for_model(_e["name"])   # 單一對照表（pt_fil_specs）
         if _d.get("default_materials") != _want:
             _d["default_materials"] = _want
             jdump(_fp, _d); pt_mm += 1
@@ -2407,7 +2491,11 @@ def main(src_base):
                 pt = json.loads(json.dumps(fp))          # 深拷貝（本檔未 import copy）
                 pt.update({"name":PT_FIL_PLA, "alias":PT_FIL_PLA,
                            "setting_id":"PINGFILPTPLA", "filament_id":"PINGFILPTPLA",
-                           "filament_max_volumetric_speed":["30"]})
+                           "filament_max_volumetric_speed":["30"],
+                           # 🔴 噴溫 190（Eric 2026-09-10 裁：「四料照片磚跟雙料照片磚用的噴頭不一樣，四料使用的照片磚參數要特別降到 190 度」）。
+                           #    只降照片磚專用支，母體 `PING PLA - 四料同進噴頭` 維持 210。⚠️ 與 2026-07-17「0.6 實機 190 塞頭」相反，
+                           #    是 Eric 0910 明確改裁、塞頭風險由他承擔；實印再塞頭的回退點就是這兩行。溫度統一鐵律：兩個噴溫鍵一起設。
+                           "nozzle_temperature":["190"], "nozzle_temperature_initial_layer":["190"]})
                 pt.pop("renamed_from", None)
                 pt["compatible_printers"] = sorted(
                     x["name"] for x in mac_list
@@ -2509,32 +2597,38 @@ def main(src_base):
     # ③`filament_retraction_length` = nil（讓機器層零回抽 0,0 生效；4b-2b 的 is_pt 也會再釘一次）。
     # ⚠ 獨立 alias＝防與 PLA-210 併組後下拉選不到（3in1 教訓）。
     # ⓘ 排在 4b-2b 之前，讓後面的回抽／PA／清料 sweep 一體適用＝regen-durable。
-    _pt_fd_src = os.path.join(PINGDIR, "filament", BASE_PLA_NEW + ".json")
-    _pt_fd_machines = ["FD300 同進照片磚 0.4 nozzle", "FD300 同進照片磚 0.6 nozzle"]
-    if os.path.isfile(_pt_fd_src):
+    # 🆕 2026-09-07：本段從「只做 FD300 一支」一般化成**一張表**（pt_fil_specs），因為補機型之後 FD 照片磚
+    #   有兩種流量形式（見 PT_FIL_PLA_FDHF 註解）。要再加家族＝在表裡加一列，不必改邏輯。
+    for _pt_name, _pt_base, _pt_id, _pt_models in pt_fil_specs():
+        _pt_fd_src = os.path.join(PINGDIR, "filament", _pt_base + ".json")
+        if not os.path.isfile(_pt_fd_src):
+            continue
+        # 吃它的機器＝那些 model 底下**實際存在**的各口徑機（不寫死口徑，加口徑不必改這裡）
+        _pt_fd_machines = sorted(
+            os.path.basename(x)[:-5] for _m in _pt_models
+            for x in glob.glob(os.path.join(PINGDIR, "machine", _m + " *nozzle.json")))
         _ptfd = json.load(io.open(_pt_fd_src, encoding="utf-8"))
-        _ptfd.update({"name": PT_FIL_PLA_FD, "alias": PT_FIL_PLA_FD,
-                      "setting_id": "PINGFILPTPLAFD", "filament_id": "PINGFILPTPLAFD",
+        _ptfd.update({"name": _pt_name, "alias": _pt_name,
+                      "setting_id": _pt_id, "filament_id": _pt_id,
                       "filament_retraction_length": ["nil"]})
         _ptfd.pop("renamed_from", None)          # 舊名只能有一個接手者（PLA-210 已接 "PING PLA"）
-        _ptfd["compatible_printers"] = [m for m in _pt_fd_machines
-                                        if os.path.isfile(os.path.join(PINGDIR, "machine", m + ".json"))]
-        jdump(os.path.join(PINGDIR, "filament", "%s.json" % PT_FIL_PLA_FD), _ptfd)
-        fil_new.append({"name": PT_FIL_PLA_FD, "sub_path": "filament/%s.json" % PT_FIL_PLA_FD})
-        # FD300 照片磚機／model 的 64 槽預設改指專用支（0728 v2 那批把它們指到 PLA-210，
-        # 本批再往下走一階）。`default_materials` 不在這裡動＝交給 4d-2 的全族 post-pass 重算。
+        _ptfd["compatible_printers"] = _pt_fd_machines
+        jdump(os.path.join(PINGDIR, "filament", "%s.json" % _pt_name), _ptfd)
+        fil_new.append({"name": _pt_name, "sub_path": "filament/%s.json" % _pt_name})
+        # 照片磚機／model 的 64 槽預設改指專用支。`default_materials` 不在這裡動＝交給 4d-2 的 post-pass 重算。
         _ptfd_n = 0
-        for _pm in _pt_fd_machines + ["FD300 同進照片磚"]:
+        for _pm in _pt_fd_machines + _pt_models:
             _pp = os.path.join(PINGDIR, "machine", _pm + ".json")
             if not os.path.isfile(_pp):
                 continue
             _pd = json.load(io.open(_pp, encoding="utf-8"))
             _dfp = _pd.get("default_filament_profile")
-            if isinstance(_dfp, list) and any(x == BASE_PLA_NEW for x in _dfp):
-                _pd["default_filament_profile"] = [PT_FIL_PLA_FD if x == BASE_PLA_NEW else x
+            if isinstance(_dfp, list) and any(x == _pt_base for x in _dfp):
+                _pd["default_filament_profile"] = [_pt_name if x == _pt_base else x
                                                    for x in _dfp]
                 jdump(_pp, _pd); _ptfd_n += 1
-        print("  照片磚 FD300 專用線材：1 支；機／model 槽位改指 %d 檔" % _ptfd_n)
+        print("  照片磚專用線材 %s：綁 %d 台；機／model 槽位改指 %d 檔"
+              % (_pt_name, len(_pt_fd_machines), _ptfd_n))
 
     # 4b-2. ★ 回抽切片控制埋全線材（2026-07-12 Eric B 定案，取代同日 HOLD 的 M207/M208 案；
     # SSOT＝ping-slicer gcode.md「線材起始 G-code」節）：改埋 Klipper 原生 SET_RETRACTION
@@ -2609,8 +2703,14 @@ def main(src_base):
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
         is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
-        is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD)         # ④ 照片磚系＝零回抽
-        fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
+        is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)   # ④ 照片磚系＝回抽長度 nil（吃機器層）
+        # 🔴 四料照片磚額外回填 0.6 → 0.2（Eric 2026-09-10：「額外裝填 0.6 會擠出蠻多的，幫我把照片磚的額外擠出量改成 0.2 看看」）。
+        #    ⛔ **只降四料照片磚那一支**：`PING PLA(照片磚 FD300)` 現行是 `nil`（＝吃機器層 0），設 0.2 是**增加**、方向相反；
+        #       `PING PLA(照片磚 FD高流量)` 也是 0.6，Eric 只在四料上看到問題、一路把四料與雙料分開裁，不擅自擴大。
+        if bn == PT_FIL_PLA:
+            fd["filament_retract_restart_extra"] = ["0.2"]
+        else:
+            fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
         # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF 回抽 3/40/40——**只改線材層**。
         #    機器層一字不動、韌體回抽維持開：韌體回抽開啟時線材 start gcode 的
         #    SET_RETRACTION 會把 3/40/40 推給 Klipper ⇒ 行為等同他關掉韌體回抽自己下 E 值，
@@ -2817,7 +2917,7 @@ def main(src_base):
     cd_set = 0
     for fp_path in glob.glob(os.path.join(PINGDIR, "filament", "*.json")):
         fd = json.load(io.open(fp_path, encoding="utf-8"))
-        _is_pt = os.path.basename(fp_path)[:-5] in (PT_FIL_PLA, PT_FIL_PLA_FD)
+        _is_pt = os.path.basename(fp_path)[:-5] in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)
         _want  = CD_SLOWDOWN_PT if _is_pt else CD_SLOWDOWN
         _spd   = CD_MIN_SPEED_PT if _is_pt else CD_MIN_SPEED
         if (fd.get("slow_down_for_layer_cooling") == _want and fd.get("slow_down_layer_time") == ["10"]
@@ -2967,7 +3067,14 @@ def main(src_base):
                 touched = True
                 exp_set += 1
         if "support_line_width" in pdj:
-            _nz_nom = _nominal_nozzle(pdj.get("line_width"))
+            # ★ 口徑優先從檔名「(口徑)」取（2026-09-09 PTP 棒）：照片磚線寬曾＝1.5×口徑，用 line_width 反推會錯一階。
+            _m_nz_nm = re.search(r"\(([\d.]+)\)\s*\.json$", os.path.basename(pp_path))
+            _nz_nom = None
+            if _m_nz_nm:
+                _cand = "%g" % float(_m_nz_nm.group(1))
+                _nz_nom = _cand if _cand in SUP_LW_BY_NOZZLE else None
+            if _nz_nom is None:
+                _nz_nom = _nominal_nozzle(pdj.get("line_width"))
             if _nz_nom is None:
                 lw_unknown += 1
                 print("  ⚠ 支撐線寬 post-pass：%s 的 line_width=%r 認不出口徑，跳過"

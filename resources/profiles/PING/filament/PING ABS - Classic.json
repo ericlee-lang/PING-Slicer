@@ -85,8 +85,8 @@
     "filament_shrink": [
         "99.75%"
     ],
-    "alias": "PING ABS - Classic",
     "slow_down_min_speed": [
         "25"
-    ]
+    ],
+    "alias": "PING ABS - Classic"
 }

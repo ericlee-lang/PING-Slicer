@@ -58,8 +58,8 @@
     "filament_soluble": [
         "0"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/",
     "slow_down_min_speed": [
         "25"
-    ]
+    ],
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/"
 }

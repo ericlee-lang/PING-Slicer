@@ -68,6 +68,9 @@
         "0"
     ],
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes=~/.*CLASSIC.*/",
+    "slow_down_min_speed": [
+        "25"
+    ],
     "textured_plate_temp": [
         "0"
     ],
@@ -79,8 +82,5 @@
     ],
     "eng_plate_temp_initial_layer": [
         "0"
-    ],
-    "slow_down_min_speed": [
-        "25"
     ]
 }

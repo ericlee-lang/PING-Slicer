@@ -105,7 +105,7 @@
         "30"
     ],
     "filament_minimal_purge_on_wipe_tower": [
-        "120"
+        "30"
     ],
     "filament_multitool_ramming": [
         "0"
@@ -135,7 +135,7 @@
         "nil"
     ],
     "filament_retract_restart_extra": [
-        "0.2"
+        "0.6"
     ],
     "filament_retract_when_changing_layer": [
         "nil"
@@ -210,10 +210,10 @@
         "0"
     ],
     "nozzle_temperature": [
-        "190"
+        "210"
     ],
     "nozzle_temperature_initial_layer": [
-        "190"
+        "210"
     ],
     "nozzle_temperature_range_high": [
         "230"
@@ -231,7 +231,7 @@
         "0.4157"
     ],
     "pressure_advance": [
-        "0.4"
+        "0.2"
     ],
     "reduce_fan_stop_start_freq": [
         "1"
@@ -267,22 +267,25 @@
         "45"
     ],
     "type": "filament",
-    "name": "PING PLA(照片磚)",
-    "alias": "PING PLA(照片磚)",
+    "name": "PING PLA(照片磚 FD高流量)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGFILPTPLA",
-    "filament_id": "PINGFILPTPLA",
-    "inherits": "fdm_filament_pla",
-    "compatible_printers": [
-        "FF600 同進照片磚 0.4 nozzle",
-        "FF600 同進照片磚 0.6 nozzle",
-        "FF600 同進照片磚 1.0 nozzle",
-        "FF800 同進照片磚 0.4 nozzle",
-        "FF800 同進照片磚 0.6 nozzle",
-        "FF800 同進照片磚 1.0 nozzle"
-    ],
+    "setting_id": "PINGFILPTPLAFDHF",
+    "filament_id": "PINGFILPTPLAFDHF",
+    "inherits": "fdm_filament_common",
     "default_filament_colour": [
         "#EA4E16"
+    ],
+    "alias": "PING PLA(照片磚 FD高流量)",
+    "compatible_printers": [
+        "FD450 Pro 同進照片磚 0.4 nozzle",
+        "FD450 Pro 同進照片磚 0.6 nozzle",
+        "FD450 Pro 同進照片磚 1.0 nozzle",
+        "FD600 Pro 同進照片磚 0.4 nozzle",
+        "FD600 Pro 同進照片磚 0.6 nozzle",
+        "FD600 Pro 同進照片磚 1.0 nozzle",
+        "FD800 Pro 同進照片磚 0.4 nozzle",
+        "FD800 Pro 同進照片磚 0.6 nozzle",
+        "FD800 Pro 同進照片磚 1.0 nozzle"
     ]
 }

@@ -67,8 +67,8 @@
     "pressure_advance": [
         "0"
     ],
-    "alias": "PING PA-CF - Classic",
     "slow_down_min_speed": [
         "25"
-    ]
+    ],
+    "alias": "PING PA-CF - Classic"
 }
