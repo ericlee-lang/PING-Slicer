@@ -276,6 +276,62 @@ Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point
         if (is_pure_light_recipe(kv.second))
             m_pure_light_tools.push_back((unsigned int) kv.first);
     build_outline();
+    build_split_roles();
+}
+
+void Tower::build_split_roles()
+{
+    m_split_roles.clear();
+    if (m_settings.mode != "dual" || m_settings.total_laps() != 4 || m_palette.size() < 2 || m_palette.size() > 3)
+        return;
+    std::vector<std::pair<double, int>> scored;   // (亮度分數, tool)，與 ToolOrdering 淺→深排序同一把尺
+    for (const auto& kv : m_palette) {
+        const double s = light_score(kv.second);
+        if (s < 0.)
+            return;
+        scored.emplace_back(s, kv.first);
+    }
+    std::sort(scored.begin(), scored.end(), [](const std::pair<double, int>& a, const std::pair<double, int>& b) { return a.first > b.first; });
+    for (size_t i = 1; i < scored.size(); ++i)
+        if (std::fabs(scored[i - 1].first - scored[i].first) < 1e-9)
+            return;                                // 同亮度分不出誰淺誰深 ⇒ 不猜，照舊整塔
+    const int mid = scored.size() == 3 ? scored[1].second : -1;
+    m_split_roles = { { scored.front().second, { 3, 4 } }, { mid, { 2 } }, { scored.back().second, { 1 } } };
+    BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower split: light T" << scored.front().second << " rings 3,4 / mid "
+                            << (mid < 0 ? std::string("none") : "T" + std::to_string(mid)) << " ring 2 / dark T" << scored.back().second << " ring 1";
+}
+
+std::vector<std::pair<unsigned int, std::vector<int>>> Tower::split_plan(const std::vector<unsigned int>& layer_extruders) const
+{
+    std::vector<std::pair<unsigned int, std::vector<int>>> plan;
+    if (m_split_roles.empty())
+        return plan;
+    auto present = [&layer_extruders](int tool) {
+        return tool >= 0 && std::find(layer_extruders.begin(), layer_extruders.end(), (unsigned int) tool) != layer_extruders.end();
+    };
+    std::map<unsigned int, std::vector<int>> own;
+    const int n = (int) m_split_roles.size();
+    for (int i = 0; i < n; ++i) {
+        int owner = present(m_split_roles[i].first) ? m_split_roles[i].first : -1;
+        for (int j = i + 1; owner < 0 && j < n; ++j)          // 缺色：先給同層下一個（較深）顏色
+            if (present(m_split_roles[j].first)) owner = m_split_roles[j].first;
+        for (int j = i - 1; owner < 0 && j >= 0; --j)         // 後面沒有：給前一個（較淺）顏色
+            if (present(m_split_roles[j].first)) owner = m_split_roles[j].first;
+        if (owner < 0)
+            return plan;                                       // 本層一個 palette 顏色都沒有
+        std::vector<int>& rings = own[(unsigned int) owner];
+        rings.insert(rings.end(), m_split_roles[i].second.begin(), m_split_roles[i].second.end());
+    }
+    for (unsigned int t : layer_extruders) {
+        auto it = own.find(t);
+        if (it == own.end())
+            continue;
+        std::vector<int> rings = std::move(it->second);
+        std::sort(rings.begin(), rings.end());                 // 一趟內由內往外
+        plan.emplace_back(t, std::move(rings));
+        own.erase(it);
+    }
+    return plan;
 }
 
 // jtRound 的第 4 參數在 ClipperUtils 裡是 ArcTolerance（scaled 單位）；不給＝DefaultMiterLimit 3 ＝ 3e-6 mm ⇒ 每圈五千點、

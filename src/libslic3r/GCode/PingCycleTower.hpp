@@ -105,9 +105,21 @@ public:
     // 離線報表用：塔外輪廓（scaled，已含位置）
     const Polygon&                       outline() const { return m_outline; }
 
+    // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01；實印證據＝B 檔 band_section_L165-210_B_split.gcode）：
+    // 每個顏色開印前各自進塔、只洗分給它的圈，取代「層首一趟整塔」（A 檔白塊＝換色後噴頭裡的前一色殘留）。
+    // 固定圈位（由內往外 1-based）：最深色第 1 圈、中間色第 2 圈、最淺色第 3～4 圈（塔外皮維持最淺色＝0909 裁定）；
+    // 本層沒有的顏色把圈併給同層下一個顏色（淺→深），後面沒有就給前一個（Eric 0913 Q2）。
+    // 規格只定到「雙料、每層 4 圈、2～3 色」⇒ 其餘（四料、圈數改過、≥4 色）split_active()=false，照舊層首一趟整塔。
+    bool                                 split_active() const { return !m_split_roles.empty(); }
+    // 本層每個顏色要洗哪幾圈，依 layer_extruders 的列印順序；空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）
+    std::vector<std::pair<unsigned int, std::vector<int>>> split_plan(const std::vector<unsigned int>& layer_extruders) const;
+
     Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, float bed_check_note_ignored);
 
 private:
+    // 圈位角色由淺到深：first＝tool（-1＝palette 沒有這個角色，例如雙色沒有中間色）、second＝固定圈號
+    std::vector<std::pair<int, std::vector<int>>> m_split_roles;
+    void build_split_roles();
     Settings                        m_settings;
     std::vector<Stage>              m_stages;
     std::map<int, std::string>      m_palette;

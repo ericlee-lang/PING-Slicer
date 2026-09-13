@@ -4296,38 +4296,47 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
     const PingCycle::LayerGeometry& g = m_ping_cycle->geometry_for(layer_height, first_layer);
     if (!g.problem.empty())
         throw Slic3r::SlicingError(std::string("PING photo-tile cycle tower: ") + g.problem);
+    m_ping_cycle_origin = m_origin;   // 同層後面的每色進塔（ping_cycle_tower_visit）都用這個原點
 
     std::string gcode;
     { std::ostringstream os; os << "; PING photo-tile cycle tower begin z=" << print_z << "\n"; gcode += os.str(); }
     const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
-    bool first_move = true;
-    auto extrude_ring = [&](const Polyline& ring, const char* what) {
-        ExtrusionPath path(erWipeTower, g.mm3_per_mm, g.width, layer_height);
-        path.polyline = ring;
-        if (first_move) {
-            m_avoid_crossing_perimeters.use_external_mp_once();
-            gcode += this->travel_to(path.first_point(), erWipeTower, "move to PING cycle tower");
-            first_move = false;
-        }
-        gcode += this->extrude_path(path, what, speed);
-    };
-    const auto& stages = m_ping_cycle->stages();
-    for (size_t si = 0; si < stages.size(); ++si) {
-        const PingCycle::Stage& st = stages[si];
-        gcode += st.recipe_cmd + " ; PING photo-tile cycle " + st.channel + "\n";
-        for (int lap = st.first_lap; lap <= st.last_lap; ++lap) {
-            extrude_ring(g.loops[lap - 1], "PING cycle tower");
-            // Eric 2026-09-10（牌 c-0910-WT-09）：最淺段（純 E0、最後一段）**每一圈畫完都回抽一次**（含機型設定的抬升）；
-            // 下一圈由 extrude_path → _extrude 的 travel_to／unretract 自動回填。其餘（較深）段不動。
-            // 起因＝0909 實印：牆 1 圈＋線寬 1.5× 那件出塔後有牽絲與混色，Eric 要淺色圈逐圈回抽當對照實驗。
+    // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01）：層首只洗本層**第一個顏色**的圈，其餘顏色到
+    // process_layer 換料迴圈裡、各自開印前才進塔（ping_cycle_tower_visit）。第 0 層（brim 層）照舊整塔——
+    // 實印證實有效的 B 檔同樣沒動第 0 層；split 不適用（四料／圈數不是 4／≥4 色）也照舊整塔。
+    const auto plan = first_layer ? std::vector<std::pair<unsigned int, std::vector<int>>>() : m_ping_cycle->split_plan(layer_tools.extruders);
+    if (!plan.empty()) {
+        gcode += this->ping_cycle_split_rings(g, layer_height, speed, plan.front().first, plan.front().second);
+    } else {
+        bool first_move = true;
+        auto extrude_ring = [&](const Polyline& ring, const char* what) {
+            ExtrusionPath path(erWipeTower, g.mm3_per_mm, g.width, layer_height);
+            path.polyline = ring;
+            if (first_move) {
+                m_avoid_crossing_perimeters.use_external_mp_once();
+                gcode += this->travel_to(path.first_point(), erWipeTower, "move to PING cycle tower");
+                first_move = false;
+            }
+            gcode += this->extrude_path(path, what, speed);
+        };
+        const auto& stages = m_ping_cycle->stages();
+        for (size_t si = 0; si < stages.size(); ++si) {
+            const PingCycle::Stage& st = stages[si];
+            gcode += st.recipe_cmd + " ; PING photo-tile cycle " + st.channel + "\n";
+            for (int lap = st.first_lap; lap <= st.last_lap; ++lap) {
+                extrude_ring(g.loops[lap - 1], "PING cycle tower");
+                // Eric 2026-09-10（牌 c-0910-WT-09）：最淺段（純 E0、最後一段）**每一圈畫完都回抽一次**（含機型設定的抬升）；
+                // 下一圈由 extrude_path → _extrude 的 travel_to／unretract 自動回填。其餘（較深）段不動。
+                // 起因＝0909 實印：牆 1 圈＋線寬 1.5× 那件出塔後有牽絲與混色，Eric 要淺色圈逐圈回抽當對照實驗。
+                if (si + 1 == stages.size())
+                    gcode += this->retract();
+            }
+            // 首層 brim 接在**最後一段（純 E0 最淺）之後**、由內往外長（Eric 2026-09-09 圈序反向後的必然結果）：
+            // brim 在塔身之外，若還用第一段的深色，塔底就會有一圈深色 ⇒ 正是「垂直方向看到顏色變化」。
             if (si + 1 == stages.size())
-                gcode += this->retract();
+                for (const Polyline& b : g.brim_loops)
+                    extrude_ring(b, "PING cycle tower brim");
         }
-        // 首層 brim 接在**最後一段（純 E0 最淺）之後**、由內往外長（Eric 2026-09-09 圈序反向後的必然結果）：
-        // brim 在塔身之外，若還用第一段的深色，塔底就會有一圈深色 ⇒ 正是「垂直方向看到顏色變化」。
-        if (si + 1 == stages.size())
-            for (const Polyline& b : g.brim_loops)
-                extrude_ring(b, "PING cycle tower brim");
     }
     // 離塔：回抽（含機型設定的抬升），下一段模型 travel 由既有 travel_to 帶避讓
     gcode += this->retract();
@@ -4338,6 +4347,73 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
             gcode += it->second + " ; PING photo-tile cycle exit -> T" + std::to_string(first_tool) + "\n";
     }
     gcode += "; PING photo-tile cycle tower end\n";
+    return gcode;
+}
+
+// ── PING 照片磚每色進塔：本層第 2 個以後的顏色開印前各進塔一次（Eric 2026-09-14 Q1，牌 c-0914-PTI-01）────────
+// 呼叫點＝process_layer 換料迴圈，set_extruder 之後、印該色模型段之前（＝B 檔插入的位置）。
+std::string GCode::ping_cycle_tower_visit(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, unsigned int extruder_id, coordf_t print_z)
+{
+    if (!m_ping_cycle || !m_ping_cycle->split_active() || m_layer_index == 0)
+        return std::string();
+    const Layer* obj_layer = nullptr;
+    for (const LayerToPrint& l : layers)
+        if (l.object_layer != nullptr) { obj_layer = l.object_layer; break; }
+    if (obj_layer == nullptr)
+        return std::string();
+    const auto plan = m_ping_cycle->split_plan(layer_tools.extruders);
+    if (plan.empty() || plan.front().first == extruder_id)   // 第一個顏色層首那趟已洗過
+        return std::string();
+    auto it = std::find_if(plan.begin(), plan.end(), [extruder_id](const std::pair<unsigned int, std::vector<int>>& p) { return p.first == extruder_id; });
+    if (it == plan.end())
+        return std::string();
+    const float layer_height = (float) obj_layer->height;
+    const PingCycle::LayerGeometry& g = m_ping_cycle->geometry_for(layer_height, false);
+    if (!g.problem.empty())
+        throw Slic3r::SlicingError(std::string("PING photo-tile cycle tower: ") + g.problem);
+    const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
+
+    std::string gcode;
+    { std::ostringstream os; os << "; PING photo-tile cycle tower visit begin T" << extruder_id << " z=" << print_z << "\n"; gcode += os.str(); }
+    // 塔座標是列印板絕對座標，照層首那趟的原點畫；set_origin 會同步平移 last_pos／wipe 路徑，換回來不影響模型段
+    const Vec2d model_origin = m_origin;
+    this->set_origin(m_ping_cycle_origin);
+    gcode += this->ping_cycle_split_rings(g, layer_height, speed, extruder_id, it->second);
+    this->set_origin(model_origin);
+    gcode += "; PING photo-tile cycle tower visit end\n";
+    return gcode;
+}
+
+// 每色進塔的一趟：rings＝1-based、由內往外。每一圈都「回抽→抬升→空跑到圈起點→下降→回填→（第一圈才）換比例→擠一圈→回抽」
+// ＝B 檔的順序；配方寫在回填**之後**（0910 規則：回抽中不換比例，否則 G11 回吐的是舊比例的料）。
+std::string GCode::ping_cycle_split_rings(const PingCycle::LayerGeometry& g, float layer_height, double speed, unsigned int tool, const std::vector<int>& rings)
+{
+    std::string recipe_line;
+    auto pit = m_ping_cycle->palette().find((int) tool);
+    if (pit != m_ping_cycle->palette().end()) {
+        std::ostringstream os;
+        os << pit->second << " ; PING photo-tile cycle split T" << tool << " rings";
+        for (size_t i = 0; i < rings.size(); ++i)
+            os << (i ? "," : " ") << rings[i];
+        os << "\n";
+        recipe_line = os.str();
+    }
+    std::string gcode;
+    for (size_t i = 0; i < rings.size(); ++i) {
+        const int r = rings[i];
+        if (r < 1 || r > (int) g.loops.size())
+            throw Slic3r::SlicingError("PING photo-tile cycle tower: ring " + std::to_string(r) + " does not exist on this layer");
+        ExtrusionPath path(erWipeTower, g.mm3_per_mm, g.width, layer_height);
+        path.polyline = g.loops[r - 1];
+        gcode += this->retract();
+        m_avoid_crossing_perimeters.use_external_mp_once();
+        gcode += this->travel_to(path.first_point(), erWipeTower, "move to PING cycle tower");
+        gcode += this->unretract();
+        if (i == 0)
+            gcode += recipe_line;
+        gcode += this->extrude_path(path, "PING cycle tower", speed);
+        gcode += this->retract();
+    }
     return gcode;
 }
 
@@ -5087,7 +5163,9 @@ LayerResult GCode::process_layer(
 
     bool has_insert_wrapping_detection_gcode = false;
 
-    // PING 照片磚循環洗料塔（WT 線）：層首先做一趟塔（由外往內 E(n-1)…E0），離塔後明寫第一段模型配方；未開＝空字串
+    // PING 照片磚循環洗料塔（WT 線）：層首先做一趟塔，離塔後明寫第一段模型配方；未開＝空字串。
+    // 每色進塔適用時（雙料、4 圈、2～3 色，第 0 層除外）層首只洗第一個顏色，其餘顏色見迴圈內 ping_cycle_tower_visit
+    // （2026-09-14 Q1，牌 c-0914-PTI-01）；不適用照舊由內往外 E(n-1)…E0 整塔。
     gcode += this->ping_cycle_tower_layer(print, layers, layer_tools, print_z);
 
     // Extrude the skirt, brim, support, perimeters, infill ordered by the extruders.
@@ -5159,6 +5237,10 @@ LayerResult GCode::process_layer(
         }
         
         gcode += std::move(gcode_toolchange);
+
+        // PING 照片磚每色進塔（2026-09-14 Q1，牌 c-0914-PTI-01）：換到本層第 2 個以後的顏色時，
+        // 換料（含回抽＋T 指令）之後、印該色模型段之前，先進塔只洗分給它的圈；不適用＝空字串
+        gcode += this->ping_cycle_tower_visit(print, layers, layer_tools, extruder_id, print_z);
 
         // let analyzer tag generator aware of a role type change
         if (layer_tools.has_wipe_tower && m_wipe_tower)

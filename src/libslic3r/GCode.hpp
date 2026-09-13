@@ -597,6 +597,11 @@ private:
     // PING 照片磚循環洗料塔（WT 線 2026-09-08）：do_export 建、process_layer 層首用；未開＝nullptr
     std::unique_ptr<PingCycle::Tower>     m_ping_cycle;
     std::string ping_cycle_tower_layer(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, coordf_t print_z);
+    // 每色進塔（2026-09-14 Q1，牌 c-0914-PTI-01）：本層第 2 個以後的顏色，set_extruder 之後、印模型段之前進塔洗自己的圈；不適用＝空字串
+    std::string ping_cycle_tower_visit(const Print& print, const std::vector<LayerToPrint>& layers, const LayerTools& layer_tools, unsigned int extruder_id, coordf_t print_z);
+    std::string ping_cycle_split_rings(const PingCycle::LayerGeometry& g, float layer_height, double speed, unsigned int tool, const std::vector<int>& rings);
+    // 層首那趟塔用的座標原點；同層後面每一趟都用它，塔座標才不會跟著模型段的原點移位
+    Vec2d                                 m_ping_cycle_origin = Vec2d::Zero();
 
     std::unique_ptr<SmallAreaInfillFlowCompensator> m_small_area_infill_flow_compensator;
     
