@@ -559,7 +559,17 @@ document.getElementById('calibFile').onchange=e=>{
     try{
       const raw=JSON.parse(rd.result);
       const tbl=PhotoTileEngine.calibParseTable(raw);
+      /* 0914（Eric 裁 Q2 乙「料槽顏色用實際線材色」）：校正表就是「這兩支料印出來的真色」的唯一實測來源
+         ——匯入時直接把料 A／B 改成表宣告的料色（表的 料[1] 依 measured/README §一 修正法＝S=0 那階量到色）。
+         不改＝表永遠對不上目前料色（0822 那兩張表就是這樣被關在門外）。只在雙料且表有兩支料色時做；四料不動。 */
+      let applied='';
+      if(slotCount===2 && tbl.slots.length>=2 && /^#[0-9A-F]{6}$/.test(tbl.slots[0]) && /^#[0-9A-F]{6}$/.test(tbl.slots[1])){
+        const before=slots.slice(0,2).map(x=>x.color.toUpperCase());
+        slots[0].color=tbl.slots[0].toLowerCase(); slots[1].color=tbl.slots[1].toLowerCase();
+        if(before[0]!==tbl.slots[0]||before[1]!==tbl.slots[1]){ renderSlots(); applied=`料色已改成校正表的料（${tbl.slots[0]} · ${tbl.slots[1]}）。`; }
+      }
       calibSetTable(tbl);
+      if(applied){ const el=document.getElementById('calibTableStat'); if(el) el.innerHTML=applied+'<br>'+el.innerHTML; }
     }catch(err){
       calibTable=null;
       document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
