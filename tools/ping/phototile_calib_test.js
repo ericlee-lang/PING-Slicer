@@ -155,6 +155,40 @@ function fakeImg(){
     assert.throws(() => E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', s: [0.9, 0.5, 0] }), /純色錨點/);
   });
 
+  console.log('\n乙案色調映射（toneStretch；0914 三色巴哥中間階空掉的實錄）');
+  /* 三色圖：L* 5／45／95 各三分之一（AI 壓平巴哥的直方圖形狀）；料＝白 95 × 深灰 48 */
+  function triImg(){
+    const w = 30, h = 30, n = w * h; const lab = new Float32Array(n * 3);
+    for (let p = 0; p < n; p++) lab[p*3] = p % 3 === 0 ? 5 : p % 3 === 1 ? 45 : 95;
+    return { w, h, lab, lum: new Float32Array(n), data: new Uint8ClampedArray(n * 4) };
+  }
+  const tableGray = mkTable('#F2F0EB', '#707279', [[1,'#F2F0EB'],[0.94,'#DFDDD9'],[0.87,'#C1C0C0'],[0.78,'#B7B6B8'],[0.67,'#9B9BA0'],[0.53,'#94979E'],[0.35,'#777A81'],[0,'#707279']]);
+  const slotsGray = [{ color: '#F2F0EB' }, { color: '#707279' }];
+  const hist = q => { const c = {}; for (const v of q.rawLabels) c[v] = (c[v] || 0) + 1; return c; };
+  check('套表、不開 toneMap ⇒ 圖裡 L*45 的灰與 L*5 的黑都夾成最深階（中間階空）', async () => {
+    const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: true };
+    const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
+    const h = hist(q); assert.strictEqual(h[1] || 0, 0, '中間階應為空'); assert(h[0] > 0 && h[2] > 0);
+    assert.strictEqual(q.calib.toneMap, undefined);
+  });
+  check("套表＋toneMap:'stretch' ⇒ 三階都有像素（各三分之一），calib.toneMap 記錄映射範圍", async () => {
+    const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: true, toneMap: 'stretch' };
+    const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
+    const h = hist(q); assert(h[0] > 0 && h[1] > 0 && h[2] > 0, JSON.stringify(h));
+    assert.strictEqual(h[0], h[1]); assert.strictEqual(h[1], h[2]);
+    assert.strictEqual(q.calib.toneMap.mode, 'stretch'); assert(q.calib.toneMap.Lmin <= 5.5 && q.calib.toneMap.Lmax >= 94.5);
+  });
+  check("apply:false＋toneMap:'stretch' ⇒ 不映射（映射只跟著 ④-2 走）", async () => {
+    const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: false, toneMap: 'stretch' };
+    const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
+    assert.strictEqual(q.calib.toneMap, undefined);
+  });
+  check('toneStretch 本身：百分位夾住、映射到 [dark, light] 兩端', () => {
+    const im = triImg(); const ts = E.toneStretch(im.lab, im.w * im.h, 95, 48.3, {});
+    assert(Math.abs(ts.mapL(5) - 48.3) < 1e-6 && Math.abs(ts.mapL(95) - 95) < 1e-6);
+    assert(ts.mapL(45) > 60 && ts.mapL(45) < 80, 'L*45 應落在中段（得 ' + ts.mapL(45) + '）');
+  });
+
   console.log(`\n${pass} 通過、${fail} 失敗`);
   process.exit(fail ? 1 : 0);
 })();

@@ -349,6 +349,11 @@
             <label style="display:block; margin-top:8px"><input type="checkbox" id="calibGenChk" checked>
               <b>用校正值決定色階</b> <span class="sub">（會改變列印內容：色階改在<b>實測</b>亮度上均分）</span></label>
             <div class="sub" id="calibGenStat" style="margin-left:20px"></div>
+            <!-- 乙案（0914，待 Eric 裁）：套表後分箱的兩端＝料的實測亮度，圖裡比最深料還暗的全夾成最深一階；
+                 勾這個＝先把圖的明暗範圍壓進料的可印範圍再分階（每階都有肉、對比按比例縮）。 -->
+            <label style="display:block; margin-top:6px"><input type="checkbox" id="calibStretchChk" checked>
+              <b>把圖的明暗壓進料的可印範圍</b> <span class="sub">（圖裡比最深料還暗的部分不再全部變成最深；對比按比例縮）</span></label>
+            <div class="sub" id="calibStretchStat" style="margin-left:20px"></div>
           </li>
         </ol>
       </details>
@@ -372,7 +377,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260914"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260914b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -413,7 +418,8 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
                cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 1／3、quad 深色 2／白 4（Eric 0910 兩段制，牌 c-0910-WT-10）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
                p2aBlock:true,                    // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
-               calibGen:true };                   // ④-2 用校正值決定色階（0914 Q3 甲救回 3fc1a61f2f 的功能；資料可疑時引擎護欄自動不套，見 engine.js calibGenLadder）
+               calibGen:true,                    // ④-2 用校正值決定色階（0914 Q3 甲救回 3fc1a61f2f 的功能；資料可疑時引擎護欄自動不套，見 engine.js calibGenLadder）
+               calibStretch:true };               // 乙案：套表時把圖的明暗範圍壓進料的可印範圍再分階（0914：深灰料 L* 48 使三色巴哥中間階空掉）；待 Eric 裁，先做可關的預設開
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
    ①0729 gcode 量化定讞——磚縫點 5,460，合法集合 100%（交界 99.9%＋側窄面 fallback 0.1%）、
      正面 0／背面 0／連續疤 0，交界縫距深度中央偏移中位 0.10mm＝縫釘在接觸面正中央；Eric 切片預覽眼驗過。
@@ -486,7 +492,7 @@ slotList.addEventListener('input', e=>{
 const CALIB_LS_KEY='ping_phototile_calib_dual_v1';
 let calibTable=null;          // 引擎 calibParseTable 的形狀 {slots:[hexA,hexB], pts, raw}（＋persisted）
 let calibMadeColors=null;     // 產出校正片當下的料色（產完又改料色 ⇒ 舊摘要會說謊，要標出來）
-function calibRequest(){ return (calibTable && slotCount===2) ? {table:calibTable.raw, apply:!!params.calibGen} : null; }
+function calibRequest(){ return (calibTable && slotCount===2) ? {table:calibTable.raw, apply:!!params.calibGen, toneMap:(params.calibGen&&params.calibStretch)?'stretch':'none'} : null; }
 function calibMatchesNow(){ return !!(calibTable && slotCount===2 && window.PhotoTileEngine && PhotoTileEngine.calibMatches(calibTable, slots.slice(0,2))); }
 /* 摺疊標題的現態摘要——單一來源，每條分支都要同步（LAY-21）。⛔ 不准只講好消息（R8-5：④-2 之後那句話會變成謊話）。 */
 function calibSummaryText(){
@@ -536,6 +542,10 @@ function renderCalibGenStat(K){
   if(!g.applied){ el.innerHTML='<b style="color:#b3281e">未套用</b>（護欄擋下）：'+g.why+'<br>⇒ 色階仍用理論推算，印出來的與匯入前相同。'; return; }
   el.innerHTML='<b>已套用</b>：色階改在實測亮度上均分（實測 L* 跨幅 '+Number(g.span).toFixed(1)+'）。<b>印出來的東西已與匯入前不同。</b>'
               +(g.warnOnly?'<br>⚠ 資料有疑慮但不擋：'+g.warnOnly:'');
+  const st=document.getElementById('calibStretchStat'); const sc=document.getElementById('calibStretchChk'); if(sc) sc.checked=!!params.calibStretch;
+  if(st){ const tm=window.__calibToneMap;
+    st.textContent = !params.calibStretch ? '已關閉：圖的 L* 直接對料的實測範圍分階，超出範圍夾住。'
+      : (tm ? `已套用：圖 L* ${tm.Lmin.toFixed(0)}～${tm.Lmax.toFixed(0)} → 料可印 ${tm.dark.toFixed(0)}～${tm.light.toFixed(0)} 再分階。` : ''); }
 }
 function calibSetTable(tbl, persist){
   calibTable=tbl;
@@ -586,6 +596,7 @@ document.getElementById('btnCalibClear').onclick=()=>{
   calibTableStat(); simulate();
 };
 document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
+document.getElementById('calibStretchChk').onchange=e=>{ params.calibStretch=e.target.checked; queue(); };
 /* 校正片＝引擎 buildCalibStrip（與 照片磚_色彩校正/make_calib_3mf.py 同構的直立條）。
    產品路徑走 phototile_export_begin/chunk/end（GUI_App.cpp 舊收件口——C-2 後閒置但仍在；end 帶 mode/nozzle
    ⇒ C++ photo_tile_deliver_3mf 先切對應同進照片磚機再開檔）；瀏覽器直開＝下載。 */
@@ -838,8 +849,13 @@ function simulateVertical(){
   /* 分箱與顯色同一把尺：像素 L* 對「L* 均分階梯」取最近階（亮/暗超出料色範圍就夾住）。
      舊法用 gamma 亮度均分分箱、顯色卻在線性 RGB 均分——兩把尺對不上，中暗調整批被畫亮一階。 */
   const spanL=LB-LA;
+  /* 乙案色調映射：與 engine.quantizeDual 同一支 toneStretch、同一個條件（表已套用＋toneMap==='stretch'） */
+  const ts=(calibReq && calibReq.toneMap==='stretch' && ladder.calib && ladder.calib.applied && window.PhotoTileEngine && PhotoTileEngine.toneStretch)
+    ? PhotoTileEngine.toneStretch(img.lab, n, LA, LB, calibReq) : null;
+  window.__calibToneMap = ts ? {Lmin:ts.Lmin, Lmax:ts.Lmax, dark:ts.dark, light:ts.light} : null;
   for(let p=0;p<n;p++){
-    const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((img.lab[p*3]-LA)/spanL*(K-1));
+    const v = ts ? ts.mapL(img.lab[p*3]) : img.lab[p*3];
+    const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((v-LA)/spanL*(K-1));
     rawLabels[p]=Math.min(K-1,Math.max(0,k));
   }
   const labArr=filterVerticalLabels(rawLabels,K,'median');

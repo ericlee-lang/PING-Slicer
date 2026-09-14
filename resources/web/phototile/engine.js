@@ -372,6 +372,23 @@ function calibGenLadder(tbl, K){
   return {ok:block.length===0, why:block.concat(warn).join('；'), warnOnly:warn.join('；'),
           blocked:block.join('；'), t, LA:L1, LB:L0, span};
 }
+/* 色調映射「壓進可印範圍」（乙案，0914；opt-in＝calib.toneMap==='stretch'）：
+   校正後分箱的兩端＝料的**實測** L*（R8-5「兩把尺一起換」），於是圖裡比「最深料印出來」還暗的像素全部夾到最深一階。
+   0914 實錄：AI 壓平的三色巴哥（L* 5／45／95）遇到只印得到 L* 48 的深灰料 ⇒ 灰與黑都落 S0、中間階空掉、印出來兩色。
+   這不是校正錯，是料的可印範圍窄；乙案＝先把圖的明暗範圍（1%～99% 百分位）線性壓進 [LB, LA] 再分箱，
+   K 階都有肉、對比按比例縮。甲案（換更黑的料）另議。缺席／'none'＝完全照舊（絕對 L* 分箱、超界夾住）。 */
+function toneStretch(lab, n, LA, LB, opt){
+  const lo=(opt&&Number.isFinite(opt.pLo))?opt.pLo:0.01, hi=(opt&&Number.isFinite(opt.pHi))?opt.pHi:0.99;
+  const H=new Uint32Array(201);                       // L* 0..100，0.5 一格
+  for(let p=0;p<n;p++){ const v=lab[p*3]; H[Math.max(0,Math.min(200,Math.round(v*2)))]++; }
+  let acc=0, Lmin=null, Lmax=null;
+  for(let i=0;i<=200;i++){ acc+=H[i]; if(Lmin===null && acc>=n*lo) Lmin=i/2; if(Lmax===null && acc>=n*hi){ Lmax=i/2; break; } }
+  if(Lmax===null) Lmax=100; if(Lmin===null) Lmin=0;
+  const dark=Math.min(LA,LB), light=Math.max(LA,LB);
+  const span=Math.max(1e-6, Lmax-Lmin);
+  const mapL = v => dark + (Math.max(Lmin,Math.min(Lmax,v)) - Lmin) / span * (light-dark);
+  return { mapL, Lmin, Lmax, dark, light };
+}
 /* 統一入口：quantizeDual（3MF 生成）與頁面 simulateVertical（預覽）都只呼叫這一支。
    回傳＝dualLadder 的形狀 ＋ calib 狀態 ＋（表相符時）lookupLin（④-1 顯示色）。
    calib 為 null／undefined ⇒ 與 dualLadder 逐值相同（多一個 calib:{present:false} 欄位）。 */
@@ -482,9 +499,19 @@ async function quantizeDual(img, P, slots, hooks){
   const n=img.w*img.h;
   const rawLabels=new Uint8Array(n);
   const spanL=LB-LA;
+  /* 乙案色調映射：只在「表已套用」且 calib.toneMap==='stretch' 時啟動；其餘一律原式（逐位元不變） */
+  const ts = (calib && ladder.calib && ladder.calib.applied && calib.toneMap==='stretch') ? toneStretch(img.lab, n, LA, LB, calib) : null;
+  if(ts){
+    for(let p=0;p<n;p++){
+      const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((ts.mapL(img.lab[p*3])-LA)/spanL*(K-1));
+      rawLabels[p]=Math.min(K-1,Math.max(0,k));
+    }
+    ladder.calib.toneMap={mode:'stretch', Lmin:ts.Lmin, Lmax:ts.Lmax, dark:ts.dark, light:ts.light};
+  } else {
   for(let p=0;p<n;p++){
     const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((img.lab[p*3]-LA)/spanL*(K-1));
     rawLabels[p]=Math.min(K-1,Math.max(0,k));
+  }
   }
   if (hooks && hooks.tick) await hooks.tick(1);
   return calib ? { rawLabels, palette: levels, filterStrategy: 'median', calib: ladder.calib }
@@ -1155,7 +1182,7 @@ async function generate(request, options){
 
 return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          /* 0914 色彩校正（單一來源；頁面預覽與 3MF 生成共用） */
-         calibParseTable, calibLookupLin, calibMatches, calibGenLadder, dualLadderCalibrated,
+         calibParseTable, calibLookupLin, calibMatches, calibGenLadder, dualLadderCalibrated, toneStretch,
          buildCalibStrip, buildCalibStripParts, calibStripDefaultS,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
