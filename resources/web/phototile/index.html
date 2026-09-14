@@ -308,6 +308,51 @@
         <span class="sub" id="pillarInfo"></span>
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
+      <!-- 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04：救回 3fc1a61f2f 的 8/22 功能——它在 T042 整區移植（7374b2011d）
+           以開發線頁面覆蓋本頁時被整段刪掉，三棵樹都沒了）。落點與形狀照 0822 原案（Eric 裁 Q1 B「放進工作室右欄」）：
+           LAY-21 管理性功能預設收合、摺疊標題帶現態摘要；LAY-12 比照隔壁「進階／實驗選項」「換料清單」同為 details。
+           🔴 計算全部住 engine.js（calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip＝單一來源），
+           本頁只做 UI 與狀態；預覽（simulateVertical）與 3MF 生成（quantizeDual）呼叫同一支 ⇒ R8-5「兩把尺一起換」由結構保證。 -->
+      <details id="calibDetails">
+        <!-- ⚠ summary 不可設 display:flex——會收掉展開三角形（0822 實錄，Eric 問「沒有載入圖檔是看不到嗎？」）；右側狀態用 float -->
+        <summary style="font-weight:700; cursor:pointer">色彩校正<span class="sub" id="calibSummary"
+          style="font-weight:400; float:right">尚未校正（用理論色）</span></summary>
+        <div class="sub" style="margin:4px 0 8px">
+          量出這兩支料<b>實際印出來</b>的顏色，取代理論推算（0914 實錄：深灰料的蓋色力遠強於線性模型，中間色靠理論值印不出來）。校正資料只綁線材，換機型／口徑／層高不必重做。
+        </div>
+        <ol style="margin:0; padding-left:18px; line-height:1.9">
+          <li><b>產生校正片</b><span class="sub" id="calibSpec"></span>
+            <div style="margin:4px 0 8px">
+              <button class="btn" id="btnCalib">產生校正片並載入列印板</button>
+              <span class="sub" id="calibStat"></span>
+            </div>
+            <div class="sub" style="margin-bottom:6px">8 階直立條（每階 6 mm，沒有洗料塔——每階獨佔一段高度、整層只有一個比例）。印完只看每階<b>上半部</b>。</div>
+          </li>
+          <li><b>印出來，拍一張正面照</b>
+            <div class="sub" style="margin-bottom:6px">直立拍（純白那階在最下面）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
+          </li>
+          <li><b>讀照片，量出實際顏色</b>
+            <div class="sub" style="margin-bottom:4px">
+              主程式的 <b>說明</b> 選單 →「<b>色彩校正</b>」：選「雙料 8 階直立條」、各階 S 照上面「產生校正片」列的值 → 上傳照片 → 點整條的四個外角 → 匯出校正表。
+            </div>
+          </li>
+          <li><b>把校正表匯回來</b>
+            <div class="sub" style="margin-bottom:6px">
+              匯入後，模擬圖與下面的色條改用<b>實際量到的顏色</b>（④-1）；下面的勾選開著時，色階也改在<b>實測</b>亮度上均分（④-2，會改變列印內容）。
+            </div>
+            <div style="margin-bottom:4px">
+              <input type="file" id="calibFile" accept=".json,application/json" style="font-size:12px">
+              <button class="btn" id="btnCalibClear" style="display:none">清除</button>
+            </div>
+            <div class="sub" id="calibTableStat">尚未匯入校正表</div>
+            <!-- ④-2：這個勾選會改變「印出來的東西」，所以獨立成一個看得見的開關，不藏在進階區。 -->
+            <label style="display:block; margin-top:8px"><input type="checkbox" id="calibGenChk" checked>
+              <b>用校正值決定色階</b> <span class="sub">（會改變列印內容：色階改在<b>實測</b>亮度上均分）</span></label>
+            <div class="sub" id="calibGenStat" style="margin-left:20px"></div>
+          </li>
+        </ol>
+      </details>
+      <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
            （空間不夠先砍間距與裝飾、絕不砍可操作區）收成 details，功能一個沒少。
            要用的時候在旁邊、平常不佔 262px。 -->
@@ -327,7 +372,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260910b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="engine.js?v=20260914"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。**資料正本＝同目錄 款式庫_照片磚.json**；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -367,7 +412,8 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
                pillar:true, pillarXY:20,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
                cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 1／3、quad 深色 2／白 4（Eric 0910 兩段制，牌 c-0910-WT-10）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉
-               p2aBlock:true };                   // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
+               p2aBlock:true,                    // P2A 正/背面禁縫 blocker（Eric 2026-08-22 裁「預設開」；理由見下）
+               calibGen:true };                   // ④-2 用校正值決定色階（0914 Q3 甲救回 3fc1a61f2f 的功能；資料可疑時引擎護欄自動不套，見 engine.js calibGenLadder）
 /* P2A 預設開的依據（2026-08-22 Eric 裁 A，把 0729 唯一未結的「預設開關」補上）：
    ①0729 gcode 量化定讞——磚縫點 5,460，合法集合 100%（交界 99.9%＋側窄面 fallback 0.1%）、
      正面 0／背面 0／連續疤 0，交界縫距深度中央偏移中位 0.10mm＝縫釘在接觸面正中央；Eric 切片預覽眼驗過。
@@ -432,6 +478,142 @@ slotList.addEventListener('input', e=>{
   if(k==='color') slots[i].color=e.target.value;
   queue();
 });
+/* ================= 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04）=================
+   救回 3fc1a61f2f（2026-08-22 ④-1／④-2）——T042 整區移植（7374b2011d）以開發線頁面覆蓋本頁時整段被刪。
+   這次計算全部住 engine.js（calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip），
+   本頁只管：匯入表（＋localStorage 續命）、勾選 ④-2、狀態列講實話、把表掛進 request.slots[0].calib、產生校正片。
+   儲存：試 localStorage，失敗就只活這個 session（WebView2 file:// 能否持久化未證實 ⇒ 用它但不依賴它，畫面誠實標示）。 */
+const CALIB_LS_KEY='ping_phototile_calib_dual_v1';
+let calibTable=null;          // 引擎 calibParseTable 的形狀 {slots:[hexA,hexB], pts, raw}（＋persisted）
+let calibMadeColors=null;     // 產出校正片當下的料色（產完又改料色 ⇒ 舊摘要會說謊，要標出來）
+function calibRequest(){ return (calibTable && slotCount===2) ? {table:calibTable.raw, apply:!!params.calibGen} : null; }
+function calibMatchesNow(){ return !!(calibTable && slotCount===2 && window.PhotoTileEngine && PhotoTileEngine.calibMatches(calibTable, slots.slice(0,2))); }
+/* 摺疊標題的現態摘要——單一來源，每條分支都要同步（LAY-21）。⛔ 不准只講好消息（R8-5：④-2 之後那句話會變成謊話）。 */
+function calibSummaryText(){
+  const g=window.__calibGen;
+  if(calibTable && calibMatchesNow()){
+    if(params.calibGen && g && g.applied) return '已校正・色階用實測值（會影響列印）';
+    if(params.calibGen && g && !g.applied) return '已校正・色階未套用（護欄擋下）';
+    return '已校正・僅顯示用實測色';
+  }
+  if(calibTable) return '⚠ 校正表與目前料色不符，未套用';
+  if(calibMadeColors){
+    const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
+    return (now===calibMadeColors) ? `已產出校正片（${calibMadeColors}），尚未回讀`
+                                   : `⚠ 料色已改（現在是 ${now}）——先前那條校正片是 ${calibMadeColors}，要重產`;
+  }
+  return '尚未校正（用理論色）';
+}
+function applyCalibSummary(){ const sum=document.getElementById('calibSummary'); if(sum) sum.textContent=calibSummaryText(); }
+function calibSpecText(){
+  const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
+  const S=(window.PhotoTileEngine&&PhotoTileEngine.calibStripDefaultS)?PhotoTileEngine.calibStripDefaultS(cols[0],cols[1]):[];
+  return `　${cols.join(' · ')}｜8 階直立條 80×8×48 mm｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
+}
+function calibTableStat(){
+  const el=document.getElementById('calibTableStat'); if(!el) return;
+  const btn=document.getElementById('btnCalibClear');
+  if(!calibTable){ el.textContent='尚未匯入校正表'; if(btn) btn.style.display='none'; return; }
+  if(btn) btn.style.display='';
+  const now=slots.slice(0,2).map(s=>s.color.toUpperCase()).join(' · ');
+  if(slotCount!==2) el.innerHTML='已匯入雙料校正表，但目前是<b>四色</b>模式 —— 未套用。';
+  else if(!calibMatchesNow())
+    el.innerHTML=`⚠ 已匯入的校正表是 <b>${calibTable.slots.slice(0,2).join(' · ')}</b> 這組料，目前料色是 <b>${now}</b> —— <b>未套用</b>。校正資料只綁線材，換了料就要重新校正。`;
+  else
+    el.innerHTML=`✅ 已套用（${calibTable.pts.length} 點，${calibTable.slots.slice(0,2).join(' · ')}）—— 模擬圖與色條顯示的是<b>實測</b>顏色。${calibTable.persisted?'':'<br><span class="sub">⚠ 這次無法存進瀏覽器，關掉工作室後要重新匯入。</span>'}`;
+}
+/* ④-2 的狀態列：套了沒、為什麼沒套，一律講清楚。⛔ 不准出現只講好消息的「已套用校正」——被擋下時使用者要知道印出來的還是理論階梯。 */
+function renderCalibGenStat(K){
+  const el=document.getElementById('calibGenStat'); if(!el) return;
+  const chk=document.getElementById('calibGenChk'); if(chk) chk.checked=!!params.calibGen;
+  const spec=document.getElementById('calibSpec'); if(spec) spec.textContent=calibSpecText();
+  calibTableStat(); applyCalibSummary();
+  const g=window.__calibGen;
+  if(!calibTable){ el.textContent='（要先匯入校正表）'; return; }
+  if(slotCount!==2 || !calibMatchesNow()){ el.textContent='（校正表與目前料色不符，整段未套用）'; return; }
+  if(!params.calibGen){ el.textContent='已關閉：色階仍用理論推算，印出來的與匯入校正表前相同。'; return; }
+  if(!g){ el.textContent=''; return; }
+  if(!g.applied){ el.innerHTML='<b style="color:#b3281e">未套用</b>（護欄擋下）：'+g.why+'<br>⇒ 色階仍用理論推算，印出來的與匯入前相同。'; return; }
+  el.innerHTML='<b>已套用</b>：色階改在實測亮度上均分（實測 L* 跨幅 '+Number(g.span).toFixed(1)+'）。<b>印出來的東西已與匯入前不同。</b>'
+              +(g.warnOnly?'<br>⚠ 資料有疑慮但不擋：'+g.warnOnly:'');
+}
+function calibSetTable(tbl, persist){
+  calibTable=tbl;
+  if(tbl && persist!==false){
+    try{ localStorage.setItem(CALIB_LS_KEY, JSON.stringify(tbl.raw)); tbl.persisted=true; }
+    catch(e){ tbl.persisted=false; }
+  }
+  calibTableStat(); simulate();
+}
+(function calibRestore(){
+  try{
+    const s=localStorage.getItem(CALIB_LS_KEY);
+    if(s && window.PhotoTileEngine){ const raw=JSON.parse(s); const tbl=PhotoTileEngine.calibParseTable(raw); tbl.persisted=true; calibTable=tbl; }
+  }catch(e){ calibTable=null; }
+})();
+document.getElementById('calibFile').onchange=e=>{
+  const f=e.target.files && e.target.files[0];
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const raw=JSON.parse(rd.result);
+      const tbl=PhotoTileEngine.calibParseTable(raw);
+      calibSetTable(tbl);
+    }catch(err){
+      calibTable=null;
+      document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
+      document.getElementById('btnCalibClear').style.display='none';
+      applyCalibSummary();
+    }
+  };
+  rd.readAsText(f);
+  e.target.value='';
+};
+document.getElementById('btnCalibClear').onclick=()=>{
+  calibTable=null;
+  try{ localStorage.removeItem(CALIB_LS_KEY); }catch(e){}
+  calibTableStat(); simulate();
+};
+document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
+/* 校正片＝引擎 buildCalibStrip（與 照片磚_色彩校正/make_calib_3mf.py 同構的直立條）。
+   產品路徑走 phototile_export_begin/chunk/end（GUI_App.cpp 舊收件口——C-2 後閒置但仍在；end 帶 mode/nozzle
+   ⇒ C++ photo_tile_deliver_3mf 先切對應同進照片磚機再開檔）；瀏覽器直開＝下載。 */
+async function sendCalib3mfToSlicer(blob, fname, st){
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  const rawChunkSize=96*1024;                    // 可被 3 整除，不會在中段產生 base64 padding
+  const chunks=Math.ceil(bytes.length/rawChunkSize);
+  sendSlicerMessage('phototile_export_begin',{name:fname,size:bytes.length,chunks});
+  for(let i=0;i<chunks;i++){
+    const raw=bytes.subarray(i*rawChunkSize,Math.min(bytes.length,(i+1)*rawChunkSize));
+    sendSlicerMessage('phototile_export_chunk',{index:i,base64:bytesToBase64(raw)});
+    st.textContent=`正在送入列印板… ${i+1}/${chunks}`;
+    await new Promise(resolve=>setTimeout(resolve,0));
+  }
+  sendSlicerMessage('phototile_export_end',{name:fname, mode:'dual', nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
+}
+document.getElementById('btnCalib').onclick=async()=>{
+  const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
+  if(slotCount!==2){ st.textContent='　校正片目前只有雙料版（四料請先切回雙料）。'; return; }
+  if(!window.PhotoTileEngine || !PhotoTileEngine.buildCalibStrip){ st.textContent='　引擎未載入，請重新整理頁面。'; return; }
+  b.disabled=true; st.textContent='　產生中…';
+  try{
+    const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
+    const r=await PhotoTileEngine.buildCalibStrip({hexA:cols[0], hexB:cols[1], nameA:'料A', nameB:'料B', widthMm:80, thickMm:8, bandMm:6});
+    const fname=`色彩校正_雙料8階直立條_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
+    if(slicerBridgeReady()){
+      await sendCalib3mfToSlicer(r.blob, fname, st);
+      st.textContent='　已送入列印板。切片列印後拍正面照，到「說明 → 色彩校正」選「雙料 8 階直立條」讀照片。';
+    }else{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname; a.click();
+      st.textContent=`　已輸出 ${fname}（${r.s.length} 階、${(r.blob.size/1024).toFixed(0)} KB）。`;
+    }
+    calibMadeColors=cols.join(' · ');
+    applyCalibSummary();
+  }catch(e){ st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`; }
+  finally{ b.disabled=false; }
+};
+
 /* ================= 模擬 ================= */
 const simCanvas=document.getElementById('simCanvas'), simCtx=simCanvas.getContext('2d');
 const coreCanvas=document.getElementById('coreCanvas'), coreCtx=coreCanvas.getContext('2d');
@@ -616,21 +798,28 @@ function simulateVertical(){
      任一邊改了另一邊沒跟，畫面就會開始說謊。2026-08-22 收斂成單一來源。
      ⚠ 引擎沒載到時 fallback 回本地實作（值與引擎逐格相同），只為讓頁面不整個掛掉，
        並在 console 明講——**不要把 fallback 當成正常路徑**。 */
-  const ladder=(window.PhotoTileEngine && PhotoTileEngine.dualLadder)
-    ? PhotoTileEngine.dualLadder(slots[0].color, slots[1].color, K)
+  /* 0914 色彩校正：有匯入校正表就走引擎的校正入口 dualLadderCalibrated（與 quantizeDual 同一支）；
+     沒有表＝它退化成 dualLadder、逐值相同。 */
+  const calibReq=calibRequest();
+  const ladder=(window.PhotoTileEngine && PhotoTileEngine.dualLadderCalibrated)
+    ? PhotoTileEngine.dualLadderCalibrated(slots.slice(0,2), K, calibReq)
     : (console.warn('PING 照片磚：engine.js 未載入，色階梯改用頁面 fallback'), dualLadderFallback(slots[0].color, slots[1].color, K));
+  window.__calibGen = ladder.calib || null;               // 狀態列據此講實話（套了沒／為什麼沒套）
   const A=ladder.A, B=ladder.B, LA=ladder.LA, LB=ladder.LB;
   const levels=[];
   for(let i=0;i<K;i++){
     const t=ladder.t[i];
-    const lin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
-    levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin)});
+    const theoryLin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
+    /* ④-1：表相符時顯示色改用實測曲線上的值；🔴 t 不動——t 就是 M6051 的 S，動它是 ④-2（在引擎的 ladder 裡） */
+    const lin = ladder.lookupLin ? ladder.lookupLin(Math.round((1-t)*100)/100) : theoryLin;
+    levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin), theoryLin});
   }
   const W=coreCanvas.width,H=coreCanvas.height,bw=W/K;
   for(let i=0;i<K;i++){ coreCtx.fillStyle=rgbHex(...levels[i].rgb); coreCtx.fillRect(i*bw,0,Math.ceil(bw),H); }
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
   for(let i=1;i<K;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
+  renderCalibGenStat(K);
   listVertical(levels);
   if(!img){ updateNoiseStat(null); return; }
   const t0=performance.now();
@@ -675,7 +864,7 @@ function listVertical(levels){
   });
   document.getElementById('swapList').textContent=lines.join('\n');
 }
-function simulate(){ simulateVertical(); }   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色
+function simulate(){ simulateVertical(); if(slotCount===4) renderCalibGenStat(params.klevels); }   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色。0914：四料時也刷新校正狀態列（雙料表在四料下不套用要講）
 
 /* ================= 圖片載入 ================= */
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
@@ -1523,7 +1712,9 @@ function buildRequest(){
        **明寫數值而不是送 0**，3MF 就記得住實際邊長，切片器端不必再猜。 */
     cycle:{enabled:!!params.cycle, laps:cycleLapsSpec(), sizeMm:35, gapMm:15, brimMm:8},   /* 🔴 塔邊長 25→35（Eric 2026-09-10：0.6＋高流量混色仍重，加大塔比加圈數有效——同尺寸下每圈更長）。35mm／0.6 的 cavity 上限約 24 圈，現行 16 圈有餘裕。改這裡＝沒有 UI 欄位（0908「固定 25」後就寫死了）。 */
     seam:{teeth:params.teeth, p2aBlock:params.p2aBlock},
-    slots: slots.slice(0,slotCount).map(s=>({...s}))
+    /* 0914 色彩校正：表掛在 slots[0].calib（校正只綁線材 R6-1）；C++ 把 slotsJson 原字串直通、引擎在 quantizeDual 讀它。
+       沒匯入表＝不多任何鍵 ⇒ 請求字串與舊版同字（黃金閘門不受影響）。 */
+    slots: slots.slice(0,slotCount).map((s,i)=>{ const o={...s}; const c=(i===0)?calibRequest():null; if(c) o.calib=c; return o; })
   };
 }
 

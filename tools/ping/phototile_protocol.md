@@ -132,6 +132,20 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
 - 開啟時引擎：①不再產舊固定比洗料柱零件 ②`Metadata/model_settings.config` 的照片磚 `<object>` 多六個 metadata 鍵 `ping_pt_cycle=1`／`ping_pt_cycle_mode`／`ping_pt_cycle_laps`／`ping_pt_cycle_size`／`ping_pt_cycle_gap`／`ping_pt_cycle_brim`（bbs_3mf 匯入→`ModelObject::config`→`PrintObjectConfig`，另存重開都在）③`ping_phototile.json.params.cycle` 記同一組值。
 - 切片端：`libslic3r/GCode/PingCycleTower.*` 讀物件設定，`ToolOrdering::ping_reorder_for_cycle_tower` **模型段照亮度分數淺→深完全排序**（Eric 2026-09-09 裁「丙」：亮度＝雙料 S／四料 (A×3+B×2+C×1+D×0)/300；`stable_sort` ⇒ 同分維持原生順序；不在 palette 的槽留原位。原規則「純 E0 先其餘保序」已停用——實測 333 層只有 24 層碰巧淺→深，65 層洗白後第一段就上純黑），`GCode::ping_cycle_tower_layer` 層首插塔（真實 offset 圈、配方命令 M605x 直寫、離塔後明寫第一段模型配方）。離線對照答案＝`照片磚_循環洗料塔/cycle_core.py`。
 
+### 8.2 色彩校正（0914 Q3 甲，additive；schema 仍 1；牌 c-0914-PTI-04）
+
+- request **不多欄**：校正表掛在 **`slots[0].calib`**＝`{ table:<回讀頁匯出的校正表 JSON 原物>, apply:<bool，預設 true> }`。
+  理由：①校正只綁線材（核心規格 R6-1）⇒ 資料掛在料上語意成立 ②宿主 C++（`GUI_App.cpp` `phototile_generate`）把 `slotsJson` **原字串直通**、只驗「是陣列且可解析」⇒ 不必動 C++／不必 build。
+- **缺席＝整段不跑** ⇒ 3MF、請求字串、`ping_phototile.json` 與舊版**位元組全等**（黃金閘門不受影響）。
+- 有表且料色相符（`calibMatches`：表的 `料[0..1].色` 逐字等於 `slots[0..1].color`，大小寫無關）：
+  - ④-1（永遠）：palette／零件名的預覽 hex 改用實測曲線內插色（`calibLookupLin`），**S 不動**。
+  - ④-2（`apply!==false` 且四道護欄全過）：K 階改在**實測 L\*** 上均分、從實測曲線反解 S（`calibGenLadder`，兩位小數對齊）；分箱端點 LA／LB 一起換成實測端點。
+  - 護欄：①任一格通道 ≥250 ⚠ ②相鄰階 ΔE<2 ⚠ ③實測 L\* 跨幅 < K×1 ⛔ ④非單調 ⛔（⛔＝退回理論階梯）。
+- 回報：`result.diagnostics.calib`＝`{present,matches,applied,why,warnOnly,span}`；`ping_phototile.json.params.calib`＝`{applied,matches,why,span}`（皆只在表存在時出現）。
+- 單一來源：`engine.js` 的 `dualLadderCalibrated(slots,K,calib)`——工作室預覽（`simulateVertical`）與 3MF 生成（`quantizeDual`）都只呼叫它（R8-5「兩把尺一起換」由結構保證）。
+- 校正片：`engine.js` `buildCalibStrip({hexA,hexB,s?,widthMm,thickMm,bandMm})`＝`照片磚_色彩校正/make_calib_3mf.py` 的同構 JS 版（Z 疊直立條、無洗料塔）；回讀頁 `calibration.html` 新增「雙料 8 階直立條」版面（`LAYOUT='vstrip'`，各階 S 可填）。
+- 單元測：`node tools/ping/phototile_calib_test.js`（保命索＝calib 缺席時 `quantizeDual` 與理論梯逐值相同；正向 oracle＝0822 白×藍真表 → R8-5 記錄的 100/75/61/43/37/31/16/0；反向＝白×黃跨幅擋、料色不符不套、非單調擋）。
+
 ## 9. 單元測
 
 `node tools/ping/phototile_protocol_test.js` —— 涵蓋分塊往返、四項驗證的反向測試（亂序／少塊／長度竄改／SHA 竄改／
