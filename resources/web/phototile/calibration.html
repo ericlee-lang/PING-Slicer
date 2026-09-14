@@ -116,10 +116,12 @@
         <label class="ck"><input type="radio" name="slotN" value="2"> 雙料 8 格</label>
         <label class="ck"><input type="radio" name="slotN" value="2v"> 雙料 8 階直立條（Z 疊，由下往上）</label>
       </div>
-      <!-- 0914 Q3 甲（牌 c-0914-PTI-04）：直立條＝照片磚_色彩校正/make_calib_3mf.py／工作室「產生校正片」產的 Z 疊階梯，
-           每階獨佔一段高度、沒有洗料塔。照片直立拍（純料A 那階在最下），四角＝整條外緣；階序由下往上＝S 清單順序。 -->
+      <!-- 0914 Q3 甲（牌 c-0914-PTI-04）／0915 幾何改版（牌 c-0915-PTI-01）：直立條＝照片磚_色彩校正/make_calib_3mf.py --purge
+           ／工作室「產生校正片」產的 Z 疊階梯，每階獨佔一段高度，**旁邊另有一根獨立的隨階換比例洗料柱**（v2c 定案：片 40×6×16、
+           每階 2 mm、柱 12×12）。照片直立拍（純料A 那階在最下），四角＝**校正片本身**的外緣——柱是另一個物件，不要框進去；
+           因為柱把換比例的殘料吐掉了，每一階整段都是乾淨色，取樣不必再限在上半部。階序由下往上＝S 清單順序。 -->
       <div class="row" id="vsRow" style="display:none; margin-bottom:8px">
-        <span style="font-size:12px;color:var(--muted)">各階 S（由下往上，逗號；S＝料A 佔比）</span>
+        <span style="font-size:12px;color:var(--muted)">各階 S（由下往上，逗號；S＝料A 佔比）<br>四角請框<b>校正片本身</b>——旁邊那根洗料柱不要框進去</span>
         <input id="vsList" value="1,0.94,0.87,0.78,0.67,0.53,0.35,0" style="width:280px; font-size:12px">
       </div>
       <div class="row" id="slotRow"></div>
