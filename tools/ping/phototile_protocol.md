@@ -143,7 +143,12 @@ runtime 檢測 → 建 env（獨立 user-data）→ 建 controller（隱藏 HWND
   - 護欄：①任一格通道 ≥250 ⚠ ②相鄰階 ΔE<2 ⚠ ③實測 L\* 跨幅 < K×1 ⛔ ④非單調 ⛔（⛔＝退回理論階梯）。
 - 回報：`result.diagnostics.calib`＝`{present,matches,applied,why,warnOnly,span}`；`ping_phototile.json.params.calib`＝`{applied,matches,why,span}`（皆只在表存在時出現）。
 - 單一來源：`engine.js` 的 `dualLadderCalibrated(slots,K,calib)`——工作室預覽（`simulateVertical`）與 3MF 生成（`quantizeDual`）都只呼叫它（R8-5「兩把尺一起換」由結構保證）。
-- 校正片：`engine.js` `buildCalibStrip({hexA,hexB,s?,widthMm,thickMm,bandMm})`＝`照片磚_色彩校正/make_calib_3mf.py` 的同構 JS 版（Z 疊直立條、無洗料塔）；回讀頁 `calibration.html` 新增「雙料 8 階直立條」版面（`LAYOUT='vstrip'`，各階 S 可填）。
+- 校正片：`engine.js` `buildCalibStrip({hexA,hexB,s?,widthMm,thickMm,bandMm,purgeMm,purgeGapMm,purgeWalls})`＝`照片磚_色彩校正/make_calib_3mf.py --purge` 的同構 JS 版（Z 疊直立條＋**隨階換比例洗料柱**）；回讀頁 `calibration.html` 新增「雙料 8 階直立條」版面（`LAYOUT='vstrip'`，各階 S 可填）。
+  - 幾何唯一來源＝`engine.js` 的 `CALIB_STRIP_GEO`（對外出 `calibStripGeo()`）＝**v2c 定案**：片 40×6×16 mm、8 階每階 2 mm、柱 12×12 mm（2 圈牆、0% 填充、無上下殼）、柱片間距 8 mm。**頁面不得再寫一份幾何數字**——v1（80×8×48、每階 6 mm、無柱、實印 32m45s）就是因為 `index.html` 自己寫一份才與 python 分叉；Eric 2026-09-14 裁「用洗料塔」＋「不要印那麼久」後 v1 已作廢。v2c 實印 **12m03s**。
+  - 柱是**獨立物件**（cfg `id=2000`）且 build item 排在片（`id=1000`）**之前** ⇒ 切片器逐層先印柱、再印片；柱段與片段的 `extruder` **逐階相同**（1..8）⇒ 同一個 M6051 配方，換比例那一層的殘料吐在柱裡，片從該階第一層就是乾淨色。
+  - 🔴 **整組置中**：切片器載入 3MF 會把物件整組置中（0914 v2 實切：3MF 寫柱在 X 40~55，G-code 實際落 28~42）⇒ 產生器先把「片＋柱」聯集包圍盒置中在原點；回傳 `purgeBox`（預設即 `{x0:18,y0:-6,x1:30,y1:6}`），`ping_calib.txt` 直接報 `verify_calib_gcode.py --purge-box 18,-6,30,6`。
+  - `purgeMm:0` ⇒ 退回無柱幾何（**只給離線對照用**，不是產品路徑）。
+  - 釘住方式：`phototile_calib_test.js` 斷言 `3dmodel.model` 的 sha256 `43062b6c…191717` 與根 repo `照片磚_色彩校正/色彩校正_白深灰_8階_v2c洗料柱_FD300_0.4.3mf` 逐位元組相同（該檔即 0914 實印那條；model 不含 title ⇒ 只釘幾何與命名）。
 - 單元測：`node tools/ping/phototile_calib_test.js`（保命索＝calib 缺席時 `quantizeDual` 與理論梯逐值相同；正向 oracle＝0822 白×藍真表 → R8-5 記錄的 100/75/61/43/37/31/16/0；反向＝白×黃跨幅擋、料色不符不套、非單調擋）。
 
 ## 9. 單元測

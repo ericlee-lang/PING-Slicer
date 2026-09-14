@@ -49,7 +49,7 @@ function fakeImg(){
 (async () => {
   console.log('exports 有校正函式');
   check('calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip 皆匯出', () => {
-    for (const k of ['calibParseTable','calibLookupLin','calibMatches','calibGenLadder','dualLadderCalibrated','buildCalibStrip','buildCalibStripParts','calibStripDefaultS'])
+    for (const k of ['calibParseTable','calibLookupLin','calibMatches','calibGenLadder','dualLadderCalibrated','buildCalibStrip','buildCalibStripParts','calibStripDefaultS','calibStripGeo'])
       assert(typeof E[k] === 'function', k + ' 缺');
   });
 
@@ -134,15 +134,71 @@ function fakeImg(){
     assert.deepStrictEqual(E.calibStripDefaultS('#F2F0EB', '#5D6268'), [1,0.94,0.87,0.78,0.67,0.53,0.35,0]);
     assert.deepStrictEqual(E.calibStripDefaultS('#5D6268', '#F2F0EB'), [1,0.65,0.47,0.33,0.22,0.13,0.06,0]);
   });
-  check('buildCalibStripParts：8 零件、名稱尾端 S1／S0.94／…／S0、Z 由下往上 6 mm 一階', () => {
-    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰', widthMm: 80, thickMm: 8, bandMm: 6 });
+  check('buildCalibStripParts 預設＝v2c 洗料柱版幾何（40×6×16、每階 2 mm、柱 12／gap 8＝0914 實印 12m03s 那條）', () => {
+    /* v1（80×8×48、每階 6 mm、無柱、實印 32m45s）已作廢：Eric 0914 裁「建議還是使用洗料塔」＋「不要印那麼久」。
+       幾何的唯一來源＝engine.js 的 CALIB_STRIP_GEO；頁面不得再自己寫一份（v1／v2c 分叉就是那樣來的）。 */
+    assert.deepStrictEqual(E.calibStripGeo(), { widthMm: 40, thickMm: 6, bandMm: 2, purgeMm: 12, purgeGapMm: 8, purgeWalls: 2 });
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰' });
+    assert.strictEqual(c.width, 40); assert.strictEqual(c.thick, 6);
+    assert.strictEqual(c.band, 2);   assert.strictEqual(c.height, 16);      // 8 階 × 2 mm
+    assert.strictEqual(c.purge, 12); assert.strictEqual(c.purgeGap, 8); assert.strictEqual(c.purgeWalls, 2);
+  });
+  check('buildCalibStripParts：8 片＋8 柱、片名 S1／…／S0、柱名「洗料柱NN … S…」、只有片的正／背面禁縫', () => {
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰' });
     const names = [...c.cfg.matchAll(/key="name" value="([^"]+)"/g)].map(m => m[1]);
-    assert.strictEqual(names.length, 9);   // 1 物件名＋8 零件
-    assert.deepStrictEqual(names.slice(1).map(n => n.split(' ').pop()), ['S1','S0.94','S0.87','S0.78','S0.67','S0.53','S0.35','S0']);
-    assert.strictEqual(c.height, 48);
-    assert((c.model.match(/paint_seam="8"/g) || []).length, 8 * 4);   // 每階正／背面各 2 三角形
+    assert.strictEqual(names.length, 18);   // 柱物件名＋8 柱零件＋片物件名＋8 片零件
+    const ladder = ['S1', 'S0.94', 'S0.87', 'S0.78', 'S0.67', 'S0.53', 'S0.35', 'S0'];
+    assert.deepStrictEqual(names.slice(1, 9).map(n => n.split(' ').pop()), ladder);    // 柱段
+    assert.deepStrictEqual(names.slice(10).map(n => n.split(' ').pop()), ladder);      // 片段
+    assert(names.slice(1, 9).every(n => /^洗料柱\d\d /.test(n)), '柱零件名認不出來：' + names.slice(1, 9).join('｜'));
+    assert(names.slice(10).every(n => /^校正\d\d /.test(n)), '片零件名認不出來：' + names.slice(10).join('｜'));
+    assert.strictEqual((c.model.match(/paint_seam="8"/g) || []).length, 8 * 4);        // 每階正／背面各 2 三角形；柱不標
     assert(!/paint_seam="4"/.test(c.model), '直立條不標接著面');
     assert(c.model.includes('PING-PhotoTile-ColorCalib'));
+    /* 柱要是空心方管：0% 填充、2 圈牆、無上下殼——實心柱＝白燒料與時間 */
+    assert.strictEqual((c.cfg.match(/key="sparse_infill_density" value="0%"/g) || []).length, 8);
+    assert.strictEqual((c.cfg.match(/key="wall_loops" value="2"/g) || []).length, 8);
+    assert.strictEqual((c.cfg.match(/key="top_shell_layers" value="0"/g) || []).length, 8);
+  });
+  check('🔴 柱段與片段的 extruder 逐階相同（同一個 M6051 配方，柱才洗得到那一階的殘料）', () => {
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
+    const objs = [...c.cfg.matchAll(/<object id="(\d+)">([\s\S]*?)<\/object>/g)]
+      .map(m => ({ id: m[1], ex: [...m[2].matchAll(/key="extruder" value="(\d+)"/g)].map(x => Number(x[1])) }));
+    const tower = objs.find(o => o.id === '2000'), strip = objs.find(o => o.id === '1000');
+    assert(tower && strip, 'cfg 要有 2000（柱）與 1000（片）兩顆物件，實得 ' + objs.map(o => o.id).join(','));
+    assert.deepStrictEqual(strip.ex, [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.deepStrictEqual(tower.ex, strip.ex);   // 不同＝柱洗的是別階的料，整條校正片作廢
+  });
+  check('柱的 build item 排在片之前（切片器逐層先印柱）＋「片＋柱」整組置中（3MF 座標＝G-code 座標）', () => {
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
+    const items = [...c.model.matchAll(/<item objectid="(\d+)" transform="1 0 0 0 1 0 0 0 1 (\S+) (\S+) 0"/g)]
+      .map(m => ({ id: m[1], x: Number(m[2]), y: Number(m[3]) }));
+    assert.deepStrictEqual(items.map(i => i.id), ['2000', '1000']);   // 柱在前＝每層先印它
+    /* 0914 v2 實切踩過：沒置中時 3MF 寫柱在 X 40~55，切片器整組置中後 G-code 落在 28~42
+       ⇒ 產生器要先把聯集包圍盒置中，txt 報的 --purge-box 才對得上真實 G-code。 */
+    const st = items[1], tw = items[0];
+    assert.strictEqual((Math.min(st.x, tw.x) + Math.max(st.x + c.width, tw.x + c.purge)) / 2, 0, 'X 未置中');
+    assert.strictEqual((Math.min(st.y, tw.y) + Math.max(st.y + c.thick, tw.y + c.purge)) / 2, 0, 'Y 未置中');
+    assert.deepStrictEqual(c.purgeBox, { x0: 18, y0: -6, x1: 30, y1: 6 });
+    assert(c.txt.includes('--purge-box 18,-6,30,6'), 'ping_calib.txt 要直接報 verify 參數，省得下一棒自己算');
+  });
+  check('與 python 參考正本 make_calib_3mf.py v2c 產物逐位元組相同（3dmodel.model 的 sha256）', () => {
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
+    const got = require('crypto').createHash('sha256').update(c.model, 'utf8').digest('hex');
+    /* 這顆值的來源＝0914 **實印驗證過**的那一條：根 repo
+         照片磚_色彩校正/色彩校正_白深灰_8階_v2c洗料柱_FD300_0.4.3mf 裡的 3D/3dmodel.model
+       （產生指令 make_calib_3mf.py --pair white-gray --width 40 --thick 6 --band 2 --purge 12 --purge-gap 8；
+         r1 切片 80 層／2.76 g／估 13m26s，.186 實印 12m03s，Eric 拍照後建表成功）。
+       3dmodel.model 不含 title ⇒ 這顆 hash 只釘幾何與命名結構，不受 --title 影響。
+       🔴 要改這顆值之前先回答一句：新幾何實印驗證過了嗎？沒有就不要改它，改的是程式。 */
+    assert.strictEqual(got, '43062b6ce39a96aeb4c18561a92d04e59a86fff33edda73dcaa72982ca191717');
+  });
+  check('purgeMm:0 ⇒ 退回無柱幾何（只給離線對照用；build item 剩一個、仍置中）', () => {
+    const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', purgeMm: 0, widthMm: 80, thickMm: 8, bandMm: 6 });
+    assert.strictEqual(c.height, 48);
+    assert.strictEqual(c.purgeBox, null);
+    assert.strictEqual((c.model.match(/<item /g) || []).length, 1);
+    assert(!/洗料柱/.test(c.cfg));
   });
   check('buildCalibStrip：makeZip 出 Blob，5 個 entry，體積 >2 KB', async () => {
     const r = await E.buildCalibStrip({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰' });

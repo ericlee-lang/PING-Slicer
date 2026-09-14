@@ -326,7 +326,7 @@
               <button class="btn" id="btnCalib">產生校正片並載入列印板</button>
               <span class="sub" id="calibStat"></span>
             </div>
-            <div class="sub" style="margin-bottom:6px">8 階直立條（每階 6 mm，沒有洗料塔——每階獨佔一段高度、整層只有一個比例）。印完只看每階<b>上半部</b>。</div>
+            <div class="sub" style="margin-bottom:6px">8 階直立條，旁邊帶一根<b>隨階換比例的洗料柱</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，所以片從每階第一層就是乾淨色、每階只要 2 mm（FD300 0.4 實印約 <b>12 分</b>；舊的無柱版要 33 分）。印完<b>整階都可以量</b>，柱不用拍。</div>
           </li>
           <li><b>印出來，拍一張正面照</b>
             <div class="sub" style="margin-bottom:6px">直立拍（純白那階在最下面）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
@@ -513,8 +513,12 @@ function calibSummaryText(){
 function applyCalibSummary(){ const sum=document.getElementById('calibSummary'); if(sum) sum.textContent=calibSummaryText(); }
 function calibSpecText(){
   const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
-  const S=(window.PhotoTileEngine&&PhotoTileEngine.calibStripDefaultS)?PhotoTileEngine.calibStripDefaultS(cols[0],cols[1]):[];
-  return `　${cols.join(' · ')}｜8 階直立條 80×8×48 mm｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
+  const eng=window.PhotoTileEngine;
+  const S=(eng&&eng.calibStripDefaultS)?eng.calibStripDefaultS(cols[0],cols[1]):[];
+  /* 幾何數字一律問引擎（CALIB_STRIP_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
+  const g=(eng&&eng.calibStripGeo)?eng.calibStripGeo():null;
+  const geo=g?`${S.length} 階直立條 ${g.widthMm}×${g.thickMm}×${(S.length*g.bandMm)} mm（每階 ${g.bandMm} mm）＋洗料柱 ${g.purgeMm}×${g.purgeMm} mm`:`${S.length} 階直立條`;
+  return `　${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
 }
 function calibTableStat(){
   const el=document.getElementById('calibTableStat'); if(!el) return;
@@ -597,7 +601,8 @@ document.getElementById('btnCalibClear').onclick=()=>{
 };
 document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
 document.getElementById('calibStretchChk').onchange=e=>{ params.calibStretch=e.target.checked; queue(); };
-/* 校正片＝引擎 buildCalibStrip（與 照片磚_色彩校正/make_calib_3mf.py 同構的直立條）。
+/* 校正片＝引擎 buildCalibStrip（與 照片磚_色彩校正/make_calib_3mf.py --purge 同構的「直立條＋隨階換比例洗料柱」，
+   幾何＝0914 實印驗證過的 v2c；產出的 3dmodel.model 與 python 參考正本逐位元組相同，由 phototile_calib_test.js 釘住）。
    產品路徑走 phototile_export_begin/chunk/end（GUI_App.cpp 舊收件口——C-2 後閒置但仍在；end 帶 mode/nozzle
    ⇒ C++ photo_tile_deliver_3mf 先切對應同進照片磚機再開檔）；瀏覽器直開＝下載。 */
 async function sendCalib3mfToSlicer(blob, fname, st){
@@ -620,14 +625,16 @@ document.getElementById('btnCalib').onclick=async()=>{
   b.disabled=true; st.textContent='　產生中…';
   try{
     const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
-    const r=await PhotoTileEngine.buildCalibStrip({hexA:cols[0], hexB:cols[1], nameA:'料A', nameB:'料B', widthMm:80, thickMm:8, bandMm:6});
-    const fname=`色彩校正_雙料8階直立條_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
+    /* 不帶幾何 ⇒ 用引擎的 CALIB_STRIP_GEO（v2c 定案：40×6、每階 2 mm、12 mm 洗料柱、gap 8）。
+       這裡寫死數字＝再製造一次 v1／v2c 分叉，不要做。 */
+    const r=await PhotoTileEngine.buildCalibStrip({hexA:cols[0], hexB:cols[1], nameA:'料A', nameB:'料B'});
+    const fname=`色彩校正_雙料${r.s.length}階直立條洗料柱_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
     if(slicerBridgeReady()){
       await sendCalib3mfToSlicer(r.blob, fname, st);
       st.textContent='　已送入列印板。切片列印後拍正面照，到「說明 → 色彩校正」選「雙料 8 階直立條」讀照片。';
     }else{
       const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname; a.click();
-      st.textContent=`　已輸出 ${fname}（${r.s.length} 階、${(r.blob.size/1024).toFixed(0)} KB）。`;
+      st.textContent=`　已輸出 ${fname}（${r.s.length} 階＋洗料柱、${r.width}×${r.thick}×${r.height} mm、${(r.blob.size/1024).toFixed(0)} KB）。`;
     }
     calibMadeColors=cols.join(' · ');
     applyCalibSummary();
