@@ -47,7 +47,7 @@ function lin2lab(r,g,b){
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;
 
 /* ================= 版本（進 3MF metadata、ready 握手與 goldens 追溯） ================= */
-const ENGINE_VERSION = 'C1-20260731';
+const ENGINE_VERSION = 'C1-20260914';   // 0914：色彩校正（calib）住進引擎；calib 缺席時輸出位元組不變
 
 /* ================= 常數（index.html:234-241, 619-620） ================= */
 const AUTO_CELL_MM = 0.05;   // 內部自動高精度格點
@@ -285,25 +285,283 @@ function dualLadder(hexA, hexB, K){
   return {t, A, B, LA, LB};
 }
 
+/* ================= 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04）=================
+   救回 3fc1a61f2f（2026-08-22，核心規格 R6-8／R8-5「④-2 校正值進生成層」）——它原本住在出貨線
+   index.html，T042 整區移植（7374b2011d）以開發線頁面覆蓋時被整段刪掉，三棵樹都沒了。
+   這次改住**引擎**：校正表 → 校正梯子的計算只有這一份，頁面預覽（simulateVertical）與
+   3MF 生成（quantizeDual）都呼叫同一支 ⇒ R8-5 那條「兩把尺必須一起換」由結構保證。
+
+   表怎麼進引擎：掛在 **slots[0].calib**（校正只綁線材＝R6-1，資料掛在料上語意成立）。
+   宿主 C++（GUI_App.cpp phototile_generate）把 slotsJson **原字串直通**、只驗「是陣列且可解析」
+   ⇒ 不必動 C++、不必 build。calib 缺席＝整段不跑 ⇒ 3MF／請求字串與舊版**位元組全等**
+   （同 cycle／metadata 的 additive 契約，黃金閘門不受影響）。
+
+   calib＝{ table:<回讀頁匯出的 JSON 原物>, apply:<bool，預設 true＝④-2；false＝只做 ④-1 顯示> }。
+   四道護欄（①通道≥250 警告 ②相鄰階 ΔE<2 警告 ③L* 跨幅<K 擋 ④非單調 擋）與 0822 逐字同義。 */
+function calibParseTable(json){
+  if(!json || json['料數']!==2) throw new Error('目前只支援雙料校正表（這張是 '+(json&&json['料數'])+' 料）');
+  const rows=json['量測'];
+  if(!Array.isArray(rows) || !rows.length) throw new Error('找不到「量測」資料');
+  const pts=rows.map(r=>{
+    const S=r['配方'] && r['配方'].S;
+    const hex=r['量到色'];
+    if(typeof S!=='number' || !/^#[0-9a-fA-F]{6}$/.test(hex||''))
+      throw new Error('第 '+(r['格']||'?')+' 格的配方或量到色不合法');
+    return {S, lin:hexLin(hex), hex:hex.toUpperCase()};
+  }).sort((a,b)=>b.S-a.S);                              // S 由大到小＝料A 多 → 少
+  if(pts.length<2) throw new Error('校正表至少要 2 個量測點');
+  const slotsDecl=(json['料']||[]).map(x=>String(x['色']||'').toUpperCase());
+  return {slots:slotsDecl, pts, kind:json['校正塊種類']||'', raw:json};
+}
+/* 在實測曲線上取 S 對應的顏色（線性空間內插；超出範圍夾到端點）＝④-1 顯示色 */
+function calibLookupLin(tbl, S){
+  const P=tbl.pts;
+  if(S>=P[0].S) return P[0].lin;
+  if(S<=P[P.length-1].S) return P[P.length-1].lin;
+  for(let i=0;i<P.length-1;i++){
+    const a=P[i], b=P[i+1];
+    if(S<=a.S && S>=b.S){
+      const f=(a.S-S)/(a.S-b.S||1);
+      return [0,1,2].map(c=>a.lin[c]+(b.lin[c]-a.lin[c])*f);
+    }
+  }
+  return P[P.length-1].lin;
+}
+/* 這張表適用於目前的料嗎？校正只綁線材（R6-1）⇒ 料色不同就是別組料的表，不可套用。 */
+function calibMatches(tbl, slots){
+  if(!tbl || !Array.isArray(slots) || slots.length<2) return false;
+  const now=[0,1].map(i=>String(slots[i]&&slots[i].color||'').toUpperCase());
+  return tbl.slots.length>=2 && tbl.slots[0]===now[0] && tbl.slots[1]===now[1];
+}
+/* ④-2：K 階改在**實測** L* 上均分，再從實測曲線反解每階的混比 S（⇒ 改變 M6051 的 S＝改變印出來的東西）。
+   ok=false 就退回理論階梯，理由要能講給人聽（blocked／warnOnly 分開）。 */
+function calibGenLadder(tbl, K){
+  const P=tbl && tbl.pts;
+  if(!P || P.length<2) return {ok:false, why:'沒有校正表', blocked:'沒有校正表', warnOnly:''};
+  const Lof = lin => { const y=lum709(...lin); return 116*(y>0.008856?Math.cbrt(y):(7.787*y+16/116))-16; };
+  const L=P.map(p=>Lof(p.lin));
+  const L1=L[0], L0=L[L.length-1];                       // pts 已按 S 由大到小 ⇒ [0]＝料A 純、[末]＝料B 純
+  const span=Math.abs(L1-L0);
+  const warn=[], block=[];
+  const clipped=P.filter(p=>Math.max(...hexRgb(p.hex))>=250).length;
+  if(clipped) warn.push(clipped+' 格有通道 ≥250（疑似拍照高光溢出，建議降曝光重拍）');
+  let flat=0;
+  for(let i=0;i<P.length-1;i++){
+    const a=lin2lab(...P[i].lin), b=lin2lab(...P[i+1].lin);
+    if(Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])<2) flat++;
+  }
+  if(flat) warn.push(flat+' 對相鄰階色差 <2（人眼分不出）');
+  if(span < K*1.0) block.push('實測 L* 跨幅只有 '+span.toFixed(1)+'，'+K+' 階平均每階不到 1 L*（人眼可辨下限）⇒ 換一支更暗的料B 才有救');
+  let mono=true;
+  for(let i=0;i<L.length-1;i++) if((L1>L0 ? L[i+1]-L[i] : L[i]-L[i+1]) > 0.5) mono=false;
+  if(!mono) block.push('實測 L* 不是單調的，反解不出唯一混比');
+  const t=[];
+  for(let i=0;i<K;i++){
+    const Lt = K<2 ? L1 : L1+(L0-L1)*i/(K-1);
+    let S=null;
+    for(let j=0;j<L.length-1;j++){
+      const la=L[j], lb=L[j+1];
+      if(la!==lb && (Lt-la)*(Lt-lb)<=0){ S=P[j].S+(P[j+1].S-P[j].S)*(Lt-la)/(lb-la); break; }
+    }
+    if(S===null) S = (Math.abs(Lt-L1)<Math.abs(Lt-L0)) ? P[0].S : P[P.length-1].S;
+    /* 印出去的 S 就是兩位小數（M6051 S{round((1-t)*100)/100}）⇒ 先對齊到同一格，
+       否則畫面模擬的是 0.634、機器印的是 0.63，兩把尺又對不上。 */
+    S=Math.round(Math.min(1,Math.max(0,S))*100)/100;
+    t.push(1-S);
+  }
+  return {ok:block.length===0, why:block.concat(warn).join('；'), warnOnly:warn.join('；'),
+          blocked:block.join('；'), t, LA:L1, LB:L0, span};
+}
+/* 色調映射「壓進可印範圍」（乙案，0914；opt-in＝calib.toneMap==='stretch'）：
+   校正後分箱的兩端＝料的**實測** L*（R8-5「兩把尺一起換」），於是圖裡比「最深料印出來」還暗的像素全部夾到最深一階。
+   0914 實錄：AI 壓平的三色巴哥（L* 5／45／95）遇到只印得到 L* 48 的深灰料 ⇒ 灰與黑都落 S0、中間階空掉、印出來兩色。
+   這不是校正錯，是料的可印範圍窄；乙案＝先把圖的明暗範圍（1%～99% 百分位）線性壓進 [LB, LA] 再分箱，
+   K 階都有肉、對比按比例縮。甲案（換更黑的料）另議。缺席／'none'＝完全照舊（絕對 L* 分箱、超界夾住）。 */
+function toneStretch(lab, n, LA, LB, opt){
+  const lo=(opt&&Number.isFinite(opt.pLo))?opt.pLo:0.01, hi=(opt&&Number.isFinite(opt.pHi))?opt.pHi:0.99;
+  const H=new Uint32Array(201);                       // L* 0..100，0.5 一格
+  for(let p=0;p<n;p++){ const v=lab[p*3]; H[Math.max(0,Math.min(200,Math.round(v*2)))]++; }
+  let acc=0, Lmin=null, Lmax=null;
+  for(let i=0;i<=200;i++){ acc+=H[i]; if(Lmin===null && acc>=n*lo) Lmin=i/2; if(Lmax===null && acc>=n*hi){ Lmax=i/2; break; } }
+  if(Lmax===null) Lmax=100; if(Lmin===null) Lmin=0;
+  const dark=Math.min(LA,LB), light=Math.max(LA,LB);
+  const span=Math.max(1e-6, Lmax-Lmin);
+  const mapL = v => dark + (Math.max(Lmin,Math.min(Lmax,v)) - Lmin) / span * (light-dark);
+  return { mapL, Lmin, Lmax, dark, light };
+}
+/* 統一入口：quantizeDual（3MF 生成）與頁面 simulateVertical（預覽）都只呼叫這一支。
+   回傳＝dualLadder 的形狀 ＋ calib 狀態 ＋（表相符時）lookupLin（④-1 顯示色）。
+   calib 為 null／undefined ⇒ 與 dualLadder 逐值相同（多一個 calib:{present:false} 欄位）。 */
+function dualLadderCalibrated(slots, K, calib){
+  const base=dualLadder(slots[0].color, slots[1].color, K);
+  const out={t:base.t, A:base.A, B:base.B, LA:base.LA, LB:base.LB,
+             calib:{present:false, matches:false, applied:false, why:'', warnOnly:'', span:null}};
+  if(!calib || !calib.table) return out;
+  out.calib.present=true;
+  let tbl;
+  try{ tbl = (calib.table.pts && calib.table.slots) ? calib.table : calibParseTable(calib.table); }
+  catch(e){ out.calib.why='校正表讀不到：'+(e&&e.message?e.message:'格式不合'); return out; }
+  out.calib.tableSlots=tbl.slots.slice(0,2);
+  if(!calibMatches(tbl, slots)){ out.calib.why='校正表與目前料色不符（'+tbl.slots.slice(0,2).join(' · ')+'），整段未套用'; return out; }
+  out.calib.matches=true;
+  out.lookupLin = S => calibLookupLin(tbl, S);          // ④-1：顯示色改實測，不動 t
+  if(calib.apply===false){ out.calib.why='使用者關閉「用校正值決定色階」：色階仍用理論推算'; return out; }
+  const g=calibGenLadder(tbl, K);
+  out.calib.warnOnly=g.warnOnly||''; out.calib.span=g.span;
+  if(!g.ok){ out.calib.why=g.blocked; return out; }
+  out.t=g.t; out.LA=g.LA; out.LB=g.LB;                    // ④-2：梯子與分箱端點一起換（R8-5「兩把尺」）
+  out.calib.applied=true;
+  return out;
+}
+
+/* ================= 校正片（Z 疊階梯＋隨階換比例洗料柱）＝照片磚_色彩校正/make_calib_3mf.py 的同構 JS 版 =================
+   每階獨佔一段 Z、整層只有一個比例；柱是**獨立物件**且 build item 排在片之前 ⇒ 切片器逐層先印柱再印片，
+   換比例那一層的殘料吐在柱裡，片從該階第一層就是乾淨色。
+   Eric 2026-09-14 兩裁：「建議還是使用洗料塔，這樣在裡面就不會有邊印、邊有色差跑出來」＋「校正片看能不能不要印那麼久」
+   ⇒ 每階不必再靠印厚去耗殘料：v1 無柱 80×8×48／每階 6 mm 實印 **32m45s**；v2c 有柱 40×6×16／每階 2 mm 實印 **12m03s**。
+   為什麼不用現成的循環洗料塔：8 個比例 > 每色進塔的 3 色上限 ⇒ C++ 退回層首整塔（每層收在白料），深色階每層開頭反而帶白。
+   🔴 **整組置中不可省**：切片器載入 3MF 會把物件整組置中（0914 v2 實切踩過：3MF 寫柱在 X 40~55，G-code 實際落 28~42）
+   ⇒ 這裡先把「片＋柱」的聯集包圍盒置中在原點，3MF 座標才＝G-code 座標，回傳的 purgeBox 才能直接餵
+   照片磚_色彩校正/verify_calib_gcode.py --purge-box 逐層核對「柱先印、片後印、M6051 在柱之前」。
+   零件名尾端＝配方（C++ parse_photo_part_name 只認尾端 S<0~1>）；片的正／背面 paint_seam=8 禁縫（正面＝拍照回讀面），
+   柱不標縫（0720 定案）。python 版是離線參考正本，兩邊幾何／命名同構；改這裡要回頭對它。 */
+const CALIB_STRIP_TRI=[[0,2,1],[0,3,2],[4,5,6],[4,6,7],[0,1,5],[0,5,4],[3,7,6],[3,6,2],[0,4,7],[0,7,3],[1,2,6],[1,6,5]];
+const CALIB_STRIP_S_DENSE_LIGHT=[1,0.94,0.87,0.78,0.67,0.53,0.35,0];   // 白端加密（0914：深色蓋色力強，S<0.3 幾乎全深）
+/* v2c 定案幾何（0914 白×深灰實印驗證：80 層／2.76 g／實印 12m03s）。這裡是唯一來源——
+   頁面不要再自己寫一份數字（v1→v2c 就是因為兩邊各寫一份才分叉的）。 */
+const CALIB_STRIP_GEO={widthMm:40, thickMm:6, bandMm:2, purgeMm:12, purgeGapMm:8, purgeWalls:2};
+function calibStripGeo(){ return Object.assign({}, CALIB_STRIP_GEO); }
+/* 8 階的取樣密在「淺料的純色端」：S＝料A 佔比，料A 較亮 ⇒ 密在 S≈1；料A 較暗 ⇒ 鏡射到 S≈0。 */
+function calibStripDefaultS(hexA, hexB){
+  const L = h => { const y=lum709(...hexLin(h)); return 116*(y>0.008856?Math.cbrt(y):(7.787*y+16/116))-16; };
+  if(L(hexA) >= L(hexB)) return CALIB_STRIP_S_DENSE_LIGHT.slice();
+  return CALIB_STRIP_S_DENSE_LIGHT.map(s=>Math.round((1-s)*100)/100).reverse();
+}
+function calibStripFmtS(s){ return String(Math.round(s*100)/100); }   // "1"／"0.94"／"0"＝與工作室零件名同式
+function calibStripNum(v){ const t=(Math.round(v*1000)/1000).toFixed(3); return t.replace(/0+$/,'').replace(/\.$/,''); }
+function calibStripBox(x0,y0,z0,x1,y1,z1,markSeam){
+  const f=calibStripNum;
+  const vs=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  const v=vs.map(p=>`<vertex x="${f(p[0])}" y="${f(p[1])}" z="${f(p[2])}"/>`).join('');
+  const eps=1e-9;
+  const tri=CALIB_STRIP_TRI.map(t=>{
+    const a=vs[t[0]], b=vs[t[1]], c=vs[t[2]];
+    const seam=(markSeam!==false && Math.abs(a[1]-b[1])<eps && Math.abs(a[1]-c[1])<eps) ? 8 : 0;   // Y 等值面＝正／背面 → 禁縫
+    return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${seam?` paint_seam="${seam}"`:''}/>`;
+  }).join('');
+  return {v, tri};
+}
+function buildCalibStripParts(o){
+  o=o||{};
+  const pos=(v,d)=>Number(v)>0?Number(v):d;
+  const width=pos(o.widthMm,CALIB_STRIP_GEO.widthMm), thick=pos(o.thickMm,CALIB_STRIP_GEO.thickMm), band=pos(o.bandMm,CALIB_STRIP_GEO.bandMm);
+  /* purgeMm 明寫 0 ＝ 退回 v1 無柱幾何（只給離線對照用）；沒帶＝用 v2c 定案值 */
+  const purge=(o.purgeMm===undefined||o.purgeMm===null) ? CALIB_STRIP_GEO.purgeMm : Math.max(0, Number(o.purgeMm)||0);
+  const purgeGap=pos(o.purgeGapMm,CALIB_STRIP_GEO.purgeGapMm);
+  const purgeWalls=Math.max(1, Math.round(pos(o.purgeWalls,CALIB_STRIP_GEO.purgeWalls)));
+  const hexA=String(o.hexA||'').toUpperCase(), hexB=String(o.hexB||'').toUpperCase();
+  if(!/^#[0-9A-F]{6}$/.test(hexA) || !/^#[0-9A-F]{6}$/.test(hexB)) throw new Error('料色要是 #RRGGBB');
+  const s=Array.isArray(o.s)&&o.s.length>=2 ? o.s.map(Number) : calibStripDefaultS(hexA,hexB);
+  if(s[0]!==1 || s[s.length-1]!==0) throw new Error('兩端必須是純色錨點 S=1／S=0（R6-6）');
+  for(let i=0;i<s.length-1;i++) if(!(s[i]>s[i+1])) throw new Error('S 必須由下往上嚴格遞減');
+  const nameA=o.nameA||'料A', nameB=o.nameB||'料B';
+  const title=o.title||`照片磚色彩校正 ${nameA}+${nameB} ${s.length}階（直立條）`;
+  const A=hexRgb(hexA), B=hexRgb(hexB);
+  const MID=1000, PID=2000, objs=[], parts=[], pparts=[], pal=[];
+  let z=0;
+  s.forEach((sv,i)=>{
+    const oid=i+1;
+    const {v,tri}=calibStripBox(0,0,z,width,thick,z+band,true);
+    objs.push(`<object id="${oid}" type="model"><mesh><vertices>${v}</vertices><triangles>${tri}</triangles></mesh></object>`);
+    const prev='#'+[0,1,2].map(c=>Math.round(B[c]+(A[c]-B[c])*sv).toString(16).padStart(2,'0')).join('').toUpperCase();   // 與 PingColorMix::dual_color 同式（sRGB）
+    const nm=`校正${String(i+1).padStart(2,'0')} ${prev} S${calibStripFmtS(sv)}`;
+    parts.push(`    <part id="${oid}" subtype="normal_part">\n      <metadata key="name" value="${xmlEsc(nm)}"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="${oid}"/>\n    </part>`);
+    pal.push(`extruder ${oid}  S${calibStripFmtS(sv)}  ${nameA} 佔比 ${(sv*100).toFixed(1)}% ／ ${nameB} 佔比 ${((1-sv)*100).toFixed(1)}%   Z ${z.toFixed(1)}~${(z+band).toFixed(1)} mm   預覽色 ${prev}`);
+    if(purge>0){
+      const poid=100+oid;                            // 柱段 id 與片段錯開；extruder 與同階片段相同 ⇒ 同一個 M6051 配方
+      const p=calibStripBox(0,0,z,purge,purge,z+band,false);   // 洗料柱不標縫
+      objs.push(`<object id="${poid}" type="model"><mesh><vertices>${p.v}</vertices><triangles>${p.tri}</triangles></mesh></object>`);
+      const pnm=`洗料柱${String(i+1).padStart(2,'0')} ${prev} S${calibStripFmtS(sv)}`;
+      pparts.push(`    <part id="${poid}" subtype="normal_part">\n      <metadata key="name" value="${xmlEsc(pnm)}"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="${oid}"/>\n      <metadata key="sparse_infill_density" value="0%"/>\n      <metadata key="wall_loops" value="${purgeWalls}"/>\n      <metadata key="top_shell_layers" value="0"/>\n      <metadata key="bottom_shell_layers" value="0"/>\n    </part>`);
+    }
+    z+=band;
+  });
+  const f=calibStripNum;
+  const comps=s.map((_,i)=>`<component objectid="${i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
+  let topObjs=`  <object id="${MID}" type="model"><components>${comps}</components></object>\n`;
+  let cfgObjs=`  <object id="${MID}">\n    <metadata key="name" value="${xmlEsc(title)}"/>\n${parts.join('\n')}\n  </object>\n`;
+  let buildItems='', purgeBox=null, sx0=-width/2;
+  if(purge>0){
+    const pcomps=s.map((_,i)=>`<component objectid="${100+i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
+    topObjs=`  <object id="${PID}" type="model"><components>${pcomps}</components></object>\n`+topObjs;
+    /* 柱放在片的右側（+X）、與片同底、Y 置中；再把「片＋柱」聯集置中在原點（見區塊註解的置中坑）。 */
+    const cx=(purgeGap+purge)/2;                     // 聯集 X 範圍 [-width/2, width/2+gap+purge] 的中心
+    const px0=width/2+purgeGap-cx, py0=-purge/2;
+    sx0=-width/2-cx;
+    buildItems+=`<item objectid="${PID}" transform="1 0 0 0 1 0 0 0 1 ${f(px0)} ${f(py0)} 0" printable="1"/>`;   // 柱的 build item 在前＝切片器逐層先印它
+    cfgObjs=`  <object id="${PID}">\n    <metadata key="name" value="${xmlEsc(title+' 洗料柱')}"/>\n${pparts.join('\n')}\n  </object>\n`+cfgObjs;
+    purgeBox={x0:px0, y0:py0, x1:px0+purge, y1:py0+purge};
+    pal.push(`洗料柱 ${purge}×${purge} mm 空心方管（${purgeWalls} 圈牆、0% 填充、無上下殼），位置 X ${px0.toFixed(1)}~${(px0+purge).toFixed(1)}、Y ${py0.toFixed(1)}~${(py0+purge).toFixed(1)}（bed 中心座標＝整組已置中），與片逐階同比例、每層先印；verify --purge-box ${f(px0)},${f(py0)},${f(px0+purge)},${f(py0+purge)}`);
+  }
+  buildItems+=`<item objectid="${MID}" transform="1 0 0 0 1 0 0 0 1 ${f(sx0)} ${f(-thick/2)} 0" printable="1"/>`;
+  const model=`<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">\n <metadata name="Application">PING-PhotoTile-ColorCalib</metadata>\n <resources>\n`+
+    objs.map(x=>'  '+x+'\n').join('')+topObjs+` </resources>\n <build>${buildItems}</build>\n</model>`;
+  const cfg=`<?xml version="1.0" encoding="UTF-8"?>\n<config>\n${cfgObjs}</config>`;
+  const geoLine=purge>0
+    ? `尺寸 ${width}×${thick}×${z} mm｜階數 ${s.length}｜每階高 ${band} mm｜洗料柱 ${purge}×${purge} mm（${purgeWalls} 圈牆、與片間距 ${purgeGap} mm）`
+    : `尺寸 ${width}×${thick}×${z} mm｜階數 ${s.length}｜每階高 ${band} mm｜無洗料柱`;
+  const noteLine=purge>0
+    ? `柱是獨立物件、build item 在片之前 ⇒ 切片器逐層先印柱、再印片：換比例那一層的殘料吐在柱裡，片從該階第一層就是乾淨色，所以每階只要 ${band} mm、不必靠印厚耗殘料。整組已置中 ⇒ 3MF 座標＝G-code 座標，可直接 verify_calib_gcode.py --purge-box ${f(purgeBox.x0)},${f(purgeBox.y0)},${f(purgeBox.x1)},${f(purgeBox.y1)}。`
+    : `本校正片沒有洗料柱：每階獨佔一段 Z、整層只有一個比例，換比例後數十層都是同一比例 ⇒ 量上半部必定已穩定。`;
+  const txt=`${title}\n雙料 M6051（S＝${nameA} 的佔比）｜${geoLine}\n料A（E1）＝${nameA} ${hexA} ／ 料B（E2）＝${nameB} ${hexB}\n\n【量測方式】正面平放拍照、整片入鏡；每一階只取上半部（下半部可能還是上一階的殘料）；頭尾兩階是純色錨點。\n【設計註記】${noteLine}\n回讀：主程式「說明 → 色彩校正」選「雙料 8 階直立條」，S 清單填 ${s.map(calibStripFmtS).join(',')}。\n\n${pal.join('\n')}\n`;
+  return {model, cfg, txt, s, width, thick, height:z, band, purge, purgeGap, purgeWalls, purgeBox, title, hexA, hexB};
+}
+async function buildCalibStrip(o){
+  const c=buildCalibStripParts(o||{});
+  const blob=await makeZip([
+    {name:'[Content_Types].xml', data:`<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>\n <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>\n <Default Extension="config" ContentType="text/xml"/>\n <Default Extension="txt" ContentType="text/plain"/>\n</Types>`},
+    {name:'_rels/.rels', data:`<?xml version="1.0" encoding="UTF-8"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n</Relationships>`},
+    {name:'3D/3dmodel.model', data:c.model},
+    {name:'Metadata/model_settings.config', data:c.cfg},
+    {name:'Metadata/ping_calib.txt', data:c.txt},
+  ]);
+  return Object.assign({blob}, c);
+}
+
 async function quantizeDual(img, P, slots, hooks){
   const K=P.klevels;
-  const ladder=dualLadder(slots[0].color, slots[1].color, K);
+  /* 0914 校正：slots[0].calib 存在才走校正入口；缺席＝原 dualLadder（同一份數學，輸出逐位元不變） */
+  const calib = slots[0] && slots[0].calib ? slots[0].calib : null;
+  const ladder = calib ? dualLadderCalibrated(slots, K, calib) : dualLadder(slots[0].color, slots[1].color, K);
   const A=ladder.A, B=ladder.B, LA=ladder.LA, LB=ladder.LB;
   const levels=[];
   for(let i=0;i<K;i++){
     const t=ladder.t[i];
-    const lin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
+    const theoryLin=[0,1,2].map(c=>A[c]*(1-t)+B[c]*t);
+    /* ④-1：表相符時顯示色（零件名預覽色／palette hex）改用實測曲線上的值；t 不動（動 t 是 ④-2，在 ladder 裡） */
+    const lin = ladder.lookupLin ? ladder.lookupLin(Math.round((1-t)*100)/100) : theoryLin;
     levels.push({t, lin, rgb:lin.map(l2s), lab:lin2lab(...lin)});
   }
   const n=img.w*img.h;
   const rawLabels=new Uint8Array(n);
   const spanL=LB-LA;
+  /* 乙案色調映射：只在「表已套用」且 calib.toneMap==='stretch' 時啟動；其餘一律原式（逐位元不變） */
+  const ts = (calib && ladder.calib && ladder.calib.applied && calib.toneMap==='stretch') ? toneStretch(img.lab, n, LA, LB, calib) : null;
+  if(ts){
+    for(let p=0;p<n;p++){
+      const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((ts.mapL(img.lab[p*3])-LA)/spanL*(K-1));
+      rawLabels[p]=Math.min(K-1,Math.max(0,k));
+    }
+    ladder.calib.toneMap={mode:'stretch', Lmin:ts.Lmin, Lmax:ts.Lmax, dark:ts.dark, light:ts.light};
+  } else {
   for(let p=0;p<n;p++){
     const k=Math.abs(spanL)<1e-9 ? 0 : Math.round((img.lab[p*3]-LA)/spanL*(K-1));
     rawLabels[p]=Math.min(K-1,Math.max(0,k));
   }
+  }
   if (hooks && hooks.tick) await hooks.tick(1);
-  return { rawLabels, palette: levels, filterStrategy: 'median' };
+  return calib ? { rawLabels, palette: levels, filterStrategy: 'median', calib: ladder.calib }
+               : { rawLabels, palette: levels, filterStrategy: 'median' };
 }
 
 /* ================= 四料量化（index.html:376-437 計算部；畫布/清單拿掉） =================
@@ -839,7 +1097,8 @@ async function buildExtras(P, q, filtered, palette, source, img){
               pillar: { enabled: P.pillar, xyMm: P.pillarXY },
               cycle: P.cycle,                                          // WT 線：{enabled} 或 {enabled,laps,sizeMm,gapMm,brimMm}（schema 仍 1，additive）
               seam: { teeth: P.teeth, p2aBlock: P.p2aBlock },
-              limits: P.limits },
+              limits: P.limits,
+              ...(q.calib ? { calib: { applied: !!q.calib.applied, matches: !!q.calib.matches, why: q.calib.why||'', span: q.calib.span } } : {}) },   // 0914 additive
     slots: P.slots,
     palette,                                                  // index → hex → M6051/M6052 配比
     sourceImage: sourceMeta,
@@ -953,8 +1212,9 @@ async function generate(request, options){
                tiles: built.tiles, vertices: built.vertices, triangles: built.triangles,
                extruders: built.extruders, pillar: built.pillar,
                dropped: q.dropped || 0, candidates: q.candidates || 0 },
-      diagnostics: { noise: filtered.stats, teethFlips: built.teethFlips, avgDeltaE: deltaE,
-                     clamped: P.clamped, timings, meshStats: built.meshStats }
+      diagnostics: Object.assign({ noise: filtered.stats, teethFlips: built.teethFlips, avgDeltaE: deltaE,
+                     clamped: P.clamped, timings, meshStats: built.meshStats },
+                     q.calib ? { calib: q.calib } : {})   // 0914：校正套了沒／為什麼沒套（缺席＝與舊版同形）
     };
   } catch (e) {
     const code = e instanceof EngineError ? e.code : ERR.INTERNAL;
@@ -967,6 +1227,9 @@ async function generate(request, options){
 }
 
 return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
+         /* 0914 色彩校正（單一來源；頁面預覽與 3MF 生成共用） */
+         calibParseTable, calibLookupLin, calibMatches, calibGenLadder, dualLadderCalibrated, toneStretch,
+         buildCalibStrip, buildCalibStripParts, calibStripDefaultS, calibStripGeo,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },
