@@ -4796,6 +4796,10 @@ struct PingPhotoTilePrinter
     /* 2026-09-07：配到的是**別的系列**的照片磚機（例：FD450 Pro 同進 沒有專屬照片磚版本，
        只好用 FD300 同進照片磚）。列印範圍與起始碼會是那一台的 ⇒ 要在通知裡講出來，不能靜默。 */
     bool        cross_series     = false;
+    /* 2026-09-13 Eric 裁「甲」（牌 c-0913-PTI-01）：目前選中的是**脫鉤的自訂 preset**
+       （非系統、又找不到系統父 preset）時不算「已在照片磚機上」，照常找系統照片磚機切過去；
+       這裡記原本那台的名字，給交付通知說明用。空＝沒有發生這件事。 */
+    std::string detached_from;
     /* 🗑 2026-09-07 移除 `exists_but_hidden`（Eric 裁 #99 Q3 甲）：那個欄位是 0815 A 案的產物，
        用來分辨「有這台機但使用者沒在選機清單勾」。照片磚機已從選機清單整批移除 ⇒ 它永遠是
        「沒勾」，那條分支恆真、訊息也永遠是錯的（叫人去一個已經沒有照片磚分頁的地方勾）。 */
@@ -4823,9 +4827,24 @@ static PingPhotoTilePrinter ping_resolve_photo_tile_printer(const std::string& m
     PresetBundle* bundle = wxGetApp().preset_bundle;
     if (bundle == nullptr)
         return out;
-    if (matches(bundle->printers.get_selected_preset())) {
-        out.already_selected = true;
-        return out;
+    const Preset& selected = bundle->printers.get_selected_preset();
+    if (matches(selected)) {
+        /* 【2026-09-13 Eric 裁「甲」・牌 c-0913-PTI-01】脫鉤的自訂 preset 不算「已在照片磚機上」。
+           實錄（T043 驗收截圖）：選中的「FD300 同進照片磚」是 inherits 為空的 user preset
+           （.info base_id＝系統 FD300 同進照片磚 0.4 nozzle，衍生後脫鉤、名字又改成機型名）。
+           PhotoTileCapability 只看 printer_model ⇒ 它照樣被判成照片磚機 ⇒ 原本這裡回 already_selected
+           ⇒ 不切機、線材修正也不跑。但照片磚專用線材與照片磚製程的 compatible_printers 是**按系統
+           preset 名字**比對的，脫鉤 preset 名字對不上、又沒有系統父 preset 可回退 ⇒ 料槽全「不支援」、
+           製程只剩 Orca 內建的 Default Setting。擋下只會讓人卡住 ⇒ 改成照常往下找系統照片磚機切過去。
+           「有系統父 preset 的衍生 user preset」維持原行為：相容性會回退到父名，沒有這個問題。
+           判定「是不是照片磚機」仍只在 PhotoTileCapability 一處；「脫鉤與否」是本流程專屬條件，放這裡。 */
+        const Preset* parent   = bundle->printers.get_preset_parent(selected);
+        const bool    detached = !selected.is_system && (parent == nullptr || !parent->is_system);
+        if (!detached) {
+            out.already_selected = true;
+            return out;
+        }
+        out.detached_from = selected.name;
     }
     /* 【2026-09-07 Eric 裁 #99 Q3 甲——**取代** 2026-08-15 的 A 案】不再要求 `is_visible`。
        0815 A 案（只認使用者已加入的機型）的理由是「不要自動切到一台他沒勾選、可能根本沒有的
@@ -9952,10 +9971,15 @@ void GUI_App::photo_tile_deliver_3mf(const std::vector<unsigned char>& bytes,
                 if (target.cross_series)
                     note += " ⚠ 你目前的機型沒有專屬的照片磚版本，這是同家族裡最接近的一台"
                             "——列印範圍與起始 G-code 會以它為準，請確認尺寸放得下。";
+                // 2026-09-13 Eric 裁「甲」（牌 c-0913-PTI-01）：系統替使用者換掉了他選的機器，一定要講。
+                if (!target.detached_from.empty())
+                    note += " ⚠ 你原本選的「" + target.detached_from + "」是一台已跟系統脫鉤的自訂機器設定，"
+                            "配不到照片磚專用線材與製程（料槽會顯示「不支援」），已改用系統內建的照片磚機型。";
+                const bool important = target.cross_series || !target.detached_from.empty();
                 plater()->get_notification_manager()->push_notification(
                     NotificationType::CustomNotification,
-                    target.cross_series ? NotificationManager::NotificationLevel::ImportantNotificationLevel
-                                        : NotificationManager::NotificationLevel::RegularNotificationLevel,
+                    important ? NotificationManager::NotificationLevel::ImportantNotificationLevel
+                              : NotificationManager::NotificationLevel::RegularNotificationLevel,
                     note);
             }
         } else if (target.known_mode && !target.already_selected) {
