@@ -211,6 +211,28 @@ function fakeImg(){
     assert.throws(() => E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', s: [0.9, 0.5, 0] }), /純色錨點/);
   });
 
+  console.log('\n兩頁的 S 清單只有一個來源（0915 牌 c-0915-PTI-03；§S-10「頁面功能要有存在性斷言才算有守衛」）');
+  const WEB = path.join(__dirname, '..', '..', 'resources', 'web', 'phototile');
+  const calHtml = fs.readFileSync(path.join(WEB, 'calibration.html'), 'utf8');
+  const idxHtml = fs.readFileSync(path.join(WEB, 'index.html'), 'utf8');
+  const LADDER = '1,0.94,0.87,0.78,0.67,0.53,0.35,0';
+  check('calibration.html 載 engine.js 並用 calibStripDefaultS 算 S（不自己寫一份）', () => {
+    assert(/<script src="engine\.js"><\/script>/.test(calHtml), '沒有載 engine.js');
+    assert(calHtml.includes('calibStripDefaultS'), '沒有呼叫 calibStripDefaultS');
+    assert(/function\s+syncVsList\s*\(/.test(calHtml), '沒有 syncVsList（料色改了要重算）');
+  });
+  check('🔴 calibration.html 不得把階梯寫死當預設值（料A 較暗時引擎會鏡射，寫死的不會跟著動＝靜默錯表）', () => {
+    /* 0915 實錄：舊版 <input id="vsList" value="1,0.94,…">，而引擎在 L(A)<L(B) 時回 1,0.65,…
+       ⇒ 使用者沒手抄就拿錯的鍵去量，整張表歪掉而且不報錯。這條就是防它長回來。 */
+    assert(!new RegExp('id="vsList"[^>]*value="' + LADDER.replace(/\./g, '\\.')).test(calHtml),
+           'vsList 又出現寫死的預設階梯');
+    assert.deepStrictEqual(E.calibStripDefaultS('#5D6268', '#F2F0EB'), [1,0.65,0.47,0.33,0.22,0.13,0.06,0]);
+  });
+  check('index.html 第 3 步不再叫使用者手抄 S 清單', () => {
+    assert(!idxHtml.includes('各階 S 照上面'), '手抄指示還在');
+    assert(idxHtml.includes('各階 S 會自動算出來，不用抄'), '沒有講「自動算」');
+  });
+
   console.log('\n乙案色調映射（toneStretch；0914 三色巴哥中間階空掉的實錄）');
   /* 三色圖：L* 5／45／95 各三分之一（AI 壓平巴哥的直方圖形狀）；料＝白 95 × 深灰 48 */
   function triImg(){
