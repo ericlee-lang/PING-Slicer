@@ -426,24 +426,36 @@ function samplePatch(h,cu,cv,hu,hv){
   return n ? {rgb:[sr/n,sg/n,sb/n], n} : null;
 }
 const PAPER_MIN_LUM=140, PAPER_MAX_SPREAD=8, PAPER_MIN_KEEP=6;
-function paperWhite(h){
-  const M=0.055, pts=[];                       // 外推 5.5%：夠遠離邊緣陰影，又不會跑出常見取景
-  for(const t of [0.15,0.5,0.85]){
-    pts.push([t,-M],[t,1+M],[-M,t],[1+M,t]);   // 上下左右各 3 點＝12 點
-  }
+const PAPER_RINGS=[0.08,0.15,0.25];            // 由近而遠試；近的乾淨就用近的（離主體近＝光線條件最接近）
+function paperRing(h,M){
+  const pts=[];
+  for(const t of [0.15,0.5,0.85]) pts.push([t,-M],[t,1+M],[-M,t],[1+M,t]);   // 上下左右各 3 點＝12 點
   const got=pts.map(([u,v])=>samplePatch(h,u,v,0.02,0.02)).filter(Boolean);
-  if(got.length<PAPER_MIN_KEEP) return {ok:false, why:'取樣點落在畫面外——校正片四周要留一點白紙'};
+  if(got.length<PAPER_MIN_KEEP) return {ok:false, why:'取樣點落在畫面外', got:got.length, bright:0};
   const lum=p=>0.2126*p.rgb[0]+0.7152*p.rgb[1]+0.0722*p.rgb[2];
   const bright=got.filter(p=>lum(p)>=PAPER_MIN_LUM);
-  if(bright.length<PAPER_MIN_KEEP)
-    return {ok:false, why:`四周只有 ${bright.length}/${got.length} 個取樣點夠亮（要 ≥${PAPER_MIN_KEEP}）——看起來沒有墊白紙，或紙被陰影蓋住`};
+  if(bright.length<PAPER_MIN_KEEP) return {ok:false, why:'不夠亮', got:got.length, bright:bright.length};
   const med=k=>{ const a=bright.map(p=>p.rgb[k]).sort((x,y)=>x-y); return a[a.length>>1]; };
   const ref=[med(0),med(1),med(2)], refLab=labOf(ref);
   const keep=bright.filter(p=>dE(labOf(p.rgb),refLab)<=PAPER_MAX_SPREAD);
-  if(keep.length<PAPER_MIN_KEEP)
-    return {ok:false, why:`四周那圈彼此差太多（只有 ${keep.length}/${bright.length} 一致）——背景不只有紙，或打光很不均`};
-  const blown=keep.some(p=>p.rgb.some(v=>v>=250));
-  return {ok:true, rgb:ref, kept:keep.length, total:got.length, blown};
+  if(keep.length<PAPER_MIN_KEEP) return {ok:false, why:'彼此差太多', got:got.length, bright:bright.length, keep:keep.length};
+  return {ok:true, rgb:ref, kept:keep.length, total:got.length, M, blown:keep.some(p=>p.rgb.some(v=>v>=250))};
+}
+/* 🔴 **外推距離不能固定**（2026-09-15 Eric 實拍實測）：片立在紙上會投影，陰影比想像的寬——
+   同一張照片外推 5.5% 只有 3/12 點夠亮、15% 有 8/12、22% 有 10/12。
+   ⇒ 由近而遠試 8%／15%／25%，取第一個合格的圈；全不合格才判失敗，並用**最好的那一圈**講原因。 */
+function paperWhite(h){
+  let best=null;
+  for(const M of PAPER_RINGS){
+    const r=paperRing(h,M);
+    if(r.ok) return r;
+    if(!best || (r.bright||0)>(best.bright||0)) best=r;
+  }
+  const b=best||{};
+  if(b.why==='取樣點落在畫面外') return {ok:false, why:'取樣點落在畫面外——校正片四周要留一圈白紙'};
+  if(b.why==='彼此差太多')
+    return {ok:false, why:`四周那圈彼此差太多（${b.keep}/${b.bright} 一致）——背景不只有紙（旁邊的洗料柱？），或打光很不均`};
+  return {ok:false, why:`四周只有 ${b.bright||0}/${b.got||12} 個取樣點夠亮（要 ≥${PAPER_MIN_KEEP}）——看起來沒有墊白紙，或片的影子太重`};
 }
 /* 白平衡（三選一，優先序固定）：白紙 → 純 A 格（備援）→ 不做。用了哪一個一定要講出來。 */
 function applyWB(){
@@ -459,7 +471,7 @@ function applyWB(){
       const g=[0,1,2].map(k=>paper.rgb[k]>2?1/paper.rgb[k]:1);
       const gm=Math.cbrt(g[0]*g[1]*g[2]);
       wbGain=g.map(v=>v/gm);
-      wbWhy=`已用白紙校色偏（四周 ${paper.kept}/${paper.total} 點一致）`+(paper.blown?'；⚠ 白紙有通道爆到 250，色偏校正會失準，下次拍暗一點':'');
+      wbWhy=`已用白紙校色偏（外推 ${Math.round(paper.M*100)}%、四周 ${paper.kept}/${paper.total} 點一致）`+(paper.blown?'；⚠ 白紙有通道爆到 250，色偏校正會失準，下次拍暗一點':'');
     }
   }
   if(!wbWhy && useACell){
