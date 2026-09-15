@@ -658,12 +658,12 @@ for name, (kind, d) in presets.items():
             #   **兩邊會一起錯、一起綠**；唯一擋得住的是這種不靠子字串推導的 exact 表。
             _ti_want = {TI_FIL_PLA: {"filament_minimal_purge_on_wipe_tower": "120",
                                      "filament_retraction_length": "3",
-                                     "filament_retract_restart_extra": "0.6",
+                                     "filament_retract_restart_extra": "0",   # 0.6 → 0（Eric 2026-09-15 裁「整個高流量族 8 支」，取代 0907 硬表值）
                                      "pressure_advance": "0.4",
                                      "nozzle_temperature": "210"},
                         TI_FIL_SUP: {"filament_minimal_purge_on_wipe_tower": "120",
                                      "filament_retraction_length": "3",
-                                     "filament_retract_restart_extra": "0.6",
+                                     "filament_retract_restart_extra": "0",   # 0.6 → 0（Eric 2026-09-15 裁「整個高流量族 8 支」，取代 0907 硬表值）
                                      "pressure_advance": "0.2",
                                      "nozzle_temperature": "210",
                                      "filament_is_support": "1"}}.get(name)
@@ -750,8 +750,15 @@ for name, (kind, d) in presets.items():
                             err(f"[雙料照片磚噴溫 210 0910] {name}: {_tk}={_v(_tk)!r}, expected '210'")
                 # 🆕 Eric 2026-08-19 令：一般流量「額外回填長度」＝**取消勾選**（nil，退回機器層 0）；
                 #    高流量家族維持 0.6。蓋掉 0723 的「一般流量 0.2」。
-                # 🔴 四料照片磚 0.2（Eric 2026-09-10「額外裝填 0.6 會擠出蠻多的」）；FD300 照片磚維持 nil、FD高流量照片磚與其餘高流量家族維持 0.6。
-                _want_extra = "0.2" if name == PT_FIL_PLA_V else ("0.6" if is_hf else "nil")
+                # 🔴 四料照片磚 0.2（Eric 2026-09-10「額外裝填 0.6 會擠出蠻多的」）；FD300 照片磚維持 nil。
+                # 🔴🔴 **2026-09-15 Eric 裁「整個高流量族 8 支」⇒ 高流量家族 0.6 → 0**
+                #      （上面 0819「高流量維持 0.6」與 0910「只降四料照片磚、不擴大」那兩句**已被本裁取代**，
+                #       原文留著是演進軌跡，不是現行值）。
+                #      起因＝廠內 FF600 E Pro Max（.29）測四料「會磨到材料」：每次回抽完多推 0.6 mm 回去，
+                #      在混色頭上就是反覆把料往前頂。已排除韌體端——.29 唯讀實查
+                #      firmware_retraction.unretract_extra_length = 0.0 ⇒ 0.6 只來自線材層這裡。
+                #      ⛔ PT_FIL_PLA 的 0.2 是 Eric 0910 自己裁的、本次未提 ⇒ 不動。
+                _want_extra = "0.2" if name == PT_FIL_PLA_V else ("0" if is_hf else "nil")
                 if _v("filament_retract_restart_extra") != _want_extra:
                     err(f"[額外回填 0819] {name}: {_v('filament_retract_restart_extra')!r}, expected {_want_extra!r}")
                 # 🆕 Eric 2026-08-19 令：回抽速度／裝填速度全庫 30/30

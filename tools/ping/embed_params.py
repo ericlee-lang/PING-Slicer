@@ -2782,7 +2782,12 @@ def main(src_base):
         if bn == PT_FIL_PLA:
             fd["filament_retract_restart_extra"] = ["0.2"]
         else:
-            fd["filament_retract_restart_extra"] = ["0.6"] if is_hf else ["nil"]
+            # 🔴 2026-09-15 Eric 裁「整個高流量族 8 支」：0.6 → 0。起因＝廠內 FF600 E Pro Max（.29）
+            #    測四料時「會磨到材料」；每次回抽完多推 0.6 mm 回去，在混色頭上就是反覆把料往前頂。
+            #    已排除韌體端：.29 唯讀實查 firmware_retraction.unretract_extra_length = 0.0 ⇒ 0.6 只來自這裡。
+            #    ⚠ 寫明「0」而不是「nil」：機器層本來就是 0，兩者等效，但明寫讓「這一族是刻意歸零」看得見
+            #      （nil 讀起來像忘了設）。⛔ 上面那支 PT_FIL_PLA 的 0.2 是 Eric 0910 自己裁的，不動。
+            fd["filament_retract_restart_extra"] = ["0"] if is_hf else ["nil"]
         # 🆕 Eric 2026-08-26 裁（Q4 甲）：PA-CF 回抽 3/40/40——**只改線材層**。
         #    機器層一字不動、韌體回抽維持開：韌體回抽開啟時線材 start gcode 的
         #    SET_RETRACTION 會把 3/40/40 推給 Klipper ⇒ 行為等同他關掉韌體回抽自己下 E 值，

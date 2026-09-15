@@ -67,7 +67,7 @@
         "100%"
     ],
     "filament_retract_restart_extra": [
-        "0.6"
+        "0"
     ],
     "overhang_fan_threshold": [
         "25%"
