@@ -332,8 +332,17 @@
             <div class="sub" style="margin-bottom:6px">直立拍（純白那階在最下面）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
           </li>
           <li><b>讀照片，量出實際顏色</b>
-            <div class="sub" style="margin-bottom:4px">
-              主程式的 <b>說明</b> 選單 →「<b>色彩校正</b>」：選「雙料 8 階直立條」→ <b>把上面那兩個料色填進去</b>（各階 S 會自動算出來，不用抄）→ 上傳照片 → 點整條的四個外角 → 匯出校正表。
+            <div class="sub" style="margin-bottom:6px">
+              按下面這顆，校正頁會<b>直接蓋在工作室上面</b>——不跳出去、不用另存檔：
+              上傳照片 → 點整條的四個外角 → 按「<b>完成，帶回工作室</b>」，量到的值就填回來了。
+              <b>料色不用填</b>（校正頁會從照片直接量），各階 S 也會自動算。
+            </div>
+            <div style="margin-bottom:4px">
+              <button class="btn" id="btnCalibOverlay">讀校正照片…</button>
+            </div>
+            <div class="sub">
+              也可以走舊路徑：主程式 <b>說明</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
+              再用下面的「選擇檔案」匯回來。
             </div>
           </li>
           <li><b>把校正表匯回來</b>
@@ -565,13 +574,17 @@ function calibSetTable(tbl, persist){
     if(s && window.PhotoTileEngine){ const raw=JSON.parse(s); const tbl=PhotoTileEngine.calibParseTable(raw); tbl.persisted=true; calibTable=tbl; }
   }catch(e){ calibTable=null; }
 })();
-document.getElementById('calibFile').onchange=e=>{
-  const f=e.target.files && e.target.files[0];
-  if(!f) return;
-  const rd=new FileReader();
-  rd.onload=()=>{
+function calibShowError(err){
+  calibTable=null;
+  document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
+  document.getElementById('btnCalibClear').style.display='none';
+  applyCalibSummary();
+}
+/* 🔴 **單一入口**（2026-09-15，牌 c-0915-PTI-06）：檔案匯入與「工作室內覆蓋層直接帶回來」
+   走的是這同一支。新增覆蓋層路徑時刻意**不另寫一套套表邏輯**——下面 0914 的料色回填
+   若有兩份，遲早會漂移（這條線已經被兩份實作咬過三次）。 */
+function calibAcceptRaw(raw){
     try{
-      const raw=JSON.parse(rd.result);
       const tbl=PhotoTileEngine.calibParseTable(raw);
       /* 0914（Eric 裁 Q2 乙「料槽顏色用實際線材色」）：校正表就是「這兩支料印出來的真色」的唯一實測來源
          ——匯入時直接把料 A／B 改成表宣告的料色（表的 料[1] 依 measured/README §一 修正法＝S=0 那階量到色）。
@@ -584,12 +597,17 @@ document.getElementById('calibFile').onchange=e=>{
       }
       calibSetTable(tbl);
       if(applied){ const el=document.getElementById('calibTableStat'); if(el) el.innerHTML=applied+'<br>'+el.innerHTML; }
-    }catch(err){
-      calibTable=null;
-      document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
-      document.getElementById('btnCalibClear').style.display='none';
-      applyCalibSummary();
-    }
+      return true;
+    }catch(err){ calibShowError(err); return false; }
+}
+document.getElementById('calibFile').onchange=e=>{
+  const f=e.target.files && e.target.files[0];
+  if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let raw;
+    try{ raw=JSON.parse(rd.result); }catch(err){ calibShowError(err); return; }
+    calibAcceptRaw(raw);
   };
   rd.readAsText(f);
   e.target.value='';
@@ -2403,6 +2421,85 @@ document.getElementById('slotList').addEventListener('input',()=>setTimeout(ptIn
 ptSyncVisibility(); ptRender();
 renderSlots(); syncOrientUI();
 if(embeddedMode) simulate(); else makeDemo();
+
+/* ===== 校正回讀・工作室內覆蓋層（2026-09-15 Eric 令「做」，牌 c-0915-PTI-06）=====
+   Eric 原話：「如果不用外部瀏覽器，是否可以達成：完成點四個外角、按確定後，
+   它就直接跳回 PING-Slicer，且取得的校正值也填回校正磚了？」——可以，而且不必「跳回」，
+   因為根本沒離開：校正頁是蓋在工作室上面的一層，關掉就回到原狀態。
+
+   🔴 **為什麼是 iframe 而不是把校正 UI 搬過來**：calibration.html 有 156 KB，搬過來＝第二份實作。
+      這條線被兩份實作咬過三次（S 清單寫死、料色寫死、calibGenLadder 被整區移植靜默刪掉）。
+      iframe ⇒ 校正頁仍是唯一正本，外部瀏覽器那個舊入口也還活著。
+   🔴 **為什麼靠 postMessage**：工作室在產品裡用 `file://` 載入（WebViewDialog.cpp:46），
+      Chromium 對 file:// 給 opaque origin ⇒ 讀不到 iframe 的 DOM，但 postMessage 不受同源限制。
+   🔴 **回程是必要條件**：MainFrame.cpp 當初不做內嵌的理由就是「校正頁沒有回程」。
+      這裡有三條回程——完成、取消、關閉（＋Esc），缺一都會把那個原始問題原地重演。
+   ⚠ 只接受自己那個 iframe 的訊息（event.source 比對），不靠 origin
+      （file:// 的 origin 是 "null"，比不出東西）。 */
+(function calibOverlay(){
+  const btn=document.getElementById('btnCalibOverlay');
+  if(!btn) return;
+  let wrap=null, frame=null, lastFocus=null;
+
+  function close(){
+    if(!wrap) return;
+    wrap.remove(); wrap=null; frame=null;
+    document.body.style.overflow='';
+    if(lastFocus && lastFocus.focus) lastFocus.focus();
+  }
+  function open(){
+    if(wrap) return;
+    lastFocus=document.activeElement;
+    wrap=document.createElement('div');
+    wrap.id='calibOverlay';
+    wrap.setAttribute('role','dialog');
+    wrap.setAttribute('aria-label','色彩校正・讀照片');
+    /* 點四個角需要大畫布 ⇒ 必須全幅，塞不進右欄（原型已記的風險）。 */
+    wrap.style.cssText='position:fixed; inset:0; z-index:10000; background:#fff; display:flex; flex-direction:column;';
+    const bar=document.createElement('div');
+    bar.style.cssText='flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:8px 12px;'
+      +'border-bottom:1px solid #D8D8D6; background:#EFEFEF; font-size:13px;';
+    const title=document.createElement('b');
+    title.textContent='色彩校正・讀照片';
+    const hint=document.createElement('span');
+    hint.style.cssText='color:#6B6E6D;';
+    hint.textContent='點完四個角，按「完成，帶回工作室」——值會直接填回去，不用存檔。';
+    const spacer=document.createElement('span');
+    spacer.style.cssText='flex:1 1 auto;';
+    const x=document.createElement('button');
+    x.className='btn'; x.textContent='關閉'; x.onclick=close;
+    bar.appendChild(title); bar.appendChild(hint); bar.appendChild(spacer); bar.appendChild(x);
+    frame=document.createElement('iframe');
+    frame.src='calibration.html?embedded=1';
+    frame.style.cssText='flex:1 1 auto; width:100%; border:0;';
+    wrap.appendChild(bar); wrap.appendChild(frame);
+    document.body.appendChild(wrap);
+    document.body.style.overflow='hidden';
+  }
+  btn.onclick=open;
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape' && wrap) close(); });
+
+  window.addEventListener('message', e=>{
+    if(!frame || e.source!==frame.contentWindow) return;      // 只收自己那個 iframe 的
+    const d=e.data;
+    if(!d || typeof d!=='object') return;
+    if(d.type==='phototile_calib_cancel'){ close(); return; }
+    if(d.type!=='phototile_calib_result') return;
+    /* 🔴 先回 ack 再處理：校正頁那邊等不到 ack 會自己退回「存成檔案」並講出來（fail loud）。
+       這道防呆是因為**產品環境是 file://，而本次只在 http 下實測過** ——
+       若哪天 file:// 或 WebView2 擋掉頁間訊息，使用者看到的會是「已改存成檔案，請用選擇檔案匯入」，
+       而不是按了「完成」卻什麼都沒發生（那種靜默失敗最難查，正是這條線一路的痛）。 */
+    try{ e.source.postMessage({type:'phototile_calib_ack'}, '*'); }catch(_){}
+    const ok=calibAcceptRaw(d.raw);                            // 🔴 與檔案匯入同一支，不另寫套表邏輯
+    /* 🔴 **close 要排到下一個 task**：postMessage 的送達是排進 iframe 的 task queue 的，
+       同一個 tick 裡就 remove 掉 iframe ⇒ ack 永遠送不到（本棒實測抓到：iframe 收到 ack = false）。
+       成功路徑本身不會因此壞掉（iframe 連同它的 timer 一起消失），但只要 close 因故沒跑，
+       校正頁就會誤報「工作室沒有回應」並多存一個檔——那是假警報，比沒有警報更糟。 */
+    setTimeout(close, 0);
+    const el=document.getElementById('calibTableStat');
+    if(ok && el) el.innerHTML='（剛才從校正頁直接帶回來的，沒有經過檔案）<br>'+el.innerHTML;
+  });
+})();
 </script>
 </body>
 </html>

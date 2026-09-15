@@ -228,9 +228,52 @@ function fakeImg(){
            'vsList 又出現寫死的預設階梯');
     assert.deepStrictEqual(E.calibStripDefaultS('#5D6268', '#F2F0EB'), [1,0.65,0.47,0.33,0.22,0.13,0.06,0]);
   });
-  check('index.html 第 3 步不再叫使用者手抄 S 清單', () => {
+  check('index.html 第 3 步不再叫使用者手抄 S 清單、也不再叫他填料色', () => {
     assert(!idxHtml.includes('各階 S 照上面'), '手抄指示還在');
-    assert(idxHtml.includes('各階 S 會自動算出來，不用抄'), '沒有講「自動算」');
+    /* 0915 dcf45dc9fc 之後料色是從照片直接量的（autoSlot 預設 checked）⇒ 這句指示會誤導。 */
+    assert(!idxHtml.includes('把上面那兩個料色填進去'), '叫使用者填料色的指示還在');
+    assert(/各階 S (會自動算出來，不用抄|也會自動算)/.test(idxHtml), '沒有講「自動算」');
+  });
+
+  console.log('\n校正回讀・工作室內覆蓋層（0915 牌 c-0915-PTI-06；Eric「不用外部瀏覽器」）');
+  check('工作室有覆蓋層入口，iframe 指向 calibration.html?embedded=1', () => {
+    assert(idxHtml.includes('btnCalibOverlay'), '沒有覆蓋層入口鈕');
+    assert(idxHtml.includes("calibration.html?embedded=1"), 'iframe 沒有帶 embedded=1');
+  });
+  check('🔴 套表只有一個入口：檔案匯入與覆蓋層帶回都走 calibAcceptRaw', () => {
+    assert(idxHtml.includes('function calibAcceptRaw'), '沒有抽出單一入口');
+    /* 0914 Q2 乙 的料色回填只能有一份——這條線已被兩份實作咬過三次。 */
+    const hits = (idxHtml.match(/料色已改成校正表的料/g) || []).length;
+    assert.strictEqual(hits, 1, `料色回填邏輯出現 ${hits} 次，應只有 1 次（第二份遲早漂移）`);
+  });
+  check('calibration.html 有 EMBEDDED 判定與 postToStudio，且非內嵌時行為不變', () => {
+    assert(calHtml.includes('const EMBEDDED'), '沒有 EMBEDDED 判定');
+    assert(calHtml.includes('function postToStudio'), '沒有 postToStudio');
+    assert(calHtml.includes("embedded')==='1'") && calHtml.includes('window.parent!==window'),
+      'EMBEDDED 沒有同時要求參數與真的在 iframe 裡');
+    /* ⚠ 不做跨行比對（行尾 CRLF/LF 差異會讓斷言假紅——本棒第一版就是這樣紅的）。 */
+    assert(calHtml.includes("a.download='色彩校正表.json'"), '非內嵌路徑的下載行為被改掉了');
+    assert((calHtml.match(/saveAsFile\(\)/g) || []).length >= 2,
+      'saveAsFile 應在「fallback」與「非內嵌」兩條路徑各呼叫一次');
+  });
+  check('🔴 覆蓋層有明確回程（MainFrame.cpp 當初不做內嵌的理由就是「校正頁沒有回程」）', () => {
+    assert(calHtml.includes('btnBackStudio'), '沒有取消返回鈕');
+    assert(calHtml.includes('phototile_calib_cancel'), '沒有取消訊息');
+    assert(idxHtml.includes("d.type==='phototile_calib_cancel'"), '工作室沒有處理取消');
+    assert(/x\.textContent='關閉'/.test(idxHtml), '覆蓋層工具列沒有關閉鈕');
+    assert(idxHtml.includes("e.key==='Escape'"), 'Esc 關不掉覆蓋層');
+  });
+  check('🔴 帶回失敗有 fail-loud 退路：等不到 ack 就存檔並講出來', () => {
+    assert(calHtml.includes('phototile_calib_ack'), '校正頁沒有等 ack');
+    assert(idxHtml.includes('phototile_calib_ack'), '工作室沒有回 ack');
+    assert(calHtml.includes('工作室沒有回應'), '沒有 fail-loud 訊息');
+  });
+  check('🔴 工作室 close 排到下一個 task，否則 ack 送不到（本棒實測抓到 ack=false）', () => {
+    assert(idxHtml.includes('setTimeout(close, 0)'),
+      'close 若與 ack 同一個 tick，iframe 會在收到 ack 前被移除 ⇒ 校正頁誤報「工作室沒有回應」');
+  });
+  check('只收自己那個 iframe 的訊息（file:// 的 origin 是 "null"，比 origin 沒有意義）', () => {
+    assert(idxHtml.includes('e.source!==frame.contentWindow'), '沒有比對訊息來源');
   });
 
   console.log('\n乙案色調映射（toneStretch；0914 三色巴哥中間階空掉的實錄）');
