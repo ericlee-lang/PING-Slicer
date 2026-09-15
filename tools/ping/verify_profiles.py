@@ -2033,7 +2033,52 @@ for _name, (_kind, _d) in presets.items():
 if _Z_CENSUS["易拆0"] == 0:
     err("[支撐Z間距] 全庫找不到任何易拆家族製程 ⇒ 易拆家族消失或判定失效")
 
+# ── 另存列印設備的預設名＝printer_model + " " + printer_variant（2026-09-15 Eric 裁「A」）──────
+#   PhysicalPrinterDialog 建構子（src/slic3r/GUI/PhysicalPrinterDialog.cpp）用這兩個鍵組出
+#   「另存實體列印設備」的預設名。少了 printer_variant 就逐級退回只帶機型 ⇒ 同一機型的不同口徑
+#   撞同一個預設名，而撞名只出 Warning、**確定鍵不會被停用** ⇒ 第二次另存直接覆蓋前一顆；
+#   留下來那顆的 inherits 綁死在一個口徑上，而製程的 compatible_printers 是逐口徑寫死的
+#   ⇒ 自訂機型走 parent 回退只命中那一組 ⇒ 使用者會看到「別的口徑的製程整組不見了」。
+#   ⚠ 這是**回歸型**守衛：綠燈＝「沒有新的機型缺這兩個鍵、也沒有新的撞名」，
+#     **不等於**「另存動線整體正確」——那要實走 GUI 才算數。
+def _resolve_machine_key(_name, _key, _depth=0):
+    # 沿 inherits 鏈回溯；葉檔目前都明寫，回溯只是防日後有人改成靠繼承拿值
+    if _depth > 8 or _name not in presets:
+        return ""
+    _d = presets[_name][1]
+    _v = _d.get(_key)
+    if _v:
+        return str(_v)
+    _inh = _d.get("inherits")
+    return _resolve_machine_key(_inh, _key, _depth + 1) if _inh else ""
+
+
+_savename_owner = {}
+_savename_census = 0
+for _name, (_kind, _d) in presets.items():
+    if _kind != "machine" or _name.startswith("fdm_"):
+        continue
+    _model = _resolve_machine_key(_name, "printer_model")
+    _variant = _resolve_machine_key(_name, "printer_variant")
+    if not _model:
+        err(f"[另存預設名] {_name}: 缺 printer_model ⇒ 另存會退回「<preset名> - 複製」")
+        continue
+    if not _variant:
+        err(f"[另存預設名] {_name}: 缺 printer_variant ⇒ 預設名不帶口徑、同機型不同口徑會互相覆蓋")
+        continue
+    _save = _model + " " + _variant
+    if _save in machines:
+        err(f"[另存預設名] {_name}: 預設名 {_save!r} 與系統機型同名 ⇒ 會被「不允許覆蓋系統設定」擋死")
+    if _save in _savename_owner:
+        err(f"[另存預設名] {_name} 與 {_savename_owner[_save]} 的預設名都是 {_save!r} ⇒ 會互相覆蓋")
+    else:
+        _savename_owner[_save] = _name
+        _savename_census += 1
+if _savename_census == 0:
+    err("[另存預設名] 全庫找不到任何可另存的機型 ⇒ 判定失效")
+
 print(f"presets: {len(presets)} | machines: {len(machines)}")
+print(f"另存預設名：{_savename_census} 支機型各自唯一（model+variant，零撞系統名）")
 print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜棧板 3 ×{_exp_census['棧板3']}")
 print(f"FF族線寬＝口徑（0915·#152）：{_ff_census[1]} 支製程／{_ff_census[0]} 個鍵合格")
 print(f"支撐Z間距：易拆 0 ×{_Z_CENSUS['易拆0']}｜一般 0.2 ×{_Z_CENSUS['一般0.2']}")
