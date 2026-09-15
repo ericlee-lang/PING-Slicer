@@ -2775,6 +2775,11 @@ def main(src_base):
         #    「四料高流量噴頭」→「四料同進噴頭」後掉出 is_hf ⇒ 回抽 3/30/30 與額外回填 0.6
         #    會靜默退回一般流量值。照片磚專用支同屬同進硬體，一併納入。
         is_hf = ("高流量" in bn) or ("四料同進" in bn) or ("(照片磚)" in bn) or ("(3in1)" in bn)
+        # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
+        #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
+        #   ⛔ 不含「- 高流量噴頭」那三支（白名單空、走 condition，FD 全系列也吃得到）；
+        #   ⛔ 不含照片磚支（由 is_pt 先擋成 nil）。守衛＝verify_profiles.py 同名判定。
+        _is_ff_only = ("四料同進" in bn) or ("(3in1)" in bn)
         is_pt = bn in (PT_FIL_PLA, PT_FIL_PLA_FD, PT_FIL_PLA_FDHF)   # ④ 照片磚系＝回抽長度 nil（吃機器層）
         # 🔴 四料照片磚額外回填 0.6 → 0.2（Eric 2026-09-10：「額外裝填 0.6 會擠出蠻多的，幫我把照片磚的額外擠出量改成 0.2 看看」）。
         #    ⛔ **只降四料照片磚那一支**：`PING PLA(照片磚 FD300)` 現行是 `nil`（＝吃機器層 0），設 0.2 是**增加**、方向相反；
@@ -2801,8 +2806,20 @@ def main(src_base):
             pass                                          # ② 長度不動（TPE/SupTPE 0718、PVA 0724 定稿；Classic 兩支本來就沒覆蓋鍵）
         elif _is_pacf:
             fd["filament_retraction_length"] = ["3"]      # 🆕 0826 Eric：PA-CF 高溫滲料，1.3/2 擋不住牽絲
+        elif _is_ff_only:
+            # 🆕 2026-09-15 Eric 裁「只改 FF 四支，照片磚除外」：FF600／FF800 **專屬**線材 3 → 0.8。
+            #    起因＝廠內 FF600 E Pro Max（.29）測四料回報「會磨到材料」；同一輪已先把額外回填
+            #    0.6→0（上面 restart_extra 那條），這條是回抽長度本身。
+            #    ⛔ **舊裁「高流量家族（含 3in1）回抽長度 3」（0730 立·0819 再確認）在這四支上已被取代**；
+            #       其餘 is_hf 支維持 3。
+            #    🔴 範圍為什麼是四支不是八支：`PING PLA／SupPLA／PETG - 高流量噴頭` 的
+            #       compatible_printers 是**空的**、走 condition `printer_notes!~PHOTOTILE and !~CLASSIC`
+            #       ⇒ 除照片磚機與 Classic 外**全機型可用，FD 全系列也吃得到**；改它們會波及 FD，
+            #       而 Eric 要的是 FF 那台的手感 ⇒ 只動 FF600／FF800 專屬的四支。
+            fd["filament_retraction_length"] = ["0.8"]
         elif is_hf:
-            fd["filament_retraction_length"] = ["3"]      # ③ 0730 高流量家族既值
+            # ③ 0730 高流量家族既值。⚠ 2026-09-15 起這條只剩 FD 共用的三支在吃（FF 四支已被上面接手）。
+            fd["filament_retraction_length"] = ["3"]
         else:
             fd["filament_retraction_length"] = ["2"]      # ① 0819 一般流量：繼承 1.3 → 明寫 2
         if json.dumps(fd, sort_keys=True) != before:

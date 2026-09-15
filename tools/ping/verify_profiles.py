@@ -657,12 +657,12 @@ for name, (kind, d) in presets.items():
             #   SOP §N 第 4 條的教訓：產生器與驗證器的家族判定若都綁同一個名字字串，
             #   **兩邊會一起錯、一起綠**；唯一擋得住的是這種不靠子字串推導的 exact 表。
             _ti_want = {TI_FIL_PLA: {"filament_minimal_purge_on_wipe_tower": "120",
-                                     "filament_retraction_length": "3",
+                                     "filament_retraction_length": "0.8",     # 3 → 0.8（Eric 2026-09-15 裁「只改 FF 四支，照片磚除外」，取代 0730/0819/0907 的 3）
                                      "filament_retract_restart_extra": "0",   # 0.6 → 0（Eric 2026-09-15 裁「整個高流量族 8 支」，取代 0907 硬表值）
                                      "pressure_advance": "0.4",
                                      "nozzle_temperature": "210"},
                         TI_FIL_SUP: {"filament_minimal_purge_on_wipe_tower": "120",
-                                     "filament_retraction_length": "3",
+                                     "filament_retraction_length": "0.8",     # 3 → 0.8（同上裁）
                                      "filament_retract_restart_extra": "0",   # 0.6 → 0（Eric 2026-09-15 裁「整個高流量族 8 支」，取代 0907 硬表值）
                                      "pressure_advance": "0.2",
                                      "nozzle_temperature": "210",
@@ -734,6 +734,12 @@ for name, (kind, d) in presets.items():
                 # ⚠ 「PING PLA(照片磚 FD300)」不含「(照片磚)」⇒ 刻意落在一般流量側（FD300＝雙料一般流量）。
                 is_hf = (("高流量" in name) or ("四料同進" in name)
                          or ("(照片磚)" in name) or ("(3in1)" in name))
+                # 🆕 FF600／FF800 **專屬**線材（2026-09-15 Eric 裁回抽 0.8 的範圍）＝is_hf 的真子集。
+                #   四支：PING PLA／SupPLA - 四料同進噴頭、PING PLA(3in1)／SupPLA(3in1) - 高流量噴頭。
+                #   ⛔ 不含「PING PLA／SupPLA／PETG - 高流量噴頭」——那三支白名單為空、走 condition
+                #      `printer_notes!~PHOTOTILE and !~CLASSIC` ⇒ FD 全系列也吃得到，不是 FF 專屬。
+                #   ⛔ 不含照片磚支（它由 is_pt 先擋成 nil）。
+                _is_ff_only = ("四料同進" in name) or ("(3in1)" in name)
                 # ⚠ 內聯清單，不吃 embed_params 的常數（兩支是獨立程式）。新增照片磚專用線材時兩邊都要加——
                 #   0730 就是漏了這一行，照片磚支被掃成回抽 3、靜默蓋掉零回抽 20 天。正本＝embed_params.pt_fil_specs。
                 is_pt = name in (PT_FIL_PLA_V, PT_FIL_PLA_FD_V, PT_FIL_PLA_FDHF_V)
@@ -806,8 +812,23 @@ for name, (kind, d) in presets.items():
                     # 🆕 2026-08-26 Eric 裁：PA-CF 回抽長度 3（高溫滲料，2 擋不住牽絲）。
                     if _v("filament_retraction_length") != "3":
                         err(f"[PA-CF 回抽長度 3 0826] {name}: {_v('filament_retraction_length')!r} 應 3")
+                elif _is_ff_only:
+                    # 🆕 2026-09-15 Eric 裁「只改 FF 四支，照片磚除外」：FF600／FF800 **專屬**線材
+                    #    回抽長度 3 → 0.8。起因＝廠內 FF600 E Pro Max（.29）測四料回報「會磨到材料」，
+                    #    同一輪已先把額外回填 0.6→0（見上面 restart_extra 那條），這是長度本身。
+                    #    ⛔ **舊裁「高流量家族（含 3in1）回抽長度 3」（0730 立·0819 再確認）在這四支上
+                    #       已被本裁取代**，其餘 is_hf 支（PLA／SupPLA／PETG - 高流量噴頭）維持 3。
+                    #    🔴 範圍為什麼是四支不是八支：那三支「- 高流量噴頭」的 compatible_printers 是
+                    #       **空的**、走 condition `printer_notes!~PHOTOTILE and !~CLASSIC`
+                    #       ⇒ 除照片磚機與 Classic 外**全機型可用，FD 全系列也在內**；改它們會波及 FD。
+                    #       Eric 要的是 FF 那台的手感 ⇒ 只動 FF600／FF800 專屬的四支。
+                    if _v("filament_retraction_length") != "0.8":
+                        err(f"[FF專屬回抽長度 0.8（0915 裁，取代 0730/0819 的 3）] {name}: "
+                            f"{_v('filament_retraction_length')!r} 應 0.8")
                 elif is_hf:
                     # 2026-07-30 Eric 裁：高流量家族（含 3in1）回抽長度 3；0819「排除不動」再確認。
+                    # ⚠ 2026-09-15 起這條**只剩 FD 共用的三支**（PLA／SupPLA／PETG - 高流量噴頭）
+                    #   與四料照片磚支在吃；FF600／FF800 專屬四支已被上面那條接手。
                     if _v("filament_retraction_length") != "3":
                         err(f"[高流量家族長度 3（0730 裁·0819 再確認）] {name}: {_v('filament_retraction_length')!r} 應 3")
                 else:
