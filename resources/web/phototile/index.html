@@ -492,6 +492,17 @@ slotList.addEventListener('input', e=>{
 const CALIB_LS_KEY='ping_phototile_calib_dual_v1';
 let calibTable=null;          // 引擎 calibParseTable 的形狀 {slots:[hexA,hexB], pts, raw}（＋persisted）
 let calibMadeColors=null;     // 產出校正片當下的料色（產完又改料色 ⇒ 舊摘要會說謊，要標出來）
+/* 🔴 校正表一旦匯入，料槽顏色就是「機上實際那兩支線材量出來的真色」＝事實，不是建議
+   ⇒ 自動配色不得改寫它。這是 Eric 2026-09-14 裁 Q2「乙」（料槽顏色用實際裝的線材色，
+   不再從照片自動挑）還沒補上的防護面。
+   實爆（2026-09-15 杜賓範本棒）：匯入白×深灰校正表後再載一張新照片，ptApply→suggest()
+   把 B 槽改成近黑 #262121，校正表隨即被判「與目前料色不符・未套用」，而**畫面上沒有任何
+   警告** ⇒ 使用者以為校正有生效，實際印出來走的還是理論階梯。
+   🔴 這是同一支 suggest() 靜默覆寫家族的**第 5 次發作**（前四次的修補註解見本檔 931／
+   1306／1502／1563），前四次補的都是「使用者手調的料色」，沒人想到實測值走同一條路。
+   判準刻意**不**看 calibMatchesNow()：表對不上目前料色時（換了料），料色一樣該由人決定、
+   不該由照片決定；要回到自動配色請按校正區的「清除」。 */
+function calibOwnsSlots(){ return !!(calibTable && slotCount===2); }
 function calibRequest(){ return (calibTable && slotCount===2) ? {table:calibTable.raw, apply:!!params.calibGen, toneMap:(params.calibGen&&params.calibStretch)?'stretch':'none'} : null; }
 function calibMatchesNow(){ return !!(calibTable && slotCount===2 && window.PhotoTileEngine && PhotoTileEngine.calibMatches(calibTable, slots.slice(0,2))); }
 /* 摺疊標題的現態摘要——單一來源，每條分支都要同步（LAY-21）。⛔ 不准只講好消息（R8-5：④-2 之後那句話會變成謊話）。 */
@@ -531,6 +542,7 @@ function calibTableStat(){
     el.innerHTML=`⚠ 已匯入的校正表是 <b>${calibTable.slots.slice(0,2).join(' · ')}</b> 這組料，目前料色是 <b>${now}</b> —— <b>未套用</b>。校正資料只綁線材，換了料就要重新校正。`;
   else
     el.innerHTML=`✅ 已套用（${calibTable.pts.length} 點，${calibTable.slots.slice(0,2).join(' · ')}）—— 模擬圖與色條顯示的是<b>實測</b>顏色。${calibTable.persisted?'':'<br><span class="sub">⚠ 這次無法存進瀏覽器，關掉工作室後要重新匯入。</span>'}`;
+  if(slotCount===2) el.innerHTML+='<br><span class="sub">料色由校正表決定，自動配色不會覆寫它——要改回自動配色請按上面的「清除」。</span>';
 }
 /* ④-2 的狀態列：套了沒、為什麼沒套，一律講清楚。⛔ 不准出現只講好消息的「已套用校正」——被擋下時使用者要知道印出來的還是理論階梯。 */
 function renderCalibGenStat(K){
@@ -1263,6 +1275,15 @@ function makeDemo(){
 document.getElementById('btnSuggest').onclick=()=>{ if(img) suggest(); };
 function suggest(){
   if(!img) return;
+  /* 校正表擁有料色 ⇒ 跳過「改寫料槽」，其餘（重畫色條、重算模擬）照舊。
+     不靜默：算完之後在 #metric 補一句為什麼沒有幫他配色。#metric 由 simulate() 同步寫入，
+     所以這句一定要放在 simulate() 之後，否則會被蓋掉。 */
+  if(calibOwnsSlots()){
+    renderSlots(); simulate();
+    const mt=document.getElementById('metric');
+    if(mt) mt.innerHTML+=' <span class="sub">（料色來自校正表，未套用自動配色）</span>';
+    return;
+  }
   document.getElementById('metric').textContent='建議計算中…';
   setTimeout(()=>{
     /* --- 1. Lab 空間過取樣 k-means（k=槽數×3，最多 9）--- */
@@ -2201,7 +2222,9 @@ function ptApply(s){
        · 本地款（lockSlots=false）**交給自動配色**——D-1（2fc9492d42）修好評分之後，
          規格自己的杜賓案例就是自動 8.28 勝過手動鎖定 8.45；而鎖死一組固定料色
          碰到色系不同的照片反而更差（實測：米白＋棕在綠色風景 ΔE 37.9→44.8）。 */
-  s.slots.forEach((hex,i)=>{ if(slots[i]) slots[i].color=hex; });
+  /* 同 calibOwnsSlots()：款式宣告的料色是「沒有圖時的合理初值」，
+     壓不過實測值。四料（slotCount!==2）不受影響，行為逐字不變。 */
+  if(!calibOwnsSlots()) s.slots.forEach((hex,i)=>{ if(slots[i]) slots[i].color=hex; });
   const tones=ptTones(s);
   params.klevels=tones;
   const lv=document.getElementById('levelsIn'); if(lv) lv.value=tones;
