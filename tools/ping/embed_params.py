@@ -3131,10 +3131,44 @@ def main(src_base):
                 return _n
         return None
 
+    # ③ FF600／FF800 族的七個線寬鍵 ＝ 口徑名目值（Eric 2026-09-15 裁，回報中心 #152）
+    #    🔴 **本批推翻「FF 高流量線寬＝1.02×口徑」**（0.41／0.62／1.02，工程端交付值）。
+    #       Eric 原話「參數以上面圖片為主」＋附 FF600 同進 0.6 的截圖（全 0.6／支撐 0.5）。
+    #       ⇒ 這不是修 bug，是有意識的規則變更：**同一台 FF600 上，四料同進早就是「線寬＝口徑」**
+    #         （0.4／0.6／1），而 3in1 與 FF 單料頭還停在 1.02×口徑 ⇒ 同機不同族兩套值。
+    #    範圍＝Eric 裁「12 支全拉平」：3in1 六支（FF600／FF800 × 0.4／0.6／1.0）
+    #         ＋ FF 單料頭六支（同上）。兩者現值**完全相同**，只改一半會製造新的不一致。
+    #    ⛔ **排除照片磚**：`@FF600 同進照片磚` 那六支線寬另有規則（曾經＝1.5×口徑，見下面支撐
+    #       post-pass 的 ★ 註解）。它們現值雖然剛好也是口徑、套下去是 no-op，但仍明確排除——
+    #       否則日後照片磚線寬再改回 1.5×口徑時，會被這裡靜默洗掉。
+    #    ⛔ **不碰 support_line_width**：那是下面 ② 的查表（窄一階 0.35／0.5／0.8），
+    #       兩個家族本來就已經一致，不在本裁範圍。
+    #    驗收守衛＝verify_profiles.py 的〈FF 族線寬＝口徑〉段（回歸型）。
+    FF_LW_KEYS = ("line_width", "initial_layer_line_width", "outer_wall_line_width",
+                  "inner_wall_line_width", "top_surface_line_width",
+                  "sparse_infill_line_width", "internal_solid_infill_line_width")
+
     exp_set = lw_set = lw_unknown = 0
+    ffw_files = ffw_keys = 0
     for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
         pdj = json.load(io.open(pp_path, encoding="utf-8"))
         touched = False
+        _bn_pp = os.path.basename(pp_path)
+        if re.search(r"@FF(?:600|800)\b", _bn_pp) and "照片磚" not in _bn_pp:
+            _m_ff_nz = re.search(r"\(([\d.]+)\)\s*\.json$", _bn_pp)
+            if _m_ff_nz:
+                _ff_want = "%g" % float(_m_ff_nz.group(1))
+                _ff_hit = 0
+                for _k in FF_LW_KEYS:
+                    if _k in pdj and pdj[_k] != _ff_want:
+                        pdj[_k] = _ff_want
+                        touched = True
+                        _ff_hit += 1
+                if _ff_hit:
+                    ffw_files += 1
+                    ffw_keys += _ff_hit
+            else:
+                print("  ⚠ FF 族線寬 post-pass：%s 檔名認不出口徑，跳過" % _bn_pp)
         if "raft_first_layer_expansion" in pdj:
             want_exp = (PALLET_RAFT_FIRST_LAYER_EXPANSION
                         if str(pdj.get("raft_layers", "0")) != "0"
@@ -3167,6 +3201,8 @@ def main(src_base):
     if exp_set or lw_set or lw_unknown:
         print("  支撐首層擴展→0（棧板留 %s）：改 %d 支｜支撐線寬窄一階：改 %d 支｜口徑認不出：%d 支"
               % (PALLET_RAFT_FIRST_LAYER_EXPANSION, exp_set, lw_set, lw_unknown))
+    if ffw_files:
+        print("  FF 族線寬＝口徑（0915 裁·#152）：改 %d 支／%d 個鍵" % (ffw_files, ffw_keys))
 
     # 4b-7. ★ 支撐／支撐面速度下限（Eric 2026-08-12 裁）
     #

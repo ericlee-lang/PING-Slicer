@@ -1934,6 +1934,7 @@ def _nominal_nozzle_v(lw):
 
 
 _exp_census = {"支撐0": 0, "棧板3": 0}
+_ff_census = [0, 0]   # [合格的線寬鍵數, 掃到的 FF 非照片磚製程數]
 for _name, (_kind, _d) in presets.items():
     if _kind != "process" or _name.startswith("fdm_"):
         continue
@@ -1960,8 +1961,33 @@ for _name, (_kind, _d) in presets.items():
         elif _d["support_line_width"] != _SUP_LW_BY_NOZZLE[_nzn]:
             err(f"[支撐線寬] {_name}: support_line_width={_d['support_line_width']!r} "
                 f"≠ {_SUP_LW_BY_NOZZLE[_nzn]!r}（口徑 {_nzn}）")
+    # 🆕 FF600／FF800 族線寬＝口徑（Eric 2026-09-15 裁「12 支全拉平」，回報中心 #152）
+    #   🔴 **本條取代舊規「FF 高流量線寬＝1.02×口徑」**（0.41／0.62／1.02，工程端交付值）。
+    #      起因＝同一台 FF600 上，四料同進早就是「線寬＝口徑」而 3in1／FF 單料頭還停在
+    #      1.02×口徑 ⇒ 同機兩套值。Eric 附 FF600 同進 0.6 截圖裁「參數以圖片為主」。
+    #      ⚠ 舊規在本檔別處的殘影＝「FF 系 1.0 口徑線寬 1.02 需 ≥2.04」那段註解（樹狀支撐
+    #        branch_diameter_organic 2.6）——引擎硬限的是**支撐線寬**（不變，仍 0.8），
+    #        線寬變小只會讓那個約束更鬆，**不受本裁影響**，該註解已被本條取代但無須改值。
+    #   ⛔ 排除照片磚（線寬另有規則，曾＝1.5×口徑）；support_line_width 歸上面那條管。
+    #   ⚠ 回歸型守衛：綠燈＝「沒有新的 FF 製程漏掉拉平」，不等於「線寬值對實印是最佳的」。
+    if re.search(r"@FF(?:600|800)\b", _name) and "照片磚" not in _name:
+        _m_ffn = re.search(r"\(([\d.]+)\)\s*$", _name)
+        if _m_ffn is None:
+            err(f"[FF族線寬] {_name}: 製程名認不出口徑 ⇒ 拉平規則掃不到它")
+        else:
+            _ff_want = "%g" % float(_m_ffn.group(1))
+            for _ffk in ("line_width", "initial_layer_line_width", "outer_wall_line_width",
+                         "inner_wall_line_width", "top_surface_line_width",
+                         "sparse_infill_line_width", "internal_solid_infill_line_width"):
+                if _ffk in _d and _d[_ffk] != _ff_want:
+                    err(f"[FF族線寬 0915·#152] {_name}: {_ffk}={_d[_ffk]!r} 應 {_ff_want!r}（＝口徑）")
+                elif _ffk in _d:
+                    _ff_census[0] += 1
+            _ff_census[1] += 1
 if _exp_census["棧板3"] == 0:
     err("[支撐首層擴展] 全庫找不到任何 raft_layers>=1 的棧板製程 ⇒ 棧板家族消失或判定失效")
+if _ff_census[1] == 0:
+    err("[FF族線寬 0915·#152] 全庫找不到任何 FF600/FF800 非照片磚製程 ⇒ 判定失效")
 
 # ★ 檢查 14：支撐 Z 間距家族值（Eric 2026-08-17 裁「一般家族全部 0.2」；產生器最終掃描的硬閘門）
 #   易拆家族＝0（不相熔、貼緊好剝）／一般家族＝0.2（同料會相熔，要留隙才拆得下來）。
@@ -1988,6 +2014,7 @@ if _Z_CENSUS["易拆0"] == 0:
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜棧板 3 ×{_exp_census['棧板3']}")
+print(f"FF族線寬＝口徑（0915·#152）：{_ff_census[1]} 支製程／{_ff_census[0]} 個鍵合格")
 print(f"支撐Z間距：易拆 0 ×{_Z_CENSUS['易拆0']}｜一般 0.2 ×{_Z_CENSUS['一般0.2']}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
