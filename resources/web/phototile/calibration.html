@@ -137,10 +137,20 @@
     </div>
 
     <div class="foot">
-      <label class="ck"><input type="checkbox" id="wb">
-        用純 A 格做白平衡（先把整體色偏拉正）</label>
-      <div class="kv" id="wbNote">⚠ 這條<b>還沒進規格 §6</b>——是這一版提出來讓你評估的。
-        每支料的純色格各有 3 個，可拿來抵銷環境光。</div>
+      <!-- 0915（牌 c-0915-PTI-03，Eric 裁）：這兩條是一組的，拆開會出錯——見 applyWB() 上方註解 -->
+      <label class="ck"><input type="checkbox" id="autoSlot" checked>
+        <b>料色直接從照片量</b>（頭尾兩階就是純色錨點）</label>
+      <div class="kv" id="autoSlotNote">量到的是「這兩支料<b>印出來</b>長怎樣」，比用線材標稱色準；
+        下面兩個色塊會自動跟著變，你仍可手動覆寫。</div>
+      <label class="ck" style="margin-top:8px"><input type="checkbox" id="wbPaper" checked>
+        <b>用照片裡的白紙做白平衡</b>（把成品放在白紙上拍）</label>
+      <div class="kv" id="wbPaperNote">從校正片<b>四周外側</b>取樣當中性參考，抵銷環境光色偏。
+        ⚠ 白紙不是標準白（影印紙多含螢光增白劑、在含 UV 的光源下偏藍），所以<b>只用來校色偏、不改整體明暗</b>。</div>
+      <label class="ck" style="margin-top:8px"><input type="checkbox" id="wb">
+        用純 A 格做白平衡（沒有白紙時的備援）</label>
+      <div class="kv" id="wbNote">⚠ 這條<b>還沒進規格 §6</b>。
+        🔴 <b>它跟「料色從照片量」互斥</b>——拿料A 當白平衡參考等於把它歸零成純白，就永遠量不到料A 自己的顏色。</div>
+      <div class="kv" id="wbState" style="margin-top:8px">—</div>
       <div class="row" style="margin-top:10px">
         <button class="primary" id="btnExport">匯出校正表</button>
         <button id="btnReset">重新開始</button>
@@ -394,23 +404,111 @@ function buildCells(){
   }
   applyWB();
 }
-/* 白平衡：純 A 格（每列 c 對應 A 為 100% 的那格）平均 → 拉回名目 A 色 */
+/* ===== 0915（牌 c-0915-PTI-03）：白紙白平衡 ＝ Eric「把列印出來的成品放在白紙上拍」 =====
+   🔴 **為什麼一定要「料以外」的白參考**：要從照片量出料A 的真色，就不能拿料A 當白平衡參考——
+   拿它當參考等於把它歸零成純白，量到的永遠是 255,255,255。這正是舊的「用純 A 格做白平衡」
+   預設關掉的原因。白紙補的就是這個缺：同一個光源下、料以外的中性面。
+   ⚠ **白紙不是標準白**（影印紙多含螢光增白劑，含 UV 的光源下藍反射率可 >100%）
+     ⇒ 只拿它**校色偏**，增益做幾何平均正規化、不動整體明暗，也不拿它當絕對亮度錨點。
+   取樣位置＝用同一個 homography 外推到單位方框之外（u/v 落在 [0,1] 之外），所以不必另外請使用者點。
+   🔴 **右側可能不是紙**（洗料柱就印在片的右邊 8 mm 處）⇒ 12 點取樣後走中位數＋離群剔除，
+     不是平均；亮度不夠或彼此不一致就整個判定失敗，退回備援並講清楚為什麼。 */
+function samplePatch(h,cu,cv,hu,hv){
+  let sr=0,sg=0,sb=0,n=0;
+  const N=5;
+  for(let a=0;a<N;a++) for(let b=0;b<N;b++){
+    const [x,y]=proj(h,cu+hu*(2*a/(N-1)-1),cv+hv*(2*b/(N-1)-1));
+    const xi=Math.round(x), yi=Math.round(y);
+    if(xi<0||yi<0||xi>=off.width||yi>=off.height) continue;
+    const p4=(yi*off.width+xi)*4;
+    sr+=PIX[p4]; sg+=PIX[p4+1]; sb+=PIX[p4+2]; n++;
+  }
+  return n ? {rgb:[sr/n,sg/n,sb/n], n} : null;
+}
+const PAPER_MIN_LUM=140, PAPER_MAX_SPREAD=8, PAPER_MIN_KEEP=6;
+function paperWhite(h){
+  const M=0.055, pts=[];                       // 外推 5.5%：夠遠離邊緣陰影，又不會跑出常見取景
+  for(const t of [0.15,0.5,0.85]){
+    pts.push([t,-M],[t,1+M],[-M,t],[1+M,t]);   // 上下左右各 3 點＝12 點
+  }
+  const got=pts.map(([u,v])=>samplePatch(h,u,v,0.02,0.02)).filter(Boolean);
+  if(got.length<PAPER_MIN_KEEP) return {ok:false, why:'取樣點落在畫面外——校正片四周要留一點白紙'};
+  const lum=p=>0.2126*p.rgb[0]+0.7152*p.rgb[1]+0.0722*p.rgb[2];
+  const bright=got.filter(p=>lum(p)>=PAPER_MIN_LUM);
+  if(bright.length<PAPER_MIN_KEEP)
+    return {ok:false, why:`四周只有 ${bright.length}/${got.length} 個取樣點夠亮（要 ≥${PAPER_MIN_KEEP}）——看起來沒有墊白紙，或紙被陰影蓋住`};
+  const med=k=>{ const a=bright.map(p=>p.rgb[k]).sort((x,y)=>x-y); return a[a.length>>1]; };
+  const ref=[med(0),med(1),med(2)], refLab=labOf(ref);
+  const keep=bright.filter(p=>dE(labOf(p.rgb),refLab)<=PAPER_MAX_SPREAD);
+  if(keep.length<PAPER_MIN_KEEP)
+    return {ok:false, why:`四周那圈彼此差太多（只有 ${keep.length}/${bright.length} 一致）——背景不只有紙，或打光很不均`};
+  const blown=keep.some(p=>p.rgb.some(v=>v>=250));
+  return {ok:true, rgb:ref, kept:keep.length, total:got.length, blown};
+}
+/* 白平衡（三選一，優先序固定）：白紙 → 純 A 格（備援）→ 不做。用了哪一個一定要講出來。 */
 function applyWB(){
-  const on=document.getElementById('wb').checked;
+  const useAuto=(document.getElementById('autoSlot')||{}).checked;
+  const usePaper=(document.getElementById('wbPaper')||{}).checked;
+  const useACell=document.getElementById('wb').checked;
   wbGain=[1,1,1];
-  if(on){
+  let wbWhy='', paper=null;
+  if(usePaper && corners.length===4){
+    paper=paperWhite(homography(corners));
+    if(paper.ok){
+      /* 只校色偏：增益幾何平均正規化成 1 ⇒ 不動整體明暗（白紙不是絕對白，見上方註解） */
+      const g=[0,1,2].map(k=>paper.rgb[k]>2?1/paper.rgb[k]:1);
+      const gm=Math.cbrt(g[0]*g[1]*g[2]);
+      wbGain=g.map(v=>v/gm);
+      wbWhy=`已用白紙校色偏（四周 ${paper.kept}/${paper.total} 點一致）`+(paper.blown?'；⚠ 白紙有通道爆到 250，色偏校正會失準，下次拍暗一點':'');
+    }
+  }
+  if(!wbWhy && useACell){
     const pure=cells.filter(c=>c.w[0]===100);
     if(pure.length){
       const avg=[0,1,2].map(k=>pure.reduce((s,c)=>s+c.raw[k],0)/pure.length);
       const tgt=hx(SLOTS[0].hex);
       wbGain=[0,1,2].map(k=>avg[k]>2?tgt[k]/avg[k]:1);
+      wbWhy='已用純 A 格做白平衡'+(useAuto?'　🔴 <b>但你同時開著「料色從照片量」——A 料會被歸零成純白，量不到它的真色</b>':'');
     }
   }
-  cells.forEach(c=>{
-    c.rgb=c.raw.map((v,k)=>Math.max(0,Math.min(255,Math.round(v*wbGain[k]))));
-    c.hex=hex(...c.rgb);
-    c.dE=dE(labOf(c.rgb),labOf(hx(c.theory)));
-  });
+  if(!wbWhy) wbWhy='沒有做白平衡'+(usePaper&&paper&&!paper.ok?`：${paper.why}`:'');
+
+  cells.forEach(c=>{ c.rgb=c.raw.map((v,k)=>Math.max(0,Math.min(255,Math.round(v*wbGain[k])))); c.hex=hex(...c.rgb); });
+
+  /* 料色從照片量：頭尾兩階＝純色錨點（vstrip 的第 1 格＝S1＝純 A、最後一格＝S0＝純 B）。
+     🔴 下游本來就期待量到色——工作室匯入時是「先採用表宣告的料色、再比對」（index.html
+     的 0914 Q2 乙），註解自己寫著「表的 料[1] ＝ S=0 那階量到色」。 */
+  let slotWhy='';
+  if(useAuto){
+    const moved=[];
+    for(let t=0;t<SLOT_N;t++){
+      const pure=cells.filter(c=>c.w[t]===100);
+      if(!pure.length) continue;
+      const avg=[0,1,2].map(k=>Math.round(pure.reduce((s,c)=>s+c.rgb[k],0)/pure.length));
+      const was=SLOTS[t].hex, now=hex(...avg);
+      if(was.toUpperCase()!==now.toUpperCase()){
+        moved.push({slot:LETTER[t], was, now, d:dE(labOf(hx(was)),labOf(avg))});
+        SLOTS[t].hex=now;
+      }
+    }
+    if(moved.length){
+      renderSlots();
+      if(typeof syncVsList==='function') syncVsList();          // S 清單跟著料色走（鏡射判準是亮度）
+      cells.forEach(c=>{ c.w=recipe(c.r,c.c); });                // 清單可能鏡射 ⇒ 重貼配方（幾何不變，不必重取樣）
+      slotWhy=moved.map(m=>`${m.slot}：${m.was} → <b>${m.now}</b>（差 ΔE ${m.d.toFixed(0)}）`).join('；');
+    } else slotWhy='與你填的相同';
+  }
+
+  cells.forEach(c=>{ c.theory=mixHex(c.w); c.dE=dE(labOf(c.rgb),labOf(hx(c.theory))); });
+  const el=document.getElementById('wbState');
+  /* 🔴 白平衡沒成功、卻還是把料色量下去 ＝ 把環境光的顏色寫進料色，
+     而工作室匯入時會**自動採用**表宣告的料色 ⇒ 同 0822 那類靜默錯值（R6-8）。這一句不得收起來。 */
+  const castRisk = useAuto && !/^已用/.test(wbWhy);
+  if(el){
+    el.innerHTML = `白平衡：${wbWhy}`
+      + (useAuto ? `<br>料色（從照片量）：${slotWhy||'—'}` : '')
+      + (castRisk ? `<br><b style="color:#B3261E">⚠ 這組料色是從「未校色偏」的照片量的——等於把現場燈光的顏色寫進料色，而工作室匯入時會自動採用它。建議把成品墊在白紙上重拍。</b>` : '');
+  }
   renderTable(); diagnose(); draw();
 }
 /* 診斷有先後：**先判格線對不對準，再判打光**。
@@ -701,6 +799,7 @@ function syncSlotCountUI(){
   /* 0915：手改＝override，之後不再被自動值蓋掉（逃生門要留，但要留得看得見） */
   el.oninput=()=>{ vsEdited=true; syncVsList(); };
   el.onchange=()=>{ vsEdited=true; if(LAYOUT==='vstrip'){ applySlotCount('2v'); document.getElementById('btnReset').onclick(); syncSlotCountUI(); } }; })();
+['autoSlot','wbPaper'].forEach(id=>{ const e=document.getElementById(id); if(e) e.onchange=()=>{ if(cells.length) applyWB(); }; });
 renderSlots(); stepUI(); syncSlotCountUI();
 window.addEventListener('resize',()=>{fit();draw();});
 </script>
