@@ -4303,7 +4303,7 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
     const double speed = print.default_region_config().outer_wall_speed.value > 0 ? print.default_region_config().outer_wall_speed.value : 60.;
     // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01）：層首只洗本層**第一個顏色**的圈，其餘顏色到
     // process_layer 換料迴圈裡、各自開印前才進塔（ping_cycle_tower_visit）。第 0 層（brim 層）照舊整塔——
-    // 實印證實有效的 B 檔同樣沒動第 0 層；split 不適用（四料／圈數不是 4／≥4 色）也照舊整塔。
+    // 實印證實有效的 B 檔同樣沒動第 0 層；split 不適用（四料／圈數不夠分＝少於色數＋1）也照舊整塔。
     const auto plan = first_layer ? std::vector<std::pair<unsigned int, std::vector<int>>>() : m_ping_cycle->split_plan(layer_tools.extruders);
     if (!plan.empty()) {
         gcode += this->ping_cycle_split_rings(g, layer_height, speed, plan.front().first, plan.front().second);
@@ -5164,7 +5164,7 @@ LayerResult GCode::process_layer(
     bool has_insert_wrapping_detection_gcode = false;
 
     // PING 照片磚循環洗料塔（WT 線）：層首先做一趟塔，離塔後明寫第一段模型配方；未開＝空字串。
-    // 每色進塔適用時（雙料、4 圈、2～3 色，第 0 層除外）層首只洗第一個顏色，其餘顏色見迴圈內 ping_cycle_tower_visit
+    // 每色進塔適用時（雙料、總圈數 ≥ 色數＋1，第 0 層除外）層首只洗第一個顏色，其餘顏色見迴圈內 ping_cycle_tower_visit
     // （2026-09-14 Q1，牌 c-0914-PTI-01）；不適用照舊由內往外 E(n-1)…E0 整塔。
     gcode += this->ping_cycle_tower_layer(print, layers, layer_tools, print_z);
 

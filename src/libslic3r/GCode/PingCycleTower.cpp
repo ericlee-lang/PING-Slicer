@@ -282,7 +282,14 @@ Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point
 void Tower::build_split_roles()
 {
     m_split_roles.clear();
-    if (m_settings.mode != "dual" || m_settings.total_laps() != 4 || m_palette.size() < 2 || m_palette.size() > 3)
+    // 四料照 §12 R12-3「不動」（Eric 2026-09-13「等雙料驗證後再說」）。
+    if (m_settings.mode != "dual" || m_palette.size() < 2)
+        return;
+    // 圈數要夠分：最淺色固定兩圈、其餘每色至少一圈 ⇒ 總圈數 ≥ 色數 + 1（＝ §12 R12-3「塔圈數＝色階數＋1」的下限）。
+    // 寫成 ≥ 而不是 ==，同時顧到兩件事：① K=2 照 R12-4 維持 4 圈（多的那圈併給最深色 ⇒ 與 T044 出貨版逐位相同）
+    // ② 某個色階在這張圖上沒有像素時 palette 會少一色，圈數仍然夠分 ⇒ 不會靜默退回「層首一趟整塔」（白塊回來）。
+    const int laps = m_settings.total_laps();
+    if (laps < (int) m_palette.size() + 1)
         return;
     std::vector<std::pair<double, int>> scored;   // (亮度分數, tool)，與 ToolOrdering 淺→深排序同一把尺
     for (const auto& kv : m_palette) {
@@ -295,10 +302,25 @@ void Tower::build_split_roles()
     for (size_t i = 1; i < scored.size(); ++i)
         if (std::fabs(scored[i - 1].first - scored[i].first) < 1e-9)
             return;                                // 同亮度分不出誰淺誰深 ⇒ 不猜，照舊整塔
-    const int mid = scored.size() == 3 ? scored[1].second : -1;
-    m_split_roles = { { scored.front().second, { 3, 4 } }, { mid, { 2 } }, { scored.back().second, { 1 } } };
-    BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower split: light T" << scored.front().second << " rings 3,4 / mid "
-                            << (mid < 0 ? std::string("none") : "T" + std::to_string(mid)) << " ring 2 / dark T" << scored.back().second << " ring 1";
+    // 由淺到深配圈：最淺色拿最外兩圈，其餘由外往內各一圈，最深色把剩下的全收（只有 K=2 的 4 圈特例會多於一圈）。
+    m_split_roles.push_back({ scored.front().second, { laps - 1, laps } });
+    int next_outer = laps - 2;
+    for (size_t i = 1; i < scored.size(); ++i) {
+        const int innermost = i + 1 == scored.size() ? 1 : next_outer;
+        std::vector<int> rings;
+        for (int r = innermost; r <= next_outer; ++r)
+            rings.push_back(r);                    // 已是由內往外，split_plan 再排一次也不變
+        next_outer = innermost - 1;
+        m_split_roles.push_back({ scored[i].second, std::move(rings) });
+    }
+    std::ostringstream os;
+    for (size_t i = 0; i < m_split_roles.size(); ++i) {
+        os << (i ? " / " : "") << "T" << m_split_roles[i].first << " ring";
+        for (size_t k = 0; k < m_split_roles[i].second.size(); ++k)
+            os << (k ? "," : " ") << m_split_roles[i].second[k];
+    }
+    BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower split (" << m_palette.size() << " colours over " << laps
+                            << " rings, light->dark): " << os.str();
 }
 
 std::vector<std::pair<unsigned int, std::vector<int>>> Tower::split_plan(const std::vector<unsigned int>& layer_extruders) const
@@ -307,7 +329,7 @@ std::vector<std::pair<unsigned int, std::vector<int>>> Tower::split_plan(const s
     if (m_split_roles.empty())
         return plan;
     auto present = [&layer_extruders](int tool) {
-        return tool >= 0 && std::find(layer_extruders.begin(), layer_extruders.end(), (unsigned int) tool) != layer_extruders.end();
+        return std::find(layer_extruders.begin(), layer_extruders.end(), (unsigned int) tool) != layer_extruders.end();
     };
     std::map<unsigned int, std::vector<int>> own;
     const int n = (int) m_split_roles.size();

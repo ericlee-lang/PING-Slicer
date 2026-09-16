@@ -107,9 +107,12 @@ public:
 
     // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01；實印證據＝B 檔 band_section_L165-210_B_split.gcode）：
     // 每個顏色開印前各自進塔、只洗分給它的圈，取代「層首一趟整塔」（A 檔白塊＝換色後噴頭裡的前一色殘留）。
-    // 固定圈位（由內往外 1-based）：最深色第 1 圈、中間色第 2 圈、最淺色第 3～4 圈（塔外皮維持最淺色＝0909 裁定）；
+    // 圈位（由內往外 1-based；規格＝照片磚_核心規格.md §12 R12-1／R12-3，Eric 2026-09-14 裁「乙」、09-16 補兩裁）：
+    //   **最淺色固定佔最外兩圈**（塔外皮維持最淺色＝0909 裁定），其餘圈由外往內一色一圈、由淺到深，
+    //   多出來的圈併給最深色。塔圈數＝色階數＋1（K=3→4、K=4→5、K=6→7）；
+    //   **K=2 是 R12-4 的特例、維持 4 圈** ⇒ 最深色拿到第 1～2 圈，與 T044 出貨版逐位相同。
     // 本層沒有的顏色把圈併給同層下一個顏色（淺→深），後面沒有就給前一個（Eric 0913 Q2）。
-    // 規格只定到「雙料、每層 4 圈、2～3 色」⇒ 其餘（四料、圈數改過、≥4 色）split_active()=false，照舊層首一趟整塔。
+    // 適用範圍＝**雙料 且 總圈數 ≥ 色數＋1**；四料照 R12-3「不動」⇒ split_active()=false，照舊層首一趟整塔。
     bool                                 split_active() const { return !m_split_roles.empty(); }
     // 本層每個顏色要洗哪幾圈，依 layer_extruders 的列印順序；空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）
     std::vector<std::pair<unsigned int, std::vector<int>>> split_plan(const std::vector<unsigned int>& layer_extruders) const;
@@ -117,7 +120,7 @@ public:
     Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, float bed_check_note_ignored);
 
 private:
-    // 圈位角色由淺到深：first＝tool（-1＝palette 沒有這個角色，例如雙色沒有中間色）、second＝固定圈號
+    // 圈位角色由淺到深：first＝tool、second＝分給它的圈號（1-based、由內往外；最淺色恆兩圈、最深色可能多於一圈）
     std::vector<std::pair<int, std::vector<int>>> m_split_roles;
     void build_split_roles();
     Settings                        m_settings;

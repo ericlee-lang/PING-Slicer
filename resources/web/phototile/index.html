@@ -297,9 +297,9 @@
       </div>
       </details>
       <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；
-           圈數依料數渲染：雙料＝彩料／最淺兩欄，四料＝深色（料2+3+4 同時擠）／白色兩欄（Eric 2026-09-10 兩段制）。 -->
+           圈數：雙料＝唯讀自動（＝色階數＋1，K=2 特例 4；§12 R12-5），四料＝深色（料2+3+4 同時擠）／白色兩欄手動（Eric 2026-09-10 兩段制）。 -->
       <div class="row" id="cycleRow"><label>循環洗料</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="cycleOn" checked> 每層先洗深色料、最後用最淺料把噴頭清乾淨（圈數為試印設定）</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="cycleOn" checked> 每層先洗深色料、最後用最淺料把噴頭清乾淨</label>
         <span id="cycleLaps" style="display:inline-flex; gap:8px; align-items:center; flex-wrap:wrap"></span>
       </div>
       <div class="row" id="pillarRow"><label>洗料柱</label>
@@ -448,18 +448,36 @@ const slotList = document.getElementById('slotList');
 /* 四料 2 段（Eric 2026-09-10，牌 c-0910-WT-10）：料 2/3/4 三支深色**同時**擠出洗 2 圈 → 純白洗 4 圈。
    理由＝三支深色互相汙染不影響結果，分三段各洗一圈是白花料與時間；真正要洗乾淨的是最後那段白色，
    省下的圈數全給白（白 2→4 圈＝洗料量 2.2 倍，全塔每層總量只多 18%）。雙料維持 1／3 不動。 */
-function cycleDefaultLaps(){ return slotCount===4 ? [8,8] : [1,3]; }   /* 四料 2/4→8/8（Eric 2026-09-10，配合塔加大到 35mm） */   // 雙料 E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」（牌 c-0910-WT-09）
-function cycleLaps(){ const d=cycleDefaultLaps(); return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
+/* 🔴 §12 R12-3／R12-4／R12-5（Eric 2026-09-14 裁「乙」、2026-09-16 補兩裁）：**雙料的塔圈數由色階數自動決定**，
+   使用者不再手改。公式＝色階數＋1（由內往外深→淺、最淺色佔最外兩圈）；**K=2 是特例、維持 4 圈**——那是唯一
+   實印驗證過且已隨 T044 出貨的組態，為了公式統一去動它不划算，省下的料也很少。
+   為什麼非改唯讀不可（R12-5）：舊的手動欄位只要被改成不是 4，C++ 端 split_active() 就整個失效、**悄悄**退回
+   「層首一趟整塔」＝白塊回來，而畫面上不會說。這正是 FBK 家族「不得靜默降級」要擋的形狀。
+   C++ 端的判準是「總圈數 ≥ 色數＋1」（PingCycleTower.cpp build_split_roles），本式是它的上游來源。
+   四料照 R12-3「不動」，圈數欄維持手動。 */
+function cycleTowerLaps(){ const k=Math.max(2,Math.min(8,Math.round(params.klevels)||2)); return k===2 ? 4 : k+1; }
+function cycleDefaultLaps(){ return slotCount===4 ? [8,8] : [1,cycleTowerLaps()-1]; }   /* 四料 2/4→8/8（Eric 2026-09-10，配合塔加大到 35mm） */   // 雙料最內 1 圈深色、其餘全給最淺色（E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」，牌 c-0910-WT-09）
+function cycleLaps(){ const d=cycleDefaultLaps(); if(slotCount!==4) return d;   /* 雙料＝自動，刻意不吃 params.cycleLaps */
+  return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
 /* 送進 3MF 的 laps 字串：四料＝段語法（一段多支料同時擠），雙料＝舊的純數字串。兩種 C++ parse_stages 都認。 */
 function cycleLapsSpec(){ const l=cycleLaps(); return slotCount===4 ? `E123:${l[0]},E0:${l[1]}` : l.join(','); }
 function renderCycleUI(){
   const box=document.getElementById('cycleLaps'); if(!box) return;
-  const names = slotCount===4 ? ['深色（料2+3+4 同時）','白色（料1）'] : ['彩料 E1','最淺 E0'];
   const laps=cycleLaps();
-  box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('')
-                + `<span style="color:#6F7773">共 ${laps.reduce((a,b)=>a+b,0)} 圈</span>`;
-  box.querySelectorAll('input').forEach(inp=>inp.onchange=e=>{ const l=cycleLaps().slice(); const i=+e.target.dataset.i; l[i]=Math.max(1,Math.min(8,Math.round(+e.target.value)||1)); params.cycleLaps=l; e.target.value=l[i]; renderCycleUI(); });
-  const on=!!params.cycle; box.style.display=on?'':'none';
+  if(slotCount!==4){
+    /* R12-5：唯讀自動。講出「共幾圈」與「憑什麼是這個數」，不留可以把每色進塔關掉的輸入框。 */
+    const k=Math.max(2,Math.min(8,Math.round(params.klevels)||2));
+    box.innerHTML = `<span>共 <b>${laps.reduce((a,b)=>a+b,0)}</b> 圈</span>`
+                  + `<span style="color:#6F7773">由色階數自動決定（色階數＋1${k===2?'；2 階是特例，維持 4 圈':''}）</span>`;
+  }else{
+    const names = ['深色（料2+3+4 同時）','白色（料1）'];
+    box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('')
+                  + `<span style="color:#6F7773">共 ${laps.reduce((a,b)=>a+b,0)} 圈</span>`;
+    box.querySelectorAll('input').forEach(inp=>inp.onchange=e=>{ const l=cycleLaps().slice(); const i=+e.target.dataset.i; l[i]=Math.max(1,Math.min(8,Math.round(+e.target.value)||1)); params.cycleLaps=l; e.target.value=l[i]; renderCycleUI(); });
+  }
+  /* 🔴 `display=''` 會把 HTML 裡的 inline `display:inline-flex` 一起清掉 ⇒ 退回 block、`gap:8px` 失效、兩段字黏在一起
+     （既有 bug，0916 補視覺自查時實測到：兩個 span 的 x 恰好相鄰、間距 0）。復原時要寫回 inline-flex，不能寫空字串。 */
+  const on=!!params.cycle; box.style.display=on?'inline-flex':'none';
   const cb=document.getElementById('cycleOn'); if(cb) cb.checked=on;
   const pr=document.getElementById('pillarRow'); if(pr) pr.style.display=on?'none':'';
 }
@@ -1549,7 +1567,9 @@ document.getElementById('levelsIn').onchange=e=>{
   // 上限 8＝Eric 2026-08-02 裁 B；Math.round＝覆審 I-5：5.5 不 round 會存成小數，
   // C++ 端 get<int> 靜默回退預設 8 階（開發路徑卻做 6 階＝兩條路不同結果）
   params.klevels=Math.max(2,Math.min(8,Math.round(+e.target.value)||8));
-  e.target.value=params.klevels; queue();
+  e.target.value=params.klevels;
+  if(typeof renderCycleUI==='function') renderCycleUI();   // R12-5：塔圈數＝色階數＋1，色階一變圈數欄就要跟著變
+  queue();
 };
 document.getElementById('nozzleSel').onchange=e=>{
   params.nozzle=parseFloat(e.target.value)||0.4; queue();   // 改口徑即時重算（水平最小寬跟著變）
@@ -2228,6 +2248,7 @@ function ptApply(s){
   const tones=ptTones(s);
   params.klevels=tones;
   const lv=document.getElementById('levelsIn'); if(lv) lv.value=tones;
+  if(typeof renderCycleUI==='function') renderCycleUI();   // 款式帶進來的色階數同樣會改塔圈數（R12-5）
   if(s.lockSlots===false && img && typeof suggest==='function'){
     /* suggest() 自己會收尾 renderSlots()+simulate()，實測 659 ms、且期間 #metric
        會顯示「建議計算中…」＝已有回饋，不必另做進度。 */
