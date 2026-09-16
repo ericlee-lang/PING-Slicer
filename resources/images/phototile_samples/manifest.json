@@ -1,0 +1,117 @@
+{
+ "_說明": "照片磚內建範例圖清單（§11 R11-3／R11-7／R11-9）。mode＝這張給哪個料數用（雙料看灰階、四料看彩色）；cat＝分類。內建範例不可刪不可改。雙料 9 張為灰階、四料 5 張彩色。來源＝Eric 2026-09-16 實走原型 v3 選定的同一批（全部收）。長邊上限 1200 px。⚠️ 改這裡要同時重跑 tools/ping/gen_phototile_samples.py 重生 samples.js，否則漂移守衛會紅。",
+ "items": [
+  {
+   "file": "p_man.jpg",
+   "name": "中年男",
+   "cat": "人物",
+   "mode": "dual",
+   "w": 800,
+   "h": 1200
+  },
+  {
+   "file": "p_woman.jpg",
+   "name": "年輕女",
+   "cat": "人物",
+   "mode": "dual",
+   "w": 800,
+   "h": 1200
+  },
+  {
+   "file": "p_elder.jpg",
+   "name": "年長者",
+   "cat": "人物",
+   "mode": "dual",
+   "w": 800,
+   "h": 1200
+  },
+  {
+   "file": "a_wolf.jpg",
+   "name": "狼",
+   "cat": "動物",
+   "mode": "dual",
+   "w": 1200,
+   "h": 800
+  },
+  {
+   "file": "a_kitten.jpg",
+   "name": "幼貓",
+   "cat": "動物",
+   "mode": "dual",
+   "w": 1000,
+   "h": 1200
+  },
+  {
+   "file": "a_tabby.jpg",
+   "name": "虎斑貓",
+   "cat": "動物",
+   "mode": "dual",
+   "w": 1200,
+   "h": 800
+  },
+  {
+   "file": "s_ridge.jpg",
+   "name": "山脊",
+   "cat": "風景",
+   "mode": "dual",
+   "w": 1200,
+   "h": 799
+  },
+  {
+   "file": "s_city.jpg",
+   "name": "城市天際線",
+   "cat": "風景",
+   "mode": "dual",
+   "w": 1200,
+   "h": 900
+  },
+  {
+   "file": "s_tree.jpg",
+   "name": "孤樹",
+   "cat": "風景",
+   "mode": "dual",
+   "w": 1200,
+   "h": 675
+  },
+  {
+   "file": "q_portrait_screen.jpg",
+   "name": "絹印人像",
+   "cat": "人物",
+   "mode": "quad",
+   "w": 800,
+   "h": 1200
+  },
+  {
+   "file": "q_portrait_poster.jpg",
+   "name": "海報全身",
+   "cat": "人物",
+   "mode": "quad",
+   "w": 800,
+   "h": 1200
+  },
+  {
+   "file": "q_cat_short.jpg",
+   "name": "短毛貓",
+   "cat": "動物",
+   "mode": "quad",
+   "w": 1200,
+   "h": 1200
+  },
+  {
+   "file": "q_cat_long.jpg",
+   "name": "長毛貓",
+   "cat": "動物",
+   "mode": "quad",
+   "w": 1200,
+   "h": 1200
+  },
+  {
+   "file": "q_ridge_layers.jpg",
+   "name": "山巒分層",
+   "cat": "風景",
+   "mode": "quad",
+   "w": 1200,
+   "h": 800
+  }
+ ]
+}
