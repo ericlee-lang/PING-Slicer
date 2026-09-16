@@ -1,0 +1,56 @@
+/* 照片磚款式庫：index.html 內嵌的 ptStyleLib 與同目錄鏡像檔必須一致（2026-09-16，牌 c-0916-PTI-03）
+ *
+ * 為什麼要這支：在這之前 `款式庫_照片磚.json` 的註解自稱「資料正本」，**但執行期根本沒人讀它**，
+ * 而且它停在 6 個款式、比真正被讀的內嵌版少了 0908 補的三個四料款式。
+ * 掛名正本 × 沒人讀 × 不同步 ＝ 下一個看它的人會照著一份過期的東西做決定。
+ * 這支把「兩份必須一致」變成跑得起來的斷言，而不是註解裡的一句話。
+ *
+ * 另驗 constants.toneRules（Eric 2026-09-16 裁「寫進去」）存在且被 index.html 實際接上——
+ * 它有兩個消費端（index.html 的 ptAiGenerate、照片磚管線/pipeline.py），少接一邊就會漂回卡通風。
+ */
+const fs = require('fs');
+const path = require('path');
+
+const web = path.join(__dirname, '..', '..', 'resources', 'web', 'phototile');
+const html = fs.readFileSync(path.join(web, 'index.html'), 'utf8');
+const mirrorRaw = fs.readFileSync(path.join(web, '款式庫_照片磚.json'), 'utf8');
+
+const m = html.match(/<script id="ptStyleLib"[^>]*>([\s\S]*?)<\/script>/);
+if (!m) { console.error('FAIL 找不到 index.html 內嵌的 ptStyleLib'); process.exit(1); }
+
+let inline, mirror;
+try { inline = JSON.parse(m[1]); } catch (e) { console.error('FAIL 內嵌 ptStyleLib 不是合法 JSON：' + e.message); process.exit(1); }
+try { mirror = JSON.parse(mirrorRaw); } catch (e) { console.error('FAIL 鏡像檔不是合法 JSON：' + e.message); process.exit(1); }
+
+const fails = [];
+// 比內容不比格式（鏡像檔是給人讀的 indent 版，內嵌是壓縮版）
+const norm = (o) => JSON.stringify(o, Object.keys(o).sort ? undefined : undefined);
+const a = JSON.stringify(inline), b = JSON.stringify(mirror);
+if (a !== b) {
+  const ai = (inline.styles || []).map(s => s.id).sort();
+  const bi = (mirror.styles || []).map(s => s.id).sort();
+  fails.push('兩份款式庫內容不一致：內嵌 ' + ai.length + ' 款 [' + ai.join(',') + ']；鏡像 ' + bi.length + ' 款 [' + bi.join(',') + ']');
+  const only = ai.filter(x => !bi.includes(x)).concat(bi.filter(x => !ai.includes(x)));
+  if (only.length) fails.push('  只存在於其中一邊的款式：' + only.join(','));
+}
+
+const tr = inline.constants && inline.constants.toneRules;
+if (!tr || tr.length < 200) fails.push('constants.toneRules 不存在或太短（調性鐵則是 Eric 2026-09-16 裁定要寫進款式庫的）');
+if (tr && !/FORBIDDEN: cute/.test(tr)) fails.push('constants.toneRules 少了「⛔ 不可愛不卡通」那條');
+// 🔴 這裡一定要對「頁面實際宣告的那個識別字」比對，不能自己假設名字。
+// 2026-09-16 實錯：第一版寫死 PT_STYLE_LIB，而頁面宣告的是 STYLE_LIB ⇒ 產品端一生圖就 ReferenceError，
+// 而這支守衛照樣印綠燈。**守衛檢查的字串必須從程式碼推出來，不是憑印象打的。**
+const decl = html.match(/const\s+([A-Za-z_$][\w$]*)\s*=\s*JSON\.parse\(document\.getElementById\('ptStyleLib'\)/);
+if (!decl) {
+  fails.push('找不到 index.html 裡解析 ptStyleLib 的那個 const 宣告');
+} else {
+  const ident = decl[1];
+  const re = new RegExp(ident.replace(/\$/g, '\$') + '\.constants\.toneRules');
+  if (!re.test(html)) fails.push('index.html 的生圖路徑沒有把 toneRules 接上去（要用宣告的 ' + ident + '，接了才有效）');
+  const wrong = html.match(/\b([A-Za-z_$][\w$]*)\.constants\.toneRules/g) || [];
+  const bad = wrong.filter(w => !w.startsWith(ident + '.'));
+  if (bad.length) fails.push('有地方用了不存在的識別字取 toneRules：' + [...new Set(bad)].join(',') + '（宣告的是 ' + ident + '）');
+}
+
+if (fails.length) { fails.forEach(f => console.error('FAIL ' + f)); process.exit(1); }
+console.log('OK 款式庫兩份一致（' + inline.styles.length + ' 款）、toneRules 已入庫且已接上消費端');
