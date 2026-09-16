@@ -228,7 +228,11 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
     // 真的放不下或圈數過多時，geometry_for() 仍會把「圈斷裂／空腔封閉」報成 SlicingError，不會默默印出爛塔。
     const float size   = st.size_mm > 0.f ? st.size_mm : 25.f;
 
-    // 塔位置：所有物件包絡的 +X 側、Y 置中；與模型外緣距 gap（brim 另加）
+    // 塔位置：**預設**擺在所有物件包絡的 +X 側、Y 置中；與模型外緣距 gap（brim 另加）。
+    // 🔴 右邊放不下時才改擺**後方（+Y）**（Eric 2026-09-16 裁「乙」）：塔在 +X 時最外緣＝磚寬/2 + gap + brim + size + brim，
+    //    長磚會把它推出床外（實算：FF600 半徑 300 ⇒ 磚寬上限 468 mm，而四料絹印撞色要 480 mm）。
+    //    ⛔ **不可以用「把磚轉 90°」繞過**——照片磚必須沿 X 擺，校正表是在 X 方向量的（規格 §6 R6-12，Eric 同日裁）。
+    //    刻意寫成「放得下就照舊」：既有磚的 G-code 逐位不變，只有**本來就會直接報錯**的情形才走新路。
     BoundingBox bb;
     for (const PrintObject* obj : print.objects())
         for (const PrintInstance& inst : obj->instances()) {
@@ -237,30 +241,43 @@ std::unique_ptr<Tower> create(const Print& print, std::string& why)
             bb.merge(b);
         }
     if (!bb.defined) { why = "no printable instance"; return nullptr; }
-    const Point center(coord_t(bb.max.x() + scale_(st.gap_mm + st.brim_mm + size / 2.f)), coord_t((bb.min.y() + bb.max.y()) / 2));
 
     // 列印範圍檢查（塔身＋brim 都要在床內）
     BoundingBoxf bed;
     for (const Vec2d& p : print.config().printable_area.values) bed.merge(p);
     const double half = size / 2. + st.brim_mm;
-    const Vec2d c_mm(unscale<double>(center.x()), unscale<double>(center.y()));
-    if (bed.defined && (c_mm.x() - half < bed.min.x() || c_mm.x() + half > bed.max.x() || c_mm.y() - half < bed.min.y() || c_mm.y() + half > bed.max.y())) {
+    const double off  = st.gap_mm + st.brim_mm + size / 2.;
+    auto fits = [&bed, half](const Vec2d& c) {
+        return !bed.defined || (c.x() - half >= bed.min.x() && c.x() + half <= bed.max.x() &&
+                                c.y() - half >= bed.min.y() && c.y() + half <= bed.max.y());
+    };
+    // 🔴 兩個候選位置都在**scaled 整數座標**直接算，不要繞 mm 再 scale 回來——
+    //    那個 round-trip 會讓既有（塔在右邊）的磚差個 1 unit，就破壞了「既有 G-code 逐位不變」這個前提。
+    const Point beside_c(coord_t(bb.max.x() + scale_(off)), coord_t((bb.min.y() + bb.max.y()) / 2));
+    const Point behind_c(coord_t((bb.min.x() + bb.max.x()) / 2), coord_t(bb.max.y() + scale_(off)));
+    auto mm = [](const Point& p) { return Vec2d(unscale<double>(p.x()), unscale<double>(p.y())); };
+    const bool  behind = !fits(mm(beside_c)) && fits(mm(behind_c));
+    const Point center = behind ? behind_c : beside_c;
+    const Vec2d c_mm   = mm(center);
+    if (!fits(c_mm)) {
         std::ostringstream os;
-        os << "PING photo-tile cycle tower does not fit on the bed: tower center (" << c_mm.x() << "," << c_mm.y() << ") size " << size
+        os << "PING photo-tile cycle tower does not fit on the bed, neither beside the tile (" << mm(beside_c).x() << "," << mm(beside_c).y()
+           << ") nor behind it (" << mm(behind_c).x() << "," << mm(behind_c).y() << "); size " << size
            << " mm + brim " << st.brim_mm << " mm; bed x " << bed.min.x() << ".." << bed.max.x() << " y " << bed.min.y() << ".." << bed.max.y();
         why = os.str();
         return nullptr;
     }
 
-    auto tower = std::make_unique<Tower>(st, palette, nozzle, center, size, 0.f);
+    auto tower = std::make_unique<Tower>(st, palette, nozzle, center, size, behind);
     BOOST_LOG_TRIVIAL(info) << "PING photo-tile cycle tower: mode=" << st.mode << " laps=" << owner->config().ping_pt_cycle_laps.value
-                            << " size=" << size << " center=(" << c_mm.x() << "," << c_mm.y() << ") palette=" << palette.size()
+                            << " size=" << size << " center=(" << c_mm.x() << "," << c_mm.y() << ")"
+                            << (behind ? " [behind the tile: beside did not fit]" : "") << " palette=" << palette.size()
                             << " pure-E0 tools=" << tower->pure_light_tools().size();
     return tower;
 }
 
-Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, float)
-    : m_settings(std::move(s)), m_palette(std::move(palette)), m_nozzle(nozzle), m_size(size), m_center(center)
+Tower::Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, bool behind)
+    : m_settings(std::move(s)), m_palette(std::move(palette)), m_nozzle(nozzle), m_size(size), m_center(center), m_behind(behind)
 {
     int lap = 1;
     for (const StageSpec& sp : m_settings.stages) {
@@ -428,7 +445,9 @@ const LayerGeometry& Tower::geometry_for(float layer_height, bool first_layer)
     Flow flow(g.width, layer_height, m_nozzle);
     g.spacing     = flow.spacing();
     g.mm3_per_mm  = flow.mm3_per_mm();
-    const Point anchor(coord_t(m_center.x() - scale_(m_size)), coord_t(m_center.y()));   // 接縫朝 −X（模型側）
+    // 接縫一律朝**模型那一側**：塔在右邊時朝 −X、塔在後方時朝 −Y。朝錯邊的話離塔要橫越已印的圈。
+    const Point anchor = m_behind ? Point(m_center.x(), coord_t(m_center.y() - scale_(m_size)))
+                                  : Point(coord_t(m_center.x() - scale_(m_size)), m_center.y());
     const int   n = m_settings.total_laps();
     for (int i = 0; i < n; ++i) {
         const double inset = g.width / 2. + i * g.spacing;
