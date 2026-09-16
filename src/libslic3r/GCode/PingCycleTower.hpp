@@ -117,7 +117,9 @@ public:
     // 本層每個顏色要洗哪幾圈，依 layer_extruders 的列印順序；空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）
     std::vector<std::pair<unsigned int, std::vector<int>>> split_plan(const std::vector<unsigned int>& layer_extruders) const;
 
-    Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, float bed_check_note_ignored);
+    // behind＝塔擺在磚的**後方（+Y）**而不是右邊（+X）。只有右邊放不下時才會是 true（Eric 2026-09-16 裁「乙」），
+    // 因為照片磚必須沿 X 擺、不得轉 90°（規格 §6 R6-12：校正表是在 X 方向量的）。
+    Tower(Settings s, std::map<int, std::string> palette, float nozzle, Point center, float size, bool behind);
 
 private:
     // 圈位角色由淺到深：first＝tool、second＝分給它的圈號（1-based、由內往外；最淺色恆兩圈、最深色可能多於一圈）
@@ -130,6 +132,7 @@ private:
     float                           m_nozzle = 0.4f;
     float                           m_size   = 44.f;
     Point                           m_center;
+    bool                            m_behind = false;   // 見建構子說明；影響接縫朝哪一側
     Polygon                         m_outline;      // scaled，已平移到 m_center
     std::map<int, LayerGeometry>    m_cache;        // key = round(layer_height*1000)
     void build_outline();
