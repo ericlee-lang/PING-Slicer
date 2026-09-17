@@ -577,12 +577,17 @@ for name, (kind, d) in presets.items():
                         if d.get(zk) != "0.2":
                             err(f"[功能歸類・一般 Z隙=0.2] {name}: {zk}={d.get(zk)!r}, expected '0.2'"
                                 f"（Eric 2026-08-17 裁：一般家族全庫固定 0.2，取代舊規「一層層高」）")
-                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, CAT_RAFT_DUAL) else "0"
+                # 筏層層數分家族：易拆+筏層＝3／雙料筏層＝2／其餘＝0。
+                #   沿革：舊值「ABS 系一律 2」出自 2026-06-10 V3.0「最佳 ABS」定稿；2026-09-17 Eric 實測改
+                #   易拆+筏層＝3，**只限易拆+筏層**（他只點名這一族）——雙料筏層維持 2。牌 c-0917-REL-01。
+                #   對應產生器＝embed_params.py combo_overrides() 的 ABS+SUP 區塊；改值要兩邊一起改。
+                _raft = {COMBO_CAT_EASYPAL: "3", CAT_RAFT_DUAL: "2"}.get(_vtok, "0")
                 if d.get("raft_layers") != _raft:
-                    err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
+                    err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}, expected {_raft!r}"
+                        f"（易拆+筏層＝3／雙料筏層＝2／其餘＝0；Eric 2026-09-17 裁）")
                 # 0811 起名字裡的「筏層」與 raft_layers 必須同進退（防「改名沒改值」／「改值沒改名」）
                 _name_raft = ("+筏層 @" in name) or ("_筏層 @" in name)
-                if _name_raft != (_raft == "2"):
+                if _name_raft != (_raft != "0"):
                     err(f"[功能歸類・筏層名值不一致] {name}: 名字帶筏層={_name_raft}, raft_layers={d.get('raft_layers')!r}")
                 # renamed_from＝**分號分隔字串**、恰為兩條舊全名（① 材料對原名 ② 0730 五類名）
                 _oldcb = NEW2OLDCB[_vtok]
