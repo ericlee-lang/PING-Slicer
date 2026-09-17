@@ -577,12 +577,17 @@ for name, (kind, d) in presets.items():
                         if d.get(zk) != "0.2":
                             err(f"[功能歸類・一般 Z隙=0.2] {name}: {zk}={d.get(zk)!r}, expected '0.2'"
                                 f"（Eric 2026-08-17 裁：一般家族全庫固定 0.2，取代舊規「一層層高」）")
-                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, CAT_RAFT_DUAL) else "0"
+                # 筏層層數：易拆+筏層＝3／雙料筏層＝3／其餘＝0（單料 _筏層 雙生＝3，見下方 elif）——三族皆 3。
+                #   沿革：舊值「ABS 系一律 2」出自 2026-06-10 V3.0「最佳 ABS」定稿；Eric 2026-09-17 同日兩裁，
+                #   前裁只改易拆+筏層（牌 c-0917-REL-01）、後裁「三族都改 3」（牌 c-0917-REL-02）——後裁蓋前裁。
+                #   對應產生器＝embed_params.py combo_overrides() 的 startswith("ABS") 那行；改值要兩邊一起改。
+                _raft = {COMBO_CAT_EASYPAL: "3", CAT_RAFT_DUAL: "3"}.get(_vtok, "0")
                 if d.get("raft_layers") != _raft:
-                    err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
+                    err(f"[功能歸類・筏層 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}, expected {_raft!r}"
+                        f"（三族皆 3：易拆+筏層／雙料筏層／單料 _筏層，其餘＝0；Eric 2026-09-17 同日兩裁，後裁蓋前裁）")
                 # 0811 起名字裡的「筏層」與 raft_layers 必須同進退（防「改名沒改值」／「改值沒改名」）
                 _name_raft = ("+筏層 @" in name) or ("_筏層 @" in name)
-                if _name_raft != (_raft == "2"):
+                if _name_raft != (_raft != "0"):
                     err(f"[功能歸類・筏層名值不一致] {name}: 名字帶筏層={_name_raft}, raft_layers={d.get('raft_layers')!r}")
                 # renamed_from＝**分號分隔字串**、恰為兩條舊全名（① 材料對原名 ② 0730 五類名）
                 _oldcb = NEW2OLDCB[_vtok]
@@ -594,6 +599,14 @@ for name, (kind, d) in presets.items():
                 _rf = d.get("renamed_from")
                 if not isinstance(_rf, str) or _rf != _rf_expect:
                     err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
+            # 單料 _筏層 雙生（產生器 PALLET_OVERRIDES；combo_kind 回 None 的那一群）：raft_layers＝3。
+            #   Eric 2026-09-17 同日兩裁：前裁只改易拆+筏層（本族當時維持 2）、後裁「三族都改 3」⇒ 本族同步為 3
+            #   （牌 c-0917-REL-02，後裁蓋前裁）。
+            #   本斷言的由來：同日反向測試實抓本族的 raft 值原本**沒有任何斷言**（手改值 verify 照綠）⇒ 補上。
+            #   日後再改值：產生器 PALLET_OVERRIDES 與這裡兩邊一起改。
+            elif "_筏層 @" in name and d.get("raft_layers") != "3":
+                err(f"[單料筏層雙生 raft 3] {name}: raft_layers={d.get('raft_layers')!r}, expected '3'"
+                    f"（PALLET_OVERRIDES；Eric 2026-09-17 後裁「三族都改 3」）")
             # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
             # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
             support_expected = set() if " PA-CF 樹狀 @" in name else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}

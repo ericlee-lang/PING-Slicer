@@ -1143,10 +1143,12 @@ def normalize_wall_accel(proc):
 
 # ★ 棧板雙版本製程（2026-07-08 Eric 拍板，同上規格檔）：FD 單料頭/同進＋FP300 出「_棧板」雙生
 #（raft 六鍵＝既有 ABS+SUP 黃金配方定稿值，與 0.2mm ABS+SUP @FD300 (0.4).json 全等）。
+#  2026-09-17 Eric 同日兩裁：先只改易拆+筏層、後裁「三族都改 3」⇒ 本表 raft_layers 同步為 3，
+#    六鍵再度與 ABS+SUP 全等（牌 c-0917-REL-02；舊值 2 出自 2026-06-10 V3.0「最佳 ABS」定稿）。
 # 裁決：①FF 全系/DL1016/雙料組合不出 ②切回一般版不自動換回 PLA（Tab.cpp 單向連動）
 # ③雙料 ABS+SUP/ABS+ABS 維持現名（功能上已是棧板版）。
 # setting_id 一律排在全庫既有 id 之後（主迴圈收集、最後統一 emit），既有 id 零位移。
-PALLET_OVERRIDES = {"raft_layers": "2", "raft_contact_distance": "0.1", "raft_expansion": "1.5",
+PALLET_OVERRIDES = {"raft_layers": "3", "raft_contact_distance": "0.1", "raft_expansion": "1.5",
                     "raft_first_layer_density": "100%", "raft_first_layer_expansion": "3",
                     "initial_layer_line_width": "150%"}
 
@@ -1351,7 +1353,8 @@ def combo_renamed_from(lh, cb, model, nz):
 def combo_overrides(combo, layer_height, nozzle):
     """V3.0 組合別製程差異復原（2026-06-10 使用者規格＋V3.0「最佳 ABS」定稿實證）：
     - 支撐介面：有 SUP＝z 距離 0（貼緊、靠支撐料好剝）；無 SUP＝1 層層高（留縫好拆）
-    - Raft：ABS 系＝2 層、PLA 系＝0
+    - Raft：ABS 系（ABS+SUP 易拆+筏層／ABS+ABS 雙料筏層）＝3 層（Eric 2026-09-17 實測後裁「三族都改 3」；
+      舊值 2 出自 2026-06-10 V3.0「最佳 ABS」定稿）、PLA 系＝0
     - ABS+SUP 另套 V3.0 黃金支撐配方（normal/主體料1/界面料2/界面4·2層/間距0.04/xy0.5）
     - PLA+SUP 支撐幾何（Eric 2026-07-14 裁）：XY=口徑×0.75、支撐/物件第一層間隙=口徑/3
       （易拆支撐口徑公式；ABS+SUP 維持黃金配方 xy0.5 不套）"""
@@ -1364,7 +1367,7 @@ def combo_overrides(combo, layer_height, nozzle):
         o.update({"support_object_xy_distance": "%g" % round(float(nozzle) * 0.75, 2),
                   "support_object_first_layer_gap": "%g" % round(float(nozzle) / 3.0, 2)})
     if combo.startswith("ABS"):
-        o["raft_layers"] = "2"
+        o["raft_layers"] = "3"     # ABS 系兩族（ABS+SUP／ABS+ABS）同值；單料 _筏層 雙生另由 PALLET_OVERRIDES 給 3（Eric 2026-09-17 後裁，牌 c-0917-REL-02）
         # ABS 首層線寬 1.5×口徑（「最佳ABS(更新後)」定稿 0.4 噴嘴=0.6；百分比隨口徑縮放）
         o["initial_layer_line_width"] = "150%"
     if combo == "ABS+SUP":
@@ -2350,7 +2353,7 @@ def main(src_base):
                     normalize_wall_accel(proc)   # 內外牆加速度 1500（2026-07-29 Eric 裁）
                     normalize_unified_values(proc, ff=(kind == "ff"))  # 正式製程統一值；FF 四色 jerk 維持 40
                     # 介面 4 層＋間距 70% 密度等效口徑連動＋首層密度 10%（0804；易拆間距既值不動、
-                    # ABS 系 raft_layers=2 已由 combo_overrides 設定→首層 100% 自然跳過）
+                    # ABS 系 raft_layers＝3 已由 combo_overrides 設定→首層 100% 自然跳過）
                     normalize_support_interface(proc, nz, easy_release=cb.endswith("+SUP"))
                     normalize_support_geometry(proc, nz)  # 樹狀直徑口徑×12(上限10)＋分支距離口徑×6＋主體線距口徑×9（0717/0722/0725）
                     normalize_support_recipe(proc, nz, easy_release=cb.endswith("+SUP"))  # 普通支撐配方（2026-07-22 七裁）
