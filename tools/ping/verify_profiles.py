@@ -599,6 +599,13 @@ for name, (kind, d) in presets.items():
                 _rf = d.get("renamed_from")
                 if not isinstance(_rf, str) or _rf != _rf_expect:
                     err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
+            # 單料 _筏層 雙生（產生器 PALLET_OVERRIDES；combo_kind 回 None 的那一群）：raft_layers 維持 2。
+            #   Eric 2026-09-17 把「易拆+筏層」改 3 時只點名那一族，本族未點名＝維持 2（牌 c-0917-REL-01）。
+            #   同日反向測試實抓：本族的 raft 值原本**沒有任何斷言**（手改成 3 verify 照綠）⇒ 補上。
+            #   日後若裁本族也改值：產生器 PALLET_OVERRIDES 與這裡兩邊一起改。
+            elif "_筏層 @" in name and d.get("raft_layers") != "2":
+                err(f"[單料筏層雙生 raft 2] {name}: raft_layers={d.get('raft_layers')!r}, expected '2'"
+                    f"（PALLET_OVERRIDES；2026-09-17 改 3 的只有易拆+筏層）")
             # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
             # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
             support_expected = set() if " PA-CF 樹狀 @" in name else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
