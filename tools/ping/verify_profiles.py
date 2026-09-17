@@ -329,9 +329,14 @@ for name, (kind, d) in presets.items():
                         if d.get(zk) != "0.2":
                             err(f"[功能歸類・一般 Z隙=0.2] {name}: {zk}={d.get(zk)!r}, expected '0.2'"
                                 f"（Eric 2026-08-17 裁，取代舊規「一層層高」）")
-                _raft = "2" if _vtok in (COMBO_CAT_EASYPAL, COMBO_CAT_DUALPAL) else "0"
+                # raft 層數分家族：易拆(Z0)+棧板＝3／雙料(Z隙)+棧板＝2／其餘＝0。
+                #   沿革：舊值「ABS 系一律 2」出自 2026-06-10 V3.0「最佳 ABS」定稿；2026-09-17 Eric 實測改
+                #   易拆+筏層（本線顯示名＝易拆(Z0)+棧板）＝3，**只限這一族**（他只點名它）——雙料(Z隙)+棧板維持 2。
+                #   牌 c-0917-REL-01。對應產生器＝embed_params.py combo_overrides() 的 ABS+SUP 區塊；改值要兩邊一起改。
+                _raft = {COMBO_CAT_EASYPAL: "3", COMBO_CAT_DUALPAL: "2"}.get(_vtok, "0")
                 if d.get("raft_layers") != _raft:
-                    err(f"[功能歸類・棧板 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}")
+                    err(f"[功能歸類・棧板 raft {_raft}] {name}: raft_layers={d.get('raft_layers')!r}, expected {_raft!r}"
+                        f"（易拆(Z0)+棧板＝3／雙料(Z隙)+棧板＝2／其餘＝0；Eric 2026-09-17 裁）")
                 # renamed_from＝字串＋恰為對應舊材料對全名（改名批回溯鏈）
                 _new2old = {COMBO_CAT_EASY: "PLA+SUP", COMBO_CAT_PVA: "PLA+PVA",
                             COMBO_CAT_EASYPAL: "ABS+SUP", COMBO_CAT_DUAL: "PLA+PLA",
