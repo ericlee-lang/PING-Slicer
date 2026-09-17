@@ -345,6 +345,13 @@ for name, (kind, d) in presets.items():
                 _rf_expect = name.replace(" %s @" % _vtok, " %s @" % _new2old[_vtok])
                 if not isinstance(_rf, str) or _rf != _rf_expect:
                     err(f"[功能歸類・renamed_from] {name}: {_rf!r}, expected {_rf_expect!r}")
+            # 單料 _棧板 雙生（產生器 PALLET_OVERRIDES；combo_token 回 None 的那一群）：raft_layers 維持 2。
+            #   Eric 2026-09-17 把「易拆+筏層」（本線顯示名＝易拆(Z0)+棧板）改 3 時只點名那一族，本族未點名＝維持 2
+            #   （牌 c-0917-REL-01）。同日反向測試實抓：本族的 raft 值原本**沒有任何斷言**（手改成 3 verify 照綠）⇒ 補上。
+            #   日後若裁本族也改值：產生器 PALLET_OVERRIDES 與這裡兩邊一起改。
+            elif "_棧板 @" in name and d.get("raft_layers") != "2":
+                err(f"[單料棧板雙生 raft 2] {name}: raft_layers={d.get('raft_layers')!r}, expected '2'"
+                    f"（PALLET_OVERRIDES；2026-09-17 改 3 的只有易拆(Z0)+棧板）")
     if kind == "filament":
         if d.get("instantiation") == "true":
             pv = d.get("filament_minimal_purge_on_wipe_tower")
