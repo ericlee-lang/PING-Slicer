@@ -294,12 +294,12 @@ for name, (kind, d) in presets.items():
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
-                # 易拆(Z0)樹狀（Eric 2026-09-19 Q2 甲）：**混合樹** tree_hybrid＝吃 0725 保守配方（下方同查），
-                # 不是 PA-CF 那組有機樹（default）。寫錯成 default／organic 一律紅。
+                # 易拆(Z0)樹狀（⏳ 備選分支：Q2 改有機樹，待 Eric 裁）：style 明寫 default ⇒ smsTreeOrganic
+                # （同 PA-CF 樹狀）。寫成 tree_hybrid／snug 一律紅。
                 elif _ctok == COMBO_CAT_EASYTREE:
                     expected_recipe = [("support_type", "tree(auto)"),
                                        ("independent_support_layer_height", "0"),
-                                       ("support_style", "tree_hybrid"),
+                                       ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
                 # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
                 # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1

@@ -218,7 +218,7 @@
     "support_on_build_plate_only": "0",
     "support_remove_small_overhang": "1",
     "support_speed": "50",
-    "support_style": "tree_hybrid",
+    "support_style": "default",
     "support_threshold_angle": "35",
     "support_top_z_distance": "0",
     "support_type": "tree(auto)",
