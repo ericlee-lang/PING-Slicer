@@ -48,6 +48,15 @@
   .seg{display:inline-flex; border:1px solid #bbb; border-radius:6px; overflow:hidden;}
   .seg button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:14px; font-weight:700; color:#666;}
   .seg button.on{background:var(--black); color:#fff;}
+  #genBox{display:flex; align-items:center;}
+  #genBox .inline-prog{flex:0 0 300px; min-width:0; padding:3px 6px 3px 12px;}
+  /* 頂列版：階段字＋秒數同一行、進度條在下＝跟按鈕同高，產生時頂列不長高（C-2 A 案「零版面位移」） */
+  #genBox .inline-prog .txt{display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; align-items:baseline;}
+  #genBox .inline-prog .stage{grid-row:1; grid-column:1;}
+  #genBox .inline-prog .meta{grid-row:1; grid-column:2; margin-top:0;}
+  #genBox .inline-prog .bar{grid-row:2; grid-column:1/-1; margin-top:3px;}
+  #genBox .inline-prog .btn{padding:4px 10px;}
+  #exportStat{flex-basis:100%; order:99; text-align:right; font-size:12.5px; color:#777; margin-top:-8px;}
   .modeFixed{font-size:14px; font-weight:700; color:#666; padding:6px 0;}   /* 甲案：料數跟機器時取代 .seg 的固定標籤 */
   main{display:grid; grid-template-columns:minmax(300px,1fr) minmax(300px,1fr) 400px;
        gap:14px; padding:14px 22px; align-items:start;}
@@ -215,8 +224,25 @@
     <button data-n="4">四色</button>
   </div>
   <button class="btn" id="btnDemo">用測試圖</button>
-  <button class="btn primary" id="btnOpen">開啟圖片</button>
+  <!-- 2026-09-18（Eric；牌 c-0918-UI-01）：頂列右上改放「產生並載入列印板」，「開啟圖片」拿掉。
+       ①開圖入口已在原圖卡：換一張… → 我的圖 → 開啟我的圖片…（規格 R11-3：開啟只屬於「我的圖」）；Ctrl+V／拖放全域保底（R11-4）
+       ②回報中心 卓馨怡 8/12（T019）：「載入到列印板的按鈕應該移到右上角，與一般切片模式的下一步位置較接近」
+       🔴 按鈕、就地進度（C-2 A 案）、結果訊息三者一起搬——只搬按鈕的話進度與訊息會留在右欄，離按的地方很遠。 -->
+  <div id="genBox">
+    <button class="btn primary" id="btnExport" style="display:none">輸出 3MF（多零件模型）</button>
+    <!-- C-2 A 案：生成中「就地轉換」成進度＋取消（原型＝照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html） -->
+    <div class="inline-prog" id="genProg" style="display:none">
+      <div class="txt">
+        <div class="stage" id="genStage">準備中…</div>
+        <div class="bar"><i id="genBar"></i></div>
+        <div class="meta" id="genMeta">已 0.0 秒</div>
+      </div>
+      <button class="btn ghost" id="btnGenCancel" type="button">取消</button>
+    </div>
+  </div>
   <input type="file" id="fileIn" accept="image/*" hidden>
+  <!-- 結果／警告訊息：在頂列內換到下一行、靠右＝緊貼按鈕下方（embedded 時頂列 sticky，訊息跟著留在視線內） -->
+  <div id="exportStat" style="display:none"></div>
 </header>
 
 <main>
@@ -315,18 +341,8 @@
       <div id="slotList"></div>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="btnSuggest">依這張圖建議配色與換層</button>
-        <button class="btn primary" id="btnExport" style="display:none">輸出 3MF（多零件模型）</button>
-        <!-- C-2 A 案：生成中「就地轉換」成進度＋取消（原型＝照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html） -->
-        <div class="inline-prog" id="genProg" style="display:none">
-          <div class="txt">
-            <div class="stage" id="genStage">準備中…</div>
-            <div class="bar"><i id="genBar"></i></div>
-            <div class="meta" id="genMeta">已 0.0 秒</div>
-          </div>
-          <button class="btn ghost" id="btnGenCancel" type="button">取消</button>
-        </div>
+        <!-- 「產生並載入列印板」＋進度＋訊息 2026-09-18 搬到頂列右上（見 header 註解） -->
       </div>
-      <div class="row" id="exportStat" style="display:none; font-size:12.5px; color:#777"></div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值） -->
@@ -1377,7 +1393,6 @@ dz.addEventListener('drop',e=>{e.preventDefault(); dz.classList.remove('drag'); 
 document.addEventListener('paste',e=>{
   for(const it of e.clipboardData.items) if(it.type.startsWith('image/')) return loadFile(it.getAsFile());
 });
-document.getElementById('btnOpen').onclick=()=>document.getElementById('fileIn').click();
 document.getElementById('fileIn').onchange=e=>loadFile(e.target.files[0]);
 
 /* 測試圖（非對稱，含多色域） */
