@@ -1431,6 +1431,26 @@ def pacf_overrides():
 #   ③支撐臨界角維持全庫 35（Eric 實測用 30＝更保守，屬 Q1 甲「支撐回全庫」的範圍，未帶）。
 PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 
+# ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01）
+#   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支（FD300／FD300 Pro／FD300 關門 × 0.25/0.4/0.6、
+#          FD450／600／800 Pro × 0.25/0.4/0.6/1.0）；水溶／筏層樹狀版與 FF 3in1 不做。
+#   Q2 甲：**混合樹**（tree_hybrid）＝吃 0725 樹狀保守配方（normalize_tree_support／normalize_support_geometry），
+#          不是 PA-CF 那組有機樹（default）。易拆系 Z0＋SupPLA 介面＝大面積平懸空長成類普通支撐結構，正對症。
+#   Q5／Q6 甲：支撐＋支撐面速度 **50**（兩線同值）——4b-7「支撐速度下限 60」post-pass 必須豁免本族，
+#          否則會被拉回 60（豁免判準＝ is_easy_tree_process()，verify 另有斷言鎖 50）。
+#   其餘鍵全部＝同口徑「易拆」（派生時複製），只差上面四鍵＋name／setting_id（新品無 renamed_from）。
+#   token「易拆樹狀」＝Tab.cpp 認得的第四個易拆家族 token（歸易拆＋自動帶 PLA-210＋SupPLA），跨層護欄在 verify。
+EASY_TREE_TOKEN = "易拆樹狀"
+EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "tree_hybrid",
+                       "support_speed": "50", "support_interface_speed": "50"}
+
+def easy_tree_pname(lh, model, nz):
+    return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
+
+def is_easy_tree_process(name):
+    """製程名／檔名是否屬易拆樹狀族（判準＝「 易拆樹狀 @」子字串；不會誤中「易拆 @」）。"""
+    return (" %s @" % EASY_TREE_TOKEN) in name
+
 
 def pva_overrides(nozzle):
     nz = float(nozzle)
@@ -2273,6 +2293,7 @@ def main(src_base):
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
     pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
     pacf_twins = []     # PA-CF 專屬製程（Eric 0826；emit 在 4a-7＝全庫最尾＝既有 id 零位移）
+    easy_tree_twins = []  # 易拆樹狀（Eric 0919；emit 在 4a-9＝接 4a-8 之後的真正全庫最尾）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -2385,6 +2406,12 @@ def main(src_base):
                         pv["renamed_from"] = combo_renamed_from(lh, "PLA+PVA", model, nz)
                         pv["filename_format"] = filename_tpl("PLA+PVA")
                         pva_twins.append(pv)
+                        # 易拆樹狀雙生（Eric 2026-09-19，牌 c-0919-ETR-01）：同口徑「易拆」只換支撐類型／樣式／速度。
+                        # 新品無舊名 ⇒ 拿掉複製來的 renamed_from（留著會讓「易拆」的舊名在 rename map 撞成 1:2）。
+                        et = dict(proc); et.update(EASY_TREE_OVERRIDES)
+                        et["name"] = easy_tree_pname(lh, model, nz)
+                        et.pop("renamed_from", None)
+                        easy_tree_twins.append(et)
 
                     # PA-CF 專屬製程（Eric 2026-08-26 裁）：從同口徑標準製程派生一般版＋樹狀版。
                     # 只掛 PACF_MODELS（現＝FP300）；雙料機不派生（PA-CF 只提供單料頭）。
@@ -2505,6 +2532,19 @@ def main(src_base):
     #        （第一版寫在 emit_classic 裡就地跑，實測位移了 124 支既有 preset，故改成延後 emit。）
     if emit_classic_extras is not None:
         gm, gp = emit_classic_extras(gm, gp)
+
+    # 4a-9. 易拆樹狀製程統一 emit（Eric 2026-09-19，牌 c-0919-ETR-01）。
+    #        接在 4a-8 之後＝**真正的全庫最尾** ⇒ 既有 preset（含 4a-8 Classic 補口徑）setting_id 全零位移。
+    #        0.25 後加口徑（FD450／600／800 Pro）照既有規則走 1100 段計數器（_nz_proc）＝該段尾端續號。
+    #        ⚠ 下一個新增製程族要排在**本段之後**，別插隊（r6 撞號事故同源）。
+    for et in easy_tree_twins:
+        if _ext_proc(et["name"]): et["setting_id"] = _ext_take_p()
+        elif _nz_proc(et["name"]): et["setting_id"] = _nz_take_p()
+        else: et["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % et["name"]), et)
+        proc_list.append({"name": et["name"], "sub_path": "process/%s.json" % et["name"]})
+    if easy_tree_twins:
+        print("  易拆樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(easy_tree_twins), gp - 1))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
@@ -3256,13 +3296,18 @@ def main(src_base):
         m = (m[:par] if par >= 0 else m).strip()
         return any(m.startswith(c) for c in CLASSIC_MODELS)
 
-    spd_set = spd_skip_classic = spd_missing = 0
+    spd_set = spd_skip_classic = spd_skip_easy_tree = spd_missing = 0
     for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
         base = os.path.basename(pp_path)
         if base.startswith("fdm_"):
             continue
         if _is_classic_process(base):
             spd_skip_classic += 1
+            continue
+        # 🔴 易拆樹狀族豁免（Eric 2026-09-19 裁「樹狀支撐的支撐速度 60>50」，牌 c-0919-ETR-01）：
+        #    新裁定只針對樹狀版、明確低於本下限 ⇒ 不拉回 60。值由 EASY_TREE_OVERRIDES 給、verify 鎖 50。
+        if is_easy_tree_process(base):
+            spd_skip_easy_tree += 1
             continue
         pdj = json.load(io.open(pp_path, encoding="utf-8"))
         touched = False
@@ -3284,8 +3329,8 @@ def main(src_base):
                 spd_set += 1
         if touched:
             jdump(pp_path, pdj)
-    print("  支撐/支撐面速度下限 %g：改 %d 項｜Classic 前代機略過 %d 支｜鍵不在葉檔 %d 項"
-          % (SUPPORT_SPEED_FLOOR, spd_set, spd_skip_classic, spd_missing))
+    print("  支撐/支撐面速度下限 %g：改 %d 項｜Classic 前代機略過 %d 支｜易拆樹狀豁免 %d 支｜鍵不在葉檔 %d 項"
+          % (SUPPORT_SPEED_FLOOR, spd_set, spd_skip_classic, spd_skip_easy_tree, spd_missing))
 
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
