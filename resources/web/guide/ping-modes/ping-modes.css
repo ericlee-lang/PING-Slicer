@@ -33,19 +33,23 @@
   font-weight: 400;
 }
 #PingModeHelp .pmh-modes {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));   /* 0908 第四輪：ABS 關門頁籤拿掉，剩四個 */
+  /* 2026-09-18 改：頁籤依字寬靠左排，不再平均攤滿整排（Eric 裁「照改」；牌 c-0918-UI-01）。
+     同事反映：四個頁籤攤滿時，「同進／單料頭／3 in 1」剛好壓在下方「易拆支撐／雙色列印／軟硬結合」
+     三個用途圖示的正上方（實量 216–400 對 258–423…），被讀成一一對應。0908 那版是 4 欄等寬格線。 */
+  display: flex;
+  flex-wrap: wrap;                 /* 窄視窗自動換行，取代原本窄版「三欄格線」那條 */
   border-bottom: 1px solid var(--pmh-line);
 }
 #PingModeHelp .pmh-mode {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  flex: 0 0 auto;                  /* 依字寬，不撐滿（0918） */
+  width: auto;
   min-width: 0;
   min-height: 34px;
   margin: 0 0 -1px;
-  padding: 5px 5px;
+  padding: 5px 18px;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
@@ -155,9 +159,8 @@
   object-fit: contain;
   background: var(--pmh-paper);
 }
-/* 窄視窗（Windows 縮放 150% 以上時內容寬度不足）：頁籤三欄、說明改單欄堆疊 */
+/* 窄視窗（Windows 縮放 150% 以上時內容寬度不足）：頁籤靠 flex-wrap 自動換行（0918 起）、說明改單欄堆疊 */
 @media (max-width: 620px) {
-  #PingModeHelp .pmh-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #PingModeHelp .pmh-mode { margin-bottom: 0; }
   #PingModeHelp .pmh-detail,
   #PingModeHelp .pmh-detail[data-layout="applications"],
