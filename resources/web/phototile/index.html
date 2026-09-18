@@ -391,7 +391,7 @@
               <button class="btn" id="btnCalibOverlay">讀校正照片…</button>
             </div>
             <div class="sub">
-              也可以走舊路徑：主程式 <b>說明</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
+              也可以走舊路徑：主程式 <b>幫助</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
               再用下面的「選擇檔案」匯回來。
             </div>
           </li>
@@ -751,7 +751,7 @@ document.getElementById('btnCalib').onclick=async()=>{
     const fname=`色彩校正_雙料${r.s.length}階直立條洗料柱_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
     if(slicerBridgeReady()){
       await sendCalib3mfToSlicer(r.blob, fname, st);
-      st.textContent='　已送入列印板。切片列印後拍正面照，到「說明 → 色彩校正」選「雙料 8 階直立條」讀照片。';
+      st.textContent='　已送入列印板。切片列印後拍正面照，再按下面第 3 步的「讀校正照片…」讀照片。';
     }else{
       const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname; a.click();
       st.textContent=`　已輸出 ${fname}（${r.s.length} 階＋洗料柱、${r.width}×${r.thick}×${r.height} mm、${(r.blob.size/1024).toFixed(0)} KB）。`;
