@@ -2395,5 +2395,43 @@ def main(src_base):
     print("\n產出: machine_model=%d machine=%d process=%d (+FF filament %d)，PING.json 已重建（版號請另行+1）"
           % (len(mm_list), gm, gp, len(fil_new)))
 
+    # ★ 未入版產出提示（2026-09-18，牌 c-0918-IMG-01）——只提示、不擋、不改任何產出值
+    report_untracked_outputs()
+
+
+# 本支的產出不只 resources/profiles：§4c-2 還會重畫 resources/images/printer_preview_*.png。
+# 加新機型時那張縮圖是「新檔」，而 SOP_參數入版紀律 §Q 原本的自檢用 --untracked-files=no ⇒ 看不到。
+# 實錄：0908 加 FP300 關門（724b5fc571）只入了 resources/profiles，縮圖漏入版十天——
+#   乾淨 clone 選 FP300 關門 時側欄縮圖沒有機器照；出貨線 0911 補機型時才有帶到。
+# 刻意只提示不擋（根 AGENTS〈新增的檢查一律先做提示〉）；git 跑不起來就印一行說明後略過，不讓 regen 失敗。
+OUTPUT_DIRS = ("resources/profiles", "resources/images")
+
+def report_untracked_outputs():
+    import subprocess
+    def _say(s):   # 提示本身絕不能讓 regen 以 UnicodeEncodeError 收尾（主控台非 UTF-8 時）
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        print(s.encode(enc, "replace").decode(enc, "replace"))
+    where = "、".join(OUTPUT_DIRS)
+    try:
+        r = subprocess.run(["git", "-C", REPO, "ls-files", "-z", "--others", "--exclude-standard", "--"]
+                           + list(OUTPUT_DIRS), capture_output=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        _say("  未入版產出檢查：略過（git 無法執行：%s）" % e)
+        return
+    if r.returncode != 0:
+        _say("  未入版產出檢查：略過（git exit %d）" % r.returncode)
+        return
+    paths = [p.decode("utf-8", "replace") for p in r.stdout.split(b"\0") if p]
+    if not paths:
+        _say("  未入版產出檢查：%s 下 git 未追蹤 0 支" % where)
+        return
+    _say("\n⚠ 未入版產出：%s 下有 %d 支 git 未追蹤的檔。" % (where, len(paths)))
+    _say("  若是這次 regen 新產出的（例如新機型的 printer_preview_*.png／*_cover.png／machine、process json），")
+    _say("  請一起入版——只 add resources/profiles 會漏掉 resources/images。")
+    for p in paths[:40]:
+        _say("    ?? " + p)
+    if len(paths) > 40:
+        _say("    …另 %d 支" % (len(paths) - 40))
+
 if __name__ == "__main__":
     main(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SRC)
