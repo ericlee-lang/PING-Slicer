@@ -1437,7 +1437,7 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 #   Q2 甲：**混合樹**（tree_hybrid）＝吃 0725 樹狀保守配方（normalize_tree_support／normalize_support_geometry），
 #          不是 PA-CF 那組有機樹（default）。易拆系 Z0＋SupPLA 介面＝大面積平懸空長成類普通支撐結構，正對症。
 #   Q5／Q6 甲：支撐＋支撐面速度 **50**（兩線同值）——4b-7「支撐速度下限 60」post-pass 必須豁免本族，
-#          否則會被拉回 60（豁免判準＝ is_easy_tree_process()，verify 另有斷言鎖 50）。
+#          否則會被拉回 60（豁免名單＝4b-7 的 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS，verify 同名一份＋鎖 exact 50）。
 #   其餘鍵全部＝同口徑「易拆」（派生時複製），只差上面四鍵＋name／setting_id（新品無 renamed_from）。
 #   token「易拆樹狀」＝Tab.cpp 認得的第四個易拆家族 token（歸易拆＋自動帶 PLA-210＋SupPLA），跨層護欄在 verify。
 EASY_TREE_TOKEN = "易拆樹狀"
@@ -1446,10 +1446,6 @@ EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "tree_hybr
 
 def easy_tree_pname(lh, model, nz):
     return "%smm %s @%s (%s)" % (lh, EASY_TREE_TOKEN, model, nz)
-
-def is_easy_tree_process(name):
-    """製程名／檔名是否屬易拆樹狀族（判準＝「 易拆樹狀 @」子字串；不會誤中「易拆 @」）。"""
-    return (" %s @" % EASY_TREE_TOKEN) in name
 
 
 def pva_overrides(nozzle):
@@ -3285,6 +3281,14 @@ def main(src_base):
     #    ⇒ 大口徑上把支撐設 60，實際會被壓回材料允許的值；設定值統一不會造成過擠。
     SUPPORT_SPEED_FLOOR = 60.0
     SUPPORT_SPEED_KEYS = ("support_speed", "support_interface_speed")
+    # 🔴 豁免名單（Eric 2026-09-19 裁「樹狀支撐的支撐速度 60>50」，牌 c-0919-ETR-01）：
+    #    製程名 token（@ 前最後一段）在此名單內 ⇒ 不拉回 60。值由 EASY_TREE_OVERRIDES 給、verify 鎖 exact 50。
+    #    verify_profiles.py〔支撐速度〕段有**同名同值**的一份（verify 刻意不 import 產生器＝既有慣例），兩邊一起改。
+    #    ⚠ 本段整段搬到開發線時：開發線名＝「易拆(Z0)樹狀」，名單要換成那個字面（token 規則同出貨線）。
+    SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS = (EASY_TREE_TOKEN,)   # ＝("易拆樹狀",)
+
+    def _is_floor_exempt(fname):
+        return any((" %s @" % t) in fname for t in SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS)
 
     def _is_classic_process(fname):
         """製程檔名形如「0.3mm 易拆 @EDU 200 (0.6).json」；取 @ 後、( 前的機型名比對前綴。"""
@@ -3304,9 +3308,7 @@ def main(src_base):
         if _is_classic_process(base):
             spd_skip_classic += 1
             continue
-        # 🔴 易拆樹狀族豁免（Eric 2026-09-19 裁「樹狀支撐的支撐速度 60>50」，牌 c-0919-ETR-01）：
-        #    新裁定只針對樹狀版、明確低於本下限 ⇒ 不拉回 60。值由 EASY_TREE_OVERRIDES 給、verify 鎖 50。
-        if is_easy_tree_process(base):
+        if _is_floor_exempt(base):     # 豁免名單見上方 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS
             spd_skip_easy_tree += 1
             continue
         pdj = json.load(io.open(pp_path, encoding="utf-8"))

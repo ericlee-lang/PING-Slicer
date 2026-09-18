@@ -1840,6 +1840,11 @@ for _rel, _needles in (
 _SPD_FLOOR = 60.0
 _CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
                      "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
+# 🔴 豁免名單（Eric 2026-09-19，牌 c-0919-ETR-01）＝產生器 4b-7 的 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS **同名同值**
+#    （verify 刻意不 import 產生器，兩邊一起改）。名單內的族不套 ≥60，改驗 exact 50。
+#    ⚠ 本段搬到開發線時：開發線名＝「易拆(Z0)樹狀」，名單要換成那個字面。
+SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS = (COMBO_CAT_EASYTREE,)   # ＝("易拆樹狀",)
+_EXEMPT_SUPPORT_SPEED = "50"
 
 def _proc_machine(_name):
     """製程 preset 名形如「0.3mm 易拆 @EDU 200 (0.6)」；取 @ 後、( 前的機型名。"""
@@ -1874,11 +1879,11 @@ for _n, (_k, _d) in sorted(presets.items()):
         continue
     # 🆕 易拆樹狀族（Eric 2026-09-19「樹狀支撐的支撐速度 60>50」＋Q5 甲＝支撐與支撐面兩格）：
     #    刻意低於 0812 下限 ⇒ 不套 ≥60，改 **exact 50**（寫成 60／40／漏一格都紅）。
-    if combo_token(_n) == COMBO_CAT_EASYTREE:
+    if any((" %s @" % _t) in _n for _t in SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS):
         _easy_tree_spd += 1
         for _key in ("support_speed", "support_interface_speed"):
-            if _d.get(_key) != "50":
-                err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected '50'（Eric 2026-09-19 裁）")
+            if _d.get(_key) != _EXEMPT_SUPPORT_SPEED:
+                err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected {_EXEMPT_SUPPORT_SPEED!r}（Eric 2026-09-19 裁）")
         continue
     _spd_checked += 1
     for _key, _v in _vals:
