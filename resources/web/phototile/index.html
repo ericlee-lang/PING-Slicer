@@ -379,7 +379,7 @@
             <div class="sub" style="margin-bottom:6px">8 階直立條，旁邊帶一根<b>隨階換比例的洗料柱</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，所以片從每階第一層就是乾淨色、每階只要 2 mm（FD300 0.4 實印約 <b>12 分</b>；舊的無柱版要 33 分）。印完<b>整階都可以量</b>，柱不用拍。</div>
           </li>
           <li><b>印出來，拍一張正面照</b>
-            <div class="sub" style="margin-bottom:6px">直立拍（純白那階在最下面）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
+            <div class="sub" id="calibShootHint" style="margin-bottom:6px">直立拍（最下面那階是料 1 的純色；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
           </li>
           <li><b>讀照片，量出實際顏色</b>
             <div class="sub" style="margin-bottom:6px">
@@ -630,6 +630,14 @@ function calibSpecText(){
   const geo=g?`${S.length} 階直立條 ${g.widthMm}×${g.thickMm}×${(S.length*g.bandMm)} mm（每階 ${g.bandMm} mm）＋洗料柱 ${g.purgeMm}×${g.purgeMm} mm`:`${S.length} 階直立條`;
   return `　${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
 }
+/* 第 2 步拍照提示（Eric 2026-09-18 裁「②做」，牌 c-0918-CAL-02）：原本寫死「純白那階在最下面」，
+   但校正片最底階＝S 清單第一個＝1＝**全料 1**（engine.js buildCalibStripParts「S 必須由下往上嚴格遞減」）——
+   料 1 較暗時最底階是深色，照舊句會把照片轉反（0918 Eric 截圖料 1＝#1A1A1A 就是這種）。改成照目前料 1 講。 */
+function calibShootHintHtml(){
+  const c=String(slots[0].color||'').toUpperCase();
+  const sw=/^#[0-9A-F]{6}$/.test(c)?`<span style="display:inline-block;width:10px;height:10px;border:1px solid #6F7773;vertical-align:-1px;background:${c}"></span> ${c}`:'';
+  return `直立拍（最下面那階是<b>料 1</b> 的純色 ${sw}；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。`;
+}
 function calibTableStat(){
   const el=document.getElementById('calibTableStat'); if(!el) return;
   const btn=document.getElementById('btnCalibClear');
@@ -648,6 +656,7 @@ function renderCalibGenStat(K){
   const el=document.getElementById('calibGenStat'); if(!el) return;
   const chk=document.getElementById('calibGenChk'); if(chk) chk.checked=!!params.calibGen;
   const spec=document.getElementById('calibSpec'); if(spec) spec.textContent=calibSpecText();
+  const shoot=document.getElementById('calibShootHint'); if(shoot) shoot.innerHTML=calibShootHintHtml();
   calibTableStat(); applyCalibSummary();
   const g=window.__calibGen;
   if(!calibTable){ el.textContent='（要先匯入校正表）'; return; }
@@ -2594,7 +2603,15 @@ if(embeddedMode) simulate(); else makeDemo();
     x.className='btn'; x.textContent='關閉'; x.onclick=close;
     bar.appendChild(title); bar.appendChild(hint); bar.appendChild(spacer); bar.appendChild(x);
     frame=document.createElement('iframe');
-    frame.src='calibration.html?embedded=1';
+    /* ① Eric 2026-09-18 裁「①做」（牌 c-0918-CAL-02）：0918 實走抓到覆蓋層打開預設「四料 48 格」，
+       而這裡產生的是雙料 8 階直立條、說明也沒叫人改——忘了選＝格線全錯、而且不會報錯。
+       ⇒ 雙料時直接告訴校正頁「直立條＋這兩個料色」（料色只用來排 S 清單方向；點完四角後照樣被照片實測值蓋過）。 */
+    let src='calibration.html?embedded=1';
+    if(slotCount===2){
+      const hx=slots.slice(0,2).map(s=>String(s.color||'').replace('#','').toUpperCase());
+      src+='&layout=vstrip'+(hx.every(h=>/^[0-9A-F]{6}$/.test(h))?`&a=${hx[0]}&b=${hx[1]}`:'');
+    }
+    frame.src=src;
     frame.style.cssText='flex:1 1 auto; width:100%; border:0;';
     wrap.appendChild(bar); wrap.appendChild(frame);
     document.body.appendChild(wrap);

@@ -873,5 +873,20 @@ function syncSlotCountUI(){
   el.onchange=()=>{ vsEdited=true; if(LAYOUT==='vstrip'){ applySlotCount('2v'); document.getElementById('btnReset').onclick(); syncSlotCountUI(); } }; })();
 ['autoSlot','wbPaper'].forEach(id=>{ const e=document.getElementById(id); if(e) e.onchange=()=>{ if(cells.length) applyWB(); }; });
 renderSlots(); stepUI(); syncSlotCountUI();
+/* 內嵌時由工作室指定校正片種類與料色（Eric 2026-09-18 裁「①做」，牌 c-0918-CAL-02）。
+   0918 實走抓到：覆蓋層打開預設「四料 48 格」，工作室剛產生的卻是「雙料 8 階直立條」，說明也沒叫人改。
+   🔴 只在 EMBEDDED 時吃參數——外部瀏覽器舊入口（幫助 → 色彩校正）行為完全不變。
+   料色只拿來排 S 清單方向（誰亮誰在 S≈1 那端，calibStripDefaultS）；「料色直接從照片量」點完四角後仍會用實測值蓋過去。
+   名稱改成工作室的叫法「料 1／料 2」——保留預設的「白／紅」會讓匯出表寫著紅、實際是深灰。 */
+if(EMBEDDED){
+  const q=new URLSearchParams(location.search);
+  if(q.get('layout')==='vstrip'){
+    ['a','b'].forEach((k,i)=>{ const v=String(q.get(k)||'').toUpperCase();
+      if(/^[0-9A-F]{6}$/.test(v)){ SLOTS[i].hex='#'+v; SLOTS[i].name='料 '+(i+1); } });
+    const r=document.querySelector('input[name="slotN"][value="2v"]');
+    /* 走跟使用者點選同一條路（onchange：換格陣→重置→同步 UI），不另寫一份切換邏輯 */
+    if(r){ r.checked=true; r.dispatchEvent(new Event('change')); }
+  }
+}
 window.addEventListener('resize',()=>{fit();draw();});
 </script>
