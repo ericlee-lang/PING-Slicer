@@ -48,6 +48,15 @@
   .seg{display:inline-flex; border:1px solid #bbb; border-radius:6px; overflow:hidden;}
   .seg button{border:0; background:#fff; padding:6px 16px; cursor:pointer; font-size:14px; font-weight:700; color:#666;}
   .seg button.on{background:var(--black); color:#fff;}
+  #genBox{display:flex; align-items:center;}
+  #genBox .inline-prog{flex:0 0 300px; min-width:0; padding:3px 6px 3px 12px;}
+  /* 頂列版：階段字＋秒數同一行、進度條在下＝跟按鈕同高，產生時頂列不長高（C-2 A 案「零版面位移」） */
+  #genBox .inline-prog .txt{display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; align-items:baseline;}
+  #genBox .inline-prog .stage{grid-row:1; grid-column:1;}
+  #genBox .inline-prog .meta{grid-row:1; grid-column:2; margin-top:0;}
+  #genBox .inline-prog .bar{grid-row:2; grid-column:1/-1; margin-top:3px;}
+  #genBox .inline-prog .btn{padding:4px 10px;}
+  #exportStat{flex-basis:100%; order:99; text-align:right; font-size:12.5px; color:#777; margin-top:-8px;}
   .modeFixed{font-size:14px; font-weight:700; color:#666; padding:6px 0;}   /* 甲案：料數跟機器時取代 .seg 的固定標籤 */
   main{display:grid; grid-template-columns:minmax(300px,1fr) minmax(300px,1fr) 400px;
        gap:14px; padding:14px 22px; align-items:start;}
@@ -170,7 +179,9 @@
   .ptempty{grid-column:1/-1; border:1px dashed #ccc; border-radius:8px; padding:20px 14px;
            text-align:center; color:#888; font-size:13.5px; line-height:1.75;}
   #ptGalMine{margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-  #ptGalBar{display:none; gap:8px; padding:8px 14px 0; align-items:center; flex-wrap:wrap;}
+  #ptGalBar{display:none; gap:6px; margin-left:auto; flex:0 0 auto; align-items:center;}   /* 0918 A：在標題列右側 */
+  #srcTitle{display:flex; align-items:center; gap:8px; min-width:0; flex:1 1 auto;}
+  #srcTitle .hint{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;}   /* 窄欄時截字，不換行（換行＝標題列變高＝兩圖又不對齊） */
   .ptmask{position:fixed; inset:0; background:rgba(32,34,33,.45); display:none;
           align-items:center; justify-content:center; z-index:50;}
   .ptmask.on{display:flex;}
@@ -213,8 +224,25 @@
     <button data-n="4">四色</button>
   </div>
   <button class="btn" id="btnDemo">用測試圖</button>
-  <button class="btn primary" id="btnOpen">開啟圖片</button>
+  <!-- 2026-09-18（Eric；牌 c-0918-UI-01）：頂列右上改放「產生並載入列印板」，「開啟圖片」拿掉。
+       ①開圖入口已在原圖卡：換一張… → 我的圖 → 開啟我的圖片…（規格 R11-3：開啟只屬於「我的圖」）；Ctrl+V／拖放全域保底（R11-4）
+       ②回報中心 卓馨怡 8/12（T019）：「載入到列印板的按鈕應該移到右上角，與一般切片模式的下一步位置較接近」
+       🔴 按鈕、就地進度（C-2 A 案）、結果訊息三者一起搬——只搬按鈕的話進度與訊息會留在右欄，離按的地方很遠。 -->
+  <div id="genBox">
+    <button class="btn primary" id="btnExport" style="display:none">輸出 3MF（多零件模型）</button>
+    <!-- C-2 A 案：生成中「就地轉換」成進度＋取消（原型＝照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html） -->
+    <div class="inline-prog" id="genProg" style="display:none">
+      <div class="txt">
+        <div class="stage" id="genStage">準備中…</div>
+        <div class="bar"><i id="genBar"></i></div>
+        <div class="meta" id="genMeta">已 0.0 秒</div>
+      </div>
+      <button class="btn ghost" id="btnGenCancel" type="button">取消</button>
+    </div>
+  </div>
   <input type="file" id="fileIn" accept="image/*" hidden>
+  <!-- 結果／警告訊息：在頂列內換到下一行、靠右＝緊貼按鈕下方（embedded 時頂列 sticky，訊息跟著留在視線內） -->
+  <div id="exportStat" style="display:none"></div>
 </header>
 
 <main>
@@ -222,14 +250,19 @@
   <div class="colstack">
   <!-- 原圖 -->
   <section class="panel">
-    <h2 id="srcTitle">原圖 <span class="hint">拖放／貼上／開啟圖片</span></h2>
+    <!-- 2026-09-18 版面 A（Eric 裁；牌 c-0918-UI-01）：「換一張…／存進我的圖」搬進標題列右側，
+         跟右卡「顏色｜層數」同一個位置 ⇒ 原圖與列印模擬兩張圖頂端對齊（原本左圖低約 95px，並排比對要上下跳）。
+         🔴 按鈕列不可放進 #srcTitle 裡：ptSourceTitle() 生過 AI 圖會整段重寫 #srcTitle 的 innerHTML。 -->
+    <h2><span id="srcTitle">原圖 <span class="hint">拖放／貼上／開啟圖片</span></span>
+      <span id="ptGalBar">
+        <button class="btn ghost" id="ptBtnRepick" type="button">換一張…</button>
+        <button class="btn ghost" id="ptBtnSaveMine" type="button">把這張存進「我的圖」</button>
+      </span>
+    </h2>
     <!-- §11 圖片來源區（Eric 2026-09-16 裁「乙」，可操作原型 v3 實走通過）。
-         R11-1＝沒圖時整塊就是圖庫，選了圖之後縮成「目前這張＋換一張…」；分類列恆在，
-         這樣選完圖切分類還回得去（驗收判準 8）。 -->
-    <div id="ptGalBar">
-      <button class="btn ghost" id="ptBtnRepick" type="button">換一張…</button>
-      <button class="btn ghost" id="ptBtnSaveMine" type="button">把這張存進「我的圖」</button>
-    </div>
+         R11-1＝沒圖時整塊就是圖庫，選了圖之後縮成「目前這張＋換一張…」。
+         2026-09-18 A 案：有圖時分類列也一起收（不再恆在）；按「換一張…」打開整個圖庫、鈕變「收起圖庫」，
+         再按一次收起。舊版「分類列恆在」會出現「縮圖已開著時按換一張＝畫面沒變」的假故障（Eric 0918 實走回報）。 -->
     <div id="ptGal">
       <div id="ptGalCats"></div>
       <div id="ptGrid"></div>
@@ -308,18 +341,8 @@
       <div id="slotList"></div>
       <div class="row" style="margin-top:10px">
         <button class="btn" id="btnSuggest">依這張圖建議配色與換層</button>
-        <button class="btn primary" id="btnExport" style="display:none">輸出 3MF（多零件模型）</button>
-        <!-- C-2 A 案：生成中「就地轉換」成進度＋取消（原型＝照片磚_C2產物/原型_工作室進度與取消_AB_20260804.html） -->
-        <div class="inline-prog" id="genProg" style="display:none">
-          <div class="txt">
-            <div class="stage" id="genStage">準備中…</div>
-            <div class="bar"><i id="genBar"></i></div>
-            <div class="meta" id="genMeta">已 0.0 秒</div>
-          </div>
-          <button class="btn ghost" id="btnGenCancel" type="button">取消</button>
-        </div>
+        <!-- 「產生並載入列印板」＋進度＋訊息 2026-09-18 搬到頂列右上（見 header 註解） -->
       </div>
-      <div class="row" id="exportStat" style="display:none; font-size:12.5px; color:#777"></div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值） -->
@@ -1370,7 +1393,6 @@ dz.addEventListener('drop',e=>{e.preventDefault(); dz.classList.remove('drag'); 
 document.addEventListener('paste',e=>{
   for(const it of e.clipboardData.items) if(it.type.startsWith('image/')) return loadFile(it.getAsFile());
 });
-document.getElementById('btnOpen').onclick=()=>document.getElementById('fileIn').click();
 document.getElementById('fileIn').onchange=e=>loadFile(e.target.files[0]);
 
 /* 測試圖（非對稱，含多色域） */
@@ -2736,10 +2758,14 @@ function ptGalRender(){
 /* 有圖時只收掉縮圖格，分類列留著 ⇒ 選了圖之後切分類還回得去（驗收判準 8）。 */
 function ptGalGridShow(on){
   var g=document.getElementById('ptGrid'), mz=document.getElementById('ptGalMine'),
-      dz=document.getElementById('dropZone');
+      dz=document.getElementById('dropZone'), gal=document.getElementById('ptGal'),
+      rb=document.getElementById('ptBtnRepick');
   if(!g) return;
   g.style.display = on ? '' : 'none';
   if(mz) mz.style.display = on ? '' : 'none';
+  /* 0918 A：整個圖庫（含分類列）跟著開關；沒圖時恆開（那時圖庫就是整塊來源區） */
+  if(gal) gal.style.display = (on || !srcBitmap) ? '' : 'none';
+  if(rb) rb.textContent = on ? '收起圖庫' : '換一張…';
   if(dz) dz.style.display = (on && !srcBitmap) ? 'none' : '';   // 沒圖時把 300px 空畫布收掉，讓縮圖有地方站
   if(on) ptGalRender();
 }
@@ -2822,7 +2848,10 @@ function ptGalCloseDelete(){
     var t=e.target.closest ? e.target.closest('.pttile') : null; if(!t) return;
     var it=ptGalList()[+t.dataset.i]; if(it) ptGalPick(it);
   });
-  document.getElementById('ptBtnRepick').onclick=function(){ ptGalGridShow(true); };
+  /* 0918 A：換一張…＝開圖庫；開著時同一顆變「收起圖庫」＝一定有看得到的反應 */
+  document.getElementById('ptBtnRepick').onclick=function(){
+    var g=document.getElementById('ptGrid'); ptGalGridShow(!(g && g.style.display!=='none'));
+  };
   document.getElementById('ptBtnSaveMine').onclick=function(){
     if(ptGalCurSrc && ptGalCurKey) return ptGalDoSave(ptGalCurSrc, srcLabel||'我的圖', ptGalCurKey);
     if(ptGalLastFile){
