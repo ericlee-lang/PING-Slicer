@@ -1,11 +1,12 @@
 {
- "_說明": "照片磚內建範例圖清單（§11 R11-3／R11-7／R11-9）。mode＝這張給哪個料數用（雙料看灰階、四料看彩色）；cat＝分類。內建範例不可刪不可改。雙料 9 張為灰階、四料 5 張彩色。來源＝Eric 2026-09-16 實走原型 v3 選定的同一批（全部收）。長邊上限 1200 px。⚠️ 改這裡要同時重跑 tools/ping/gen_phototile_samples.py 重生 samples.js，否則漂移守衛會紅。",
+ "_說明": "照片磚內建範例圖清單（§11 R11-3／R11-7／R11-9）。mode＝這張給哪個料數用（雙料看灰階、四料看彩色）；cat＝分類。subject＝題材（款式庫 subjects 的 id；點範例直接套、不跳「這張照片的主角是？」——Eric 2026-09-18 裁，牌 c-0918-PTS-01；幼貓歸長毛＝Eric 裁）。內建範例不可刪不可改。雙料 9 張為灰階、四料 5 張彩色。來源＝Eric 2026-09-16 實走原型 v3 選定的同一批（全部收）。長邊上限 1200 px。⚠️ 改這裡要同時重跑 tools/ping/gen_phototile_samples.py 重生 samples.js，否則漂移守衛會紅。",
  "items": [
   {
    "file": "p_man.jpg",
    "name": "中年男",
    "cat": "人物",
    "mode": "dual",
+   "subject": "portrait_closeup",
    "w": 800,
    "h": 1200
   },
@@ -14,6 +15,7 @@
    "name": "年輕女",
    "cat": "人物",
    "mode": "dual",
+   "subject": "portrait_closeup",
    "w": 800,
    "h": 1200
   },
@@ -22,6 +24,7 @@
    "name": "年長者",
    "cat": "人物",
    "mode": "dual",
+   "subject": "portrait_closeup",
    "w": 800,
    "h": 1200
   },
@@ -30,6 +33,7 @@
    "name": "狼",
    "cat": "動物",
    "mode": "dual",
+   "subject": "pet_short",
    "w": 1200,
    "h": 800
   },
@@ -38,6 +42,7 @@
    "name": "幼貓",
    "cat": "動物",
    "mode": "dual",
+   "subject": "pet_long",
    "w": 1000,
    "h": 1200
   },
@@ -46,6 +51,7 @@
    "name": "虎斑貓",
    "cat": "動物",
    "mode": "dual",
+   "subject": "pet_short",
    "w": 1200,
    "h": 800
   },
@@ -54,6 +60,7 @@
    "name": "山脊",
    "cat": "風景",
    "mode": "dual",
+   "subject": "landscape",
    "w": 1200,
    "h": 799
   },
@@ -62,6 +69,7 @@
    "name": "城市天際線",
    "cat": "風景",
    "mode": "dual",
+   "subject": "landscape",
    "w": 1200,
    "h": 900
   },
@@ -70,6 +78,7 @@
    "name": "孤樹",
    "cat": "風景",
    "mode": "dual",
+   "subject": "landscape",
    "w": 1200,
    "h": 675
   },
@@ -78,6 +87,7 @@
    "name": "絹印人像",
    "cat": "人物",
    "mode": "quad",
+   "subject": "portrait_closeup",
    "w": 800,
    "h": 1200
   },
@@ -86,6 +96,7 @@
    "name": "海報全身",
    "cat": "人物",
    "mode": "quad",
+   "subject": "person_full",
    "w": 800,
    "h": 1200
   },
@@ -94,6 +105,7 @@
    "name": "短毛貓",
    "cat": "動物",
    "mode": "quad",
+   "subject": "pet_short",
    "w": 1200,
    "h": 1200
   },
@@ -102,6 +114,7 @@
    "name": "長毛貓",
    "cat": "動物",
    "mode": "quad",
+   "subject": "pet_long",
    "w": 1200,
    "h": 1200
   },
@@ -110,6 +123,7 @@
    "name": "山巒分層",
    "cat": "風景",
    "mode": "quad",
+   "subject": "landscape",
    "w": 1200,
    "h": 800
   }
