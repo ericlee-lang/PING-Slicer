@@ -109,5 +109,30 @@ for (const id of ['ptGal', 'ptGalCats', 'ptGrid', 'ptGalMine', 'ptGalBar', 'ptTo
 ok(/function ptGalRender\(\)\s*\{\s*\n?\s*if\(!ptGalReady\)/.test(html),
    'ptGalRender 保留就緒守衛（renderSlots 在本段執行前就會先呼叫一次）');
 
+// ---- 7. 範例自帶題材（牌 c-0918-PTS-01；Eric 2026-09-18 裁「點範例不要再問主角」）----
+// 題材 id 從 index.html 的款式庫推導（不寫死——同第 3 段的教訓）；分類與題材要對得上，
+// 否則會出現「動物分類的範例被套成人像特寫」這種看起來正常、其實推薦錯款式的狀態。
+const libM = html.match(/<script id="ptStyleLib" type="application\/json">([\s\S]*?)<\/script>/);
+const LIB = libM ? JSON.parse(libM[1]) : null;
+const SUBJ = LIB ? new Set(LIB.subjects.map(s => s.id)) : new Set();
+ok(SUBJ.size > 0, `款式庫題材 id 讀得到（${[...SUBJ].join('／')}）`);
+const noSubj = man.items.filter(i => !SUBJ.has(i.subject)).map(i => i.file);
+ok(noSubj.length === 0, `每張範例都帶款式庫裡真的有的題材${noSubj.length ? '（缺／錯：' + noSubj.join('、') + '）' : ''}`);
+const CAT_OK = { '人物': ['portrait_closeup', 'person_full'], '動物': ['pet_short', 'pet_long'], '風景': ['landscape'] };
+const catBad = man.items.filter(i => !(CAT_OK[i.cat] || []).includes(i.subject)).map(i => `${i.name}(${i.cat}→${i.subject})`);
+ok(catBad.length === 0, `分類與題材對得上${catBad.length ? '（' + catBad.join('、') + '）' : ''}`);
+const kitten = man.items.find(i => i.file === 'a_kitten.jpg');
+ok(!!kitten && kitten.subject === 'pet_long', '幼貓＝寵物・長毛低對比（Eric 2026-09-18 裁）');
+const jsLines = js.split(/\r?\n/);
+const subjDrift = man.items.filter(i => {
+  const line = jsLines.find(l => l.includes(`"file": "${i.file}"`));
+  return !line || !line.includes(`"subject": "${i.subject}"`);
+}).map(i => i.file);
+ok(subjDrift.length === 0, `samples.js 的題材與 manifest 一致${subjDrift.length ? '（漂移：' + subjDrift.join('、') + '）⇒ 重跑產生器' : ''}`);
+ok(/ptPresetSubject=\(!it\.mine && it\.subject/.test(html),
+   '點內建範例時把題材帶進載入流程（「我的圖」不帶＝照舊問）');
+ok(/if\(preset\) applySubject\(preset\);\s*else if\(typeof ptAskSubject==='function'\) ptAskSubject\(\)\.then\(applySubject\);/.test(html),
+   '載入時：有範例題材就直接套、不跳「主角是？」；沒有才問');
+
 console.log(`\n=== 結果：${pass} 過／${fail} 失敗 ===`);
 process.exit(fail ? 1 : 0);

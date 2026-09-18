@@ -379,7 +379,7 @@
             <div class="sub" style="margin-bottom:6px">8 階直立條，旁邊帶一根<b>隨階換比例的洗料柱</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，所以片從每階第一層就是乾淨色、每階只要 2 mm（FD300 0.4 實印約 <b>12 分</b>；舊的無柱版要 33 分）。印完<b>整階都可以量</b>，柱不用拍。</div>
           </li>
           <li><b>印出來，拍一張正面照</b>
-            <div class="sub" style="margin-bottom:6px">直立拍（純白那階在最下面）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
+            <div class="sub" id="calibShootHint" style="margin-bottom:6px">直立拍（最下面那階是料 1 的純色；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
           </li>
           <li><b>讀照片，量出實際顏色</b>
             <div class="sub" style="margin-bottom:6px">
@@ -391,7 +391,7 @@
               <button class="btn" id="btnCalibOverlay">讀校正照片…</button>
             </div>
             <div class="sub">
-              也可以走舊路徑：主程式 <b>說明</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
+              也可以走舊路徑：主程式 <b>幫助</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
               再用下面的「選擇檔案」匯回來。
             </div>
           </li>
@@ -591,6 +591,7 @@ slotList.addEventListener('input', e=>{
 const CALIB_LS_KEY='ping_phototile_calib_dual_v1';
 let calibTable=null;          // 引擎 calibParseTable 的形狀 {slots:[hexA,hexB], pts, raw}（＋persisted）
 let calibMadeColors=null;     // 產出校正片當下的料色（產完又改料色 ⇒ 舊摘要會說謊，要標出來）
+let calibMadeS=null;          // 產出校正片當下的 S 清單（由下往上）＝印出來那條的真實配方；讀照片時要用它，不能事後由料色重算
 /* 🔴 校正表一旦匯入，料槽顏色就是「機上實際那兩支線材量出來的真色」＝事實，不是建議
    ⇒ 自動配色不得改寫它。這是 Eric 2026-09-14 裁 Q2「乙」（料槽顏色用實際裝的線材色，
    不再從照片自動挑）還沒補上的防護面。
@@ -630,6 +631,14 @@ function calibSpecText(){
   const geo=g?`${S.length} 階直立條 ${g.widthMm}×${g.thickMm}×${(S.length*g.bandMm)} mm（每階 ${g.bandMm} mm）＋洗料柱 ${g.purgeMm}×${g.purgeMm} mm`:`${S.length} 階直立條`;
   return `　${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
 }
+/* 第 2 步拍照提示（Eric 2026-09-18 裁「②做」，牌 c-0918-CAL-02）：原本寫死「純白那階在最下面」，
+   但校正片最底階＝S 清單第一個＝1＝**全料 1**（engine.js buildCalibStripParts「S 必須由下往上嚴格遞減」）——
+   料 1 較暗時最底階是深色，照舊句會把照片轉反（0918 Eric 截圖料 1＝#1A1A1A 就是這種）。改成照目前料 1 講。 */
+function calibShootHintHtml(){
+  const c=String(slots[0].color||'').toUpperCase();
+  const sw=/^#[0-9A-F]{6}$/.test(c)?`<span style="display:inline-block;width:10px;height:10px;border:1px solid #6F7773;vertical-align:-1px;background:${c}"></span> ${c}`:'';
+  return `直立拍（最下面那階是<b>料 1</b> 的純色 ${sw}；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。`;
+}
 function calibTableStat(){
   const el=document.getElementById('calibTableStat'); if(!el) return;
   const btn=document.getElementById('btnCalibClear');
@@ -648,6 +657,7 @@ function renderCalibGenStat(K){
   const el=document.getElementById('calibGenStat'); if(!el) return;
   const chk=document.getElementById('calibGenChk'); if(chk) chk.checked=!!params.calibGen;
   const spec=document.getElementById('calibSpec'); if(spec) spec.textContent=calibSpecText();
+  const shoot=document.getElementById('calibShootHint'); if(shoot) shoot.innerHTML=calibShootHintHtml();
   calibTableStat(); applyCalibSummary();
   const g=window.__calibGen;
   if(!calibTable){ el.textContent='（要先匯入校正表）'; return; }
@@ -751,12 +761,13 @@ document.getElementById('btnCalib').onclick=async()=>{
     const fname=`色彩校正_雙料${r.s.length}階直立條洗料柱_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
     if(slicerBridgeReady()){
       await sendCalib3mfToSlicer(r.blob, fname, st);
-      st.textContent='　已送入列印板。切片列印後拍正面照，到「說明 → 色彩校正」選「雙料 8 階直立條」讀照片。';
+      st.textContent='　已送入列印板。切片列印後拍正面照，再按下面第 3 步的「讀校正照片…」讀照片。';
     }else{
       const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname; a.click();
       st.textContent=`　已輸出 ${fname}（${r.s.length} 階＋洗料柱、${r.width}×${r.thick}×${r.height} mm、${(r.blob.size/1024).toFixed(0)} KB）。`;
     }
     calibMadeColors=cols.join(' · ');
+    calibMadeS=Array.isArray(r.s)?r.s.slice():null;
     applyCalibSummary();
   }catch(e){ st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`; }
   finally{ b.disabled=false; }
@@ -1098,15 +1109,20 @@ function loadBitmap(bmp, label){
   suggest();           // 開圖即自動建議＋出模擬（零點擊先看到結果）
   /* 問題材：只在垂直模式（平躺沒有款式的概念），而且**問完才重畫款式區**。
      ⚠ 放在 suggest() 之後：先讓他看到結果，再問——問句擋在結果前面會像個路障。 */
-  if(typeof ptAskSubject==='function'){
-    ptAskSubject().then(id=>{
-      if(!id || id===ptSubject) return;
-      ptSubject=id;
-      const sel=document.getElementById('subjectSel'); if(sel) sel.value=id;
-      ptUserPicked=false;                 // 換題材＝重新推薦，不要沿用上一個題材選過的款式
-      if(typeof ptRender==='function') ptRender();
-    });
-  }
+  const applySubject=id=>{
+    if(!id || id===ptSubject) return;
+    ptSubject=id;
+    const sel=document.getElementById('subjectSel'); if(sel) sel.value=id;
+    ptUserPicked=false;                   // 換題材＝重新推薦，不要沿用上一個題材選過的款式
+    if(typeof ptRender==='function') ptRender();
+  };
+  /* 內建範例自帶題材（manifest `subject`；Eric 2026-09-18 裁「1 做」，牌 c-0918-PTS-01）：
+     點範例還跳「這張照片的主角是？」＝重複問、而且框裡預設亮的是上一個題材（點貓亮「人像特寫」）。
+     當初「寧可問，不要猜」是對**陌生照片**——範例不是猜，是本來就知道。自己丟的照片照舊問。 */
+  const preset=(typeof ptPresetSubject!=='undefined') ? ptPresetSubject : null;
+  if(typeof ptPresetSubject!=='undefined') ptPresetSubject=null;   // 只給這一次載入用，不殘留到下一張
+  if(preset) applySubject(preset);
+  else if(typeof ptAskSubject==='function') ptAskSubject().then(applySubject);
 }
 async function loadFile(f){
   if(!f || !f.type.startsWith('image/')) return;
@@ -2594,7 +2610,21 @@ if(embeddedMode) simulate(); else makeDemo();
     x.className='btn'; x.textContent='關閉'; x.onclick=close;
     bar.appendChild(title); bar.appendChild(hint); bar.appendChild(spacer); bar.appendChild(x);
     frame=document.createElement('iframe');
-    frame.src='calibration.html?embedded=1';
+    /* ① Eric 2026-09-18 裁「①做」（牌 c-0918-CAL-02）：0918 實走抓到覆蓋層打開預設「四料 48 格」，
+       而這裡產生的是雙料 8 階直立條、說明也沒叫人改——忘了選＝格線全錯、而且不會報錯。
+       ⇒ 雙料時直接告訴校正頁「直立條＋這兩個料色」（料色只用來排 S 清單方向；點完四角後照樣被照片實測值蓋過）。 */
+    let src='calibration.html?embedded=1';
+    if(slotCount===2){
+      const hx=slots.slice(0,2).map(s=>String(s.color||'').replace('#','').toUpperCase());
+      src+='&layout=vstrip'+(hx.every(h=>/^[0-9A-F]{6}$/.test(h))?`&a=${hx[0]}&b=${hx[1]}`:'');
+      /* 🔴 S 清單要帶「產生校正片當下」那串（牌 c-0918-PTS-01 補 CAL-02 的洞）：校正頁點完四角會用照片量到的料色
+         重算 S——工作室料色順序若跟機上實際裝的相反（0918 Eric 截圖料 1＝#1A1A1A、機上 E1 其實是白），
+         重算出來的是另一串，表會靜默記錯。這個 session 沒產過校正片才退回「照目前料色推算」（＝第 1 步顯示的那串）。 */
+      const eng=window.PhotoTileEngine;
+      const sl=calibMadeS || ((eng&&eng.calibStripDefaultS&&hx.every(h=>/^[0-9A-F]{6}$/.test(h)))?eng.calibStripDefaultS('#'+hx[0],'#'+hx[1]):null);
+      if(Array.isArray(sl)&&sl.length>=2) src+='&s='+sl.map(v=>String(Math.round(v*100)/100)).join(',')+'&ssrc='+(calibMadeS?'made':'derived');
+    }
+    frame.src=src;
     frame.style.cssText='flex:1 1 auto; width:100%; border:0;';
     wrap.appendChild(bar); wrap.appendChild(frame);
     document.body.appendChild(wrap);
@@ -2637,6 +2667,7 @@ var PT_GAL_CATS=['全部','人物','動物','風景','我的圖'];
 var PT_GAL_MY='我的圖';
 var PT_MINE_KEY='phototile.mine.v1';
 var ptGalCat='全部', ptMine=[], ptGalDelId=null, ptGalCurSrc=null, ptGalCurKey=null, ptGalLastFile=null;
+var ptPresetSubject=null;   // 內建範例載入時帶的題材（loadBitmap 取用一次就清掉）；自訂圖／丟進來的照片＝null＝照舊問
 /* 🔴 renderSlots() 在頁面初始化時就先跑一次，那時本段（在檔尾）還沒執行 ⇒ PT_GAL_CATS 還是 undefined。
    掛在 renderSlots 尾巴的 ptGalRender() 會炸掉整個初始化（實際踩到：畫面停在舊的拖放提示）。 */
 var ptGalReady=false;
@@ -2732,12 +2763,15 @@ function ptDataUriToBlob(u){
 async function ptGalPick(it){
   try{
     var blob=ptDataUriToBlob(it.src);
+    /* 只有內建範例帶題材；「我的圖」是使用者自己的照片，系統不知道主角是誰 ⇒ 照舊問 */
+    ptPresetSubject=(!it.mine && it.subject && STYLE_LIB.subjects.some(function(s){ return s.id===it.subject; })) ? it.subject : null;
     await loadFile(new File([blob], (it.name||'範例')+'.jpg', {type:blob.type||'image/jpeg'}));
     /* 🔴 已存過的圖要沿用它存檔當下那把 key，不能另算一把——重算成 'mine|<id>' 會跟存檔時的
        'file|<檔名>|<大小>' 對不上，重新載入時存鈕不會變成「已在✓」（判準 5 實走抓到）。 */
     ptGalCurSrc=it.src; ptGalCurKey=it.mine ? (it.key || ('mine|'+it.id)) : ('builtin|'+it.file);
     ptGalLastFile=null; ptGalSaveBtnSync();
   }catch(e){
+    ptPresetSubject=null;   // 載入失敗就不能留著，否則下一張自己丟的照片會被當成這個題材
     var st=document.getElementById('srcStat'); if(st) st.textContent='這張範例讀不進來，換一張試試';
   }
 }

@@ -209,10 +209,23 @@ function autoSteps(){                      // 引擎算的那一組（唯一來�
   try{ return E.calibStripDefaultS(SLOTS[0].hex, SLOTS[1].hex); }catch(e){ return null; }
 }
 let vsEdited=false;                        // 使用者手動改過 ⇒ 不再自動覆蓋他的值
+let vsFromStudio=null;                     // 內嵌時工作室指定的 S 來源（'made'＝產生校正片當下記下的／'derived'＝照工作室目前料色推算）；有值就不由量到的料色重算
 function syncVsList(){
   const el=document.getElementById('vsList'), st=document.getElementById('vsAuto');
   if(!el) return;
   const auto=autoSteps();
+  /* 工作室指定的 S＝印出來那條的配方（事實），不跟著量到的料色改（牌 c-0918-PTS-01）。
+     量到的料色順序跟它不一致時照實講：代表工作室當初的料 1／料 2 跟機上實際裝的相反，以這串為準。 */
+  if(vsFromStudio && !vsEdited){
+    if(!st) return;
+    const txt=auto?auto.map(v=>String(Math.round(v*100)/100)).join(','):'';
+    const src=vsFromStudio==='made'?'工作室產生這條校正片時用的那一串':'工作室照目前料色推算的那一串（＝工作室第 1 步顯示的）';
+    st.style.color='';
+    st.textContent=(!txt || el.value.replace(/\s/g,'')===txt)
+      ? `　${src}——照片量到的料色不會改它。`
+      : `　${src}——照片量到的料色順序跟它相反（工作室的料 1／料 2 跟機上實際裝的對調了），以這串為準；帶回工作室後料色會改成實際量到的。`;
+    return;
+  }
   if(!auto){                               // fail-loud：講清楚算不出來、要自己填，不要靜靜給一組可能是錯的
     if(st){ st.textContent='　⚠ 引擎未載入（engine.js），S 清單無法自動帶出——請照工作室「產生校正片」那一列自己填。'; st.style.color='#B3261E'; }
     return;
@@ -869,9 +882,29 @@ function syncSlotCountUI(){
 /* 0914：直立條的 S 清單改了＝階數／鍵都變 ⇒ 同「換格陣」處理（舊讀值作廢） */
 (function(){ const el=document.getElementById('vsList'); if(!el) return;
   /* 0915：手改＝override，之後不再被自動值蓋掉（逃生門要留，但要留得看得見） */
-  el.oninput=()=>{ vsEdited=true; syncVsList(); };
+  el.oninput=()=>{ vsEdited=true; vsFromStudio=null; syncVsList(); };
   el.onchange=()=>{ vsEdited=true; if(LAYOUT==='vstrip'){ applySlotCount('2v'); document.getElementById('btnReset').onclick(); syncSlotCountUI(); } }; })();
 ['autoSlot','wbPaper'].forEach(id=>{ const e=document.getElementById(id); if(e) e.onchange=()=>{ if(cells.length) applyWB(); }; });
 renderSlots(); stepUI(); syncSlotCountUI();
+/* 內嵌時由工作室指定校正片種類與料色（Eric 2026-09-18 裁「①做」，牌 c-0918-CAL-02）。
+   0918 實走抓到：覆蓋層打開預設「四料 48 格」，工作室剛產生的卻是「雙料 8 階直立條」，說明也沒叫人改。
+   🔴 只在 EMBEDDED 時吃參數——外部瀏覽器舊入口（幫助 → 色彩校正）行為完全不變。
+   料色只拿來排 S 清單方向（誰亮誰在 S≈1 那端，calibStripDefaultS）；「料色直接從照片量」點完四角後仍會用實測值蓋過去。
+   名稱改成工作室的叫法「料 1／料 2」——保留預設的「白／紅」會讓匯出表寫著紅、實際是深灰。 */
+if(EMBEDDED){
+  const q=new URLSearchParams(location.search);
+  if(q.get('layout')==='vstrip'){
+    ['a','b'].forEach((k,i)=>{ const v=String(q.get(k)||'').toUpperCase();
+      if(/^[0-9A-F]{6}$/.test(v)){ SLOTS[i].hex='#'+v; SLOTS[i].name='料 '+(i+1); } });
+    /* S 清單：工作室帶來的就照用（兩端純色錨點、由下往上嚴格遞減才收；不合法就退回自己推算，不硬吃） */
+    const sv=String(q.get('s')||'').split(',').map(Number);
+    const sOk=sv.length>=2 && sv.every(Number.isFinite) && sv[0]===1 && sv[sv.length-1]===0 && sv.every((v,i)=>i===0||v<sv[i-1]);
+    const vl=document.getElementById('vsList');
+    if(sOk && vl){ vl.value=sv.join(','); vsFromStudio=(q.get('ssrc')==='made')?'made':'derived'; }
+    const r=document.querySelector('input[name="slotN"][value="2v"]');
+    /* 走跟使用者點選同一條路（onchange：換格陣→重置→同步 UI），不另寫一份切換邏輯 */
+    if(r){ r.checked=true; r.dispatchEvent(new Event('change')); }
+  }
+}
 window.addEventListener('resize',()=>{fit();draw();});
 </script>

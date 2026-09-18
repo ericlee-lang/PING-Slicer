@@ -29,7 +29,9 @@ def build():
     items = []
     for it in man['items']:
         raw = open(os.path.join(SRC, it['file']), 'rb').read()
-        items.append({'name': it['name'], 'cat': it['cat'], 'mode': it['mode'],
+        # subject＝題材（款式庫 subjects 的 id）：點範例直接套、不再問「主角是？」（牌 c-0918-PTS-01）。
+        # 用 it['subject'] 而不是 .get()——manifest 漏填要當場炸，不要生出一張沒題材的範例。
+        items.append({'name': it['name'], 'cat': it['cat'], 'mode': it['mode'], 'subject': it['subject'],
                       'file': it['file'],
                       'src': 'data:image/jpeg;base64,' + base64.b64encode(raw).decode('ascii')})
     body = ',\n'.join(json.dumps(i, ensure_ascii=False, sort_keys=True) for i in items)

@@ -513,7 +513,7 @@ function buildCalibStripParts(o){
   const noteLine=purge>0
     ? `柱是獨立物件、build item 在片之前 ⇒ 切片器逐層先印柱、再印片：換比例那一層的殘料吐在柱裡，片從該階第一層就是乾淨色，所以每階只要 ${band} mm、不必靠印厚耗殘料。整組已置中 ⇒ 3MF 座標＝G-code 座標，可直接 verify_calib_gcode.py --purge-box ${f(purgeBox.x0)},${f(purgeBox.y0)},${f(purgeBox.x1)},${f(purgeBox.y1)}。`
     : `本校正片沒有洗料柱：每階獨佔一段 Z、整層只有一個比例，換比例後數十層都是同一比例 ⇒ 量上半部必定已穩定。`;
-  const txt=`${title}\n雙料 M6051（S＝${nameA} 的佔比）｜${geoLine}\n料A（E1）＝${nameA} ${hexA} ／ 料B（E2）＝${nameB} ${hexB}\n\n【量測方式】正面平放拍照、整片入鏡；每一階只取上半部（下半部可能還是上一階的殘料）；頭尾兩階是純色錨點。\n【設計註記】${noteLine}\n回讀：主程式「說明 → 色彩校正」選「雙料 8 階直立條」，S 清單填 ${s.map(calibStripFmtS).join(',')}。\n\n${pal.join('\n')}\n`;
+  const txt=`${title}\n雙料 M6051（S＝${nameA} 的佔比）｜${geoLine}\n料A（E1）＝${nameA} ${hexA} ／ 料B（E2）＝${nameB} ${hexB}\n\n【量測方式】正面平放拍照、整片入鏡；每一階只取上半部（下半部可能還是上一階的殘料）；頭尾兩階是純色錨點。\n【設計註記】${noteLine}\n回讀：主程式「幫助 → 色彩校正」選「雙料 8 階直立條」，S 清單填 ${s.map(calibStripFmtS).join(',')}。\n\n${pal.join('\n')}\n`;
   return {model, cfg, txt, s, width, thick, height:z, band, purge, purgeGap, purgeWalls, purgeBox, title, hexA, hexB};
 }
 async function buildCalibStrip(o){
