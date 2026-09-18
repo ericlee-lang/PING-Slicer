@@ -1012,7 +1012,7 @@ for _k, _groups in _shrink_vals.items():
 
 # ★ 檢查 12：支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；產生器 4b-6 post-pass 的硬閘門）
 #   本區塊與出貨線 `release/v3.6` commit 91d2b219 同內容（規則同步，值可因兩線 preset 集合不同而數量不同）。
-#   ①raft_first_layer_expansion：raft_layers==0（支撐用途）＝0；raft_layers>=1（棧板/raft）＝3
+#   ①raft_first_layer_expansion：raft_layers==0（支撐用途）＝0；raft_layers>=1（棧板/raft）＝6（Eric 2026-09-18「三族都改」3→6；原 0809＝3）
 #     ——同一顆鍵管兩件事，分家族是刻意的，不是漏改（Eric 0809 明裁「棧板保留 3、其餘歸 0」）。
 #   ②support_line_width＝口徑查表窄一階（0.2→0.15/0.25→0.2/0.4→0.35/0.6→0.5/1.0→0.8）；
 #     FF 高流量線寬 1.02×口徑 一律歸回名目口徑查表（同 0722「FF 微調不入分子」家規）。
@@ -1033,19 +1033,19 @@ def _nominal_nozzle_v(lw):
     return None
 
 
-_exp_census = {"支撐0": 0, "棧板3": 0}
+_exp_census = {"支撐0": 0, "筏層6": 0}
 for _name, (_kind, _d) in presets.items():
     if _kind != "process" or _name.startswith("fdm_"):
         continue
     if "raft_first_layer_expansion" in _d:
         _is_raft = str(_d.get("raft_layers", "0")) != "0"
-        _want = "3" if _is_raft else "0"
+        _want = "6" if _is_raft else "0"
         if _d["raft_first_layer_expansion"] != _want:
             err(f"[支撐首層擴展] {_name}: raft_first_layer_expansion="
                 f"{_d['raft_first_layer_expansion']!r} ≠ {_want!r}"
                 f"（raft_layers={_d.get('raft_layers', '0')!r}）")
         else:
-            _exp_census["棧板3" if _is_raft else "支撐0"] += 1
+            _exp_census["筏層6" if _is_raft else "支撐0"] += 1
     if "support_line_width" in _d:
         # 口徑優先從製程名「(口徑)」取（2026-09-09 PTP 棒：照片磚線寬 1.5×口徑，line_width 反推會錯一階）
         _m_nz = re.search(r"\(([\d.]+)\)\s*$", _name)
@@ -1062,7 +1062,7 @@ for _name, (_kind, _d) in presets.items():
                 f"≠ {_SUP_LW_BY_NOZZLE[_nzn]!r}（口徑 {_nzn}）")
 
 print(f"presets: {len(presets)} | machines: {len(machines)}")
-print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜棧板 3 ×{_exp_census['棧板3']}")
+print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜筏層 6 ×{_exp_census['筏層6']}")
 if errors:
     print(f"\n[FAIL] {len(errors)} 個問題：")
     for e in errors:

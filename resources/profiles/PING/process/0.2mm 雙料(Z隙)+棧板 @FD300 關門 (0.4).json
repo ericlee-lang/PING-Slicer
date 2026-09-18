@@ -140,7 +140,7 @@
     "raft_contact_distance": "0.1",
     "raft_expansion": "1.5",
     "raft_first_layer_density": "100%",
-    "raft_first_layer_expansion": "3",
+    "raft_first_layer_expansion": "6",
     "raft_layers": "3",
     "reduce_crossing_wall": "1",
     "reduce_infill_retraction": "1",
