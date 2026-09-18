@@ -1221,6 +1221,90 @@
         {
             "name": "0.5mm PA-CF 樹狀 @FD800 Pro 單料頭 (1.0)",
             "sub_path": "process/0.5mm PA-CF 樹狀 @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD450 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD450 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆(Z0)樹狀 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD600 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD600 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆(Z0)樹狀 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆(Z0)樹狀 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD800 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆(Z0)樹狀 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD800 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆(Z0)樹狀 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆(Z0)樹狀 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD800 Pro (1.0).json"
         }
     ],
     "filament_list": [

@@ -1066,6 +1066,16 @@ def pacf_overrides():
 #   ③支撐臨界角維持全庫 35（Eric 實測用 30＝更保守，屬 Q1 甲「支撐回全庫」的範圍，未帶）。
 PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 
+# ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01；出貨線同批 c7afdaa5c6）
+#   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支；水溶／筏層樹狀版與 FF 3in1 不做。
+#   Q2 甲：**混合樹**（tree_hybrid）＝吃 0725 樹狀保守配方，不是 PA-CF 那組有機樹（default）。
+#   Q5／Q6 甲：支撐＋支撐面速度 **50**（兩線同值）。⚠ 本線普通易拆目前是 40（0812「下限 60」
+#          post-pass 尚未進開發線，另案查）⇒ 本線樹狀版暫時比普通版快，屬 Q6 甲已知代價。
+#   名稱沿本線慣例＝「{層高}mm 易拆(Z0)樹狀 @…」（同「易拆(Z0)水溶」寫法）；Tab.cpp 連動表同補。
+EASY_TREE_DISPLAY = COMBO_DISPLAY["PLA+SUP"] + "樹狀"      # 「易拆(Z0)樹狀」
+EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "tree_hybrid",
+                       "support_speed": "50", "support_interface_speed": "50"}
+
 
 def pva_overrides(nozzle):
     nz = float(nozzle)
@@ -1349,6 +1359,7 @@ def main(src_base):
     pallet_twins = []   # 棧板雙生製程（主迴圈收集、4a-4 統一 emit＝id 排最後）
     pva_twins = []      # PLA+PVA 專屬製程（同上，emit 接在棧板之後＝棧板 id 亦零位移）
     pacf_twins = []     # PA-CF 專屬製程（Eric 0826；emit 在 4a-7＝全庫最尾＝既有 id 零位移）
+    easy_tree_twins = []  # 易拆樹狀（Eric 0919；emit 在 4a-8＝接 4a-7 之後的全庫最尾）
 
     for dirname, base, kind in FAMS:
         cfgs = parse_dir(src_base, dirname)
@@ -1456,6 +1467,12 @@ def main(src_base):
                         pv["renamed_from"] = combo_renamed_from(lh, "PLA+PVA", model, nz)
                         pv["filename_format"] = filename_tpl("PLA+PVA")
                         pva_twins.append(pv)
+                        # 易拆樹狀雙生（Eric 2026-09-19，牌 c-0919-ETR-01）：同口徑易拆只換支撐類型／樣式／速度。
+                        # 新品無舊名 ⇒ 拿掉複製來的 renamed_from（留著會讓「易拆」的舊名在 rename map 撞成 1:2）。
+                        et = dict(proc); et.update(EASY_TREE_OVERRIDES)
+                        et["name"] = "%smm %s @%s (%s)" % (lh, EASY_TREE_DISPLAY, model, nz)
+                        et.pop("renamed_from", None)
+                        easy_tree_twins.append(et)
 
                     # PA-CF 專屬製程（Eric 2026-08-26 裁）：從同口徑標準製程派生一般版＋樹狀版。
                     # 只掛 PACF_MODELS（現＝FP300）；雙料機不派生（PA-CF 只提供單料頭）。
@@ -1556,6 +1573,18 @@ def main(src_base):
         proc_list.append({"name": pf["name"], "sub_path": "process/%s.json" % pf["name"]})
     if pacf_twins:
         print("  PA-CF 專屬製程：%d 支（PINGP%03d 起）" % (len(pacf_twins), gp - len(pacf_twins)))
+
+    # 4a-8. 易拆樹狀製程統一 emit（Eric 2026-09-19，牌 c-0919-ETR-01）。
+    #        接在 4a-7 之後＝全庫最尾 ⇒ 既有 preset setting_id 全零位移；0.25 後加口徑照規則走 960 段續號。
+    #        ⚠ 下一個新增製程族要排在**本段之後**，別插隊（r6 撞號事故同源）。
+    for et in easy_tree_twins:
+        if _ext_proc(et["name"]): et["setting_id"] = "PINGP%03d" % _ext_p; _ext_p += 1
+        elif _nz_proc(et["name"]): et["setting_id"] = "PINGP%03d" % _nz_p; _nz_p += 1
+        else: et["setting_id"] = "PINGP%03d" % gp; gp += 1
+        jdump(os.path.join(PINGDIR, "process", "%s.json" % et["name"]), et)
+        proc_list.append({"name": et["name"], "sub_path": "process/%s.json" % et["name"]})
+    if easy_tree_twins:
+        print("  易拆樹狀製程：%d 支（主段 PINGP%03d 止）" % (len(easy_tree_twins), gp - 1))
 
     # 4b. FF 高流量線材子 preset（口徑別；FF600/FF800 同口徑同值——已驗證；
     #     0.4 僅 FF600 有（2026-06-11 客戶要求新增）→ compatible 只列「實際存在」的機台）
