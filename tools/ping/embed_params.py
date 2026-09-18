@@ -1149,7 +1149,7 @@ def normalize_wall_accel(proc):
 # ③雙料 ABS+SUP/ABS+ABS 維持現名（功能上已是棧板版）。
 # setting_id 一律排在全庫既有 id 之後（主迴圈收集、最後統一 emit），既有 id 零位移。
 PALLET_OVERRIDES = {"raft_layers": "3", "raft_contact_distance": "0.1", "raft_expansion": "1.5",
-                    "raft_first_layer_density": "100%", "raft_first_layer_expansion": "3",
+                    "raft_first_layer_density": "100%", "raft_first_layer_expansion": "6",
                     "initial_layer_line_width": "150%"}
 
 # ★ 高流量製程組（Eric 2026-07-30 裁・客戶（建誌）FF800 同進 0.6 實測參數移植；
@@ -3124,7 +3124,7 @@ def main(src_base):
     #    ⚠ **這顆鍵同時管「支撐首層」與「棧板(筏)首層」**（引擎 tooltip：「擴展筏和支撐的首層
     #      可以改善和熱床的黏附」，PrintConfig.cpp:4691）⇒ 分家族處理：
     #        raft_layers == 0（支撐用途）→ **0**
-    #        raft_layers >= 1（棧板／ABS raft 機種）→ **保留 3**
+    #        raft_layers >= 1（棧板／ABS raft 機種）→ **6**（Eric 2026-09-18 裁「三族都改」3→6，回報中心 周宣仲 9/17 實測；原 0809「保留 3」）
     #      後者是 Eric 0809 明裁「棧板保留 3、其餘歸 0」，與 0804 對兄弟鍵 raft_first_layer_density
     #      的處置同型（raft 靠貼床，外擴是它吃飯的本事）。**下一棒看到棧板是 3 不要「順手統一」。**
     #
@@ -3137,7 +3137,7 @@ def main(src_base):
     #    的家規「FF 微調不入分子」，一律歸回 0.4/0.6/1.0。
     #    照片磚製程 enable_support=0（根本不開支撐）＝跟著改無副作用，維持全庫一致好稽核。
     SUP_LW_BY_NOZZLE = {"0.2": "0.15", "0.25": "0.2", "0.4": "0.35", "0.6": "0.5", "1": "0.8"}
-    PALLET_RAFT_FIRST_LAYER_EXPANSION = "3"   # ← 棧板保留值；要一起歸 0 只改這一行
+    PALLET_RAFT_FIRST_LAYER_EXPANSION = "6"   # ← 筏層值（Eric 2026-09-18「三族都改」3→6；牌 c-0918-ABS-01）；PALLET_OVERRIDES 要同值
     SUPPORT_RAFT_FIRST_LAYER_EXPANSION = "0"  # ← 支撐值（Eric 0809 實印判斷）
 
     def _nominal_nozzle(lw):
