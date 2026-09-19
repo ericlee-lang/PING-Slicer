@@ -212,8 +212,19 @@ void ping_apply_combo_filaments(const std::string &process_name)
             // 事件（PresetComboBoxes.cpp），本函式程式直改 preset 不經過 ⇒ 連動換的線材槽位色
             // 不跟。combo 文字已被上面 update_presets 刷成新 preset 名，補走與手動選擇同一條橋。
             auto &combos = plater->sidebar().combos_filament();
-            for (size_t i = 0; i < bundle->filament_presets.size() && i < combos.size(); ++i)
+            for (size_t i = 0; i < bundle->filament_presets.size() && i < combos.size(); ++i) {
                 combos[i]->update_ams_color();
+                // PING(2026-09-20 Eric 回報②，牌 c-0920-ABS-01)：色橋「先畫後寫」⇒ 槽位色塊不跟。
+                // 上面的 update_presets(TYPE_FILAMENT) 已在 PlaterPresetComboBox::update() 裡
+                // 用 get_extruder_color_icons() 畫過 clr_picker，而那時 project_config 的
+                // filament_colour 還是**舊線材的色**；update_ams_color() 才把新色寫進 project_config，
+                // 且它只丟 EVT_FILAMENT_COLOR_CHANGED（處理器只清 AMS 多色快取＋算沖刷量，不重畫）
+                // ⇒ 徽章停在舊色。手選線材是「先寫後畫」（PresetComboBoxes 選擇事件 → update_ams_color
+                // → on_selection_changed → update_presets → update()）所以正常。寫完補畫一次即對齊。
+                // ⚠ 這也是 Eric 說「重現不了」的原因：第一次之後 filament_colour 已是新色，之後任何
+                //   重畫都畫對——要重現必須先讓該槽的色回到舊值（換非 ABS 組合或清 data_dir）。
+                combos[i]->update();
+            }
         }
         return;
     }
@@ -269,8 +280,10 @@ void ping_apply_combo_filaments(const std::string &process_name)
         plater->on_filament_change(1);
         // PING(2026-07-26)：槽位色橋接——理由同上方棧板分支
         auto &combos = plater->sidebar().combos_filament();
-        for (size_t i = 0; i < 2 && i < combos.size(); ++i)
+        for (size_t i = 0; i < 2 && i < combos.size(); ++i) {
             combos[i]->update_ams_color();
+            combos[i]->update();   // PING(2026-09-20)：寫完補畫，理由同上方棧板分支
+        }
     }
 }
 
