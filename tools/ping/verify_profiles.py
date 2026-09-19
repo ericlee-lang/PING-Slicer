@@ -797,10 +797,11 @@ _phototile_machines = {n for n, (k, d) in presets.items()
 #   值的出處：回抽長度與韌體回抽＝同進家族既有的韌體回抽組（不另訂數字）；抬升 0.1＝Eric 指定。
 #   🔴 `retract_length_toolchange` 必須維持 0：照片磚的 Tn 是後處理要換成 M6051/M6052 的混色指令，
 #      不是真的換料頭；插換料回抽等於每次換色都白抽一次。
+#   🆕 2026-09-19：抬升 0.1→0.4（Eric 改裁，牌 c-0919-ZH-01；起因＝0919 實印空跑只抬 0.1 mm 掠過磚頂、磚與塔倒）。
 _PT_MACHINE_POLICY = {
     "use_firmware_retraction": "1",
     "retraction_length": ["1.3", "1.3"],
-    "z_hop": ["0.1"],
+    "z_hop": ["0.4"],
     "retract_length_toolchange": ["0", "0"],
 }
 for _pm in sorted(_phototile_machines):
