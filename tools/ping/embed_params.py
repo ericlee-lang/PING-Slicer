@@ -1434,8 +1434,9 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 # ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01）
 #   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支（FD300／FD300 Pro／FD300 關門 × 0.25/0.4/0.6、
 #          FD450／600／800 Pro × 0.25/0.4/0.6/1.0）；水溶／筏層樹狀版與 FF 3in1 不做。
-#   Q2 乙（Eric 2026-09-19 改裁，推翻同日 Q2 甲＝混合樹；0725「手動切樹狀用混合樹」不適用本族）：**有機樹**（support_style=default ⇒ SupportParameters.hpp:180-183
-#          smsTreeOrganic，同 PA-CF 樹狀）。起因＝原裁甲案「混合樹」CLI 實切（平板／懸臂兩模型）長成與普通支撐
+#   Q2 乙（Eric 2026-09-19 改裁，推翻同日 Q2 甲＝混合樹；0725「手動切樹狀用混合樹」不適用本族）：**有機樹**（support_style **明寫 organic**。
+#          ⚠ 不寫 default：default 在樹狀下引擎也解成有機樹（SupportParameters.hpp:180-183、Print.cpp 兩處檢查同視），
+#          行為相同，但 UI 樣式欄顯示「預設 (網格/有機)」——Eric 0919 GUI 實看抓到「沒有選到有機樹」⇒ 改明寫）。起因＝原裁甲案「混合樹」CLI 實切（平板／懸臂兩模型）長成與普通支撐
 #          幾乎相同的區塊、不長樹幹；有機樹才長出一根根樹幹。吃 _organic 鍵組（直徑 2.6／角度 40），
 #          不吃 0725 hybrid 保守配方。代價：大面積平懸空（平板模型）支撐路徑 56→77 m、估時 45→82 分。
 #   Q5／Q6 甲：支撐＋支撐面速度 **50**（兩線同值）——4b-7「支撐速度下限 60」post-pass 必須豁免本族，
@@ -1443,7 +1444,7 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 #   其餘鍵全部＝同口徑「易拆」（派生時複製），只差上面四鍵＋name／setting_id（新品無 renamed_from）。
 #   token「易拆樹狀」＝Tab.cpp 認得的第四個易拆家族 token（歸易拆＋自動帶 PLA-210＋SupPLA），跨層護欄在 verify。
 EASY_TREE_TOKEN = "易拆樹狀"
-EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default",
+EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "organic",
                        "support_speed": "50", "support_interface_speed": "50"}
 
 def easy_tree_pname(lh, model, nz):

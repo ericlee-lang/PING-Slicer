@@ -508,12 +508,13 @@ for name, (kind, d) in presets.items():
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
-                # 易拆樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 default ⇒ smsTreeOrganic
+                # 易拆樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 organic（UI 才顯示「有機樹」；
+                # default 行為相同但 UI 顯示「預設 (網格/有機)」＝Eric 0919 GUI 實看抓到）
                 # （同 PA-CF 樹狀；吃 _organic 防呆值）。寫成 tree_hybrid／snug 一律紅。
                 elif _ctok == COMBO_CAT_EASYTREE:
                     expected_recipe = [("support_type", "tree(auto)"),
                                        ("independent_support_layer_height", "0"),
-                                       ("support_style", "default"),
+                                       ("support_style", "organic"),
                                        ("support_base_pattern", "rectilinear")]
                 # Classic 前代（@DUAL/@PING/@EDU）＝Fast 母檔複製：雙料複製自 PLA+SUP＝易拆幾何 0.45 正確，XY 不以一般律查
                 is_classic = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
