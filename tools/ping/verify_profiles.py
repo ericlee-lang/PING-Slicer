@@ -42,7 +42,14 @@ errors = []
 #     那條鏈由產生器單一入口 combo_renamed_from() 寫入、且下方會逐支 exact 驗。
 COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆",      "易拆水溶"
 COMBO_CAT_EASYPAL                    = "易拆+筏層"
-COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL}
+# 🆕 2026-09-19（Eric 兩輪 grill 裁，牌 c-0919-ETR-01）：第四個易拆家族 token「易拆樹狀」。
+#   = 同口徑「易拆」只換 support_type=tree(auto)／support_style=tree_hybrid／支撐＋支撐面速度 50。
+#   列入 COMBO_TOKENS ⇒ 跨層護欄（兩張連動表鍵集合／token 契約／覆蓋同組機型×口徑／G2 配料屬性）自動涵蓋；
+#   它**沒有舊名**（新品）⇒ renamed_from 回溯鏈改驗「不得存在」，專屬斷言見「易拆樹狀族」區塊。
+COMBO_CAT_EASYTREE                   = "易拆樹狀"
+EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
+                          "support_speed", "support_interface_speed"}
+COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE}
 # 照片磚系線材（冷卻降速 0910 的例外名單）；與 embed_params 的 PT_FIL_PLA／PT_FIL_PLA_FD 同值，
 # 兩支檔各自宣告＝既有慣例（verify 刻意不 import 產生器，避免驗證對象驗自己）。
 PT_FIL_PLA_V, PT_FIL_PLA_FD_V = "PING PLA(照片磚)", "PING PLA(照片磚 FD300)"
@@ -131,11 +138,13 @@ EXPECTED_COMBO_MAP = {
     COMBO_CAT_EASY:    ("PING PLA - 210", "PING SupPLA"),
     COMBO_CAT_PVA:     ("PING PLA - 210", "PING PVA"),
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
+    COMBO_CAT_EASYTREE: ("PING PLA - 210", "PING SupPLA"),              # 0919：同易拆配料
 }
 EXPECTED_COMBO_MAP_HF = {
     COMBO_CAT_EASY:    ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),
     COMBO_CAT_PVA:     ("PING PLA - 高流量噴頭", "PING PVA"),
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
+    COMBO_CAT_EASYTREE: ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),  # 0919：同易拆配料
 }
 # 0811：兩個雙料鍵已從 Tab.cpp 的 map 消失——一般雙料改走「空 token 分支」（Eric 裁「雙料機無
 # token 就當 PLA+PLA」），雙料筏層改走既有「_筏層 分支」（全槽 ABS）。下方跨層護欄另有專查。
@@ -467,7 +476,7 @@ for name, (kind, d) in presets.items():
                     _sis = "0"
                 elif _ctok == COMBO_CAT_EASYPAL:
                     _sis = "0.04"
-                elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA):
+                elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYTREE):
                     _sis = "0.1"
                 elif "@DUAL" in name and "同進" not in name and "單料頭" not in name:
                     # Classic 標準雙料（DUAL 300/450/600/800 本體）＝從 Fast 易拆(Z0) 母檔複製、
@@ -499,6 +508,14 @@ for name, (kind, d) in presets.items():
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
+                # 易拆樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 organic（UI 才顯示「有機樹」；
+                # default 行為相同但 UI 顯示「預設 (網格/有機)」＝Eric 0919 GUI 實看抓到）
+                # （同 PA-CF 樹狀；吃 _organic 防呆值）。寫成 tree_hybrid／snug 一律紅。
+                elif _ctok == COMBO_CAT_EASYTREE:
+                    expected_recipe = [("support_type", "tree(auto)"),
+                                       ("independent_support_layer_height", "0"),
+                                       ("support_style", "organic"),
+                                       ("support_base_pattern", "rectilinear")]
                 # Classic 前代（@DUAL/@PING/@EDU）＝Fast 母檔複製：雙料複製自 PLA+SUP＝易拆幾何 0.45 正確，XY 不以一般律查
                 is_classic = any(t in name for t in ("@DUAL", "@PING ", "@EDU"))
                 # 水溶＝易拆類（PVA 與 PLA 不相熔）⇒ XY 走易拆家規 口徑×0.75；
@@ -506,7 +523,7 @@ for name, (kind, d) in presets.items():
                 # 其餘（雙料類/單料/非組合）走一般 ×1。（0730 改名批：token 判定取代 substring）
                 if _ctok == COMBO_CAT_PVA:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 0.75, 2)))
-                elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL) and "3in1" not in name and not is_classic:
+                elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE) and "3in1" not in name and not is_classic:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz_v * 1.0, 2)))
                 for key, value in expected_recipe:
                     if d.get(key) != value:
@@ -568,7 +585,7 @@ for name, (kind, d) in presets.items():
             if _vtok:
                 _lh_m = re.match(r"([\d.]+)mm", name)
                 _lh_v = _lh_m.group(1) if _lh_m else None
-                if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL):
+                if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE):
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
                         if d.get(zk) != "0":
                             err(f"[功能歸類・易拆 Z0] {name}: {zk}={d.get(zk)!r}")
@@ -589,16 +606,22 @@ for name, (kind, d) in presets.items():
                 _name_raft = ("+筏層 @" in name) or ("_筏層 @" in name)
                 if _name_raft != (_raft != "0"):
                     err(f"[功能歸類・筏層名值不一致] {name}: 名字帶筏層={_name_raft}, raft_layers={d.get('raft_layers')!r}")
-                # renamed_from＝**分號分隔字串**、恰為兩條舊全名（① 材料對原名 ② 0730 五類名）
-                _oldcb = NEW2OLDCB[_vtok]
-                _head_new = name[:name.find("@")].rstrip()          # 例「0.2mm 易拆」「0.2mm_筏層」「0.2mm」
-                _lh_tok = "%smm" % _lh_v
-                _tail = name[name.find("@"):]                        # 「@FD300 (0.4)」
-                _rf_expect = ";".join(["%s %s %s" % (_lh_tok, _oldcb, _tail),
-                                       "%s %s %s" % (_lh_tok, COMBO_0730[_oldcb], _tail)])
-                _rf = d.get("renamed_from")
-                if not isinstance(_rf, str) or _rf != _rf_expect:
-                    err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
+                # 易拆樹狀＝0919 新品、沒有改名史 ⇒ **不得帶 renamed_from**（從「易拆」複製來的那條若沒拿掉，
+                #   兩支會宣稱同一組舊名＝引擎 rename map 1:1 先到先贏，舊 3mf 可能被接到樹狀版）。
+                if _vtok == COMBO_CAT_EASYTREE:
+                    if "renamed_from" in d:
+                        err(f"[功能歸類・易拆樹狀不得有 renamed_from] {name}: {d.get('renamed_from')!r}")
+                else:
+                    # renamed_from＝**分號分隔字串**、恰為兩條舊全名（① 材料對原名 ② 0730 五類名）
+                    _oldcb = NEW2OLDCB[_vtok]
+                    _head_new = name[:name.find("@")].rstrip()          # 例「0.2mm 易拆」「0.2mm_筏層」「0.2mm」
+                    _lh_tok = "%smm" % _lh_v
+                    _tail = name[name.find("@"):]                        # 「@FD300 (0.4)」
+                    _rf_expect = ";".join(["%s %s %s" % (_lh_tok, _oldcb, _tail),
+                                           "%s %s %s" % (_lh_tok, COMBO_0730[_oldcb], _tail)])
+                    _rf = d.get("renamed_from")
+                    if not isinstance(_rf, str) or _rf != _rf_expect:
+                        err(f"[功能歸類・renamed_from 回溯鏈] {name}: {_rf!r}, expected {_rf_expect!r}")
             # 單料 _筏層 雙生（產生器 PALLET_OVERRIDES；combo_kind 回 None 的那一群）：raft_layers＝3。
             #   Eric 2026-09-17 同日兩裁：前裁只改易拆+筏層（本族當時維持 2）、後裁「三族都改 3」⇒ 本族同步為 3
             #   （牌 c-0917-REL-02，後裁蓋前裁）。
@@ -609,7 +632,8 @@ for name, (kind, d) in presets.items():
                     f"（PALLET_OVERRIDES；Eric 2026-09-17 後裁「三族都改 3」）")
             # PA-CF 樹狀版（Eric 2026-08-26 追裁「增加一個製程參數，是樹狀支撐」）：整支的存在意義就是換支撐類型。
             # 機型預設（FD300/FF600＝普通(自動)，0722 七裁）對它不適用；PA-CF **一般版**仍照機型預設查。
-            support_expected = set() if " PA-CF 樹狀 @" in name else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
+            # 易拆樹狀（0919）同理：整支的存在意義就是換成樹狀，機型預設不適用（類型/樣式另由上方配方斷言 exact 鎖）。
+            support_expected = set() if (" PA-CF 樹狀 @" in name or _ctok == COMBO_CAT_EASYTREE) else                 {expected_support_type(p) for p in (d.get("compatible_printers", []) or [])}
             support_expected.discard(None)
             if len(support_expected) > 1:
                 err(f"[support mode ambiguous] {name}: expected candidates={sorted(support_expected)!r}")
@@ -1327,7 +1351,10 @@ else:
                re.findall(r'constexpr const char \*(\w+)\s*=\s*"([^"]*)"', _src)}
     for _map_name, _expected in (("COMBO_FILAMENTS", EXPECTED_COMBO_MAP),
                                  ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
-        _pairs = _parse_combo_map(_src, _map_name)
+        # ⚠ 先剝註解（2026-09-19 反向測試實抓，牌 c-0919-ETR-01）：原本吃未剝註解的 _src，
+        #   把某一列 `//` 註解掉、那列在 C++ 裡已經不存在，本護欄仍把它解析成有效鍵＝假綠
+        #   （SOP_改製程名與列印範圍 §4 同型；當時只修了空 token 那條，這裡一直沒修到）。
+        _pairs = _parse_combo_map(strip_cxx_comments(_src), _map_name)
         if _pairs is None:
             err(f"[跨層護欄] Tab.cpp 抓不到 {_map_name}（格式變了？護欄失效）")
             continue
@@ -1391,6 +1418,9 @@ else:
         ("src/slic3r/GUI/Tab.cpp", [
             ("PingFamily ping_derive_family()",                   "R1 家族推導本體"),
             ("PingFamily ping_classify_process(",                 "R1 製程名分類本體"),
+            # 🆕 0919（牌 c-0919-ETR-01）：易拆樹狀歸易拆家族。常數存在性斷言只查「token 出現在製程名」，
+            #    分類那行被刪掉照樣綠（反向測試實抓）⇒ 另鎖這一行；少了它＝SupPLA 盤上下拉看不到樹狀版。
+            ("(pn.token == PING_TOK_EASY_TREE)  r.fam = PingFamily::EASY;", "易拆樹狀歸易拆家族（0919）"),
             ("ping_parse_process_name(process_name)",             "R1 配料連動與家族分類共用同一支解析器"),
             ('option<ConfigOptionBools>("filament_is_support")',  "家族軸讀對鍵（⛔ 不可改用 filament_type 判材料角色）"),
             ('option<ConfigOptionBools>("filament_soluble")',     "水溶軸讀對鍵"),
@@ -1811,6 +1841,11 @@ for _rel, _needles in (
 _SPD_FLOOR = 60.0
 _CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
                      "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
+# 🔴 豁免名單（Eric 2026-09-19，牌 c-0919-ETR-01）＝產生器 4b-7 的 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS **同名同值**
+#    （verify 刻意不 import 產生器，兩邊一起改）。名單內的族不套 ≥60，改驗 exact 50。
+#    ⚠ 本段搬到開發線時：開發線名＝「易拆(Z0)樹狀」，名單要換成那個字面。
+SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS = (COMBO_CAT_EASYTREE,)   # ＝("易拆樹狀",)
+_EXEMPT_SUPPORT_SPEED = "50"
 
 def _proc_machine(_name):
     """製程 preset 名形如「0.3mm 易拆 @EDU 200 (0.6)」；取 @ 後、( 前的機型名。"""
@@ -1821,7 +1856,7 @@ def _proc_machine(_name):
     _p = _m.rfind("(")
     return (_m[:_p] if _p >= 0 else _m).strip()
 
-_spd_bad, _classic_below, _spd_checked = [], 0, 0
+_spd_bad, _classic_below, _spd_checked, _easy_tree_spd = [], 0, 0, 0
 for _n, (_k, _d) in sorted(presets.items()):
     if _k != "process":
         continue
@@ -1843,6 +1878,14 @@ for _n, (_k, _d) in sorted(presets.items()):
         if any(_v < _SPD_FLOOR for _key, _v in _vals):
             _classic_below += 1
         continue
+    # 🆕 易拆樹狀族（Eric 2026-09-19「樹狀支撐的支撐速度 60>50」＋Q5 甲＝支撐與支撐面兩格）：
+    #    刻意低於 0812 下限 ⇒ 不套 ≥60，改 **exact 50**（寫成 60／40／漏一格都紅）。
+    if any((" %s @" % _t) in _n for _t in SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS):
+        _easy_tree_spd += 1
+        for _key in ("support_speed", "support_interface_speed"):
+            if _d.get(_key) != _EXEMPT_SUPPORT_SPEED:
+                err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected {_EXEMPT_SUPPORT_SPEED!r}（Eric 2026-09-19 裁）")
+        continue
     _spd_checked += 1
     for _key, _v in _vals:
         if _v < _SPD_FLOOR:
@@ -1858,8 +1901,31 @@ if _classic_below == 0:
     err("[支撐速度・Classic 排除] Classic 前代機已無任何支撐速度 <60 ⇒ "
         "排除規則失效或被順手統一。Classic 是 Marlin 無 Input Shaper，整表本來就慢，"
         "支撐拉到 60 會比外牆還快")
-print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）"
-      % (_spd_checked, _SPD_FLOOR, _classic_below))
+print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic 保留 <60 者 %d 支（刻意排除）｜易拆樹狀 exact 50 者 %d 支"
+      % (_spd_checked, _SPD_FLOOR, _classic_below, _easy_tree_spd))
+
+# ★ 易拆樹狀族（Eric 2026-09-19 兩輪 grill 裁，牌 c-0919-ETR-01）：每支都必須是「同口徑易拆」的雙生，
+#   **只准**差 EASY_TREE_ALLOWED_DIFF 那幾鍵。這條是整族最強的守衛——哪天有人在主迴圈把樹狀版
+#   接在別的 normalize 之前、或 post-pass 漏了豁免，其他鍵一偏就紅（不必逐鍵列期望值）。
+#   覆蓋組數（每組雙料機×口徑都要有）由上方「功能歸類覆蓋」同一條判準把關。
+_et_n = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process" or combo_token(_n) != COMBO_CAT_EASYTREE:
+        continue
+    _et_n += 1
+    _sib = _n.replace(" %s @" % COMBO_CAT_EASYTREE, " %s @" % COMBO_CAT_EASY, 1)
+    _se = presets.get(_sib)
+    if not _se or _se[0] != "process":
+        err(f"[易拆樹狀・雙生對象不存在] {_n}：找不到 {_sib!r}")
+        continue
+    _sd = _se[1]
+    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in EASY_TREE_ALLOWED_DIFF)
+    if _dk:
+        err(f"[易拆樹狀・與易拆雙生的差異超出允許] {_n}: {_dk[:6]}"
+            f"（只准差 support_type／support_style／兩個支撐速度）")
+if _et_n == 0:
+    err("[易拆樹狀・防空轉] 一支易拆樹狀製程都沒掃到 ⇒ 產生器沒產或 token 判定壞了")
+print("易拆樹狀：%d 支（逐支與同口徑易拆雙生比對，只准差支撐類型／樣式／速度）" % _et_n)
 
 # ★ 跨層護欄：標題列的廠內測試版版次（Eric 2026-08-12 裁「標題列顯示 Beta T0xx」）
 #   鏈路＝`version.inc` 宣告 → `libslic3r_version.h.in` 由 configure_file 代換 → `BBLTopbar::SetTitle` 消費。

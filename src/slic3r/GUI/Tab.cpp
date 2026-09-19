@@ -191,6 +191,9 @@ static constexpr const char *PING_TOK_RAFT_OLD  = "_\xE6\xA3\xA7\xE6\x9D\xBF";  
 static constexpr const char *PING_TOK_EASY      = "\xE6\x98\x93\xE6\x8B\x86";                           // "易拆"
 static constexpr const char *PING_TOK_EASY_SOL  = "\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6";   // "易拆水溶"
 static constexpr const char *PING_TOK_EASY_RAFT = "\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4";  // "易拆+筏層"
+// PING(2026-09-19 Eric 裁，牌 c-0919-ETR-01)：易拆樹狀＝同口徑易拆換混合樹支撐。家族＝易拆（非筏層），
+// 配料同易拆。不補這條的話它會落到「未知 token＝一般」⇒ 槽 2 放 SupPLA 時被下拉過濾掉、放 PLA+PLA 反而出現。
+static constexpr const char *PING_TOK_EASY_TREE = "\xE6\x98\x93\xE6\x8B\x86\xE6\xA8\xB9\xE7\x8B\x80";   // "易拆樹狀"
 
 // 製程名形如「{層高}mm[_筏層][ {token}] @{機型} ({口徑})」。解析出三件：
 //   head        ＝ '@' 之前、已去尾空白
@@ -282,6 +285,7 @@ void ping_apply_combo_filaments(const std::string &process_name)
         // 水溶（原 PLA+PVA；0726 補表、0729「PVA 也改」＝PLA 側 210 同溫不跳 #33）
         {"\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6",                  {PING_PLA_210, PING_PVA}},     // 易拆水溶
         {"\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4",                 {PING_ABS, PING_SUP_ABS}},     // 易拆+筏層（原 ABS+SUP）
+        {"\xE6\x98\x93\xE6\x8B\x86\xE6\xA8\xB9\xE7\x8B\x80",                  {PING_PLA_210, PING_SUP_PLA}}, // 易拆樹狀（0919；配料同易拆）
     };
     // 空 token（＝一般雙料版，原「雙料(Z隙)」）的配對：兩槽同 PLA。
     static const std::pair<const char *, const char *> PLAIN_DUAL    = {PING_PLA_220, PING_PLA_220};
@@ -293,6 +297,7 @@ void ping_apply_combo_filaments(const std::string &process_name)
         // PVA 無高流量版 ⇒ 第 1 槽走高流量 PLA、第 2 槽用一般 PVA（同 ABS 無高流量版的處理）
         {"\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6",                  {PING_PLA_HF, PING_PVA}},      // 易拆水溶
         {"\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4",                 {PING_ABS, PING_SUP_ABS}},     // 易拆+筏層
+        {"\xE6\x98\x93\xE6\x8B\x86\xE6\xA8\xB9\xE7\x8B\x80",                  {PING_PLA_HF, PING_SUP_HF}},   // 易拆樹狀（0919；配料同易拆）
     };
     static const std::pair<const char *, const char *> PLAIN_DUAL_HF = {PING_PLA_HF, PING_PLA_HF};
     PresetBundle *bundle = wxGetApp().preset_bundle;
@@ -347,6 +352,7 @@ PingFamily ping_classify_process(const std::string &process_name)
     if (pn.token == PING_TOK_EASY_SOL)        r.fam = PingFamily::EASY_SOL;
     else if (pn.token == PING_TOK_EASY_RAFT) { r.fam = PingFamily::EASY; r.raft = true; }
     else if (pn.token == PING_TOK_EASY)       r.fam = PingFamily::EASY;
+    else if (pn.token == PING_TOK_EASY_TREE)  r.fam = PingFamily::EASY;   // 0919：樹狀版與易拆同家族、同下拉並列
     else                                      r.fam = PingFamily::PLAIN;
     return r;
 }
