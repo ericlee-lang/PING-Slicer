@@ -2318,6 +2318,89 @@ def main(src_base):
         print("  支撐首層擴展→0（棧板留 %s）：改 %d 支｜支撐線寬窄一階：改 %d 支｜口徑認不出：%d 支"
               % (PALLET_RAFT_FIRST_LAYER_EXPANSION, exp_set, lw_set, lw_unknown))
 
+    # 4b-7. ★ 支撐／支撐面速度下限（Eric 2026-08-12 裁；2026-09-19 裁「A」回移開發線，牌 c-0919-SPD-01）
+    #
+    # 出處＝出貨線 a73bf75349（0813 入版）＋caa5f20441（0919 豁免名單具名化）。開發線當時漏帶：
+    # 0911 兩線缺口實測已列「出貨線新（開發線落後）」但沒人排回移；查無「開發線刻意不帶」紀錄。
+    # 本段與出貨線同一段，差異只有兩處（見下方 ⚠）。
+    #
+    # Eric 原話：「支撐與支撐面小於 60 的全部拉到 60」——起點是「列印速度全部放在同一量級」，
+    # 收斂後只動支撐這兩鍵：支撐本來就是 Fast 系速度表裡唯一的異類（FD450 Pro 外牆 60／內牆 80／
+    # 稀疏 100，支撐卻 40），拉到 60 是把它拉回隊伍裡。
+    # ⛔ **不動稀疏填充（100）與內牆（80）**：Eric 明示「不想偏離全庫標準」——`speed_infill=100`
+    #    是他 0719 親裁全機型的值，動它等於改規則、要全庫重產。
+    #
+    # 🔴 **排除 Classic 前代機**（Eric 裁）：Classic 是 Marlin 非 Klipper、無 Input Shaper，整張速度表
+    #    本來就慢（EDU 200 全表 40；DUAL 450 外牆 40／頂面 40／支撐 25）⇒ 把支撐拉到 60 會讓
+    #    **支撐變成盤上最快的東西**＝內部倒置。這是「整體慢」不是「支撐特別慢」，不能套同一條規則。
+    #    ⚠ 開發線差異 1：開發線**沒有 Classic 機型**（也沒有 CLASSIC_MODELS），前綴清單寫在本段
+    #       （與 verify 同一份）——現在永遠比不中，留著是為了哪天 Classic 進開發線時不會被拉到 60。
+    #
+    # ℹ **為什麼不必再擔心大口徑的流量**（Eric 2026-08-12 指正，我方原判斷已撤回）：
+    #    Orca 有材料層 `filament_max_volumetric_speed`，超過會自動降速，且全庫線材逐支都有設
+    #    （SupPLA 12／PETG 25／PLA-220・SupABS 30／PA-CF 8／SupTPE 5.5）。所以「設定值」是上限意圖、
+    #    「實跑值」由引擎取兩者較低者。**Eric 的設計意圖**：全域速度套多材料時軟料會過快，
+    #    用材料層上限讓它在安全流量前就停住——這是刻意的保護，不是副作用。
+    #    ⇒ 大口徑上把支撐設 60，實際會被壓回材料允許的值；設定值統一不會造成過擠。
+    SUPPORT_SPEED_FLOOR = 60.0
+    SUPPORT_SPEED_KEYS = ("support_speed", "support_interface_speed")
+    _SPD_CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
+                             "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
+    # 🔴 豁免名單（Eric 2026-09-19 裁「樹狀支撐的支撐速度 60>50」，牌 c-0919-ETR-01）：
+    #    製程名 token（@ 前最後一段）在此名單內 ⇒ 不拉回 60。值由易拆樹狀的 overrides 給、verify 鎖 exact 50。
+    #    verify_profiles.py〔支撐速度〕段有**同名同值**的一份（verify 刻意不 import 產生器＝既有慣例），兩邊一起改。
+    #    ⚠ 開發線差異 2：開發線名＝「易拆(Z0)樹狀」（出貨線＝「易拆樹狀」）。寫成與易拆樹狀線
+    #       EASY_TREE_DISPLAY 同一個式子（COMBO_DISPLAY["PLA+SUP"] + "樹狀"）⇒ 易拆改名時兩處一起跟。
+    #    🔴 PA-CF 樹狀**不在**名單內：它照出貨線拉到 60（名單比對的是整段 token，「 PA-CF 樹狀 @」不會中）。
+    SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS = (COMBO_DISPLAY["PLA+SUP"] + "樹狀",)   # ＝("易拆(Z0)樹狀",)
+
+    def _is_floor_exempt(fname):
+        return any((" %s @" % t) in fname for t in SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS)
+
+    def _is_classic_process(fname):
+        """製程檔名形如「0.3mm 易拆 @EDU 200 (0.6).json」；取 @ 後、( 前的機型名比對前綴。"""
+        at = fname.rfind("@")
+        if at < 0:
+            return False
+        m = fname[at + 1:]
+        par = m.rfind("(")
+        m = (m[:par] if par >= 0 else m).strip()
+        return any(m.startswith(c) for c in _SPD_CLASSIC_PREFIXES)
+
+    spd_set = spd_skip_classic = spd_skip_easy_tree = spd_missing = 0
+    for pp_path in sorted(glob.glob(os.path.join(PINGDIR, "process", "*.json"))):
+        base = os.path.basename(pp_path)
+        if base.startswith("fdm_"):
+            continue
+        if _is_classic_process(base):
+            spd_skip_classic += 1
+            continue
+        if _is_floor_exempt(base):     # 豁免名單見上方 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS
+            spd_skip_easy_tree += 1
+            continue
+        pdj = json.load(io.open(pp_path, encoding="utf-8"))
+        touched = False
+        for _k in SUPPORT_SPEED_KEYS:
+            if _k not in pdj:
+                # 葉檔沒有這顆鍵＝值來自繼承鏈。實測全庫皆自帶，真的出現就要人眼看一下，
+                # 不要靜默略過（略過＝規則在那支檔上失效，正是「verify 全綠但功能沒生效」那型）。
+                spd_missing += 1
+                print("  ⚠ 支撐速度 post-pass：%s 沒有 %s（值來自繼承），未處理" % (base, _k))
+                continue
+            try:
+                cur = float(pdj[_k])
+            except (TypeError, ValueError):
+                print("  ⚠ 支撐速度 post-pass：%s 的 %s=%r 不是數值，跳過" % (base, _k, pdj[_k]))
+                continue
+            if cur < SUPPORT_SPEED_FLOOR:
+                pdj[_k] = "%g" % SUPPORT_SPEED_FLOOR
+                touched = True
+                spd_set += 1
+        if touched:
+            jdump(pp_path, pdj)
+    print("  支撐/支撐面速度下限 %g：改 %d 項｜Classic 前代機略過 %d 支｜易拆樹狀豁免 %d 支｜鍵不在葉檔 %d 項"
+          % (SUPPORT_SPEED_FLOOR, spd_set, spd_skip_classic, spd_skip_easy_tree, spd_missing))
+
     # 4c. 封面（cover 以機型名解析——坑#11）：
     #     家族基本款=機器照片；單料頭/同進 模式卡=透明空白（2026-06-10 使用者定）；孤兒封面刪除
     # 每家族專屬照片（FD300 Pro 有自己的照片，勿沿用 FD300——取最長前綴匹配）

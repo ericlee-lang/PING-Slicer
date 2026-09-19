@@ -1370,6 +1370,82 @@ for _name, (_kind, _d) in presets.items():
             err(f"[支撐線寬] {_name}: support_line_width={_d['support_line_width']!r} "
                 f"≠ {_SUP_LW_BY_NOZZLE[_nzn]!r}（口徑 {_nzn}）")
 
+# ★ 檢查：支撐／支撐面速度下限 60，Classic 前代機除外（Eric 2026-08-12 裁；2026-09-19 裁「A」回移開發線，牌 c-0919-SPD-01）
+#   出處＝出貨線 verify 同名段（a73bf75349＋caa5f20441）。規則＝把支撐拉回與外牆同量級
+#   （Fast 系外牆 60／內牆 80／稀疏 100，支撐 40 是唯一異類）。
+#   🔴 Classic 前代機**刻意排除**：Marlin 非 Klipper、無 Input Shaper，整張速度表本來就慢
+#      （EDU 200 全表 40；DUAL 450 外牆 40／頂面 40／支撐 25）⇒ 支撐拉到 60 會變成盤上最快的
+#      東西＝內部倒置。**下一棒看到 Classic 是 25/40 不要「順手統一」。**
+#   ⛔ 本規則只動支撐兩鍵：稀疏填充 100／內牆 80 是全庫標準（Eric 0719 親裁），不得順手改。
+#   ⚠ 開發線差異：①開發線沒有 Classic ⇒ 出貨線的反向斷言「Classic 一支都不剩 <60 就紅」照抄會永遠紅，
+#      改成「有 Classic 才驗」（沒有時印一行說明，不靜默）②豁免名單的字面是開發線名「易拆(Z0)樹狀」。
+_SPD_FLOOR = 60.0
+_CLASSIC_PREFIXES = ("EDU 200", "PING 200", "PING 270", "PING 300+",
+                     "DUAL 300", "DUAL 450", "DUAL 600", "DUAL 800")
+# 🔴 豁免名單（Eric 2026-09-19，牌 c-0919-ETR-01）＝產生器 4b-7 的 SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS **同名同值**
+#    （verify 刻意不 import 產生器，兩邊一起改）。名單內的族不套 ≥60，改驗 exact 50。
+#    PA-CF 樹狀不在名單內＝照樣要 ≥60。
+SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS = (COMBO_CAT_EASY + "樹狀",)   # ＝("易拆(Z0)樹狀",)
+_EXEMPT_SUPPORT_SPEED = "50"
+
+def _proc_machine(_name):
+    """製程 preset 名形如「0.3mm 易拆 @EDU 200 (0.6)」；取 @ 後、( 前的機型名。"""
+    _at = _name.rfind("@")
+    if _at < 0:
+        return ""
+    _m = _name[_at + 1:]
+    _p = _m.rfind("(")
+    return (_m[:_p] if _p >= 0 else _m).strip()
+
+_spd_bad, _classic_total, _classic_below, _spd_checked, _easy_tree_spd = [], 0, 0, 0, 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process":
+        continue
+    # 排除 fdm_* 範本母檔：它們不是出貨 preset；post-pass 若遇到葉檔缺鍵會印警告，那才是要處理的情況。
+    if _n.startswith("fdm_"):
+        continue
+    _vals = []
+    for _key in ("support_speed", "support_interface_speed"):
+        try:
+            _vals.append((_key, float(_d[_key])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not _vals:
+        continue
+    _is_classic = any(_proc_machine(_n).startswith(_c) for _c in _CLASSIC_PREFIXES)
+    if _is_classic:
+        _classic_total += 1
+        if any(_v < _SPD_FLOOR for _key, _v in _vals):
+            _classic_below += 1
+        continue
+    # 易拆樹狀族（Eric 2026-09-19「樹狀支撐的支撐速度 60>50」＋Q5 甲＝支撐與支撐面兩格）：
+    #    刻意低於 0812 下限 ⇒ 不套 ≥60，改 **exact 50**（寫成 60／40／漏一格都紅）。
+    if any((" %s @" % _t) in _n for _t in SUPPORT_SPEED_FLOOR_EXEMPT_TOKENS):
+        _easy_tree_spd += 1
+        for _key in ("support_speed", "support_interface_speed"):
+            if _d.get(_key) != _EXEMPT_SUPPORT_SPEED:
+                err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected {_EXEMPT_SUPPORT_SPEED!r}（Eric 2026-09-19 裁）")
+        continue
+    _spd_checked += 1
+    for _key, _v in _vals:
+        if _v < _SPD_FLOOR:
+            _spd_bad.append("%s: %s=%g" % (_n, _key, _v))
+if _spd_checked == 0:
+    err("[支撐速度] 沒有掃到任何非 Classic 製程 ⇒ 閘門形同虛設")
+for _b in _spd_bad[:8]:
+    err(f"[支撐速度] {_b} < {_SPD_FLOOR:g}（Eric 0812 裁：非 Classic 一律 ≥60）")
+if len(_spd_bad) > 8:
+    err(f"[支撐速度] 另有 {len(_spd_bad) - 8} 項未列出")
+# 反向：有 Classic 而一支都不剩 <60，代表排除規則沒生效或被人「順手統一」了 ⇒ 要有人來看。
+#   開發線目前沒有 Classic（_classic_total＝0）⇒ 這條驗不了，照實印出來、不假裝驗過。
+if _classic_total and _classic_below == 0:
+    err("[支撐速度・Classic 排除] Classic 前代機已無任何支撐速度 <60 ⇒ "
+        "排除規則失效或被順手統一。Classic 是 Marlin 無 Input Shaper，整表本來就慢，"
+        "支撐拉到 60 會比外牆還快")
+print("支撐速度下限：非 Classic %d 支全數 ≥%g｜Classic %d 支（保留 <60 者 %d 支；%s）｜易拆樹狀 exact 50 者 %d 支"
+      % (_spd_checked, _SPD_FLOOR, _classic_total, _classic_below,
+         "反向斷言已驗" if _classic_total else "本線無 Classic、反向斷言不適用", _easy_tree_spd))
+
 print(f"presets: {len(presets)} | machines: {len(machines)}")
 print(f"支撐首層擴展：支撐 0 ×{_exp_census['支撐0']}｜筏層 6 ×{_exp_census['筏層6']}")
 if errors:
