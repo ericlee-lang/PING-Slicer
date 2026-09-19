@@ -1068,13 +1068,13 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 
 # ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01；出貨線同批 c7afdaa5c6）
 #   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支；水溶／筏層樹狀版與 FF 3in1 不做。
-#   Q2 乙（Eric 2026-09-19 改裁，推翻同日 Q2 甲＝混合樹；出貨線同款）：**有機樹**（default ⇒ smsTreeOrganic，同 PA-CF 樹狀）。
+#   Q2 乙（Eric 2026-09-19 改裁，推翻同日 Q2 甲＝混合樹；出貨線同款）：**有機樹**（support_style 明寫 organic；default 行為相同但 UI 顯示「預設 (網格/有機)」＝Eric 0919 GUI 實看抓到）。
 #          原裁混合樹 CLI 實切長成與普通支撐幾乎相同的區塊、不長樹幹；有機樹才長樹幹。吃 _organic 鍵組。
 #   Q5／Q6 甲：支撐＋支撐面速度 **50**（兩線同值）。⚠ 本線普通易拆目前是 40（0812「下限 60」
 #          post-pass 尚未進開發線，另案查）⇒ 本線樹狀版暫時比普通版快，屬 Q6 甲已知代價。
 #   名稱沿本線慣例＝「{層高}mm 易拆(Z0)樹狀 @…」（同「易拆(Z0)水溶」寫法）；Tab.cpp 連動表同補。
 EASY_TREE_DISPLAY = COMBO_DISPLAY["PLA+SUP"] + "樹狀"      # 「易拆(Z0)樹狀」
-EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default",
+EASY_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "organic",
                        "support_speed": "50", "support_interface_speed": "50"}
 
 
