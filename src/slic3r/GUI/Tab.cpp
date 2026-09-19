@@ -183,9 +183,63 @@ static constexpr const char *PING_SUP_ABS = "PING SupABS";
 static constexpr const char *PING_PLA_HF  = "PING PLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";      // 高流量噴頭
 static constexpr const char *PING_SUP_HF  = "PING SupPLA - \xE9\xAB\x98\xE6\xB5\x81\xE9\x87\x8F\xE5\x99\xB4\xE9\xA0\xAD";
 
+// PING(2026-09-20 回移出貨線批2 R1，牌 c-0920-ABS-01)：製程名 token 字面集中一處——配料連動
+// （ping_apply_combo_filaments）與家族分類（ping_classify_process）共用同一份字面與同一支解析器。
+// 理由＝0811 改名批的教訓：同一組 token 散在兩處各寫一份，改名時只改一份就靜默漂移。
+// ⚠ 本線（開發線）與出貨線的製程命名不同（0811 改名批未回移）：
+//     開發線＝`0.2mm 易拆(Z0)+棧板`／`0.2mm_棧板`／`0.2mm 雙料(Z隙)`
+//     出貨線＝`0.2mm 易拆+筏層`／`0.2mm_筏層`／`0.2mm`
+//   ⇒ **兩套字面都認**。新名那組現在本線沒有製程會命中，是為日後改名批回移時零改動預留
+//   （也讓使用者自存的跨線舊名製程不會突然被判成「一般」而集體消失）。
+static constexpr const char *PING_TOK_RAFT_SFX  = "_\xE7\xAD\x8F\xE5\xB1\xA4";                          // "_筏層"（出貨線）
+static constexpr const char *PING_TOK_RAFT_OLD  = "_\xE6\xA3\xA7\xE6\x9D\xBF";                          // "_棧板"（本線現行）
+static constexpr const char *PING_TOK_EASY      = "\xE6\x98\x93\xE6\x8B\x86(Z0)";                       // "易拆(Z0)"
+static constexpr const char *PING_TOK_EASY_SOL  = "\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6";// "易拆(Z0)水溶"
+static constexpr const char *PING_TOK_EASY_TREE = "\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80";// "易拆(Z0)樹狀"
+static constexpr const char *PING_TOK_EASY_RAFT = "\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF";// "易拆(Z0)+棧板"
+static constexpr const char *PING_TOK_PLAIN     = "\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)";            // "雙料(Z隙)"
+static constexpr const char *PING_TOK_PLAIN_RAFT= "\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF"; // "雙料(Z隙)+棧板"
+// 出貨線字面（0811 改名批後的名字；本線暫無命中，見上方說明）
+static constexpr const char *PING_TOK_EASY_NEW      = "\xE6\x98\x93\xE6\x8B\x86";                        // "易拆"（＝本線 FF 3in1 也用這個）
+static constexpr const char *PING_TOK_EASY_SOL_NEW  = "\xE6\x98\x93\xE6\x8B\x86\xE6\xB0\xB4\xE6\xBA\xB6";// "易拆水溶"
+static constexpr const char *PING_TOK_EASY_TREE_NEW = "\xE6\x98\x93\xE6\x8B\x86\xE6\xA8\xB9\xE7\x8B\x80";// "易拆樹狀"
+static constexpr const char *PING_TOK_EASY_RAFT_NEW = "\xE6\x98\x93\xE6\x8B\x86+\xE7\xAD\x8F\xE5\xB1\xA4";// "易拆+筏層"
+
+// 製程名形如「{層高}mm[_棧板][ {token}] @{機型} ({口徑})」。解析出三件：
+//   head        ＝ '@' 之前、已去尾空白
+//   token       ＝ head 末端以空白分隔的功能名（無空白＝空 token，就是一般版）
+//   raft_suffix ＝ head 帶「_棧板」／「_筏層」（接在層高後、無空白分隔，故不會被 token 切到）
+struct PingProcessName {
+    std::string head;
+    std::string token;
+    bool        raft_suffix = false;
+    bool        valid       = false;
+};
+static PingProcessName ping_parse_process_name(const std::string &process_name)
+{
+    PingProcessName r;
+    const size_t at = process_name.find('@');
+    if (at == std::string::npos || at == 0) return r;   // 非本專案命名規範＝不解析
+    r.head = process_name.substr(0, at);
+    while (!r.head.empty() && r.head.back() == ' ') r.head.pop_back();
+    r.raft_suffix = r.head.find(PING_TOK_RAFT_OLD) != std::string::npos ||
+                    r.head.find(PING_TOK_RAFT_SFX) != std::string::npos;
+    const size_t sp = r.head.find_last_of(' ');
+    r.token = (sp == std::string::npos) ? std::string() : r.head.substr(sp + 1);
+    r.valid = true;
+    return r;
+}
+
+// PING(2026-09-20 回移批2 R3)：自動收斂的防迴圈保險絲。
+// 「程式改 preset 不發 wx 事件」⇒ 架構上不會無限迴圈；本旗標是保險絲，**正常路徑不該踩到**，
+// 踩到就寫 log 供追查。
+static bool s_ping_converge_guard = false;
+
 // 0729 去 static＝供 PresetComboBoxes「棧板建議」一鍵切換共用（宣告在 Tab.hpp）
 void ping_apply_combo_filaments(const std::string &process_name)
 {
+    // PING(2026-09-20 回移批2 R4)：自動收斂進行中就不要再反向 slam 配料（保險絲，見 R3）。
+    if (s_ping_converge_guard) return;
     size_t at = process_name.find('@');
     if (at == std::string::npos || at == 0) return;
     std::string head = process_name.substr(0, at);
@@ -193,7 +247,8 @@ void ping_apply_combo_filaments(const std::string &process_name)
     // PING(2026-07-08)：棧板雙生製程（頭段含「_棧板」，接在層高 token 後、無空白分隔
     // → 不走下方 combo token 解析）→ 全槽切 PING ABS（單料頭/同進/FP 全槽同料）。
     // 單向連動（Eric 裁決）：切回無 _棧板 的一般版不自動換回 PLA（一般製程不動線材＝現行為）。
-    if (head.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos) {   // "_棧板" UTF-8
+    if (head.find(PING_TOK_RAFT_OLD) != std::string::npos ||
+        head.find(PING_TOK_RAFT_SFX) != std::string::npos) {   // "_棧板"（本線）／"_筏層"（出貨線）
         PresetBundle *bundle = wxGetApp().preset_bundle;
         if (bundle->filament_presets.empty()) return;   // 棧板路徑放寬到 ≥1 槽（單料機也套）
         // ⚠ 名稱必須跟得上線材整併：ABS 三支於 2026-07-25 併為單一「PING ABS」（異常單 #37）。
@@ -214,6 +269,9 @@ void ping_apply_combo_filaments(const std::string &process_name)
             auto &combos = plater->sidebar().combos_filament();
             for (size_t i = 0; i < bundle->filament_presets.size() && i < combos.size(); ++i)
                 combos[i]->update_ams_color();
+            // PING(2026-09-20 回移批2 R2-5③)：配料被 slam 換掉 ⇒ 家族可能跟著變 ⇒ 補製程下拉重繪
+            //（換線材本身不會重建製程下拉）。
+            plater->sidebar().update_presets(Preset::TYPE_PRINT);
         }
         return;
     }
@@ -226,26 +284,27 @@ void ping_apply_combo_filaments(const std::string &process_name)
         // 機器「預設」槽 1 仍是 PLA - 220（0728 v2 裁雙料維持 220）——只有手選 PLA+SUP 組合才連動。
         // PING(2026-07-29/30 Eric 裁「材料對→功能歸類名」，Codex 四輪雙審定稿)：
         // 製程 token 改功能名，鍵值配對不變（0729 裁 C＝易拆連動帶 PLA-210 照舊）。
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)（原 PLA+SUP）
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_220, PING_PLA_220}},   // 雙料(Z隙)（原 PLA+PLA）
+        // PING(2026-09-20 回移批2 R1)：字面改吃上方 token 常數，與 ping_classify_process 同一份。
+        {PING_TOK_EASY,       {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)（原 PLA+SUP）
+        {PING_TOK_PLAIN,      {PING_PLA_220, PING_PLA_220}},   // 雙料(Z隙)（原 PLA+PLA）
         // 水溶（原 PLA+PVA；0726 補表、0729「PVA 也改」＝PLA 側 210 同溫不跳 #33）
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_210, PING_PVA}},       // 易拆(Z0)水溶
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板（原 ABS+SUP）
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板（原 ABS+ABS）
+        {PING_TOK_EASY_SOL,   {PING_PLA_210, PING_PVA}},       // 易拆(Z0)水溶
+        {PING_TOK_EASY_RAFT,  {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板（原 ABS+SUP）
+        {PING_TOK_PLAIN_RAFT, {PING_ABS, PING_ABS}},           // 雙料(Z隙)+棧板（原 ABS+ABS）
         // PING(2026-09-19 Eric 裁，牌 c-0919-ETR-01)：易拆樹狀＝同口徑易拆換混合樹支撐，配料同易拆。
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80",  {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)樹狀
+        {PING_TOK_EASY_TREE,  {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)樹狀
     };
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
     // 機型判定用 printer_model（user 自訂機（如「FD600 Pro-客戶機」）繼承後仍帶原 model）。
     static const std::map<std::string, std::pair<const char *, const char *>> COMBO_FILAMENTS_HF = {
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)",                          {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)",               {PING_PLA_HF, PING_PLA_HF}},     // 雙料(Z隙)
+        {PING_TOK_EASY,       {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)
+        {PING_TOK_PLAIN,      {PING_PLA_HF, PING_PLA_HF}},     // 雙料(Z隙)
         // PVA 無高流量版 ⇒ 第 1 槽走高流量 PLA、第 2 槽用一般 PVA（同 ABS 無高流量版的處理）
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_HF, PING_PVA}},        // 易拆(Z0)水溶
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板
-        {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板
-        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80",  {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)樹狀（0919；同易拆）
+        {PING_TOK_EASY_SOL,   {PING_PLA_HF, PING_PVA}},        // 易拆(Z0)水溶
+        {PING_TOK_EASY_RAFT,  {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板
+        {PING_TOK_PLAIN_RAFT, {PING_ABS, PING_ABS}},           // 雙料(Z隙)+棧板
+        {PING_TOK_EASY_TREE,  {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)樹狀（0919；同易拆）
     };
     PresetBundle *bundle = wxGetApp().preset_bundle;
     const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
@@ -271,7 +330,155 @@ void ping_apply_combo_filaments(const std::string &process_name)
         auto &combos = plater->sidebar().combos_filament();
         for (size_t i = 0; i < 2 && i < combos.size(); ++i)
             combos[i]->update_ams_color();
+        // PING(2026-09-20 回移批2 R2-5③)：理由同上方棧板分支
+        plater->sidebar().update_presets(Preset::TYPE_PRINT);
     }
+}
+
+// PING(2026-09-20 回移出貨線批2 R1)：製程名 →（家族, 筏層）分類。
+// 未知 token（例：FF800 同進的「高流量」、單料頭的「PA-CF」「樹狀」）一律視為（一般, 否）——
+// 理由＝那些是 1 槽機／非 ABS 料，推導永遠是（一般,否），把它們當獨立家族會讓它們被過濾光。
+// 此規則同時讓未來新 token 預設可見（fail-visible）。
+PingFamily ping_classify_process(const std::string &process_name)
+{
+    PingFamily r;
+    const PingProcessName pn = ping_parse_process_name(process_name);
+    if (!pn.valid) return r;             // 不符命名規範＝當一般（與未知 token 同待遇）
+    r.raft = pn.raft_suffix;
+    if (pn.token == PING_TOK_EASY_SOL || pn.token == PING_TOK_EASY_SOL_NEW)
+        r.fam = PingFamily::EASY_SOL;
+    else if (pn.token == PING_TOK_EASY_RAFT || pn.token == PING_TOK_EASY_RAFT_NEW) {
+        r.fam = PingFamily::EASY; r.raft = true;
+    } else if (pn.token == PING_TOK_PLAIN_RAFT) {
+        r.fam = PingFamily::PLAIN; r.raft = true;   // 雙料(Z隙)+棧板＝ABS+ABS，本體全 ABS ⇒ 筏層
+    } else if (pn.token == PING_TOK_EASY_TREE || pn.token == PING_TOK_EASY_TREE_NEW)
+        r.fam = PingFamily::EASY;        // 0919 ETR：樹狀版與易拆同家族、同下拉並列
+    else if (pn.token == PING_TOK_EASY || pn.token == PING_TOK_EASY_NEW)
+        r.fam = PingFamily::EASY;
+    else
+        r.fam = PingFamily::PLAIN;
+    return r;
+}
+
+// PING(2026-09-20 回移出貨線批2 R1)：目前盤上的線材組合 →（家族, 筏層）。
+// ⚠ 資料來源＝**執行期 bundle 的最終合併結果**，不是 repo JSON——%APPDATA% 端才有的自訂線材
+//   （DL1016／前代機／Classic 殘留）因此自動被涵蓋。
+// ⚠ 缺鍵 fallback＝false，與 ConfigOptionBools::get_at 的引擎行為一致（本線 0919 已回移批1
+//   的「配料屬性顯式化」，主力線材都有顯式值）。
+PingFamily ping_derive_family()
+{
+    PingFamily    r;
+    PresetBundle *bundle = wxGetApp().preset_bundle;
+    if (bundle == nullptr) return r;
+
+    bool sup_any = false, sup_soluble = false, body_any = false, body_all_abs = true;
+    for (const std::string &fname : bundle->filament_presets) {
+        const Preset *p = bundle->filaments.find_preset(fname, false);
+        if (p == nullptr) continue;      // 槽是空的／找不到＝不參與判定
+        const auto *o_sup = p->config.option<ConfigOptionBools>("filament_is_support");
+        const auto *o_sol = p->config.option<ConfigOptionBools>("filament_soluble");
+        const auto *o_typ = p->config.option<ConfigOptionStrings>("filament_type");
+        const bool  is_sup = (o_sup != nullptr && !o_sup->values.empty()) ? o_sup->get_at(0) : false;
+        if (is_sup) {
+            sup_any = true;
+            if ((o_sol != nullptr && !o_sol->values.empty()) ? o_sol->get_at(0) : false)
+                sup_soluble = true;
+        } else {
+            // 本體槽：筏層軸只看本體，故支撐槽必須先在這裡被剔除
+            //（SupABS 的 filament_type 也是 ABS，混進來會把「本體全 ABS」判錯）。
+            body_any = true;
+            const std::string type = (o_typ != nullptr && !o_typ->values.empty()) ? o_typ->values.front()
+                                                                                  : std::string();
+            if (type != "ABS") body_all_abs = false;
+        }
+    }
+    r.fam  = sup_soluble ? PingFamily::EASY_SOL : (sup_any ? PingFamily::EASY : PingFamily::PLAIN);
+    r.raft = body_any && body_all_abs;
+    return r;
+}
+
+// PING(2026-09-20 回移出貨線批2 R3)：材料 → 製程自動收斂（冪等：重複呼叫結果相同）。
+// Eric 2026-09-20 裁「ABS 族只相容棧板製程」＝選到 ABS 後本函式把製程收斂到帶棧板的那一支。
+// 三道安全閥：①fail-open（沒有任何符合的系統製程就整批不動）②非系統支不動（使用者自存／
+// 專案內嵌是他的資產）③dirty 照走既有對話框（⛔ 不得用 force_select 繞過）。
+void ping_converge_process()
+{
+    PresetBundle *bundle = wxGetApp().preset_bundle;
+    Plater       *plater = wxGetApp().plater();
+    if (bundle == nullptr) return;
+
+    // 換線材**不會**重建製程下拉（現行架構沒有這個觸發點）⇒ 每條路徑都要自己補重繪，
+    // 否則做出「規則對但畫面不刷新」的半成品。
+    auto redraw = [plater]() { if (plater) plater->sidebar().update_presets(Preset::TYPE_PRINT); };
+
+    if (s_ping_converge_guard) {         // 保險絲：正常路徑不該踩到
+        BOOST_LOG_TRIVIAL(warning) << "ping_converge_process: 防迴圈 guard 被踩到（不應發生）";
+        return;
+    }
+
+    const Preset &cur = bundle->prints.get_selected_preset();
+    if (!cur.is_system) { redraw(); return; }          // R3-3：非系統支永不被自動換走
+
+    const PingFamily derived = ping_derive_family();
+    std::vector<const Preset *> allowed;
+    for (const Preset &p : bundle->prints.get_presets()) {
+        if (!p.is_visible || !p.is_compatible || !p.is_system) continue;
+        if (ping_classify_process(p.name) == derived) allowed.push_back(&p);
+    }
+    if (allowed.empty()) { redraw(); return; }         // R2-2 fail-open：FF 四料／3in1／同進等
+    for (const Preset *p : allowed)
+        if (p->name == cur.name) { redraw(); return; } // 已一致＝只需讓過濾上畫面（冪等點）
+
+    const Preset *target = allowed.front();
+    if (allowed.size() > 1) {                          // 例：PLA+SupPLA 有易拆與易拆樹狀兩支
+        // ⚠ 一律走 option<>()＋null 檢查，不用 opt_float()——後者在鍵不存在時會丟例外
+        //   （UnknownOptionException）⇒ 這條路徑一旦遇到缺鍵的自訂 preset 就是當場崩潰。
+        auto opt_float_or = [](const Preset *p, const char *key, double fallback) {
+            const auto *o = p->config.option<ConfigOptionFloat>(key);
+            return o != nullptr ? o->value : fallback;
+        };
+        const auto       *o_def  = bundle->printers.get_edited_preset().config.option<ConfigOptionString>("default_print_profile");
+        const std::string def    = o_def != nullptr ? o_def->value : std::string();
+        const Preset     *by_def = nullptr;
+        if (!def.empty())
+            for (const Preset *p : allowed)
+                if (p->name == def) { by_def = p; break; }
+        if (by_def != nullptr) {
+            target = by_def;
+        } else {                                       // 否則取層高最接近現選者
+            const double cur_lh = opt_float_or(&cur, "layer_height", 0.0);
+            double       best   = -1.0;
+            for (const Preset *p : allowed) {
+                double d = opt_float_or(p, "layer_height", 0.0) - cur_lh;
+                if (d < 0) d = -d;
+                if (best < 0 || d < best) { best = d; target = p; }
+            }
+        }
+    }
+
+    Tab *tab = wxGetApp().get_tab(Preset::TYPE_PRINT);
+    if (tab == nullptr) { redraw(); return; }
+    const std::string target_name = target->name;      // 先取值：select_preset 之後 deque 可能重排
+    bool ok = false;
+    {
+        // 例外安全：select_preset 會彈模態對話框、跑一大串更新，萬一丟例外而旗標沒解除，
+        // **整個 session 的自動收斂就靜默死掉**（最難查的那種）⇒ 用 RAII 保證一定解除。
+        struct ConvergeGuard {
+            ConvergeGuard()  { s_ping_converge_guard = true; }
+            ~ConvergeGuard() { s_ping_converge_guard = false; }
+        } _guard;
+        // ⛔ 不傳 force_select：製程 dirty 時就讓既有「未儲存變更」對話框照常跳，由使用者決定。
+        //    使用者按取消 ⇒ select_preset 不落地 ⇒ 放棄本次收斂，R2-4 選中豁免保底。
+        tab->select_preset(target_name);
+        ok = bundle->prints.get_selected_preset().name == target_name;
+    }
+    if (ok && plater != nullptr) {
+        // 掛在 on_select_preset 尾端的代價：那邊的 update_slice_result_valid_state(false) 已經跑過，
+        // 我們又改了製程 ⇒ 自己再標一次切片失效。
+        for (PartPlate *plate : plater->get_partplate_list().get_plate_list())
+            plate->update_slice_result_valid_state(false);
+    }
+    redraw();
 }
 
 // sub new
@@ -328,6 +535,10 @@ void Tab::create_preset_tab()
                 // PING(2026-06-12)：組合製程連動線材（select_preset 成功落地才觸發）
                 if (m_type == Preset::TYPE_PRINT && m_presets->get_selected_preset().name == preset_name)
                     ping_apply_combo_filaments(preset_name);
+                // PING(2026-09-20 回移批2 R2-5②)：在「線材」分頁用 combo 換料同樣是使用者手勢
+                // ⇒ 也要收斂製程＋重繪製程下拉，否則只有側欄那條路徑生效＝行為不一致。
+                if (m_type == Preset::TYPE_FILAMENT)
+                    ping_converge_process();
             }
         });
     }

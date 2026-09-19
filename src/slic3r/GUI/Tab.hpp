@@ -58,6 +58,25 @@ class OG_CustomCtrl;
 // 對話框一鍵切換也走同一條路＝與手選製程完全同行為）
 void ping_apply_combo_filaments(const std::string &process_name);
 
+// PING(2026-09-20 回移出貨線批2・原規格 R1/R2/R3，牌 c-0920-ABS-01)：材料屬性 → 製程家族推導／
+// 製程名分類／自動收斂。Eric 0920 裁「ABS 族只相容棧板製程」＝本機制的筏層軸。
+// ⚠ **開發線與出貨線的製程命名不同**（開發線＝`易拆(Z0)`／`+棧板`；出貨線＝`易拆`／`+筏層`，
+//   0811 改名批未回移）⇒ 分類器同時認兩套字面，token 表見 Tab.cpp。
+// 家族軸＝任一槽 filament_is_support ⇒ 易拆（其中 filament_soluble ⇒ 易拆水溶）；
+// 筏層軸＝本體（非支撐）槽全為 filament_type=="ABS"。
+// ⚠ 判本體必須先用 is_support 剔除支撐槽——SupABS 的 filament_type 也是 ABS、SupPLA 的是 PETG
+//   （離型機制），用 filament_type 直判必踩雷。
+struct PingFamily {
+    enum Fam { PLAIN, EASY, EASY_SOL };
+    Fam  fam  = PLAIN;
+    bool raft = false;
+    bool operator==(const PingFamily &o) const { return fam == o.fam && raft == o.raft; }
+    bool operator!=(const PingFamily &o) const { return !(*this == o); }
+};
+PingFamily ping_derive_family();                                   // 讀執行期 bundle，不讀 repo JSON
+PingFamily ping_classify_process(const std::string &process_name); // 未知 token 一律視為（一般,否）
+void       ping_converge_process();                                // 材料→製程收斂＋下拉重繪
+
 // Single Tab page containing a{ vsizer } of{ optgroups }
 // package Slic3r::GUI::Tab::Page;
 using ConfigOptionsGroupShp = std::shared_ptr<ConfigOptionsGroup>;

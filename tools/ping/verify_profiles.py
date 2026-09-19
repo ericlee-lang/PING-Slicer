@@ -116,11 +116,9 @@ EXPECTED_COMBO_MAP_HF = {
     COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
     COMBO_CAT_EASYTREE: ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),  # 0919：同易拆配料
 }
-# #39 棧板建議（PresetComboBoxes.cpp）期望三組 source→target＋守衛 token（跨層護欄用）
-EXPECTED_P39 = {" %s @" % COMBO_CAT_EASY:  " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_DUAL:  " %s @" % COMBO_CAT_DUALPAL,
-                " %s @" % COMBO_CAT_EASYTREE: " %s @" % COMBO_CAT_EASYPAL}   # 0919：樹狀換 ABS 同建議易拆+棧板
+# ⓘ 2026-09-20（回移批2，牌 c-0920-ABS-01）：原 EXPECTED_P39（#39「手選 ABS→建議切棧板版」
+#   對話框的 source→target 期望表）已隨該對話框整支退役——批2 的材料→製程自動收斂做同一件事。
+#   取代它的是下方跨層護欄 §3（批2 三支 C++ 必須在位＋退役函式不得復活）與 §3b（甲案覆蓋盤點）。
 
 
 
@@ -923,25 +921,53 @@ else:
         return out.decode("utf-8", "replace")
 
     # 1) 常數表列的線材名都必須存在於 bundle
+    # ⚠ 2026-09-20（回移批2，牌 c-0920-ABS-01）：Tab.cpp 同一段現在**還有製程 token 常數**
+    #   （`PING_TOK_*`，家族分類與連動表共用同一份字面）。它們不是線材名，**必須排除**，
+    #   否則本檢查會把 12 個 token 全報成「不在 bundle」＝整段護欄被雜訊淹掉。
+    #   token 常數另有自己的契約檢查（見 1b）。
     _names = {}
+    _toks  = {}
     for m in re.finditer(r'constexpr\s+const\s+char\s*\*\s*(PING_\w+)\s*=\s*"((?:[^"\\]|\\.)*)"', _src):
-        _names[m.group(1)] = _cstr(m.group(2))
+        (_toks if m.group(1).startswith("PING_TOK_") else _names)[m.group(1)] = _cstr(m.group(2))
     if not _names:
         err("[跨層護欄] Tab.cpp 抓不到任何 PING_* 線材常數（格式變了？護欄失效）")
     for _k, _v in sorted(_names.items()):
         if _v not in presets:
             err(f"[跨層護欄・C++ 線材名對不上 profile] Tab.cpp {_k} = {_v!r} 不在 bundle ⇒ 組合連動會靜默失效")
 
+    # 1b) 製程 token 常數契約（2026-09-20 回移批2）：本線現行那組必須**恰好**等於在冊製程的
+    #     組合 token 集合＋筏層後綴；出貨線新名那組是 0811 改名批回移前的預留，只許是那五個字面。
+    #     漏掉／多出任一個，家族分類就會把某類製程判成「一般」⇒ Eric 0920 裁的「ABS 只相容棧板」
+    #     會靜默失效（而畫面看起來一切正常＝最難查的那種）。
+    _TOK_CUR_EXPECTED = COMBO_TOKENS | {"_棧板"}
+    _TOK_NEW_EXPECTED = {"_筏層", "易拆", "易拆水溶", "易拆樹狀", "易拆+筏層"}
+    _tok_cur = {v for k, v in _toks.items() if not k.endswith("_NEW") and k != "PING_TOK_RAFT_SFX"}
+    _tok_new = {v for k, v in _toks.items() if k.endswith("_NEW") or k == "PING_TOK_RAFT_SFX"}
+    if not _toks:
+        err("[跨層護欄] Tab.cpp 抓不到任何 PING_TOK_* 製程 token 常數（批2 家族分類失效？）")
+    if _tok_cur != _TOK_CUR_EXPECTED:
+        err(f"[跨層護欄・token 常數・本線現行] 實得 {sorted(_tok_cur)!r} ≠ 期望 {sorted(_TOK_CUR_EXPECTED)!r}")
+    if _tok_new != _TOK_NEW_EXPECTED:
+        err(f"[跨層護欄・token 常數・出貨線預留] 實得 {sorted(_tok_new)!r} ≠ 期望 {sorted(_TOK_NEW_EXPECTED)!r}")
+
     # 2) 功能歸類改名批（0730、Codex 四輪定稿）：兩張連動表**分別**解析、逐張對期望配對 baseline
     #    exact 比對（缺鍵/多鍵/配錯在冊線材皆紅——二輪必改 10）；process token 與兩張 map 雙向相等。
-    def _parse_combo_map(src, map_name):
+    # ⚠ 2026-09-20（回移批2）：連動表的鍵從字面值改吃 `PING_TOK_*` 常數（與家族分類共用同一份
+    #   字面，0811 改名批的教訓）⇒ 解析器必須**兩種都認**，否則鍵集合會抓成空的＝假紅。
+    def _parse_combo_map(src, map_name, consts):
         m = re.search(re.escape(map_name) + r"\s*=\s*\{(.*?)\n\s*\};", src, re.S)
         if not m:
             return None
         body = m.group(1)
         pairs = {}
-        for k, v1, v2 in re.findall(r'\{"([^"]+)",\s*\{([A-Za-z_0-9]+),\s*([A-Za-z_0-9]+)\}\}', body):
-            pairs[cxx_unescape(k)] = (v1, v2)
+        for lit, ident, v1, v2 in re.findall(
+                r'\{(?:"([^"]+)"|([A-Za-z_]\w*)),\s*\{([A-Za-z_0-9]+),\s*([A-Za-z_0-9]+)\}\}', body):
+            if lit:
+                pairs[cxx_unescape(lit)] = (v1, v2)
+            elif ident in consts:
+                pairs[consts[ident]] = (v1, v2)
+            else:
+                err(f"[跨層護欄・{map_name} 鍵] 常數 {ident!r} 在 Tab.cpp 找不到定義（護欄解析不到）")
         return pairs
 
     _consts = {k: cxx_unescape(v) for k, v in
@@ -950,7 +976,7 @@ else:
                                  ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
         # ⚠ 先剝註解（2026-09-19 反向測試實抓，牌 c-0919-ETR-01）：吃未剝註解的原始碼時，
         #   某一列被 `//` 註解掉（C++ 裡已不存在）仍被解析成有效鍵＝假綠。
-        _pairs = _parse_combo_map(strip_cxx_comments(_src), _map_name)
+        _pairs = _parse_combo_map(strip_cxx_comments(_src), _map_name, _consts)
         if _pairs is None:
             err(f"[跨層護欄] Tab.cpp 抓不到 {_map_name}（格式變了？護欄失效）")
             continue
@@ -979,19 +1005,74 @@ else:
                 _proc_tokens.add(_t)
     if _proc_tokens != COMBO_TOKENS:
         err(f"[跨層護欄・process token 集合] 實得 {sorted(_proc_tokens)!r} ≠ 期望五類")
-    # 3) #39 棧板建議（PresetComboBoxes.cpp）：三組 source→target＋守衛 pattern exact（二輪必改 8/10）
-    _pcb = os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp")
-    if not os.path.isfile(_pcb):
-        err(f"[跨層護欄] 找不到 {_pcb}（#39 護欄形同虛設）")
-    else:
-        # ⚠ 同上先剝註解（0919）：source→target 那列被註解掉，字面仍在檔裡＝原本會假綠。
-        _psrc = strip_cxx_comments(io.open(_pcb, encoding="utf-8", errors="ignore").read())
-        for _s, _t in EXPECTED_P39.items():
-            if (_s not in _psrc and cxx_escape(_s) not in _psrc) or \
-               (_t not in _psrc and cxx_escape(_t) not in _psrc):
-                err(f"[跨層護欄・#39 棧板建議] 缺 source/target 字面 {_s!r}→{_t!r}")
-        if cxx_escape("+棧板") not in _psrc and '"+棧板"' not in _psrc:
-            err("[跨層護欄・#39 棧板建議] 守衛未改「+棧板」判定（舊 ABS+ 守衛對新名失效）")
+    # 3) 材料→製程自動收斂・批2（2026-09-20 回移出貨線，牌 c-0920-ABS-01；取代原 #39 棧板建議護欄）
+    #    Eric 0920 裁「ABS 族只相容棧板製程」＝靠這套家族軸落地，**不是靠 profile 的
+    #    compatible_prints_condition**（實查：FF600／FF800 全系 18 台零棧板製程，硬相容會把它們
+    #    打成 0 支可選；批2 的 fail-open 才擋得住）。三支 C++ 掉任何一支＝規則靜默失效。
+    #    ⛔ 同時守 `ping_suggest_pallet_for_abs` 已退役：它與收斂做同一件事，復活＝雙重機制。
+    for _f, _need, _tag in (
+            (os.path.join(_repo, "src", "slic3r", "GUI", "Tab.cpp"),
+             ("PingFamily ping_classify_process", "PingFamily ping_derive_family",
+              "void ping_converge_process", "s_ping_converge_guard"), "Tab.cpp 批2 三支"),
+            (os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp"),
+             ("ping_derive_family()", "ping_filter_active", "ping_classify_process(preset.name)"),
+             "PresetComboBoxes.cpp 製程下拉過濾"),
+            (os.path.join(_repo, "src", "slic3r", "GUI", "Plater.cpp"),
+             ("ping_converge_process()",), "Plater.cpp 側欄換料收斂掛點")):
+        if not os.path.isfile(_f):
+            err(f"[跨層護欄] 找不到 {_f}（批2 護欄形同虛設）")
+            continue
+        # ⚠ 先剝註解（0919 ETR 實抓）：被 // 註解掉的字面仍在檔裡＝假綠。
+        _s2 = strip_cxx_comments(io.open(_f, encoding="utf-8", errors="ignore").read())
+        for _pat in _need:
+            if _pat not in _s2:
+                err(f"[跨層護欄・批2 收斂] {_tag} 缺 {_pat!r} ⇒ ABS 只相容棧板會靜默失效")
+        if "ping_suggest_pallet_for_abs" in _s2:
+            err(f"[跨層護欄・批2 收斂] {_tag} 出現已退役的 ping_suggest_pallet_for_abs ⇒ 與自動收斂重複")
+
+    # 3b) 甲案覆蓋盤點（2026-09-20）：離線重算「線材組合 → 允許的製程」，確認 Eric 的規則成立
+    #     且**沒有機型會被打成零製程**。這是把當初做決策時的實查數字釘成回歸測試。
+    def _classify(_name):
+        _at = _name.find("@")
+        if _at <= 0:
+            return ("PLAIN", False)
+        _h = _name[:_at].rstrip()
+        _sp = _h.rfind(" ")
+        _tk = _h[_sp + 1:] if _sp >= 0 else ""
+        _rf = ("_棧板" in _h) or ("_筏層" in _h)
+        if _tk in (COMBO_CAT_PVA, "易拆水溶"):        return ("EASY_SOL", _rf)
+        if _tk in (COMBO_CAT_EASYPAL, "易拆+筏層"):   return ("EASY", True)
+        if _tk == COMBO_CAT_DUALPAL:                  return ("PLAIN", True)
+        if _tk in (COMBO_CAT_EASYTREE, "易拆樹狀"):   return ("EASY", _rf)
+        if _tk in (COMBO_CAT_EASY, "易拆"):           return ("EASY", _rf)
+        return ("PLAIN", _rf)
+
+    _proc_by_printer = {}
+    for _n, (_k, _d) in presets.items():
+        if _k != "process" or _d.get("instantiation") != "true":
+            continue
+        for _pr in (_d.get("compatible_printers") or []):
+            _proc_by_printer.setdefault(_pr, []).append(_n)
+    # ABS 會推導出兩種家族，**看機器有幾槽**：雙料機 ABS＋SupABS ⇒（易拆, 筏層）；
+    # 單槽機（單料頭／同進／FP300）只放得下 ABS 本體、ABS+ABS 雙料也一樣 ⇒（一般, 筏層）。
+    # 任一台機器只會走到其中一種，故判準＝「兩者聯集非空」，不是「兩者都要有」。
+    _ABS_FAMS = (("EASY", True), ("PLAIN", True))
+    _PLA_FAMS = (("EASY", False), ("PLAIN", False))
+    for _pr, _ns in sorted(_proc_by_printer.items()):
+        if not [x for x in _ns if "棧板" in x or "筏層" in x]:
+            continue                    # 該機沒有棧板製程（FF 全系）＝走 fail-open，不受本規則管
+        _abs_ok = [x for x in _ns if _classify(x) in _ABS_FAMS]
+        _pla_ok = [x for x in _ns if _classify(x) in _PLA_FAMS]
+        if not _abs_ok:
+            err(f"[跨層護欄・甲案覆蓋] {_pr}：有棧板製程卻推導不出任何 ABS 可用製程（過濾會誤殺）")
+        for _x in _abs_ok:
+            if "棧板" not in _x and "筏層" not in _x:
+                err(f"[跨層護欄・甲案覆蓋] {_pr}：ABS 組合仍可選到非棧板製程 {_x!r}（違反 Eric 0920 裁甲案）")
+        if not _pla_ok:
+            err(f"[跨層護欄・甲案覆蓋・反向] {_pr}：PLA 組合一支製程都不剩（過濾誤殺非 ABS 路徑）")
+        for _x in _pla_ok:
+            if "棧板" in _x or "筏層" in _x:
+                err(f"[跨層護欄・甲案覆蓋・反向] {_pr}：PLA 組合竟可選到棧板製程 {_x!r}")
     # 4) C-12 renamed 回溯（Eric 2026-07-30 裁）：orca_presets 載入端（load_selections＋
     #    update_selections）的 strict 選擇與多料槽 filament_XX 必須帶 renamed resolver——
     #    select_preset_by_name_strict 是 exact-only，系統 preset 改名批後升級版機器 conf

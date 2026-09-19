@@ -915,71 +915,13 @@ static void run_wizard(ConfigWizard::StartPage sp)
     wxGetApp().run_wizard(ConfigWizard::RR_USER, sp);
 }
 
-// PING(2026-07-29 Eric 裁 B・回報中心 #39「FD300 同進 ABS 不會自動換筏層」)：
-// 規則＝先選模式（製程）→ 材料單向連動（0708 裁決②），「選材料→自動換模式」的反向自動化不做；
-// 折衷＝手選 ABS 線材而製程非棧板/ABS 組合時「提醒」可切棧板（筏層）版——提醒不強制、不蓋選擇
-//（#33 溫度視窗同哲學）。一鍵切換走與手選製程完全相同的路（select_preset 落地才觸發連動）。
-// 找不到對應棧板/ABS 版（FF/照片磚/DL1016/Classic）＝不打擾。
-static void ping_suggest_pallet_for_abs(const std::string &filament_name)
-{
-    PresetBundle* bundle = wxGetApp().preset_bundle;
-    if (bundle == nullptr)
-        return;
-    const Preset* fil = bundle->filaments.find_preset(filament_name, false);
-    if (fil == nullptr)
-        return;
-    const auto* ft = fil->config.option<ConfigOptionStrings>("filament_type");
-    if (ft == nullptr || ft->values.empty() || ft->values.front() != "ABS")
-        return;
-    const std::string cur = bundle->prints.get_selected_preset().name;
-    if (cur.find("_\xE6\xA3\xA7\xE6\x9D\xBF") != std::string::npos ||   // 已是 _棧板 版
-        cur.find("+æ£§æ¿") != std::string::npos)      // 已是「+棧板」雙料棧板版（0730 功能歸類名）
-        return;
-    // 目標名：單一出料「{lh}mm @…」→ 插 _棧板；雙料組合「{lh}mm PLA+X @…」→ 對應 ABS 組合
-    std::string target;
-    const size_t at_single = cur.find("mm @");
-    if (at_single != std::string::npos) {
-        target = cur.substr(0, at_single) + "mm_\xE6\xA3\xA7\xE6\x9D\xBF @" + cur.substr(at_single + 4);
-    } else {
-        // 0730 功能歸類名（Codex 四輪定稿）：來源 pattern 帶「 @」終止符＝「易拆(Z0)」不會誤中
-        // 「易拆(Z0)水溶」（前綴防護）；棧板版仍＝ABS 配料（連動表鍵值不變、僅 token 換名）。
-        static const std::pair<const char*, const char*> COMBO_TO_PALLET[] = {
-            {" \xE6\x98\x93\xE6\x8B\x86(Z0) @",                         " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)→易拆(Z0)+棧板
-            {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)水溶→易拆(Z0)+棧板
-            {" \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99) @",              " \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF @"}, // 雙料(Z隙)→雙料(Z隙)+棧板
-            // PING(2026-09-19，牌 c-0919-ETR-01)：易拆樹狀換 ABS 時同樣建議易拆+棧板（本線無樹狀棧板版，Q1 乙不做）
-            {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)樹狀→易拆(Z0)+棧板
-        };
-        for (const auto& m : COMBO_TO_PALLET) {
-            const size_t p = cur.find(m.first);
-            if (p != std::string::npos) {
-                target = cur;
-                target.replace(p, strlen(m.first), m.second);
-                break;
-            }
-        }
-    }
-    if (target.empty() || bundle->prints.find_preset(target, false) == nullptr)
-        return;
-    wxGetApp().CallAfter([target] {
-        MessageDialog dlg(wxGetApp().plater(),
-            wxString::FromUTF8("你選了 ABS 線材——ABS 建議搭配棧板（筏層）製程，貼床防翹曲。\n\n")
-                + wxString::FromUTF8("要切換到「") + wxString::FromUTF8(target.c_str()) + wxString::FromUTF8("」嗎？\n")
-                + wxString::FromUTF8("（切換後線材槽會自動帶成對應的 ABS 組合）"),
-            wxString::FromUTF8("棧板建議"),
-            wxICON_INFORMATION | wxYES_NO | wxCENTRE);
-        dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("切換棧板版"), true);   // 建議動作＝預設焦點
-        dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("維持目前製程"));
-        if (dlg.ShowModal() != wxID_YES)
-            return;
-        Tab* tab = wxGetApp().get_tab(Preset::TYPE_PRINT);
-        if (tab == nullptr)
-            return;
-        tab->select_preset(target);
-        if (wxGetApp().preset_bundle->prints.get_selected_preset().name == target)
-            ping_apply_combo_filaments(target);   // 與 Tab combo 手選同一條連動（落地才觸發）
-    });
-}
+// PING(2026-09-20 回移出貨線批2 R4，牌 c-0920-ABS-01)：ping_suggest_pallet_for_abs()（#39
+// 「手選 ABS → 建議切棧板版」對話框）與其 COMBO_TO_PALLET 對照表**已整支退役**——批2 的
+// 材料→製程自動收斂（ping_converge_process，Tab.cpp）已涵蓋同一件事，對話框成了重複動作。
+// ⓘ 退役時實查到它本來就有一處啞掉：原 935-936 行「已是+棧板版就不打擾」的第二個判斷寫成
+//   亂碼字面（UTF-8 被當 Latin-1 再編碼一次）⇒ 永不命中；雙料+棧板版仍會被重複建議。
+//   整支退役後此缺陷一併消失，不另修。
+// 舊實作可取回：git show f982d2c684:src/slic3r/GUI/PresetComboBoxes.cpp
 
 void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
 {
@@ -1012,10 +954,10 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
         m_last_selected = selected_item;
         if (m_type == Preset::TYPE_FILAMENT) {
             update_ams_color();
-            // PING(2026-07-29 Eric 裁 B・#39)：手選 ABS → 棧板建議（詳 ping_suggest_pallet_for_abs 註）
-            std::string _sel = GetString(selected_item).ToUTF8().data();
-            if (!boost::algorithm::starts_with(_sel, Preset::suffix_modified()))
-                ping_suggest_pallet_for_abs(m_collection->get_preset_name_by_alias(_sel));
+            // PING(2026-09-20 回移批2 R4)：#39「手選 ABS → 建議切棧板版」對話框**已退役**。
+            // 理由＝批2 的材料→製程自動收斂（ping_converge_process）直接把製程收斂到 _棧板／
+            // 易拆(Z0)+棧板，對話框變成「先問一次、然後系統自己也會做」的重複動作。
+            // 收斂觸發點＝Plater::priv::on_select_preset 尾端（側欄換料）與 Tab combo（線材分頁）。
         }
     }
 
@@ -1696,10 +1638,35 @@ void TabPresetComboBox::update()
             m_preset_bundle->physical_printers.unselect_printer();
     }
 
+    // PING(2026-09-20 回移出貨線批2 R2・乙案，牌 c-0920-ABS-01)：製程下拉「材料家族」過濾——
+    // 不符當前線材組合所推導的（家族, 筏層）之**系統**製程直接不列。Eric 0920 裁「ABS 族只相容
+    // 棧板製程」就是靠這條落地。疊在 Orca 原生的 compatible_printers 口徑過濾之上，是同型延伸
+    //（原生就是「不相容不列」）。三道豁免：fail-open／非系統支／目前選中。
+    PingFamily ping_derived;
+    bool       ping_filter_active = false;
+    if (m_type == Preset::TYPE_PRINT) {
+        ping_derived = ping_derive_family();
+        // R2-2 fail-open：先掃一遍「可見 ∧ 相容 ∧ 系統支」，若**沒有任何一支**符合推導家族，
+        // 本次就整批照列、完全不過濾。FF600／FF800 全系（四料／3in1／同進，零棧板製程）、
+        // 單料頭放 SupABS、ABS+PVA、DL1016 都靠這條維持與今天相同的行為（零迴歸）；
+        // 嚴格過濾會讓這些機型開機就 0 支可選＝直接不能用。
+        for (const Preset &p : presets) {
+            if (!p.is_visible || !p.is_compatible || !p.is_system) continue;
+            if (ping_classify_process(p.name) == ping_derived) { ping_filter_active = true; break; }
+        }
+    }
+
     for (size_t i = presets.front().is_visible ? 0 : m_collection->num_default_presets(); i < presets.size(); ++i)
     {
         const Preset& preset = presets[i];
         if (!preset.is_visible || (!show_incompatible && !preset.is_compatible && i != idx_selected))
+            continue;
+        // PING(2026-09-20 回移批2 R2-3／R2-4)：**只過濾系統支**——使用者自存製程與專案內嵌製程
+        // 是他自己的資產、名字不受本專案 token 規則管轄（沒 token ⇒ 會被判「一般」⇒ 在預設就是
+        // 易拆家族的 FD 雙料機上集體消失），故永不過濾；目前選中的那支也永遠列出，避免 combo
+        // 顯示文字與實際選擇脫鉤。
+        if (ping_filter_active && preset.is_system && i != idx_selected &&
+            ping_classify_process(preset.name) != ping_derived)
             continue;
 
         // marker used for disable incompatible printer models for the selected physical printer
