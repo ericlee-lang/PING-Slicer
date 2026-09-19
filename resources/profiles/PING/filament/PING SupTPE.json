@@ -85,6 +85,9 @@
     "default_filament_colour": [
         "#D3D3D3"
     ],
+    "filament_soluble": [
+        "0"
+    ],
     "slow_down_min_speed": [
         "25"
     ],

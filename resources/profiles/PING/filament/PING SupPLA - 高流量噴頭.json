@@ -91,5 +91,8 @@
     "slow_down_min_speed": [
         "25"
     ],
+    "filament_soluble": [
+        "0"
+    ],
     "alias": "PING SupPLA - 高流量噴頭"
 }

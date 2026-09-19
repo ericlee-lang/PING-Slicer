@@ -416,6 +416,16 @@ for name, (kind, d) in presets.items():
                 err(f"[最小列印速度 0910] {name}: {d.get('slow_down_min_speed')!r}, expected {_ms_want!r}")
             if d.get("slow_down_layer_time") != ["10"]:
                 err(f"[降速層時間非 10] {name}: {d.get('slow_down_layer_time')!r}")
+            # 🆕 G1（Eric 2026-08-13 裁・連動規格批1；出貨線 bdbdcecef5，2026-09-19 回移＝牌 c-0919-BP3-01）：
+            #   配料屬性必須**顯式**帶兩鍵。
+            # 為什麼：家族軸讀 filament_is_support／filament_soluble（有支撐材⇒易拆；水溶⇒易拆水溶）。
+            #   缺鍵時引擎吃 C++ 預設 false／繼承鏈的 0，**行為看起來正常但護欄驗不到**——
+            #   屬「缺鍵型靜默」，正是下方 G2 要依賴的地基。
+            # ⚠ 這裡讀的是**未解 inherits 的原始檔內容**（presets 的建法），所以「顯式」在此可驗。
+            # 產生器對應：embed_params.py `_backfill_filament_attrs()` 4a-0b／4b-2g 兩趟（缺鍵補 ["0"]、已有顯式值不動）。
+            for _ak in ("filament_is_support", "filament_soluble"):
+                if d.get(_ak) not in (["0"], ["1"]):
+                    err(f"[配料屬性須顯式 0813] {name}: {_ak}={d.get(_ak)!r}, expected ['0'] 或 ['1']")
             # 線材回抽統一（Eric 2026-07-23 三裁 → 0819 一般流量改寫）
             # 🔴 Classic 前代豁免：赤兔不能吃韌體回抽（Eric 0807）⇒ 材料層不得覆蓋回抽，
             #    專屬護欄在檔尾「Classic 材料層回抽覆蓋 0807」。
@@ -954,6 +964,70 @@ else:
             if _got < _need:
                 err(f"[跨層護欄・C-12 renamed 回溯] PresetBundle.cpp {_pat!r} 出現 {_got} 次"
                     f"（應 ≥{_need}＝load_selections＋update_selections 各一）")
+
+# 🆕 G2（Eric 2026-08-13 裁・連動規格批1；出貨線 bdbdcecef5，2026-09-19 回移＝牌 c-0919-BP3-01）：
+#   C++ 連動表的配料 ↔ profile 屬性「語意一致」
+# 為什麼：`Tab.cpp` 的 COMBO_FILAMENTS 是「類別預設配料」**捷徑表**（手選製程時自動帶哪兩支），
+#   家族軸則看**材料屬性**（filament_is_support／filament_soluble）。兩者若對不上——例如有人把
+#   SupPLA 的 is_support 改成 0——就會出現「手選易拆製程配好料、屬性卻判成一般家族」的分裂，
+#   而且**兩邊單獨看都正常**，只有交叉比對抓得到。
+# 🔴 本線改寫（SOP §S-9：搬斷言要對目標線查）：出貨線 G2 寫「三 token 槽2 恆支撐」，因為出貨線的兩張表
+#   只剩三類易拆（一般雙料 0811 改走空 token 分支）。**本線兩張表仍有「雙料(Z隙)」「雙料(Z隙)+棧板」**，
+#   槽2 是本體料（PLA-220／ABS）⇒ 照抄會把合法的雙料配對打紅。改成**按家族**判：
+#     易拆家族（token 以「易拆」開頭）＝槽2 是支撐材（is_support=1）；水溶只有「易拆(Z0)水溶」一類
+#     雙料家族（token 以「雙料」開頭）＝兩槽皆本體料（0／0）＝出貨線 EXPECTED_PLAIN_DUAL 那道檢查的本線版
+#     其他開頭 ⇒ **未分類就紅**（fail-closed），新增家族時要來這裡表態
+#   ⓘ 用家族前綴而非逐類窮舉：同族新 token（例：c-0919-ETR-01 的「易拆(Z0)樹狀」）自動涵蓋——
+#     SOP §S-6「窮舉表過期時只有一個目的會叫」。前綴是 Eric 0729 裁定的家族名本身，不是碰巧含字。
+# ⚠ 刻意掛在**模組層**，不放進上面 Tab.cpp 存在性的 `else:` 區——G2 驗的是「baseline 常數 ↔ profile
+#   屬性」，不該因為找不到 Tab.cpp 就整條靜默失效。
+# ⚠ 依賴 G1：presets 不解 inherits ⇒ 屬性必須是顯式值（embed 4a-0b／4b-2g 補完才成立）。
+def _fil_attr(_name):
+    """回傳 (filament_is_support, filament_soluble) 的**顯式**值；非線材或不存在回 None。"""
+    _e = presets.get(_name)
+    if not _e or _e[0] != "filament":
+        return None
+    return (_e[1].get("filament_is_support"), _e[1].get("filament_soluble"))
+
+def _g2_slot2_expect(_cat):
+    """槽2 應有的 (is_support, soluble)；未分類家族回 None。"""
+    if _cat.startswith("易拆"):
+        return (["1"], ["1"] if _cat == COMBO_CAT_PVA else ["0"])
+    if _cat.startswith("雙料"):
+        return (["0"], ["0"])
+    return None
+
+_g2_checked = 0
+for _mapname, _map in (("COMBO_FILAMENTS", EXPECTED_COMBO_MAP),
+                       ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
+    for _cat, (_s1, _s2) in _map.items():
+        _want2 = _g2_slot2_expect(_cat)
+        if _want2 is None:
+            err(f"[G2・未分類家族] {_mapname} {_cat!r}：不以「易拆」或「雙料」開頭 ⇒ 槽2 該放支撐材還是本體料？"
+                f"到 verify G2 的 _g2_slot2_expect 表態")
+            continue
+        for _slot, _fil in (("槽1", _s1), ("槽2", _s2)):
+            _at = _fil_attr(_fil)
+            if _at is None:
+                err(f"[G2・配料屬性] {_mapname} {_cat} {_slot}：{_fil!r} 不在 bundle 或非線材")
+                continue
+            _g2_checked += 1
+            _is_sup, _sol = _at
+            if _slot == "槽1":
+                # 槽1＝本體材料，恆非支撐、非水溶（否則「本體全 ABS」這類判定會算進支撐槽）
+                if _is_sup != ["0"] or _sol != ["0"]:
+                    err(f"[G2・本體槽屬性] {_mapname} {_cat} 槽1 {_fil}: "
+                        f"is_support={_is_sup!r} soluble={_sol!r}, expected ['0']／['0']")
+            else:
+                if _is_sup != _want2[0]:
+                    err(f"[G2・槽2 支撐屬性] {_mapname} {_cat} 槽2 {_fil}: is_support={_is_sup!r}, "
+                        f"expected {_want2[0]!r}（{'易拆家族槽2＝支撐材' if _want2[0] == ['1'] else '雙料家族槽2＝本體料'}）")
+                if _sol != _want2[1]:
+                    err(f"[G2・水溶語意] {_mapname} {_cat} 槽2 {_fil}: "
+                        f"soluble={_sol!r}, expected {_want2[1]!r}（水溶只有「{COMBO_CAT_PVA}」一類）")
+# 防空轉（同本檔既有範式）：掃到 0 筆＝常數或 presets 建法有變，護欄形同虛設
+if _g2_checked == 0:
+    err("[G2・防空轉] 配料屬性一條都沒驗到 ⇒ baseline 常數或 presets 建法有變，護欄形同虛設")
 
 # ★ 功能歸類普查（0730 改名批）：五 token × N 支 exact；舊材料對名歸零。
 #   N＝雙料本體機（FD300／FD300 Pro／FD300 關門／FD450 Pro／FD600 Pro／FD800 Pro）的口徑變體總數——

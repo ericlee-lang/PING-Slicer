@@ -88,6 +88,12 @@
     "slow_down_min_speed": [
         "10"
     ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
     "compatible_printers": [
         "FD300 Pro 同進照片磚 0.4 nozzle",
         "FD300 Pro 同進照片磚 0.6 nozzle",

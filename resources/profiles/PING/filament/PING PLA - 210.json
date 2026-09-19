@@ -89,5 +89,11 @@
     "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
     "slow_down_min_speed": [
         "25"
+    ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
     ]
 }
