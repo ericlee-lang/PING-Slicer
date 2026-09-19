@@ -79,9 +79,25 @@
   select{padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:14px; background:#fff;}
   input[type=range]{flex:1; accent-color:var(--orange); min-width:90px;}
   input[type=color]{width:40px; height:30px; border:1px solid #bbb; border-radius:5px; padding:1px; background:#fff; cursor:pointer;}
-  .slot{display:grid; grid-template-columns:46px 88px 1fr 44px; gap:8px; align-items:center;
-        padding:7px 8px; border:1px solid var(--gray); border-radius:7px; margin:6px 0;}
-  .slot .sw{display:flex; flex-direction:column; font-size:11px; color:#888; align-items:center;}
+  /* 2026-09-19（Eric；牌 c-0919-UI-01）：料色從右欄搬到「列印模擬」標題列，標成「擠出機 N」——
+     看模擬圖的同時就看得到「機上哪一支要裝什麼顏色」，不必再去右欄找。
+     🔴 標題列高度必須跟左邊原圖卡一樣（0918 版面 A：兩張圖頂端對齊）⇒ 右側按鈕同用 .btn.ghost、色塊高 24 不超過按鈕。
+     放不下時先收窄：「擠出機 1 · 擠出機 2…」→「擠出機 1 2 3 4」（字首只寫一次），再窄連按鈕字也縮成「建議配色」。
+     實測門檻（本棒 DOM 量）：1536 寬（1920 筆電 125% 縮放）四料原樣會換行、把右圖推低 32px。
+     最後一道保底才是換行（寧可兩圖差一行，也不要把色塊擠出卡片外看不到）。 */
+  #simPanel{container-type:inline-size;}
+  #simTitle{flex-wrap:wrap; row-gap:6px;}
+  #slotList{display:inline-flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:6px;
+            font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+  #slotList .ext{display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:600;
+                 color:var(--black); cursor:pointer; white-space:nowrap;}
+  #slotList .ext input[type=color]{width:30px; height:24px;}
+  #slotList .extPre{display:none; font-size:13px; font-weight:600;}
+  #btnSuggest{margin-left:auto; flex:0 0 auto;}
+  /* ⚠ 收窄規則必須寫在上面基底規則「之後」：同權重，寫在前面會被蓋掉（本棒實撞：gap／色塊寬沒縮）。 */
+  @container (max-width:660px){ #slotList.n4 .extW{display:none;} #slotList.n4 .extPre{display:inline;} }
+  @container (max-width:450px){ #slotList .extW{display:none;} #slotList .extPre{display:inline;} #btnSuggest .bsL{display:none;}
+                                #slotList{gap:8px;} #slotList .ext input[type=color]{width:24px;} }   /* 1366 寬四料實測：不縮這兩樣就換行 */
   .corebox{padding:8px 14px 12px;}
   .corebox canvas{width:100%; height:36px; border:1px solid var(--gray); border-radius:5px; display:block;}
   .corelabel{display:flex; justify-content:space-between; font-size:11.5px; color:#888;}
@@ -90,7 +106,6 @@
   .metric{font-size:14px; padding:7px 14px; border-top:1px solid var(--gray);}
   .metric b{color:var(--orange); font-family:Inter,Arial,sans-serif;}
   .disclaim{font-size:12px; color:#999; padding:10px 14px 4px;}
-  .viewseg{margin-left:auto;}
   body.embedded header{position:sticky; top:0; z-index:10; background:#fff;}
   @media (max-width:1280px){ main{grid-template-columns:1fr 1fr;} .panel.ctrl{grid-column:1/-1;} }
 
@@ -251,7 +266,7 @@
   <!-- 原圖 -->
   <section class="panel">
     <!-- 2026-09-18 版面 A（Eric 裁；牌 c-0918-UI-01）：「換一張…／存進我的圖」搬進標題列右側，
-         跟右卡「顏色｜層數」同一個位置 ⇒ 原圖與列印模擬兩張圖頂端對齊（原本左圖低約 95px，並排比對要上下跳）。
+         跟右卡標題列右側（0919 起＝擠出機料色＋「依這張圖建議配色」）同一個位置 ⇒ 原圖與列印模擬兩張圖頂端對齊（原本左圖低約 95px，並排比對要上下跳）。
          🔴 按鈕列不可放進 #srcTitle 裡：ptSourceTitle() 生過 AI 圖會整段重寫 #srcTitle 的 innerHTML。 -->
     <h2><span id="srcTitle">原圖 <span class="hint">拖放／貼上／開啟圖片</span></span>
       <span id="ptGalBar">
@@ -295,12 +310,16 @@
   </div>
 
   <!-- 模擬 -->
-  <section class="panel">
-    <h2>列印模擬
-      <span class="seg viewseg" id="viewSeg">
-        <button data-v="sim" class="on">顏色</button>
-        <button data-v="height">層數</button>
-      </span>
+  <section class="panel" id="simPanel">
+    <!-- 2026-09-19（Eric；牌 c-0919-UI-01）：
+         ①料色（原右欄「料與層」的料 1／料 2）搬進本卡標題列、標成「擠出機 N」——Eric：「這樣我也知道擠出機 1 跟擠出機 2 我要放什麼料」。
+           id 仍是 slotList／btnSuggest ⇒ 既有監聽（改色即重算、收回「已套用」）一個不用動。
+         ②「顏色｜層數」切換拿掉：「層數」是平躺（疊色）時代的高度圖，平躺 2026-09-07 拆掉後只剩「把色階編號畫成灰階」，
+           雙料一深一淺時跟「顏色」幾乎一模一樣——Eric 實走：「點上面顏色跟層數好像沒有什麼作用」。
+         ③按鈕字去掉「與換層」：垂直混色的建議只換料色、不動色階數（suggest() 不寫 klevels），「換層」同樣是平躺殘留。 -->
+    <h2 id="simTitle">列印模擬
+      <span id="slotList"></span>
+      <button class="btn ghost" id="btnSuggest" type="button" title="依這張圖挑兩支（四料＝四支）料的顏色；色階數不變"><span class="bsL">依這張圖</span>建議配色</button>
     </h2>
     <div class="canvasbox">
       <canvas class="view" id="simCanvas" width="4" height="4"></canvas>
@@ -336,14 +355,10 @@
 
   <!-- 控制 -->
   <section class="panel ctrl">
-    <h2>料與層 <span class="hint">改任何值即時重算</span></h2>
+    <!-- 2026-09-19（牌 c-0919-UI-01）：料色與「建議配色」搬到「列印模擬」標題列 ⇒ 本卡不再有「料」，標題跟著改名；
+         「產生並載入列印板」＋進度＋訊息 2026-09-18 已搬到頂列右上（見 header 註解）。 -->
+    <h2>列印設定 <span class="hint">改任何值即時重算</span></h2>
     <div class="pad">
-      <div id="slotList"></div>
-      <div class="row" style="margin-top:10px">
-        <button class="btn" id="btnSuggest">依這張圖建議配色與換層</button>
-        <!-- 「產生並載入列印板」＋進度＋訊息 2026-09-18 搬到頂列右上（見 header 註解） -->
-      </div>
-      <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值） -->
         <span class="sub">階＝拆成幾種混色色塊零件（雙料＝漸層階數；邊界＝層線，銳利）</span>
@@ -508,7 +523,12 @@ function lin2lab(r,g,b){
 const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;   // 線性亮度
 
 /* ================= 狀態 ================= */
-const SLOT_DEFAULT = [ {color:'#1a1a1a'}, {color:'#f2f0eb'}, {color:'#c0392b'}, {color:'#e8c547'} ];   // 2026-09-07 平躺移除：td／start（透光距離／換層）一併拆掉
+/* 🔴 2026-09-19（Eric 裁「預設改白」；牌 c-0919-UI-02）：擠出機 1＝米白、擠出機 2＝黑。
+   原本是 1＝黑、2＝米白——平躺時代「底＝最暗當背襯」的殘留。垂直混色三處都以「擠出機 1＝最淺」為前提：
+   料 A 標「亮端」、循環洗料最後用擠出機 1 清噴頭（四料欄位直接寫「白色（料1）」）、Eric 0918 確認機上 E1＝白。
+   舊預設下沒改料色就產生 ⇒ 照機上 E1＝白去印會印成負片（0918 T045、0919 T050 截圖兩次都停在 1＝黑）。
+   四料 3／4（紅／黃）不動。 */
+const SLOT_DEFAULT = [ {color:'#f2f0eb'}, {color:'#1a1a1a'}, {color:'#c0392b'}, {color:'#e8c547'} ];   // 2026-09-07 平躺移除：td／start（透光距離／換層）一併拆掉
 let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
@@ -537,7 +557,6 @@ let params = { klevels:8,                        // 2026-09-07 平躺（疊色�
 let imgAspect = 0.75;                             // 高/寬，載圖時更新
 let sizeAspectLocked = true;                      // 預設保留原圖比例，避免照片磚被拉伸
 let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float32Array}
-let viewMode = 'sim';
 /* 自動驗收用的色差。兩條模擬路徑（四料垂直／雙料垂直）本來就各自算了 sumDE/n，
    但只寫進 #metric 的 innerHTML ⇒ 程式讀不到。存起來才有「生完就驗、沒過重生」的尺（P3 丑）。
    🔴 ΔE 只管「印得出來嗎」，不是品質分數（0815 三度誤導：5.34 無眼睛 vs 5.29 有眼睛）。 */
@@ -585,18 +604,19 @@ function renderCycleUI(){
 }
 function renderSlots(){
   if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變
-  slotList.innerHTML = '';
-  /* 垂直混色：雙料＝亮暗兩端；四料＝白＋三彩混搭調色（2026-09-07 平躺移除後只剩這一種） */
-  const names = slotCount===2
-    ? ['料A（亮端，機上 E1）——每個色階＝兩支料的一個混合比例','料B（暗端）——正面實色平整']
-    : ['料A（白，機上 E1）——調亮度用','料B（彩色）——與白/其他彩料混搭','料C（彩色）','料D（彩色）'];
+  /* 垂直混色：雙料＝亮暗兩端；四料＝白＋三彩混搭調色（2026-09-07 平躺移除後只剩這一種）
+     2026-09-19（牌 c-0919-UI-01）：搬到「列印模擬」標題列、標成「擠出機 N」（＝料 N＝機上 E N，同號）。
+     原本右欄那句角色說明收進滑鼠提示——標題列只放得下「哪一支裝什麼顏色」這一件事。 */
+  const roles = slotCount===2
+    ? ['亮端——每個色階＝兩支料的一個混合比例','暗端——正面實色平整']
+    : ['白——調亮度用','彩色——與白／其他彩料混搭','彩色','彩色'];
+  slotList.className = 'n'+slotCount;   // 收窄門檻依料數（CSS @container）
+  slotList.innerHTML = '<span class="extPre">擠出機</span>';   // 收窄時才顯示：字首只寫一次
   for(let i=0;i<slotCount;i++){
-    const div=document.createElement('div'); div.className='slot';
-    div.style.gridTemplateColumns='46px 1fr';
-    div.innerHTML=`
-      <div class="sw"><input type="color" value="${slots[i].color}" data-i="${i}" data-k="color">料 ${i+1}</div>
-      <div class="sub">${names[i]}</div>`;
-    slotList.appendChild(div);
+    const lab=document.createElement('label'); lab.className='ext';
+    lab.title=`擠出機 ${i+1}（料 ${i+1}）：${roles[i]}\n點色塊可以改成機上實際裝的顏色`;
+    lab.innerHTML=`<input type="color" value="${slots[i].color}" data-i="${i}" data-k="color"><span class="extW">擠出機 </span>${i+1}`;
+    slotList.appendChild(lab);
   }
   /* §11 R11-9：料數換了內建範例也要換（雙料灰階／四料彩色）。掛這裡＝四個 slotCount 切換點都會經過。 */
   if(typeof ptGalRender==='function') ptGalRender();
@@ -942,8 +962,7 @@ function simulateVerticalQuad(){
     const pi=labArr[p], c0=palette[pi];
     const dl=img.lab[p*3]-c0.lab[0], da=img.lab[p*3+1]-c0.lab[1], db=img.lab[p*3+2]-c0.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
-    const c = viewMode==='sim' ? c0.rgb
-            : [(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0,(pi/(palette.length-1)*255)|0];
+    const c = c0.rgb;
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
   }
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
@@ -1024,7 +1043,7 @@ function simulateVertical(){
   for(let p=0;p<n;p++){
     const k=labArr[p];
     const lv=levels[k];
-    const c = viewMode==='sim' ? lv.rgb : [(k/(K-1)*255)|0,(k/(K-1)*255)|0,(k/(K-1)*255)|0];
+    const c = lv.rgb;
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
     const dl=img.lab[p*3]-lv.lab[0], da=img.lab[p*3+1]-lv.lab[1], db=img.lab[p*3+2]-lv.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
@@ -1083,7 +1102,7 @@ function applySizeChange(changed, rawValue, rebuild=true){
   syncSizeInputs();
   /* 【0805 規格 §2.2】改尺寸只重建格點＋重算，**不重新建議配色**——實體尺寸跟顏色無關，
      原本這裡呼叫 suggest() 會把使用者調好的料色整組洗掉。
-     還原路徑不需另建：btnSuggest（「依這張圖建議配色與換層」）本來就是。 */
+     還原路徑不需另建：btnSuggest（「依這張圖建議配色」，0919 起在列印模擬標題列）本來就是。 */
   if(rebuild && img){ buildGrid(); simulate(); }
   else updateSizeInfo();
   if(typeof ptSizeBarSync==='function') ptSizeBarSync();   // 尺寸變了，拉桿與提示跟著走
@@ -1752,12 +1771,6 @@ document.getElementById('pillarXY').onchange=e=>{
   e.target.value=params.pillarXY;
   updateSizeInfo();
 };
-document.getElementById('viewSeg').addEventListener('click',e=>{
-  if(e.target.tagName!=='BUTTON') return;
-  viewMode=e.target.dataset.v;
-  for(const b of e.target.parentNode.children) b.classList.toggle('on', b===e.target);
-  queue();
-});
 let tq=null;
 function queue(){ clearTimeout(tq); tq=setTimeout(simulate,60); }
 
