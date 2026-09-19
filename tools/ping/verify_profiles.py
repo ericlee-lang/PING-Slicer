@@ -294,7 +294,7 @@ for name, (kind, d) in presets.items():
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
-                # 易拆(Z0)樹狀（⏳ 備選分支：Q2 改有機樹，待 Eric 裁）：style 明寫 default ⇒ smsTreeOrganic
+                # 易拆(Z0)樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 default ⇒ smsTreeOrganic
                 # （同 PA-CF 樹狀）。寫成 tree_hybrid／snug 一律紅。
                 elif _ctok == COMBO_CAT_EASYTREE:
                     expected_recipe = [("support_type", "tree(auto)"),
