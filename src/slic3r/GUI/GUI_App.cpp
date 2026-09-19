@@ -3420,7 +3420,12 @@ bool GUI_App::on_init_inner()
 //#ifdef __linux__
 //        if (!m_post_initialized && m_opengl_initialized) {
 //#else
-        if (!m_post_initialized && !m_adding_script_handler) {
+        // PING：app 已經在關（MainFrame::shutdown() 設了 closing）就不要再跑 post_init()。
+        // PrusaSlicer 原本在 shutdown() 清掉 plater_ 擋住這條路（註解「to avoid any manipulations with
+        // them from App->wxEVT_IDLE after of the mainframe closing」），BBS 把那行註解掉之後，
+        // 「post_init 之前就關窗」（例：PING_QUOTE_SMOKE 暖機）會在關閉中的 app 上跑 post_init，
+        // 它排的 CallAfter（設定精靈、Tab 樹更新）在主視窗刪掉後才執行 ⇒ 0xC0000005（牌 c-0919-QSM-01）。
+        if (!m_post_initialized && !m_adding_script_handler && !is_closing()) {
 //#endif
             m_post_initialized = true;
 #ifdef WIN32
