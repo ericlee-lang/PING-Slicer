@@ -1434,7 +1434,7 @@ PACF_TREE_OVERRIDES = {"support_type": "tree(auto)", "support_style": "default"}
 # ★ 易拆樹狀製程（Eric 2026-09-19 兩輪 grill 裁；牌 c-0919-ETR-01）
 #   Q1 乙：易拆（PLA+SUP）全部雙料本體機 × 全口徑＝21 支（FD300／FD300 Pro／FD300 關門 × 0.25/0.4/0.6、
 #          FD450／600／800 Pro × 0.25/0.4/0.6/1.0）；水溶／筏層樹狀版與 FF 3in1 不做。
-#   Q2（⏳ 備選分支，待 Eric 改裁）：**有機樹**（support_style=default ⇒ SupportParameters.hpp:180-183
+#   Q2 乙（Eric 2026-09-19 改裁，推翻同日 Q2 甲＝混合樹；0725「手動切樹狀用混合樹」不適用本族）：**有機樹**（support_style=default ⇒ SupportParameters.hpp:180-183
 #          smsTreeOrganic，同 PA-CF 樹狀）。起因＝原裁甲案「混合樹」CLI 實切（平板／懸臂兩模型）長成與普通支撐
 #          幾乎相同的區塊、不長樹幹；有機樹才長出一根根樹幹。吃 _organic 鍵組（直徑 2.6／角度 40），
 #          不吃 0725 hybrid 保守配方。代價：大面積平懸空（平板模型）支撐路徑 56→77 m、估時 45→82 分。
