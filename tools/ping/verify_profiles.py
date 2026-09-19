@@ -1004,11 +1004,41 @@ for _name, (_kind, _d) in presets.items():
     for _k in ("filament_shrink", "filament_shrinkage_compensation_z"):
         if _k in _d:
             _shrink_vals.setdefault(_k, {}).setdefault(str(_d[_k]), []).append(_name)
+# 🆕 2026-09-11（Eric：「ABS 的收縮率是 99.75%」）：守衛從「全庫 100%」改成「**族內同值**」。
+#   引擎的真實約束（Print.cpp:3623 has_same_shrinkage_compensations）是「同一次列印**用到的**
+#   所有料要同值」，不是「全庫要同值」——ABS 件只用 ABS 族、PLA 件只用 PLA 族，各族內同值即可。
+#   0809 那條「全庫 100%」當時是對的（因為只有 SupABS 是 99.7%＝異常值），但它把
+#   **引擎約束**寫成了**比引擎更嚴的規則**，於是擋住了這個合法的族別設定（SOP §S-8 第 1 例）。
+#   ⓘ 出處＝出貨線 dedaf42f3f；2026-09-19 回移本線（牌 c-0919-BP3-01）。名單按本線實查＝3 支
+#     （本線沒有 Classic 線材；出貨線另有 `PING ABS - Classic`／`PING SupABS - Classic`）。
+#   ⚠ 這裡與產生器 4b-5b 的 ABS_SHRINK_FAMILY 是同一份名單，改一邊要改兩邊。
+_ABS_SHRINK_FAMILY = ("PING ABS", "PING ABS(玻璃)", "PING SupABS")
+_SHRINK_EXPECT = {"filament_shrink": {True: "99.75%", False: "100%"},
+                  "filament_shrinkage_compensation_z": {True: "100%", False: "100%"}}
+# 名單 fail-closed：族員改名／消失時，下面「沒有明寫」會誤導成缺鍵——先把「根本不在 bundle」講清楚
+for _n in _ABS_SHRINK_FAMILY:
+    if presets.get(_n, (None,))[0] != "filament":
+        err(f"[收縮補償一致性] ABS 族名單的 {_n!r} 不在 bundle ⇒ 改名了？產生器 4b-5b 與本名單要一起改")
 for _k, _groups in _shrink_vals.items():
-    _bad = {v: names for v, names in _groups.items() if v not in ("['100%']", "['100']")}
-    for _v, _names in _bad.items():
-        err(f"[收縮補償一致性] {_k}={_v} 的線材 {len(_names)} 支（例：{_names[0]}）"
-            f"——與全庫 100% 不一致 ⇒ 多料列印時引擎會整個停用補償並跳警告")
+    for _v, _names in _groups.items():
+        for _n in _names:
+            _want = _SHRINK_EXPECT[_k][_n in _ABS_SHRINK_FAMILY]
+            if _v not in ("['%s']" % _want, "['%s']" % _want.rstrip("%")):
+                err(f"[收縮補償一致性] {_n} 的 {_k}={_v}，應為 ['{_want}']"
+                    f"——{'ABS 族' if _n in _ABS_SHRINK_FAMILY else '非 ABS 族'}的值不對 ⇒ "
+                    f"同族多料列印時引擎會整個停用補償並跳警告")
+# 族內一致性正向斷言：ABS 族必須全部帶 filament_shrink 且同值（缺鍵＝吃引擎預設 100%＝族內不一致）
+_abs_seen = {n: v for v, names in _shrink_vals.get("filament_shrink", {}).items()
+             for n in names if n in _ABS_SHRINK_FAMILY}
+if len(_abs_seen) != len(_ABS_SHRINK_FAMILY):
+    _missing = [n for n in _ABS_SHRINK_FAMILY if n not in _abs_seen]
+    err(f"[收縮補償一致性] ABS 族有 {len(_missing)} 支沒有明寫 filament_shrink：{_missing}"
+        f"——缺鍵＝吃引擎預設 100%，與族內其他支的 99.75% 不一致 ⇒ 補償會被整個停用")
+elif len(set(_abs_seen.values())) != 1:
+    err(f"[收縮補償一致性] ABS 族內值不一致：{_abs_seen}")
+else:
+    print("收縮補償：ABS 族 %d 支同值 %s｜其餘全庫 100%%"
+          % (len(_abs_seen), list(_abs_seen.values())[0]))
 
 # ★ 檢查 12：支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；產生器 4b-6 post-pass 的硬閘門）
 #   本區塊與出貨線 `release/v3.6` commit 91d2b219 同內容（規則同步，值可因兩線 preset 集合不同而數量不同）。
