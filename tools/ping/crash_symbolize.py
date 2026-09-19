@@ -17,6 +17,16 @@
     python crash_symbolize.py <OrcaSlicer.pdb> 325DFFD 2805F27        # 直接給 section 1 的 offset
     python crash_symbolize.py <OrcaSlicer.pdb> 1:325DFFD 1:2805F27    # 指定 section
 
+每個位址印三種資訊（有才印）：
+    第一行   公開符號 +偏移、檔案:行號（行號是真的；**公開符號名在編譯器合併函式時是假的**）
+    -> 函式   從該 obj 的模組符號找出**真正包住這個位址的函式**
+    -> lambda 函式名裡有 `<lambda_…>` 時，查出那個 lambda **定義在哪個檔第幾行**
+
+為什麼要後兩行（2026-09-19 報價 smoke 暖機閃退實錄）：崩點第一行解成
+`?Copy@?$wxVector@H@@… +0x1C4  wx\\event.h:1550`——公開符號是編譯器合併後的假名，
+行號只說「在某個 CallAfter 的 lambda 裡」。當時兩份 crash log 因此被判成「同樣的崩潰」，
+其實是**兩個不同的 lambda**（Tab.cpp:1304 與 GUI_App.cpp:1220）。有了 -> 兩行就一眼分得出來。
+
 本檔自己解 MSF/PDB，不依賴 WinDbg／DIA SDK／LLVM——那台機器上一個都沒有。
 2026-08-28 首次使用：解出 T033 閃退 = GLGizmoMove.cpp:250（instances[-1] 垃圾指標）。
 """
@@ -28,6 +38,16 @@ import sys
 
 S_PUB32 = 0x110E
 DBI_HEADER_SIZE = 64
+
+# 模組符號流裡的函式記錄（有 _ID 的是 /DEBUG:FASTLINK 以外的新格式，兩種都會出現）
+S_LPROC32, S_GPROC32, S_LPROC32_ID, S_GPROC32_ID = 0x110F, 0x1110, 0x1146, 0x1147
+PROC_KINDS = (S_LPROC32, S_GPROC32, S_LPROC32_ID, S_GPROC32_ID)
+
+# 型別（TPI＝stream 2）與 ID（IPI＝stream 4）記錄
+LF_CLASS, LF_STRUCTURE = 0x1504, 0x1505
+LF_STRING_ID, LF_UDT_SRC_LINE, LF_UDT_MOD_SRC_LINE = 0x1605, 0x1606, 0x1607
+
+LAMBDA_RE = re.compile(r"<lambda_([0-9a-f]{32})>")
 
 
 class Pdb:
@@ -203,6 +223,87 @@ class Pdb:
             res.update(line=best[1], file=self._name_at(files.get(best[2], 0)))
         return res
 
+    # ---------- 真正包住位址的函式（模組符號流的 S_*PROC32） ----------
+    def proc(self, sec, off):
+        """回 (函式名, 函式內偏移)。公開符號遇到編譯器合併（ICF）會給假名，這裡給的是真的。
+        沒有模組符號（例：wx 的 obj 沒帶除錯資訊）就回 None。"""
+        modidx = self.find_module(sec, off)
+        if modidx is None:
+            return None
+        m = self.mods[modidx]
+        if m["symstream"] < 0:
+            return None
+        ms = self.stream(m["symstream"])
+        p, end = 4, m["symbytes"]                       # +4 跳過 CV signature
+        while p + 4 <= end:
+            ln, kind = struct.unpack_from("<HH", ms, p)
+            if kind in PROC_KINDS:
+                # PROCSYM32：pParent, pEnd, pNext, len, DbgStart, DbgEnd, typind, off, seg, flags, name
+                pend, = struct.unpack_from("<I", ms, p + 8)
+                plen, = struct.unpack_from("<I", ms, p + 16)
+                poff, pseg = struct.unpack_from("<IH", ms, p + 32)
+                if pseg == sec and poff <= off < poff + plen:
+                    e = ms.index(b"\0", p + 39)
+                    return ms[p + 39:e].decode("utf-8", "replace"), off - poff
+                if pend > p:                            # 不是它 ⇒ 整個函式的子記錄一次跳過
+                    p = pend
+                    ln, _ = struct.unpack_from("<HH", ms, p)
+            p += ln + 2
+        return None
+
+    # ---------- lambda 定義在哪（TPI 類別記錄 ＋ IPI 的 UDT 原始碼行） ----------
+    @staticmethod
+    def _records(s):
+        hdr_size, ti_begin = struct.unpack_from("<II", s, 4)
+        rec_bytes, = struct.unpack_from("<I", s, 16)
+        p, end = hdr_size, hdr_size + rec_bytes
+        while p < end:
+            ln, kind = struct.unpack_from("<HH", s, p)
+            yield ti_begin, kind, p + 4, p + 2 + ln
+            ti_begin += 1
+            p += ln + 2
+
+    def lambda_sources(self, hashes):
+        """{lambda hash: [(完整型別名, 檔案, 行號), …]}。只在真的遇到 lambda 時才掃（TPI 很大）。"""
+        if not hashes:
+            return {}
+        want = {h: h.encode() for h in hashes}
+        tpi = self.stream(2)
+        types = {}                                      # 型別索引 → (hash, 名稱)
+        for ti, kind, a, b in self._records(tpi):
+            if kind not in (LF_CLASS, LF_STRUCTURE):
+                continue
+            rec = tpi[a:b]
+            hit = next((h for h, hb in want.items() if hb in rec), None)
+            if hit is None:
+                continue
+            v, = struct.unpack_from("<H", rec, 16)      # 數值葉（大小）之後才是名稱
+            q = 18 if v < 0x8000 else 18 + {0x8000: 1, 0x8001: 2, 0x8002: 2, 0x8003: 4,
+                                               0x8004: 4, 0x8009: 8, 0x800A: 8}.get(v, 4)
+            e = rec.index(b"\0", q)
+            types[ti] = (hit, rec[q:e].decode("utf-8", "replace"))
+
+        ipi = self.stream(4)
+        ipi_recs = list(self._records(ipi))
+        ipi_begin = ipi_recs[0][0] if ipi_recs else 0
+        out = {}
+        for _ti, kind, a, _b in ipi_recs:
+            if kind not in (LF_UDT_SRC_LINE, LF_UDT_MOD_SRC_LINE):
+                continue
+            udt, src, line = struct.unpack_from("<III", ipi, a)
+            if udt not in types:
+                continue
+            h, name = types[udt]
+            if kind == LF_UDT_MOD_SRC_LINE:
+                path = self._name_at(src)               # /names 偏移
+            else:
+                _t, sk, sa, sb = ipi_recs[src - ipi_begin]
+                e = ipi.index(b"\0", sa + 4)
+                path = ipi[sa + 4:e].decode("utf-8", "replace") if sk == LF_STRING_ID else "?"
+            # 同一個 lambda 會有「lambda 本體」與「包它的 functor 模板」兩筆，本體那筆才指向定義處
+            out.setdefault(h, []).append((name, path, line))
+        return out
+
 
 def addresses_from_log(path, module="OrcaSlicer.dll"):
     """撈出 crash log 裡屬於指定模組的 `section:offset`，依出現順序（＝由上而下的呼叫堆疊）。
@@ -226,6 +327,9 @@ def addresses_from_log(path, module="OrcaSlicer.dll"):
 
 
 def main():
+    # 主控台多半是 cp950：符號名裡偶有它編不了的字，寧可印成 ? 也不要整支中斷
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
     args = sys.argv[1:]
     if not args:
         raise SystemExit(__doc__)
@@ -242,9 +346,14 @@ def main():
         raise SystemExit("沒有要解析的位址。")
 
     pdb = Pdb(pdb_path)
+    rows = []
     for sec, off in targets:
-        sym = pdb.symbol(sec, off)
-        ln = pdb.line(sec, off)
+        rows.append((sec, off, pdb.symbol(sec, off), pdb.line(sec, off), pdb.proc(sec, off)))
+
+    hashes = {h for *_x, pr in rows if pr for h in LAMBDA_RE.findall(pr[0])}
+    lambdas = pdb.lambda_sources(hashes)
+
+    for sec, off, sym, ln, pr in rows:
         where = ""
         if ln and ln.get("line"):
             where = "  %s:%d" % (ln["file"], ln["line"])
@@ -254,6 +363,12 @@ def main():
             sec, off,
             ("%s +0x%X" % sym) if sym else "<no symbol>",
             where))
+        if pr:
+            print("            -> 函式：%s +0x%X" % pr)
+            for h in LAMBDA_RE.findall(pr[0]):
+                for name, path, line in lambdas.get(h, []):
+                    if name.endswith("<lambda_%s>" % h):   # 只印 lambda 本體（不印包它的 functor 模板）
+                        print("            -> lambda 定義於：%s:%d  （%s）" % (path, line, name))
 
 
 if __name__ == "__main__":
