@@ -444,6 +444,7 @@ public:
     std::vector<Polygons>       slice_support_volumes(const ModelVolumeType model_volume_type) const;
     std::vector<Polygons>       slice_support_blockers() const { return this->slice_support_volumes(ModelVolumeType::SUPPORT_BLOCKER); }
     std::vector<Polygons>       slice_support_enforcers() const { return this->slice_support_volumes(ModelVolumeType::SUPPORT_ENFORCER); }
+    std::vector<Polygons>       slice_support_meshes() const { return this->slice_support_volumes(ModelVolumeType::SUPPORT_MESH); }
 
     // Helpers to project custom facets on slices
     void project_and_append_custom_facets(bool seam, EnforcerBlockerType type, std::vector<Polygons>& expolys, std::vector<std::pair<Vec3f,Vec3f>>* vertical_points=nullptr) const;

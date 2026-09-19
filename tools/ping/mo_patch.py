@@ -212,6 +212,16 @@ NEW_ENTRIES = {
     "Our customization covers profiles for the full PING printer range, slicing parameters tuned for our high-flow and multi-material toolheads, and features developed in Taiwan such as color mixing and photo tiles.": "客製內容包含 PING 全系列機型設定、為高流量與多料噴頭調校的切片參數，以及混色列印與照片磚等臺灣自行研發的功能。",
     # src/slic3r/GUI/AboutDialog.cpp（AboutDialog 主畫面第 3 段）
     "PING Slicer is released under the GNU Affero General Public License v3. Its complete source code is publicly available, so anyone may inspect, modify and redistribute it under the same license. We thank every upstream open-source project and contributor whose work made this possible.": "PING Slicer 依 GNU Affero 通用公共授權條款第 3 版（AGPL-3.0）發行，完整原始碼公開於 GitHub，任何人皆可查驗、修改並以相同授權再散布。謹向所有上游開源專案與貢獻者致謝。",
+    # ---- PING(2026-09-19，牌 c-0919-SB-01)：右鍵「新增支撐塊」＝整塊印成支撐（防翹曲） ----
+    # Eric 裁：右鍵另外新增「支撐塊」、走普通支撐。英文源字串用 support mesh（Cura 用語），
+    # 避開與既有 support blocker（支撐遮蔽）只差兩個字母。
+    # src/slic3r/GUI/GUI_Factories.cpp（ADD_VOLUME_MENU_ITEMS）
+    "Add support mesh": "新增支撐塊",
+    # src/slic3r/GUI/GUI_ObjectList.cpp（變更零件類型對話框）
+    "Support Mesh": "支撐塊",
+    # src/libslic3r/Print.cpp（Print::validate 警告）
+    "Support meshes are used but support is not enabled. Please enable support.": "已加入支撐塊，但尚未啟用支撐。請在「支撐」勾選「啟用支撐」。",
+    "Support meshes only work with normal support. Please change the support type to Normal.": "支撐塊只會以普通支撐產生。請把支撐「類型」改為「普通 (自動)」或「普通 (手動)」。",
 }
 
 

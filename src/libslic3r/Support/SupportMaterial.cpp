@@ -1326,6 +1326,7 @@ struct SupportAnnotations
     SupportAnnotations(const PrintObject &object, const std::vector<Polygons> &buildplate_covered) :
         enforcers_layers(object.slice_support_enforcers()),
         blockers_layers(object.slice_support_blockers()),
+        support_meshes_layers(object.slice_support_meshes()),
         buildplate_covered(buildplate_covered)
     {
         // Append custom supports.
@@ -1344,6 +1345,8 @@ struct SupportAnnotations
 
     std::vector<Polygons>         enforcers_layers;
     std::vector<Polygons>         blockers_layers;
+    // PING 2026-09-19 (c-0919-SB-01): slices of the "support block" volumes, one entry per object layer (empty if there is none).
+    std::vector<Polygons>         support_meshes_layers;
     const std::vector<Polygons>&  buildplate_covered;
 };
 
@@ -1584,9 +1587,24 @@ static inline std::tuple<Polygons, Polygons, double> detect_contacts(
         const ExPolygons& lower_layer_expolys = lower_layer.lslices;
         const ExPolygons& lower_layer_sharptails = lower_layer.sharp_tails;
 
+        // PING 2026-09-19 (c-0919-SB-01) support block: the top faces of a support mesh lying just below this layer are handled
+        // like enforced overhangs, so the regular support generator grows a support column from them down to the bed
+        // (keeping the usual XY distance to the object). Only the normal support generator reads them.
+        Polygons     support_mesh_top;
+        if (!annotations.support_meshes_layers.empty()) {
+            const Polygons &mesh_below = annotations.support_meshes_layers[layer_id - 1];
+            const Polygons &mesh_here  = annotations.support_meshes_layers[layer_id];
+            if (!mesh_below.empty())
+                support_mesh_top = mesh_here.empty() ? mesh_below : diff(mesh_below, mesh_here);
+            // A support mesh reaching the topmost object layer gets its top contact right below that layer.
+            if (layer_id + 1 == annotations.support_meshes_layers.size() && !mesh_here.empty())
+                polygons_append(support_mesh_top, mesh_here);
+        }
+        const bool   keep_untrimmed_margin = has_enforcer || !support_mesh_top.empty();
+
         // Cache support trimming polygons derived from lower layer polygons, possible merged with "on build plate only" trimming polygons.
         auto slices_margin_update =
-            [&slices_margin, &layer, &lower_layer, &lower_layer_polygons, buildplate_only, has_enforcer, &annotations, layer_id]
+            [&slices_margin, &layer, &lower_layer, &lower_layer_polygons, buildplate_only, keep_untrimmed_margin, &annotations, layer_id]
         (float slices_margin_offset, float no_interface_offset) {
             if (slices_margin.offset != slices_margin_offset) {
                 slices_margin.offset = slices_margin_offset;
@@ -1595,7 +1613,7 @@ static inline std::tuple<Polygons, Polygons, double> detect_contacts(
                     // What is the purpose of no_interface_offset? Likely to not trim the contact layer by lower layer regions that are too thin to extrude?
                     offset2(lower_layer.lslices, -no_interface_offset * 0.5f, slices_margin_offset + no_interface_offset * 0.5f, SUPPORT_SURFACES_OFFSET_PARAMETERS);
                 if (buildplate_only && !annotations.buildplate_covered[layer_id].empty()) {
-                    if (has_enforcer)
+                    if (keep_untrimmed_margin)
                         // Make a backup of trimming polygons before enforcing "on build plate only".
                         slices_margin.all_polygons = slices_margin.polygons;
                     // Trim the inflated contact surfaces by the top surfaces as well.
@@ -1667,6 +1685,20 @@ static inline std::tuple<Polygons, Polygons, double> detect_contacts(
                     polygons_append(contact_polygons, diff(enforcer_polygons, slices_margin.all_polygons.empty() ? slices_margin.polygons : slices_margin.all_polygons));
                 }
             }
+
+        // PING 2026-09-19 (c-0919-SB-01): support block tops, treated exactly like the enforcer contacts above
+        // (not trimmed by "on build plate only": the user placed the block explicitly).
+        if (!support_mesh_top.empty()) {
+            Polygons mesh_contacts = diff(support_mesh_top,
+                // Inflate just a tiny bit to avoid intersection of the contact areas with the object below.
+                expand(lower_layer_polygons, 0.05f * no_interface_offset, SUPPORT_SURFACES_OFFSET_PARAMETERS));
+            if (!mesh_contacts.empty()) {
+                polygons_append(overhang_polygons, mesh_contacts);
+                slices_margin_update(std::min(lower_layer_offset, float(scale_(gap_xy))), no_interface_offset);
+                polygons_append(contact_polygons, diff(mesh_contacts, slices_margin.all_polygons.empty() ? slices_margin.polygons : slices_margin.all_polygons));
+                polygons_append(enforcer_polygons, std::move(mesh_contacts));
+            }
+        }
     }
 
     return std::make_tuple(std::move(contact_polygons), std::move(enforcer_polygons), no_interface_offset);

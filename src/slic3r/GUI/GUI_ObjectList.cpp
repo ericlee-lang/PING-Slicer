@@ -3687,7 +3687,8 @@ wxDataViewItem ObjectList::add_settings_item(wxDataViewItem parent_item, const D
     const bool is_layer_settings = m_objects_model->GetItemType(parent_item) == itLayer;
     if (!is_object_settings) {
         ModelVolumeType volume_type = m_objects_model->GetVolumeType(parent_item);
-        if (volume_type == ModelVolumeType::NEGATIVE_VOLUME || volume_type == ModelVolumeType::SUPPORT_BLOCKER || volume_type == ModelVolumeType::SUPPORT_ENFORCER)
+        if (volume_type == ModelVolumeType::NEGATIVE_VOLUME || volume_type == ModelVolumeType::SUPPORT_BLOCKER || volume_type == ModelVolumeType::SUPPORT_ENFORCER ||
+            volume_type == ModelVolumeType::SUPPORT_MESH)
             return ret;
     }
 
@@ -5370,6 +5371,7 @@ void ObjectList::change_part_type()
     if (!volume->is_svg() && !volume->is_text()) {
       names.Add(_L("Support Blocker"));
       names.Add(_L("Support Enforcer"));
+      names.Add(_L("Support Mesh")); // PING 2026-09-19 c-0919-SB-01, index == ModelVolumeType::SUPPORT_MESH
     }
 
     SingleChoiceDialog dlg(_L("Type:"), _L("Choose part type"), names, int(type));
@@ -5429,6 +5431,7 @@ void ObjectList::change_part_type()
   if (!any_text_or_svg) {
     names.Add(_L("Support Blocker"));
     names.Add(_L("Support Enforcer"));
+    names.Add(_L("Support Mesh")); // PING 2026-09-19 c-0919-SB-01, index == ModelVolumeType::SUPPORT_MESH
   }
 
   // Preselect current type of the first selected volume

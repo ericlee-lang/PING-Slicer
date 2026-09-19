@@ -2471,7 +2471,8 @@ std::vector<int> ModelVolume::get_extruders() const
     if (m_type == ModelVolumeType::INVALID
         || m_type == ModelVolumeType::NEGATIVE_VOLUME
         || m_type == ModelVolumeType::SUPPORT_BLOCKER
-        || m_type == ModelVolumeType::SUPPORT_ENFORCER)
+        || m_type == ModelVolumeType::SUPPORT_ENFORCER
+        || m_type == ModelVolumeType::SUPPORT_MESH)
         return std::vector<int>();
 
     if (mmu_segmentation_facets.timestamp() != mmuseg_ts) {
@@ -2649,6 +2650,8 @@ ModelVolumeType ModelVolume::type_from_string(const std::string &s)
 		return ModelVolumeType::SUPPORT_ENFORCER;
     if (s == "support_blocker")
 		return ModelVolumeType::SUPPORT_BLOCKER;
+    if (s == "support_mesh")
+		return ModelVolumeType::SUPPORT_MESH;
     //assert(s == "0");
     // Default value if invalud type string received.
 	return ModelVolumeType::MODEL_PART;
@@ -2663,6 +2666,7 @@ std::string ModelVolume::type_to_string(const ModelVolumeType t)
 	case ModelVolumeType::PARAMETER_MODIFIER: return "modifier_part";
 	case ModelVolumeType::SUPPORT_ENFORCER:   return "support_enforcer";
 	case ModelVolumeType::SUPPORT_BLOCKER:    return "support_blocker";
+	case ModelVolumeType::SUPPORT_MESH:       return "support_mesh";
     default:
         assert(false);
         return "normal_part";
