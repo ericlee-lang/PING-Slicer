@@ -1190,10 +1190,11 @@ _phototile_machines = {n for n, (k, d) in presets.items()
 # 🆕 **照片磚機器層回抽政策護欄（Eric 2026-09-07 裁，取代 0718 的零回抽；2026-09-12 移植進出貨線）**
 #   這組值 2026-07~08 曾被線材層靜默蓋掉 20 天沒人發現。政策改了，**護欄要跟著改而不是拿掉**。
 #   🔴 `retract_length_toolchange` 必須維持 0：照片磚的 Tn 是後處理要換成 M6051/M6052 的混色指令，不是真的換料頭。
+#   🆕 2026-09-19：抬升 0.1→0.4（Eric 改裁，牌 c-0919-ZH-01；起因＝0919 實印空跑只抬 0.1 mm 掠過磚頂、磚與塔倒）。
 _PT_MACHINE_POLICY = {
     "use_firmware_retraction": "1",
     "retraction_length": ["1.3", "1.3"],
-    "z_hop": ["0.1"],
+    "z_hop": ["0.4"],
     "retract_length_toolchange": ["0", "0"],
 }
 for _pm in sorted(_phototile_machines):
