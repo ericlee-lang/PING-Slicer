@@ -21,8 +21,10 @@
 14. PVA 水溶支撐線材（Eric 2026-07-24 裁）：PING PVA 存在＋關鍵值
     （PVA 型別／水溶／支撐／220／床 60／風扇 100／閾值 25%／purge 60）
 """
+import hashlib
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -62,6 +64,21 @@ def cxx_unescape(s):
 def cxx_escape(s):
     """把字串裡的非 ASCII 字元轉成 C++ \\xNN 逸出形（用於比對 C++ 原始碼字面）。"""
     return "".join(c if ord(c) < 128 else "".join("\\x%02X" % b for b in c.encode("utf-8")) for c in s)
+
+def strip_cxx_comments(src):
+    """剝掉 C++ 的 // 與 /* */ 註解，供「原始碼字面」型跨層護欄比對用（出貨線同名函式的本線副本；
+    verify 刻意不互相 import＝既有慣例）。2026-09-19 反向測試實抓：連動表某列被 `//` 註解掉仍判有效＝假綠。"""
+    out, i, n = [], 0, len(src)
+    while i < n:
+        if src.startswith("//", i):
+            j = src.find("\n", i)
+            i = n if j < 0 else j
+        elif src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        else:
+            out.append(src[i]); i += 1
+    return "".join(out)
 
 def combo_token(name):
     """回傳製程名的組合 token（五新名之一）；非組合製程回 None。"""
@@ -1113,6 +1130,194 @@ elif len(set(_abs_seen.values())) != 1:
 else:
     print("收縮補償：ABS 族 %d 支同值 %s｜其餘全庫 100%%"
           % (len(_abs_seen), list(_abs_seen.values())[0]))
+
+# ════ 關門床形四道閘門（出貨線 e841538431／66646635f9／e905f8f2ee＋6862f99ff3；2026-09-19 回移＝牌 c-0919-BP3-01）════
+# ★ 檢查：關門機型的列印範圍＝圓角三角形（Eric 2026-08-11 裁，產生器 rounded_triangle_area）
+#   幾何條件（兩條就鎖死形狀）：①三圓角貼合 Ø300 ⇒ 弧上每點離床心恰 150
+#                               ②三角形內切圓 Ø200 ⇒ 三條直邊各距床心 100
+#   ⚠ **凸性是硬條件**：引擎 BuildVolume 對凹形（Type::Custom）的碰撞判定會退回用凸包＝凹口不會被擋。
+#   🔴 本線改寫：出貨線只掃「FD300 關門」；本線 FP300 關門 同幾何（BED_OVERRIDE），一併掃，
+#     且**兩個家族各自至少一支**（少一個＝那台的床形閘門形同虛設，fail-closed）。
+_TRI_FAMILIES = ("FD300 關門", "FP300 關門")
+_tri_machines = [(_n, _d) for _n, (_k, _d) in presets.items()
+                 if _k == "machine" and _n.startswith(tuple(f + " " for f in _TRI_FAMILIES))
+                 and isinstance(_d.get("printable_area"), list)]
+for _fam in _TRI_FAMILIES:
+    if not any(_n.startswith(_fam + " ") for _n, _ in _tri_machines):
+        err(f"[關門床形] 找不到任何 {_fam} 機型的 printable_area（改床形的閘門形同虛設）")
+for _n, _d in _tri_machines:
+    _pts = []
+    for _p in _d["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 12:
+        err(f"[關門床形] {_n}: 點數 {len(_pts)} 過少，不像圓角三角形")
+        continue
+    _r = [math.hypot(x, y) for x, y in _pts]
+    if abs(max(_r) - 150.0) > 0.01 or min(_r) < 100.0 - 0.01:
+        err(f"[關門床形・圓角貼合 Ø300] {_n}: 離床心距離 min={min(_r):.4f} max={max(_r):.4f}，"
+            f"期望 max=150（弧在 Ø300 上）且 min≥100")
+    # 內切圓 Ø200：任一點都不得落在半徑 100 的圓內（三直邊恰切於該圓）
+    if min(_r) < 99.99:
+        err(f"[關門床形・內切圓 Ø200] {_n}: 有點離床心僅 {min(_r):.4f} < 100")
+    # 凸性：逐點外積同號（多邊形為凸）
+    _cross = []
+    for _i in range(len(_pts)):
+        _a, _b, _c = _pts[_i], _pts[(_i + 1) % len(_pts)], _pts[(_i + 2) % len(_pts)]
+        _cross.append((_b[0] - _a[0]) * (_c[1] - _b[1]) - (_b[1] - _a[1]) * (_c[0] - _b[0]))
+    if not (all(_v >= -1e-6 for _v in _cross) or all(_v <= 1e-6 for _v in _cross)):
+        err(f"[關門床形・凸性] {_n}: 多邊形非凸 ⇒ 引擎會退回用凸包判定，凹口不會被擋")
+
+# ★ 檢查：床形不對稱的機型必須明講盤心（Eric 2026-08-11 夜裁「走乙案」）
+#   引擎（`3DBed.cpp` update_model_offset）預設把床身 3D 模型擺在 printable_area 的**外框中心**。
+#   床形對稱時外框中心＝盤心（圓床、矩形床皆然，所以上游從沒踩到）；圓角三角形外框 Y[-100,+150]
+#   ⇒ 中心 (0,+25) ⇒ 圓盤被往 +Y 畫 25mm。⚠ 純渲染：碰撞判定走 m_build_volume 真實多邊形。
+#   對策＝機台 preset 用 `bed_model_offset` 明講盤心；**空值維持引擎原行為 ⇒ 其他機型零影響**。
+#   🔴 本閘門刻意寫成**通則而非特例**：任何「非矩形、也非以外框中心為圓心的圓」的床形都必須宣告
+#      ⇒ P200+ 之後若也改成三角形卻忘了宣告，會在這裡被擋下來，而不是等使用者看到歪盤。
+def _area_is_symmetric(_pts):
+    """矩形（4 點）或「以外框中心為圓心的圓」＝外框中心本來就等於盤心，不必宣告。"""
+    if len(_pts) == 4:
+        return True
+    _cx = (min(_p[0] for _p in _pts) + max(_p[0] for _p in _pts)) / 2.0
+    _cy = (min(_p[1] for _p in _pts) + max(_p[1] for _p in _pts)) / 2.0
+    _rr = [math.hypot(_p[0] - _cx, _p[1] - _cy) for _p in _pts]
+    return (max(_rr) - min(_rr)) <= 0.05
+
+_asym_checked = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "machine" or not isinstance(_d.get("printable_area"), list):
+        continue
+    _pts = []
+    for _p in _d["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 3 or _area_is_symmetric(_pts):
+        continue
+    _asym_checked += 1
+    _decl = _d.get("bed_model_offset")
+    if not (isinstance(_decl, list) and len(_decl) == 1):
+        _bx = (min(_p[0] for _p in _pts) + max(_p[0] for _p in _pts)) / 2.0
+        _by = (min(_p[1] for _p in _pts) + max(_p[1] for _p in _pts)) / 2.0
+        err(f"[床盤盤心] {_n}: 床形不對稱（外框中心 ({_bx:.3f}, {_by:.3f})）卻沒宣告 "
+            f"`bed_model_offset` ⇒ 引擎會拿外框中心當盤心，圓盤會被畫歪。"
+            f"在 embed_params.py 的 BED_OVERRIDE 補 `bed_model_center`")
+        continue
+    _ox, _oy = (float(_v) for _v in _decl[0].split("x"))
+    # PING 的圓盤機 printable_area 一律以床心 (0,0) 為原點（見 embed_params.py scale_circle_area）
+    # ⇒ 盤心恆為原點。日後若出現非中心原點的床，這條要連同該註解一起改，不要只放寬數值。
+    if abs(_ox) > 1e-6 or abs(_oy) > 1e-6:
+        err(f"[床盤盤心] {_n}: bed_model_offset={_decl[0]!r}，但 PING 圓盤機的盤心恆為床原點 0x0")
+if _asym_checked == 0:
+    err("[床盤盤心] 沒有掃到任何不對稱床形機型（關門應該要在內）⇒ 閘門形同虛設")
+
+# ★ 檢查：床形不對稱的機型，其床貼圖 logo 必須完全落在可印範圍內（Eric 2026-08-11 夜裁「logo 下移」）
+#   機制：床貼圖是「拉滿床形外框、再用床形裁切」（`3DBed.cpp` init_model_from_poly）
+#         u=(x-min_x)/size_x；v_eff=1-(y-min_y)/size_y ⇒ **v=0 是影像上緣＝床 +Y（後方）**。
+#   共用圖的 logo 垂直置中，映到三角外框後上緣兩側會被斜邊切掉 ⇒ 關門改用專屬貼圖（往床前緣平移 17mm）。
+#   🔴 這裡驗的是**幾何結果**不是檔名：拿 fixture 記的**墨跡凸包頂點**反算世界座標，逐點要求在床形內。
+#   CI 沒有 PIL，所以墨跡外接矩形離線算好放進 `tools/ping/bed_texture_ink_extents.json`，
+#   並用 SHA-256 綁住貼圖檔——換了圖沒重跑產生器就會被擋。
+#   🔴 本線改寫兩處：①找機台用 `printer_model` 精確比對——出貨線用 `startswith(機型名+" ")`，
+#     「FD300」會連「FD300 關門 …」一起撈進來、取 [0] 取到誰看載入順序（出貨線目前恰好沒踩到）；
+#     ②修正指引改指 `make_bed_texture_svg.py`（出貨線訊息仍寫已退役的 make_closeddoor_texture.py）。
+_ink_fix_path = os.path.normpath(os.path.join(_repo, "tools", "ping", "bed_texture_ink_extents.json"))
+_ink_fix = {}
+if os.path.isfile(_ink_fix_path):
+    _ink_fix = json.load(io.open(_ink_fix_path, encoding="utf-8"))
+else:
+    err(f"[床貼圖] 找不到墨跡 fixture {os.path.basename(_ink_fix_path)}（logo 裁切閘門形同虛設）")
+
+def _poly_clearance(_pts, _x, _y):
+    """凸多邊形內側餘裕（mm）；負＝在外面。"""
+    _a2 = 0.0
+    for _i in range(len(_pts)):
+        _p, _q = _pts[_i], _pts[(_i + 1) % len(_pts)]
+        _a2 += _p[0] * _q[1] - _q[0] * _p[1]
+    _sgn = 1.0 if _a2 > 0 else -1.0          # CCW→1，CW→-1
+    _best = None
+    for _i in range(len(_pts)):
+        _p, _q = _pts[_i], _pts[(_i + 1) % len(_pts)]
+        _ex, _ey = _q[0] - _p[0], _q[1] - _p[1]
+        _len = math.hypot(_ex, _ey)
+        if _len < 1e-9:
+            continue
+        _d = _sgn * ((_ex * (_y - _p[1]) - _ey * (_x - _p[0])) / _len)
+        _best = _d if _best is None else min(_best, _d)
+    return _best if _best is not None else -1e9
+
+_tex_checked = 0
+for _mn, (_mk, _md) in sorted(presets.items()):
+    if _mk != "machine_model":
+        continue
+    # 找這個機型底下任一支機台 preset 拿 printable_area（同機型各口徑同形，前面閘門已驗過一致）
+    _own = [_d for _n2, (_k2, _d) in presets.items()
+            if _k2 == "machine" and _d.get("printer_model") == _mn and isinstance(_d.get("printable_area"), list)]
+    if not _own:
+        continue
+    _pts = []
+    for _p in _own[0]["printable_area"]:
+        _x, _y = _p.split("x")
+        _pts.append((float(_x), float(_y)))
+    if len(_pts) < 3 or _area_is_symmetric(_pts):
+        continue
+    _tex_checked += 1
+    _tex = _md.get("bed_texture") or ""
+    _fx = _ink_fix.get(_tex)
+    if _fx is None:
+        err(f"[床貼圖] {_mn}: 床形不對稱卻用了沒登錄墨跡極值的貼圖 {_tex!r} ⇒ logo 會被斜邊切掉。"
+            f"跑 tools/ping/make_bed_texture_svg.py 產專屬貼圖並更新 fixture")
+        continue
+    _tp = os.path.join(PINGDIR, _tex)
+    if not os.path.isfile(_tp):
+        err(f"[床貼圖] {_mn}: 貼圖檔不存在 {_tex}")
+        continue
+    _sha = hashlib.sha256(open(_tp, "rb").read()).hexdigest()
+    if _sha != _fx.get("sha256"):
+        err(f"[床貼圖] {_mn}: {_tex} 的 SHA-256 與 fixture 不符（貼圖換過但沒重跑產生器）")
+        continue
+    _bx0 = min(_p[0] for _p in _pts); _bx1 = max(_p[0] for _p in _pts)
+    _by0 = min(_p[1] for _p in _pts); _by1 = max(_p[1] for _p in _pts)
+    _worst, _wpt = None, None
+    for _u, _v in _fx.get("ink_hull_uv", []):
+        _wx = _bx0 + _u * (_bx1 - _bx0)
+        _wy = _by0 + (1.0 - _v) * (_by1 - _by0)
+        _c = _poly_clearance(_pts, _wx, _wy)
+        if _worst is None or _c < _worst:
+            _worst, _wpt = _c, (_wx, _wy)
+    print(f"床貼圖 logo 餘裕：{_mn} {_tex} → "
+          f"{('無取樣點' if _worst is None else '%+.2f mm' % _worst)}（{len(_fx.get('ink_hull_uv', []))} 點）")
+    if _worst is None:
+        err(f"[床貼圖] {_mn}: fixture 沒有墨跡凸包頂點")
+    elif _worst < 0:
+        err(f"[床貼圖] {_mn}: logo 墨跡超出可印範圍 {-_worst:.2f}mm"
+            f"（最糟點 ({_wpt[0]:.1f}, {_wpt[1]:.1f})）⇒ 畫面上會被切掉")
+if _tex_checked == 0:
+    err("[床貼圖] 沒有掃到任何不對稱床形機型（關門應該要在內）⇒ 閘門形同虛設")
+
+# ★ 跨層護欄：`bed_model_offset` 是 profile↔C++ 雙邊契約，任一邊掉了都是「verify 全綠但功能壞」。
+#   ⚠ 一律先 strip_cxx_comments()——出貨線 0811 實測過：註解掉的那份字串會讓 grep 型護欄假綠。
+#   ⚠ C++ 端本線 2026-09-19 才回移、**尚未 build 驗證**（編譯＋GUI 看盤心置中要等 Eric 的 build 令）；
+#     本護欄只保證「字面在」，保證不了「編得過、畫得對」。
+for _rel, _needles in (
+    (("src", "slic3r", "GUI", "3DBed.cpp"),
+     ["m_bed_model_offset = bed_model_offset", "m_bed_model_offset.size() == 1"]),
+    (("src", "libslic3r", "PrintConfig.cpp"),
+     ['this->add("bed_model_offset", coPoints)']),
+    (("src", "libslic3r", "Preset.cpp"),
+     ['"bed_model_offset"']),
+    (("src", "slic3r", "GUI", "Plater.cpp"),
+     ['option<ConfigOptionPoints>("bed_model_offset")']),
+):
+    _fp = os.path.join(_repo, *_rel)
+    if not os.path.isfile(_fp):
+        err(f"[床盤盤心・跨層] 找不到 {os.path.join(*_rel)}")
+        continue
+    _src = strip_cxx_comments(io.open(_fp, encoding="utf-8", errors="ignore").read())
+    for _needle in _needles:
+        if _needle not in _src:
+            err(f"[床盤盤心・跨層] {os.path.join(*_rel)} 少了 {_needle!r} ⇒ "
+                f"profile 宣告了盤心但 C++ 不吃，圓盤照樣歪（靜默失效）")
 
 # ★ 檢查 12：支撐首層擴展＋支撐線寬（Eric 2026-08-09 兩裁；產生器 4b-6 post-pass 的硬閘門）
 #   本區塊與出貨線 `release/v3.6` commit 91d2b219 同內容（規則同步，值可因兩線 preset 集合不同而數量不同）。

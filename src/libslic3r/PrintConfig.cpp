@@ -676,6 +676,17 @@ void PrintConfigDef::init_common_params()
     def->gui_type = ConfigOptionDef::GUIType::one_string;
     def->set_default_value(new ConfigOptionString());
 
+    // PING 2026-08-11: the 3D bed model is normally centred on the printable area's bounding box
+    // centre, which only equals the real plate centre when that area is symmetric. Declare the
+    // plate centre explicitly when it is not (FD300 關門's rounded triangle: bbox centre (0,+25),
+    // plate centre (0,0)). A single point in bed coordinates; empty keeps the legacy behaviour.
+    def = this->add("bed_model_offset", coPoints);
+    def->label = L("Bed model centre");
+    def->tooltip = L("Centre of the 3D bed model in bed coordinates. Leave empty to use the centre "
+                     "of the printable area's bounding box.");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionPoints{});
+
     def = this->add("elefant_foot_compensation", coFloat);
     def->label = L("Elephant foot compensation");
     def->category = L("Quality");

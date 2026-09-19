@@ -249,7 +249,7 @@ void Bed3D::Axes::render()
 
 //BBS: add part plate logic
 bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_height, std::vector<Pointfs> extruder_areas, std::vector<double> extruder_heights, const std::string& custom_model, bool force_as_custom,
-    const Vec2d position, bool with_reset)
+    const Vec2d position, bool with_reset, const Pointfs& bed_model_offset)
 {
     /*auto check_texture = [](const std::string& texture) {
         boost::system::error_code ec; // so the exists call does not throw (e.g. after a permission problem)
@@ -286,9 +286,12 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
     }
 
     //BBS: add position related logic
-    if (m_bed_shape == printable_area && m_build_volume.printable_height() == printable_height && m_type == type && m_model_filename == model_filename && position == m_position && m_extruder_shapes == extruder_areas  && m_extruder_heights == extruder_heights)
+    if (m_bed_shape == printable_area && m_build_volume.printable_height() == printable_height && m_type == type && m_model_filename == model_filename && position == m_position && m_extruder_shapes == extruder_areas  && m_extruder_heights == extruder_heights
+        && m_bed_model_offset == bed_model_offset)
         // No change, no need to update the UI.
         return false;
+    // PING 2026-08-11: keep before update_model_offset() below — it reads this member.
+    m_bed_model_offset = bed_model_offset;
 
     //BBS: add part plate logic, apply position to bed shape
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(":current position {%1%,%2%}, new position {%3%, %4%}") % m_position.x() % m_position.y() % position.x() % position.y();
@@ -342,7 +345,9 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
 //BBS: add api to set position for partplate related bed
 void Bed3D::set_position(Vec2d& position)
 {
-    set_shape(m_bed_shape, m_build_volume.printable_height(), m_extruder_shapes, m_extruder_heights, m_model_filename, false, position, false);
+    // PING 2026-08-11: pass m_bed_model_offset through — the parameter defaults to empty, so
+    // omitting it here would silently reset the plate centre back to the bbox-centre behaviour.
+    set_shape(m_bed_shape, m_build_volume.printable_height(), m_extruder_shapes, m_extruder_heights, m_model_filename, false, position, false, m_bed_model_offset);
 }
 
 void Bed3D::set_axes_mode(bool origin)
@@ -622,6 +627,16 @@ void Bed3D::update_model_offset()
 {
     // move the model so that its origin (0.0, 0.0, 0.0) goes into the bed shape center and a bit down to avoid z-fighting with the texture quad
     Vec3d shift = m_build_volume.bounding_volume().center();
+    // PING 2026-08-11 (Eric「走乙案」): the bounding box centre is only the plate centre when the
+    // printable area is symmetric. FD300 關門's rounded-triangle area spans Y[-100,+150], so its
+    // bbox centre is (0,+25) and the plate model was rendered 25mm towards the back — the area
+    // itself was always correct (collision uses m_build_volume, not this offset), only the visual.
+    // `bed_model_offset` lets a profile state the real plate centre in bed coordinates.
+    // Empty = legacy behaviour, so every symmetric bed is bit-for-bit unchanged.
+    if (m_bed_model_offset.size() == 1) {
+        shift.x() = m_bed_model_offset.front().x() + m_position.x();
+        shift.y() = m_bed_model_offset.front().y() + m_position.y();
+    }
     shift(2) = -0.03;
     Vec3d* model_offset_ptr = const_cast<Vec3d*>(&m_model_offset);
     *model_offset_ptr = shift;

@@ -25,7 +25,7 @@ PING 參數嵌入器 v2 — 完整 F 系列（11 機型家族、136 config）
   （注意 2.3.2 無 has_scarf_joint_seam key，external 即啟用）
 - 單料頭/同進/FP 製程速度(2026-06-10 裁定)：travel 250 / 填充 60 / support 40
 """
-import re, json, os, sys, io, shutil, glob
+import re, json, os, sys, io, shutil, glob, math
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PINGDIR = os.path.join(REPO, "resources", "profiles", "PING")
@@ -149,12 +149,14 @@ def jdump(path, obj):
 FAMS = [
     ("FP300",       "FP300",       "single"),
     # FP300 關門（Eric 2026-09-08「FP300 應該也會有關門的模式，只是它是單料的，請幫我複製過去」）：
-    # 同 FD300 關門的幾何（床 Ø200、高度不變、預擠內移 50），但 kind=single＝只出單料本體。
+    # 同 FD300 關門的幾何（床形見 BED_OVERRIDE＝圓角三角、高度不變、預擠內移 50），但 kind=single＝只出單料本體。
+    # （0908 原寫「床 Ø200」＝當時本線 FD300 關門還停在 0726 圓形版；2026-09-19 床形回移後更正，牌 c-0919-BP3-01）
     # ⚠ 中段插入會推移後面所有 setting_id（SOP_加機型 §2.8）⇒ 本機型走保留號段 EXT_RESERVED（950 起），既有 id 零位移。
     ("FP300",       "FP300 關門",  "single"),
     ("FD300",       "FD300",       "dual"),
-    # 關門模式（Eric 2026-07-26）：門關著印（ABS 保艙溫）＝列印範圍剩直徑 200、高度不變；
+    # 關門模式（Eric 2026-07-26）：門關著印（ABS 保艙溫）＝列印範圍縮小、高度不變；
     # 同一台實體機、吃 FD300 交付 config，只縮床＋預擠內移（BED_OVERRIDE）。
+    # 床形：0726 原為 Ø200 圓 → Eric 2026-08-11 看圖裁「圓角三角」（出貨線當日改、已出貨；本線 2026-09-19 回移）。
     # kind=dual1＝只出雙料本體（Eric 裁「關門版只需要 FD300」，不出 關門 同進/單料頭）。
     ("FD300",       "FD300 關門",  "dual1"),
     ("FD300 Pro",   "FD300 Pro",   "dual"),
@@ -402,8 +404,10 @@ DEFAULT_MATERIALS_FD = ("PING PLA - 220;PING SupPLA;PING PLA - 210;"
 #   引擎支援 SVG（`3DBed.cpp:501` load_from_svg_file，以 GPU max_tex_size 點陣化）⇒ 換向量後不再受限。
 #   內容＝`resources/images/OrcaSlicer.svg` 原封搬入（純向量、零點陣），只外包 transform；
 #   顏色校正到 CIS 正色 #EA4E16／#202221（舊資產三種橘都不是正色）。**沒有重畫任何一筆**。
-#   產生器＝tools/ping/make_bed_texture_svg.py。
-#   ⚠ 本線沒有關門專屬貼圖與床貼圖裁切閘門（出貨線 0811 那批未同步過來）⇒ 這裡只換主貼圖。
+#   產生器＝tools/ping/make_bed_texture_svg.py（同時產關門版＝同一份只改垂直位移＋墨跡 fixture）。
+#   ⓘ 關門專屬貼圖與 logo 裁切閘門：2026-09-19 由出貨線回移（牌 c-0919-BP3-01）——貼圖與
+#     `tools/ping/bed_texture_ink_extents.json` 是**用本線同一支工具重產**的（非複製檔），
+#     產出與出貨線逐位元組相同。0907 本線當時只落了主貼圖。
 BED_TEXTURE = "ping_buildplate_texture.svg"
 
 def apply_bed_texture(mm):
@@ -416,7 +420,7 @@ def apply_bed_texture(mm):
     26 個機型只換到 19 個，剩下 7 個（FF600/FF800 的 同進・3in1・同進照片磚 ＋ FD300 同進照片磚）
     還是舊的鋸齒 PNG，**而且不會有任何錯誤訊息**。
     改範本檔可以治這一次，但下次再換貼圖還會漏同樣 7 個 ⇒ 照「源頭優先」把對齊放進產生器。
-    BED_OVERRIDE 仍然贏（P200+ 有自己的專屬貼圖）。"""
+    BED_OVERRIDE 仍然贏（P200+ 專屬貼圖、FD300／FP300 關門的關門版貼圖）。"""
     mm["bed_texture"] = BED_OVERRIDE.get(mm.get("name", ""), {}).get("bed_texture", BED_TEXTURE)
     return mm
 
@@ -441,13 +445,36 @@ BED_OVERRIDE = {
     "P200+": {"area_diameter": 250.0, "height": "200", "prime_y_shift": 50,
               "bed_texture": "P200+_buildplate_texture.png",
               "nozzles": ["0.4", "0.6"]},   # 去掉 0.2、只留 0.4/0.6（使用者 2026-06-15）
-    # FD300 關門（Eric 2026-07-26）：直徑 300→200、高度不變（不帶 height 鍵＝沿用 FD300）；
+    # FD300 關門（Eric 2026-07-26 建立；2026-08-11 改床形）：高度不變（不帶 height 鍵＝沿用 FD300）；
     # 預擠直線 Y-140/-138 → +50 內移＝P200+ 門關 200 實機驗過的同款幾何。
-    # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出 200 床）。
-    "FD300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
-    # FP300 關門（Eric 2026-09-08）：與 FD300 關門同幾何——直徑 300→200、高度不變、預擠直線 Y-140/-138 內移 50。
-    # 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型 ⇒ 不會誤套 R144 弧。
-    "FP300 關門": {"area_diameter": 200.0, "prime_y_shift": 50},
+    # ⚠ 預擠弧白名單（apply_fd300_prime_arc）全名比對不含本機型＝不會誤套 R144 弧（超出範圍）。
+    # 🆕 **床形由「Ø200 圓」改為圓角三角形**（Eric 2026-08-11 給幾何條件＋看圖確認「圖面 OK」）：
+    #    圓角貼合 Ø300、內切圓 Ø200 ⇒ 見 rounded_triangle_area()。**可印面積 +51%**。
+    #    預擠線落點不受影響：Y-90/-88 在 x≈±50 處，該處三角形下緣為 y=-100 的直邊 ⇒ 仍在範圍內
+    #    （原本靠「半徑 100 圓內」保證，現在靠「距床心 100 的下直邊」保證，餘裕相同）。
+    #    🆕 **bed_model_center**（Eric 2026-08-11 夜裁「走乙案」）：引擎預設把床身 3D 模型擺在
+    #       printable_area 的「外框中心」，那只有在床形對稱時才等於盤心；圓角三角形外框 Y[-100,+150]
+    #       ⇒ 中心 (0,+25) ⇒ 圓盤被往後畫 25mm（純渲染，切片判定走 m_build_volume 真實多邊形、不受影響）。
+    #       本鍵把真正的盤心明講出來，產生機台 preset 的 `bed_model_offset`（見 apply_bed_override）；
+    #       C++ 端＝3DBed.cpp update_model_offset()。PING 圓盤機的盤心恆為床原點 ⇒ "0x0"。
+    #       ⚠ 空值＝維持引擎原行為，所以其他機型一律零影響。
+    #    🆕 **bed_texture 改用關門專屬貼圖**（Eric 2026-08-11 夜裁「logo 下移」）：床貼圖是
+    #       「拉滿床形外框再用床形裁切」（3DBed.cpp init_model_from_poly），原圖 logo 垂直置中 ⇒
+    #       上緣兩側被三角形斜邊切掉。專屬圖＝原檔往床前緣平移 17mm，**只平移不重畫**（CIS 鐵則）；
+    #       產生器＝tools/ping/make_bed_texture_svg.py，閘門吃 bed_texture_ink_extents.json。
+    # ⓘ 出處＝出貨線 e841538431（床形）／66646635f9（盤心）／e905f8f2ee＋6862f99ff3（貼圖）；
+    #   2026-09-19 回移本線（牌 c-0919-BP3-01）。本線 0726～0919 一直是 Ø200 圓＝**比較舊、不是刻意分歧**
+    #   （本檔 0907 自註「出貨線 0811 那批未同步過來」；0811 之後本線無任何重裁床形的紀錄）。
+    #   只搬床形／盤心／貼圖；e841538431 同顆的「製程改名（棧板→筏層、去 Z0/Z隙/雙料）」**不在範圍**。
+    "FD300 關門": {"area_polygon": "rounded_triangle", "prime_y_shift": 50,
+                   "bed_model_center": "0x0",
+                   "bed_texture": "ping_buildplate_texture_closeddoor.svg"},
+    # FP300 關門（Eric 2026-09-08 建立）：與上面 FD300 關門 **完全同幾何**（同出貨線 053e93e771）。
+    #   依據＝FP300 與 FD300 的床實查相同（Ø300／72 點／X,Y ±150／高 300），同一道門 ⇒ 同一塊可印區。
+    #   0908 本線照當時的 FD300 關門抄成 Ø200 圓；FD300 關門改三角之後若不跟，兩台關門機會長得不一樣。
+    "FP300 關門": {"area_polygon": "rounded_triangle", "prime_y_shift": 50,
+                   "bed_model_center": "0x0",
+                   "bed_texture": "ping_buildplate_texture_closeddoor.svg"},
 }
 def scale_circle_area(area_pts, target_diameter):
     """圓床 printable_area 是以床心(0,0)為原點的 72 點；FP300 半徑150 → 等比縮放至目標直徑"""
@@ -457,14 +484,51 @@ def scale_circle_area(area_pts, target_diameter):
         x, y = p.split("x")
         out.append("%gx%g" % (round(float(x) * s, 4), round(float(y) * s, 4)))
     return out
+# ★ 圓角三角形床（Eric 2026-08-11 裁・FD300 關門真實可印範圍；出貨線 e841538431，2026-09-19 回移）
+#   起因：關門機型原本用「直徑 200 的圓」近似，但門關著的實際可達範圍不是圓——
+#   Eric 給的幾何條件有兩條，兩條就把形狀鎖死、無自由度：
+#     ①三個圓角「貼合 Ø300」⇒ 圓角半徑 R_OUT = 150（＝原 FD300 滿床圓）
+#     ②三角形「內切圓 Ø200」⇒ 三條直邊各距床心 R_IN = 100
+#   ⇒ 形狀 ＝「內切圓 r=100 的正三角形」∩「R=150 的圓」＝三直邊＋三圓弧。
+#   實得：弦長 223.61×3、外框 285.0(X)×250.0(Y)、面積 47,452mm²（比 Ø200 圓多 51%）。
+#   ⚠ **必須是凸多邊形**：引擎 BuildVolume 對凹形（Type::Custom）的碰撞判定會**退回用凸包**
+#     ＝凹口不會被擋；本形狀為凸 ⇒ 走 Type::Convex 精準路徑。日後要改形狀，**凸性是硬條件**。
+#   ⚠ 床身 STL 仍是圓盤（BED_STL）＝刻意不換：深色圓盤是模型、可印區格線才是 printable_area，
+#     兩者疊起來就是「圓盤上一塊三角亮區」＝Eric 2026-08-11 看圖確認的樣子。
+BED_TRI_R_IN, BED_TRI_R_OUT = 100.0, 150.0
+BED_TRI_APEX_DEG = 90.0     # 尖端方位：90°＝朝 +Y（後方）、平邊朝前（門側）＝Eric 圖面
+BED_TRI_ARC_STEP = 2.0      # 圓弧取樣間隔（度）；39 點，與原 72 點圓同量級
+
+def rounded_triangle_area(r_in=BED_TRI_R_IN, r_out=BED_TRI_R_OUT,
+                          apex_deg=BED_TRI_APEX_DEG, step=BED_TRI_ARC_STEP):
+    """正三角形(內切圓 r_in) ∩ 圓(r_out) 的邊界點列，回傳 "XxY" 字串（同 printable_area 格式）。
+    直邊不必補點：相鄰兩段圓弧的端點連線本身就是那條直邊（引擎以點列連成多邊形）。"""
+    alpha = math.degrees(math.acos(r_in / r_out))       # 圓與邊的交點離切點的圓心角＝48.1897°
+    out = []
+    for c in (apex_deg, apex_deg + 120.0, apex_deg + 240.0):
+        start, end = c - (60.0 - alpha), c + (60.0 - alpha)
+        n = max(2, int(round((end - start) / step)) + 1)
+        for i in range(n):
+            a = math.radians(start + (end - start) * i / (n - 1))
+            out.append("%gx%g" % (round(r_out * math.cos(a), 4), round(r_out * math.sin(a), 4)))
+    return out
 def apply_bed_override(model, mac):
     ov = BED_OVERRIDE.get(model)
     if not ov:
         return
     if isinstance(mac.get("printable_area"), list):
-        mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
+        if ov.get("area_polygon") == "rounded_triangle":   # FD300／FP300 關門（0811 改床形）
+            mac["printable_area"] = rounded_triangle_area()
+        else:
+            mac["printable_area"] = scale_circle_area(mac["printable_area"], ov["area_diameter"])
     if "height" in ov:                       # FD300 關門：高度不變＝不帶 height 鍵
         mac["printable_height"] = ov["height"]
+    # 床形不對稱時，把真正的盤心明講給引擎（Eric 2026-08-11 夜裁「走乙案」）——
+    # 不寫的話 3DBed.cpp 會拿 printable_area 外框中心當盤心，圓盤就被畫歪。
+    # ⚠ 只有 area_polygon 這類非圓非矩形的床需要；圓床/矩形床外框中心＝盤心，不寫＝行為不變。
+    # 🔴 本鍵要 C++ 認得（PrintConfig／Preset／Plater／3DBed，同 commit 回移）——verify 有跨層字面護欄。
+    if ov.get("bed_model_center"):
+        mac["bed_model_offset"] = [ov["bed_model_center"]]
     sg = mac.get("machine_start_gcode")
     if isinstance(sg, str):   # 預擠線 Y 往床心平移（門關直徑計），避免門關時超出床
         mac["machine_start_gcode"] = re.sub(
