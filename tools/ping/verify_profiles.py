@@ -45,7 +45,14 @@ errors = []
 COMBO_CAT_EASY,   COMBO_CAT_PVA      = "易拆(Z0)",      "易拆(Z0)水溶"
 COMBO_CAT_EASYPAL, COMBO_CAT_DUAL    = "易拆(Z0)+棧板", "雙料(Z隙)"
 COMBO_CAT_DUALPAL                    = "雙料(Z隙)+棧板"
-COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_DUAL, COMBO_CAT_DUALPAL}
+# 🆕 2026-09-19（Eric 兩輪 grill 裁，牌 c-0919-ETR-01；出貨線同批名「易拆樹狀」）：第六個 token「易拆(Z0)樹狀」
+#   = 同口徑易拆(Z0) 只換 support_type=tree(auto)／support_style=tree_hybrid／支撐＋支撐面速度 50。
+#   列入 COMBO_TOKENS ⇒ 連動表鍵集合／token 契約／每機口徑一支普查自動涵蓋；新品無舊名 ⇒ renamed_from 改驗不得存在。
+COMBO_CAT_EASYTREE                   = "易拆(Z0)樹狀"
+EASY_TREE_ALLOWED_DIFF = {"name", "setting_id", "renamed_from", "support_type", "support_style",
+                          "support_speed", "support_interface_speed"}
+COMBO_TOKENS = {COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_DUAL, COMBO_CAT_DUALPAL,
+                COMBO_CAT_EASYTREE}
 # 🆕 0907 #153（Eric 四裁）：3in1 兩支改名成「… - 高流量噴頭」。名字集中在這裡，
 #   下方所有 exact 比對一律引用這兩個常數——SOP §N 第 3 條（內聯複製的條件要改成共用變數）。
 #   ⚠ 新名仍含 `(3in1)` 與 `高流量` ⇒ is_hf／PA 豁免／清料 120 三處子字串判定**都還命中**，
@@ -99,6 +106,7 @@ EXPECTED_COMBO_MAP = {
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
     COMBO_CAT_DUAL:    ("PING PLA - 220", "PING PLA - 220"),
     COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
+    COMBO_CAT_EASYTREE: ("PING PLA - 210", "PING SupPLA"),              # 0919：同易拆配料
 }
 EXPECTED_COMBO_MAP_HF = {
     COMBO_CAT_EASY:    ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),
@@ -106,11 +114,13 @@ EXPECTED_COMBO_MAP_HF = {
     COMBO_CAT_EASYPAL: ("PING ABS", "PING SupABS"),
     COMBO_CAT_DUAL:    ("PING PLA - 高流量噴頭", "PING PLA - 高流量噴頭"),
     COMBO_CAT_DUALPAL: ("PING ABS", "PING ABS"),
+    COMBO_CAT_EASYTREE: ("PING PLA - 高流量噴頭", "PING SupPLA - 高流量噴頭"),  # 0919：同易拆配料
 }
 # #39 棧板建議（PresetComboBoxes.cpp）期望三組 source→target＋守衛 token（跨層護欄用）
 EXPECTED_P39 = {" %s @" % COMBO_CAT_EASY:  " %s @" % COMBO_CAT_EASYPAL,
                 " %s @" % COMBO_CAT_PVA:   " %s @" % COMBO_CAT_EASYPAL,
-                " %s @" % COMBO_CAT_DUAL:  " %s @" % COMBO_CAT_DUALPAL}
+                " %s @" % COMBO_CAT_DUAL:  " %s @" % COMBO_CAT_DUALPAL,
+                " %s @" % COMBO_CAT_EASYTREE: " %s @" % COMBO_CAT_EASYPAL}   # 0919：樹狀換 ABS 同建議易拆+棧板
 
 
 
@@ -257,7 +267,7 @@ for name, (kind, d) in presets.items():
                 # PLA+SUP/PVA 0.1、ABS+SUP 黃金 0.04、3in1 實心 0（承 0714/0722「不蓋」先例）。
                 if _ctok == COMBO_CAT_EASYPAL:
                     _sis = "0.04"
-                elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA):
+                elif _ctok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYTREE):
                     _sis = "0.1"
                 elif "3in1" in name:
                     _sis = "0"
@@ -286,11 +296,19 @@ for name, (kind, d) in presets.items():
                                        ("independent_support_layer_height", "0"),
                                        ("support_style", "default"),
                                        ("support_base_pattern", "rectilinear")]
+                # 易拆(Z0)樹狀（Eric 2026-09-19 改裁 Q2＝乙＝有機樹）：style 明寫 organic（UI 才顯示「有機樹」；
+                # default 行為相同但 UI 顯示「預設 (網格/有機)」＝Eric 0919 GUI 實看抓到）
+                # （同 PA-CF 樹狀）。寫成 tree_hybrid／snug 一律紅。
+                elif _ctok == COMBO_CAT_EASYTREE:
+                    expected_recipe = [("support_type", "tree(auto)"),
+                                       ("independent_support_layer_height", "0"),
+                                       ("support_style", "organic"),
+                                       ("support_base_pattern", "rectilinear")]
                 # PLA+PVA＝易拆類（PVA 為水溶支撐料、與 PLA 不相熔，同 +SUP 家族）
                 # ⇒ XY 走易拆家規 口徑×0.75，不套一般支撐的 ×1
                 if _ctok == COMBO_CAT_PVA:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 0.75, 2)))
-                elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL) and "3in1" not in name:
+                elif _ctok not in (COMBO_CAT_EASY, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE) and "3in1" not in name:
                     expected_recipe.append(("support_object_xy_distance", "%g" % round(nz * 1.0, 2)))
                 for key, value in expected_recipe:
                     if d.get(key) != value:
@@ -333,7 +351,7 @@ for name, (kind, d) in presets.items():
             if _vtok:
                 _lh_m = re.match(r"([\d.]+)mm ", name)
                 _lh_v = _lh_m.group(1) if _lh_m else None
-                if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL):
+                if _vtok in (COMBO_CAT_EASY, COMBO_CAT_PVA, COMBO_CAT_EASYPAL, COMBO_CAT_EASYTREE):
                     for zk in ("support_top_z_distance", "support_bottom_z_distance"):
                         if d.get(zk) != "0":
                             err(f"[功能歸類・易拆 Z0] {name}: {zk}={d.get(zk)!r}")
@@ -359,9 +377,15 @@ for name, (kind, d) in presets.items():
                             COMBO_CAT_EASYPAL: "ABS+SUP", COMBO_CAT_DUAL: "PLA+PLA",
                             COMBO_CAT_DUALPAL: "ABS+ABS"}
                 _rf = d.get("renamed_from")
-                _rf_expect = name.replace(" %s @" % _vtok, " %s @" % _new2old[_vtok])
-                if not isinstance(_rf, str) or _rf != _rf_expect:
-                    err(f"[功能歸類・renamed_from] {name}: {_rf!r}, expected {_rf_expect!r}")
+                if _vtok == COMBO_CAT_EASYTREE:
+                    # 0919 新品、沒有改名史 ⇒ **不得帶 renamed_from**（從易拆複製來的那條若沒拿掉，
+                    #   兩支會宣稱同一個舊名＝引擎 rename map 1:1 先到先贏，舊 3mf 可能被接到樹狀版）。
+                    if "renamed_from" in d:
+                        err(f"[功能歸類・易拆樹狀不得有 renamed_from] {name}: {_rf!r}")
+                else:
+                    _rf_expect = name.replace(" %s @" % _vtok, " %s @" % _new2old[_vtok])
+                    if not isinstance(_rf, str) or _rf != _rf_expect:
+                        err(f"[功能歸類・renamed_from] {name}: {_rf!r}, expected {_rf_expect!r}")
             # 單料 _棧板 雙生（產生器 PALLET_OVERRIDES；combo_token 回 None 的那一群）：raft_layers＝3。
             #   Eric 2026-09-17 同日兩裁：前裁只改易拆+筏層（本線顯示名＝易拆(Z0)+棧板；本族當時維持 2）、
             #   後裁「三族都改 3」⇒ 本族同步為 3（牌 c-0917-REL-02，後裁蓋前裁）。
@@ -924,7 +948,9 @@ else:
                re.findall(r'constexpr const char \*(\w+)\s*=\s*"([^"]*)"', _src)}
     for _map_name, _expected in (("COMBO_FILAMENTS", EXPECTED_COMBO_MAP),
                                  ("COMBO_FILAMENTS_HF", EXPECTED_COMBO_MAP_HF)):
-        _pairs = _parse_combo_map(_src, _map_name)
+        # ⚠ 先剝註解（2026-09-19 反向測試實抓，牌 c-0919-ETR-01）：吃未剝註解的原始碼時，
+        #   某一列被 `//` 註解掉（C++ 裡已不存在）仍被解析成有效鍵＝假綠。
+        _pairs = _parse_combo_map(strip_cxx_comments(_src), _map_name)
         if _pairs is None:
             err(f"[跨層護欄] Tab.cpp 抓不到 {_map_name}（格式變了？護欄失效）")
             continue
@@ -958,7 +984,8 @@ else:
     if not os.path.isfile(_pcb):
         err(f"[跨層護欄] 找不到 {_pcb}（#39 護欄形同虛設）")
     else:
-        _psrc = io.open(_pcb, encoding="utf-8", errors="ignore").read()
+        # ⚠ 同上先剝註解（0919）：source→target 那列被註解掉，字面仍在檔裡＝原本會假綠。
+        _psrc = strip_cxx_comments(io.open(_pcb, encoding="utf-8", errors="ignore").read())
         for _s, _t in EXPECTED_P39.items():
             if (_s not in _psrc and cxx_escape(_s) not in _psrc) or \
                (_t not in _psrc and cxx_escape(_t) not in _psrc):
@@ -1065,6 +1092,32 @@ for _n, (_k, _d) in presets.items():
 for _t in sorted(COMBO_TOKENS):
     if _combo_census.get(_t, 0) != _combo_expect:
         err(f"[功能歸類・{_t} 應 {_combo_expect} 支＝雙料本體機口徑變體數] 實得 {_combo_census.get(_t, 0)}")
+
+# ★ 易拆樹狀族（Eric 2026-09-19 兩輪 grill 裁，牌 c-0919-ETR-01）：
+#   ①支撐＋支撐面速度 exact 50（Q5／Q6 甲＝兩線同值；本線普通易拆目前 40＝0812 下限未進本線，另案）
+#   ②每支都必須是「同口徑易拆(Z0)」的雙生，**只准**差 EASY_TREE_ALLOWED_DIFF 那幾鍵——哪天有人把樹狀版
+#     接到別的 normalize 之前，其他鍵一偏就紅（不必逐鍵列期望值）。
+_et_n = 0
+for _n, (_k, _d) in sorted(presets.items()):
+    if _k != "process" or combo_token(_n) != COMBO_CAT_EASYTREE:
+        continue
+    _et_n += 1
+    for _key in ("support_speed", "support_interface_speed"):
+        if _d.get(_key) != "50":
+            err(f"[支撐速度・易拆樹狀 50] {_n}: {_key}={_d.get(_key)!r}, expected '50'（Eric 2026-09-19 裁）")
+    _sib = _n.replace(" %s @" % COMBO_CAT_EASYTREE, " %s @" % COMBO_CAT_EASY, 1)
+    _se = presets.get(_sib)
+    if not _se or _se[0] != "process":
+        err(f"[易拆樹狀・雙生對象不存在] {_n}：找不到 {_sib!r}")
+        continue
+    _sd = _se[1]
+    _dk = sorted(k for k in set(_d) | set(_sd) if _d.get(k) != _sd.get(k) and k not in EASY_TREE_ALLOWED_DIFF)
+    if _dk:
+        err(f"[易拆樹狀・與易拆雙生的差異超出允許] {_n}: {_dk[:6]}"
+            f"（只准差 support_type／support_style／兩個支撐速度）")
+if _et_n == 0:
+    err("[易拆樹狀・防空轉] 一支易拆樹狀製程都沒掃到 ⇒ 產生器沒產或 token 判定壞了")
+print("易拆樹狀：%d 支（速度 exact 50＋逐支與同口徑易拆(Z0)雙生比對）" % _et_n)
 # id baseline（二輪必改 14／四輪修訂 C）：改名前快照＝舊名→新名→setting_id 90 條 exact，
 # 防重構位移／PVA 插回主迴圈／依新名重排 emission（fixture＝regen 前 dump、進 repo）。
 _idb_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "combo_rename_id_baseline.json")

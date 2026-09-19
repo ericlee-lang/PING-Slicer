@@ -947,6 +947,8 @@ static void ping_suggest_pallet_for_abs(const std::string &filament_name)
             {" \xE6\x98\x93\xE6\x8B\x86(Z0) @",                         " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)→易拆(Z0)+棧板
             {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)水溶→易拆(Z0)+棧板
             {" \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99) @",              " \xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF @"}, // 雙料(Z隙)→雙料(Z隙)+棧板
+            // PING(2026-09-19，牌 c-0919-ETR-01)：易拆樹狀換 ABS 時同樣建議易拆+棧板（本線無樹狀棧板版，Q1 乙不做）
+            {" \xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80 @", " \xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF @"},            // 易拆(Z0)樹狀→易拆(Z0)+棧板
         };
         for (const auto& m : COMBO_TO_PALLET) {
             const size_t p = cur.find(m.first);
