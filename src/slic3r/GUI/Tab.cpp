@@ -232,6 +232,8 @@ void ping_apply_combo_filaments(const std::string &process_name)
         {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_210, PING_PVA}},       // 易拆(Z0)水溶
         {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板（原 ABS+SUP）
         {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板（原 ABS+ABS）
+        // PING(2026-09-19 Eric 裁，牌 c-0919-ETR-01)：易拆樹狀＝同口徑易拆換混合樹支撐，配料同易拆。
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80",  {PING_PLA_210, PING_SUP_PLA}},   // 易拆(Z0)樹狀
     };
     // PING(2026-07-12 Eric 裁定)：連動組依機型——FD450/600/800 Pro 出廠高流量噴頭，
     // PLA 組合連動到「高流量噴頭」支；FD300 系維持原表；ABS 無高流量版暫同一般。
@@ -243,6 +245,7 @@ void ping_apply_combo_filaments(const std::string &process_name)
         {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xB0\xB4\xE6\xBA\xB6",  {PING_PLA_HF, PING_PVA}},        // 易拆(Z0)水溶
         {"\xE6\x98\x93\xE6\x8B\x86(Z0)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_SUP_ABS}},       // 易拆(Z0)+棧板
         {"\xE9\x9B\x99\xE6\x96\x99(Z\xE9\x9A\x99)+\xE6\xA3\xA7\xE6\x9D\xBF", {PING_ABS, PING_ABS}}, // 雙料(Z隙)+棧板
+        {"\xE6\x98\x93\xE6\x8B\x86(Z0)\xE6\xA8\xB9\xE7\x8B\x80",  {PING_PLA_HF, PING_SUP_HF}},     // 易拆(Z0)樹狀（0919；同易拆）
     };
     PresetBundle *bundle = wxGetApp().preset_bundle;
     const std::string printer_model = bundle->printers.get_edited_preset().config.opt_string("printer_model");
