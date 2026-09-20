@@ -1010,15 +1010,24 @@ else:
     #    compatible_prints_condition**（實查：FF600／FF800 全系 18 台零棧板製程，硬相容會把它們
     #    打成 0 支可選；批2 的 fail-open 才擋得住）。三支 C++ 掉任何一支＝規則靜默失效。
     #    ⛔ 同時守 `ping_suggest_pallet_for_abs` 已退役：它與收斂做同一件事，復活＝雙重機制。
+    #    🆕 2026-09-20 同日回移**批3**（Eric 回「P3 補回移」）：`ping_backfill_new_slots`（擴槽後把新槽
+    #    填成該機 `default_filament_profile`）＋`select_preset` 的 `user_initiated` 趟尾收斂。
+    #    這兩件掉了的症狀是「切機／切口徑後槽 2 仍是槽 1 的複製、製程也沒跟著收斂」——**畫面不會報錯**，
+    #    所以一樣要守。
     for _f, _need, _tag in (
             (os.path.join(_repo, "src", "slic3r", "GUI", "Tab.cpp"),
              ("PingFamily ping_classify_process", "PingFamily ping_derive_family",
-              "void ping_converge_process", "s_ping_converge_guard"), "Tab.cpp 批2 三支"),
+              "void ping_converge_process", "s_ping_converge_guard",
+              "void ping_backfill_new_slots", "ping_backfill_new_slots(old_n)",
+              "user_initiated && m_type == Preset::TYPE_PRINTER"), "Tab.cpp 批2 三支＋批3"),
             (os.path.join(_repo, "src", "slic3r", "GUI", "PresetComboBoxes.cpp"),
              ("ping_derive_family()", "ping_filter_active", "ping_classify_process(preset.name)"),
              "PresetComboBoxes.cpp 製程下拉過濾"),
+            (os.path.join(_repo, "src", "slic3r", "GUI", "GUI_App.cpp"),
+             ("ping_backfill_new_slots(old_filament_count)",), "GUI_App.cpp 精靈／啟動路徑補槽"),
             (os.path.join(_repo, "src", "slic3r", "GUI", "Plater.cpp"),
-             ("ping_converge_process()",), "Plater.cpp 側欄換料收斂掛點")):
+             ("ping_converge_process()", "select_preset(preset_name, false, \"\", false, false, true)"),
+             "Plater.cpp 側欄換料收斂掛點＋批3 使用者手勢旗標")):
         if not os.path.isfile(_f):
             err(f"[跨層護欄] 找不到 {_f}（批2 護欄形同虛設）")
             continue
@@ -1026,7 +1035,7 @@ else:
         _s2 = strip_cxx_comments(io.open(_f, encoding="utf-8", errors="ignore").read())
         for _pat in _need:
             if _pat not in _s2:
-                err(f"[跨層護欄・批2 收斂] {_tag} 缺 {_pat!r} ⇒ ABS 只相容棧板會靜默失效")
+                err(f"[跨層護欄・批2／批3] {_tag} 缺 {_pat!r} ⇒ 規則會靜默失效（批2 掉＝ABS 不再只相容棧板；批3 掉＝切機後新槽仍是槽 1 的複製、製程不收斂）")
         if "ping_suggest_pallet_for_abs" in _s2:
             err(f"[跨層護欄・批2 收斂] {_tag} 出現已退役的 ping_suggest_pallet_for_abs ⇒ 與自動收斂重複")
 
