@@ -561,6 +561,17 @@ let img = null;      // {w,h,data:Uint8ClampedArray, lab:Float32Array, lum:Float
    但只寫進 #metric 的 innerHTML ⇒ 程式讀不到。存起來才有「生完就驗、沒過重生」的尺（P3 丑）。
    🔴 ΔE 只管「印得出來嗎」，不是品質分數（0815 三度誤導：5.34 無眼睛 vs 5.29 有眼睛）。 */
 let lastDeltaE = null;
+/* §12 R12-8：這張圖實際用到幾色。0＝不知道。
+   🔴 **兩個值、權威不同，不要混用**：
+   - `lastGenColours`＝上一次**真的產生**時切出來的零件數＝寫進 3MF 的那個數（權威）。
+   - `lastUsedColours`＝**預覽**上數出來的色數，只是估計。預覽是縮圖、而且雜訊濾除走的是另一支濾波器
+     （引擎用 smoothLabelNoise 按 mm 濾，預覽用 median 按格子濾）⇒ **預覽通常估得偏多**：
+     0920 實測同一張「年輕女」100×150、8 階，預覽數出 8 色、引擎實際切出 **5** 色。
+   ⇒ 畫面上有 `lastGenColours` 就用它、並講明是「這次產生」；只有估計值就**明講是估的**。
+   真正寫進 3MF 的圈數一律由 engine.js 在全解析度切完零件後決定（cycleObjectMeta），不吃這裡的數字——
+   寫小了 C++ 端 split_active() 會靜默退回整塔。 */
+let lastUsedColours = 0;
+let lastGenColours = 0;
 
 /* ================= UI 生成：料槽 ================= */
 const slotList = document.getElementById('slotList');
@@ -574,9 +585,21 @@ const slotList = document.getElementById('slotList');
    實印驗證過且已隨 T044 出貨的組態，為了公式統一去動它不划算，省下的料也很少。
    為什麼非改唯讀不可（R12-5）：舊的手動欄位只要被改成不是 4，C++ 端 split_active() 就整個失效、**悄悄**退回
    「層首一趟整塔」＝白塊回來，而畫面上不會說。這正是 FBK 家族「不得靜默降級」要擋的形狀。
-   C++ 端的判準是「總圈數 ≥ 色數＋1」（PingCycleTower.cpp build_split_roles），本式是它的上游來源。
+   C++ 端的判準是「總圈數 ≥ 色數＋1」（PingCycleTower.cpp build_split_roles）。
+   🔴 2026-09-20 起**本式不再是寫進 3MF 的那一份**：真正的 laps 由 engine.js cycleObjectMeta 在全解析度
+   切完零件後用同一條 lapsForColours 決定（R12-8）。本頁這一份只負責把數字顯示給人看。
    四料照 R12-3「不動」，圈數欄維持手動。 */
-function cycleTowerLaps(){ const k=Math.max(2,Math.min(8,Math.round(params.klevels)||2)); return k===2 ? 4 : k+1; }
+/* §12 R12-8（Eric 2026-09-20 裁「實際色數＋1」）：圈數看**這張圖真的用到幾色**，不看色階數設定。
+   起因＝0919 實切年輕女：範例圖只有 3 灰、色階數預設 8 ⇒ 舊式算 9 圈，塔吃掉 25.8 m＝全部用料的 63%、多 2 小時，
+   而切片端與驗證器都照實際色數算（應 4 圈）⇒ 洗料塔驗證直接 FAIL。內建範例多半 3 灰 ⇒ **點任何一張都會中**。
+   式子的單一來源＝engine.js lapsForColours（引擎沒載到才用本地同式 fallback）。 */
+function usedColours(){
+  if(lastGenColours>=2) return {n:lastGenColours, src:'gen'};      /* 權威：上次產生真的切出來的 */
+  if(lastUsedColours>=2) return {n:lastUsedColours, src:'preview'};/* 估計：預覽數出來的 */
+  return {n:Math.max(2,Math.min(8,Math.round(params.klevels)||2)), src:'klevels'};   /* 還沒有圖 */
+}
+function cycleTowerLaps(){ const n=usedColours().n;
+  return (window.PhotoTileEngine && PhotoTileEngine.lapsForColours) ? PhotoTileEngine.lapsForColours(n) : (n===2 ? 4 : n+1); }
 function cycleDefaultLaps(){ return slotCount===4 ? [8,8] : [1,cycleTowerLaps()-1]; }   /* 四料 2/4→8/8（Eric 2026-09-10，配合塔加大到 35mm） */   // 雙料最內 1 圈深色、其餘全給最淺色（E0 2→3＝Eric 2026-09-09 實印裁「出塔不夠白」，牌 c-0910-WT-09）
 function cycleLaps(){ const d=cycleDefaultLaps(); if(slotCount!==4) return d;   /* 雙料＝自動，刻意不吃 params.cycleLaps */
   return (Array.isArray(params.cycleLaps)&&params.cycleLaps.length===d.length) ? params.cycleLaps : d; }
@@ -587,9 +610,14 @@ function renderCycleUI(){
   const laps=cycleLaps();
   if(slotCount!==4){
     /* R12-5：唯讀自動。講出「共幾圈」與「憑什麼是這個數」，不留可以把每色進塔關掉的輸入框。 */
-    const k=Math.max(2,Math.min(8,Math.round(params.klevels)||2));
+    const u=usedColours();
+    /* 🔴 不確定的數字要講出它不確定（FBK「不得靜默降級」同一家族）：預覽估的色數通常偏多，
+       正式圈數在「產生」那一刻才由引擎按真的切出來的零件數定。 */
+    const src = u.src==='gen'     ? `這次產生實際切出 ${u.n} 色`
+              : u.src==='preview' ? `預覽估 ${u.n} 色；正式數字在產生時才定`
+              :                     `色階數 ${u.n}（還沒有圖，先照設定估）`;
     box.innerHTML = `<span>共 <b>${laps.reduce((a,b)=>a+b,0)}</b> 圈</span>`
-                  + `<span style="color:#6F7773">由色階數自動決定（色階數＋1${k===2?'；2 階是特例，維持 4 圈':''}）</span>`;
+                  + `<span style="color:#6F7773">自動決定（實際色數＋1）：${src}${u.n===2?'；2 色是特例，維持 4 圈':''}</span>`;
   }else{
     const names = ['深色（料2+3+4 同時）','白色（料1）'];
     box.innerHTML = names.map((n,i)=>`<span>${n} <input type="number" data-i="${i}" value="${laps[i]}" min="1" max="8" step="1" style="width:44px"> 圈</span>`).join('')
@@ -1022,7 +1050,7 @@ function simulateVertical(){
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
   renderCalibGenStat(K);
   listVertical(levels);
-  if(!img){ updateNoiseStat(null); return; }
+  if(!img){ lastUsedColours=0; lastGenColours=0; if(typeof renderCycleUI==='function') renderCycleUI(); updateNoiseStat(null); return; }
   const t0=performance.now();
   const out=simCtx.createImageData(img.w,img.h); const od=out.data; const n=img.w*img.h;
   const rawLabels=new Uint8Array(n);
@@ -1039,6 +1067,10 @@ function simulateVertical(){
     rawLabels[p]=Math.min(K-1,Math.max(0,k));
   }
   const labArr=filterVerticalLabels(rawLabels,K,'median');
+  /* §12 R12-8：預覽數得出來的色數＝估計值；參數一動就重算 ⇒ 上次產生那個權威值同時作廢。 */
+  lastUsedColours=new Set(labArr).size;
+  lastGenColours=0;
+  if(typeof renderCycleUI==='function') renderCycleUI();
   let sumDE=0;
   for(let p=0;p<n;p++){
     const k=labArr[p];
@@ -1877,6 +1909,8 @@ function genBegin(jobId){
 function genFinishOk(r){
   const wallSec=(((r&&r.wallMs)||0)/1000).toFixed(1);
   const detail=(r&&r.parts)?`${r.parts} 個色階零件${r.pillar?'＋洗料柱':''}、`:'';
+  /* §12 R12-8：零件數＝真的切出來的實際色數＝引擎寫進 3MF 的那個圈數的來源 ⇒ 圈數欄改講這一個。 */
+  if(slotCount!==4 && r && r.parts>=2){ lastGenColours=r.parts; if(typeof renderCycleUI==='function') renderCycleUI(); }
   const text=(r&&r.downloaded)
     ? `✓ 已輸出下載：${detail}耗時 ${wallSec} 秒。`
     : `✓ 已產生並載入列印板：${detail}耗時 ${wallSec} 秒。`;

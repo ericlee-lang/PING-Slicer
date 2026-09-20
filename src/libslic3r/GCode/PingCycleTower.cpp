@@ -340,26 +340,85 @@ void Tower::build_split_roles()
                             << " rings, light->dark): " << os.str();
 }
 
-std::vector<std::pair<unsigned int, std::vector<int>>> Tower::split_plan(const std::vector<unsigned int>& layer_extruders) const
+// R12-7：雙料配方 M6051 S<v> 的 v＝**最淺那一支**的佔比 ⇒ 出得到最淺那支的條件是 v>0、最深那支是 v<1；
+// 0<v<1 的混合配方一次就把兩支都洗到（Q3「不設混合色門檻」）。
+static void dual_material_use(double light_s, bool& uses_light, bool& uses_dark)
 {
-    std::vector<std::pair<unsigned int, std::vector<int>>> plan;
+    constexpr double kEps = 1e-9;
+    uses_light = light_s > kEps;
+    uses_dark  = light_s < 1. - kEps;
+}
+
+SplitPlan Tower::split_plan(const std::vector<unsigned int>& layer_extruders) const
+{
+    SplitPlan plan;
     if (m_split_roles.empty())
         return plan;
     auto present = [&layer_extruders](int tool) {
         return std::find(layer_extruders.begin(), layer_extruders.end(), (unsigned int) tool) != layer_extruders.end();
     };
-    std::map<unsigned int, std::vector<int>> own;
+    auto use_of = [this](int tool, bool& uses_light, bool& uses_dark) {
+        uses_light = uses_dark = false;
+        auto it = m_palette.find(tool);
+        if (it != m_palette.end())
+            dual_material_use(light_score(it->second), uses_light, uses_dark);
+    };
     const int n = (int) m_split_roles.size();
+
+    // ① R12-7 先問一句：本層這兩支料都洗得到嗎？（任何混合配方就算兩支都洗到＝Q3 不設門檻）
+    bool covers_light = false, covers_dark = false, any_present = false;
     for (int i = 0; i < n; ++i) {
-        int owner = present(m_split_roles[i].first) ? m_split_roles[i].first : -1;
+        if (! present(m_split_roles[i].first))
+            continue;
+        any_present = true;
+        bool l = false, d = false;
+        use_of(m_split_roles[i].first, l, d);
+        covers_light |= l;
+        covers_dark  |= d;
+    }
+    if (! any_present)
+        return plan;                                           // 本層一個 palette 顏色都沒有 ⇒ 照舊整塔
+
+    // ② 缺哪一支就挑補洗色：缺最淺那支就從**最淺**的缺色挑起、缺最深那支就從**最深**的挑起
+    //    （m_split_roles 已由淺到深）。它沿用自己 R12-1 的原圈位，不另外加圈 ⇒ 總圈數不變（Q2）。
+    int refill_index = -1;
+    if (! covers_light || ! covers_dark) {
+        const bool need_light = ! covers_light;
+        for (int k = 0; k < n; ++k) {
+            const int i = need_light ? k : n - 1 - k;
+            if (present(m_split_roles[i].first))
+                continue;
+            bool l = false, d = false;
+            use_of(m_split_roles[i].first, l, d);
+            if (need_light ? l : d) { refill_index = i; break; }
+        }
+    }
+
+    // ③ 配圈：規則與 0916 版一字不變，只多一件——**補洗色收回自己的原圈位**。
+    // 其餘缺色併圈的對象依舊只看「本層真的要印的顏色」，**不把圈倒給補洗色**：
+    // 補洗是「補一趟」，不是把塔的大半段改成另一支料。以 K=4、本層只有純白為例，
+    // 補洗的深色只拿最內第 1 圈，中間缺的那幾圈照舊併給白色（外皮維持最淺）——
+    // 不這樣寫的話深色會一口氣吃掉 laps-1 圈，與 Eric 0920「節省時間、減少材料浪費」的裁示相反。
+    std::map<unsigned int, std::vector<int>> own;
+    for (int i = 0; i < n; ++i) {
+        int owner = (present(m_split_roles[i].first) || i == refill_index) ? m_split_roles[i].first : -1;
         for (int j = i + 1; owner < 0 && j < n; ++j)          // 缺色：先給同層下一個（較深）顏色
             if (present(m_split_roles[j].first)) owner = m_split_roles[j].first;
         for (int j = i - 1; owner < 0 && j >= 0; --j)         // 後面沒有：給前一個（較淺）顏色
             if (present(m_split_roles[j].first)) owner = m_split_roles[j].first;
         if (owner < 0)
-            return plan;                                       // 本層一個 palette 顏色都沒有
+            return SplitPlan();                                // 走不到（any_present 已成立），保險
         std::vector<int>& rings = own[(unsigned int) owner];
         rings.insert(rings.end(), m_split_roles[i].second.begin(), m_split_roles[i].second.end());
+    }
+    if (refill_index >= 0) {
+        auto it = own.find((unsigned int) m_split_roles[refill_index].first);
+        if (it != own.end()) {
+            plan.refill_tool  = m_split_roles[refill_index].first;
+            plan.refill_rings = std::move(it->second);
+            std::sort(plan.refill_rings.begin(), plan.refill_rings.end());   // 一趟內由內往外
+            own.erase(it);
+        }
     }
     for (unsigned int t : layer_extruders) {
         auto it = own.find(t);
@@ -367,7 +426,7 @@ std::vector<std::pair<unsigned int, std::vector<int>>> Tower::split_plan(const s
             continue;
         std::vector<int> rings = std::move(it->second);
         std::sort(rings.begin(), rings.end());                 // 一趟內由內往外
-        plan.emplace_back(t, std::move(rings));
+        plan.visits.emplace_back(t, std::move(rings));
         own.erase(it);
     }
     return plan;

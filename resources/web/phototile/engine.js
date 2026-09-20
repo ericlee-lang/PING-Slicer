@@ -848,8 +848,19 @@ function xmlEsc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
    「零件迴圈每 4 件」與「zip 每個 entry 之間」，**迴圈順序、算式、字串組裝完全不變**
    ⇒ 輸出位元組逐位元相同（黃金閘門複驗把關）。hooks 缺席＝行為與原版完全一致。 */
 /* WT 線：循環塔開啟時寫進 3MF 物件層的六個切片器鍵（bbs_3mf 匯入時進 ModelObject::config → PrintObjectConfig）。 */
-function cycleObjectMeta(P){
-  const rows = [['ping_pt_cycle','1'], ['ping_pt_cycle_mode',P.mode], ['ping_pt_cycle_laps',P.cycle.laps],
+/* 🔴 §12 R12-8（Eric 2026-09-20 裁）：塔圈數＝**實際色數**＋1，不是色階數＋1；K=2 照 R12-4 維持 4 圈。
+   一條式子兩個呼叫端：本引擎餵「真的切出來的零件數」、工作室餵「預覽用到的色數」——**式子只有這一份**。 */
+function lapsForColours(n){ const k=Math.max(2, n|0); return k===2 ? 4 : k+1; }
+
+/* 🔴 laps 以「真的切出來的零件數」為準，不吃 UI 送來的字串（R12-8）。
+   為什麼不能信 UI：工作室是在**預覽解析度**上算色數的，預覽少算一色就會寫出「圈數 < 色數＋1」，
+   而 C++ 端 build_split_roles() 遇到圈數不夠分會讓 split_active()=false ⇒ **靜默**退回「層首一趯整塔」＝白塊回來。
+   四料照 R12-3「不動」，維持吃 UI 的手動兩欄。 */
+function cycleObjectMeta(P, actualColours){
+  const laps = (P.mode!=='quad' && actualColours>=2)
+    ? `1,${lapsForColours(actualColours)-1}`        /* 雙料＝最內 1 圈深色、其餘全給最淺色（同 cycleDefaultLaps） */
+    : P.cycle.laps;
+  const rows = [['ping_pt_cycle','1'], ['ping_pt_cycle_mode',P.mode], ['ping_pt_cycle_laps',laps],
                 ['ping_pt_cycle_size',String(P.cycle.sizeMm)], ['ping_pt_cycle_gap',String(P.cycle.gapMm)], ['ping_pt_cycle_brim',String(P.cycle.brimMm)]];
   return rows.map(([k,v])=>`    <metadata key="${k}" value="${xmlEsc(v)}"/>`).join('\n') + '\n';
 }
@@ -979,7 +990,7 @@ async function build3mfFrom(P, img, labels, palette, noiseStats, extras, hooks){
 <config>
   <object id="${MID}">
     <metadata key="name" value="${xmlEsc('照片磚')}"/>
-${P.cycle && P.cycle.enabled ? cycleObjectMeta(P) : ''}${cfgParts.join('\n')}
+${P.cycle && P.cycle.enabled ? cycleObjectMeta(P, parts.length) : ''}${cfgParts.join('\n')}
   </object>
 </config>`;
   const rels=`<?xml version="1.0" encoding="UTF-8"?>
@@ -1227,6 +1238,8 @@ async function generate(request, options){
 }
 
 return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
+         /* §12 R12-8：塔圈數的式子只有這一份，工作室的圈數欄也吃它 */
+         lapsForColours,
          /* 0914 色彩校正（單一來源；頁面預覽與 3MF 生成共用） */
          calibParseTable, calibLookupLin, calibMatches, calibGenLadder, dualLadderCalibrated, toneStretch,
          buildCalibStrip, buildCalibStripParts, calibStripDefaultS, calibStripGeo,

@@ -4304,9 +4304,14 @@ std::string GCode::ping_cycle_tower_layer(const Print& print, const std::vector<
     // 🔴 每色進塔（Eric 2026-09-14 Q1「做」，牌 c-0914-PTI-01）：層首只洗本層**第一個顏色**的圈，其餘顏色到
     // process_layer 換料迴圈裡、各自開印前才進塔（ping_cycle_tower_visit）。第 0 層（brim 層）照舊整塔——
     // 實印證實有效的 B 檔同樣沒動第 0 層；split 不適用（四料／圈數不夠分＝少於色數＋1）也照舊整塔。
-    const auto plan = first_layer ? std::vector<std::pair<unsigned int, std::vector<int>>>() : m_ping_cycle->split_plan(layer_tools.extruders);
-    if (!plan.empty()) {
-        gcode += this->ping_cycle_split_rings(g, layer_height, speed, plan.front().first, plan.front().second);
+    const auto plan = first_layer ? PingCycle::SplitPlan() : m_ping_cycle->split_plan(layer_tools.extruders);
+    if (!plan.visits.empty()) {
+        // 🔴 R12-7 補洗（Eric 2026-09-19 定原則、09-20 裁 Q1～Q5）：本層印不到、但它那支料整層都洗不到的顏色，
+        // 用它 R12-1 的原圈位在**層首先洗一趟**（總圈數不變），洗完才洗本層第一色。
+        // 沒有它的話，整層純深灰時 4 圈會全給深灰 ⇒ 白料連續零流量（0919 實印第 1～214 層＝約一小時）。
+        if (plan.refill_tool >= 0 && !plan.refill_rings.empty())
+            gcode += this->ping_cycle_split_rings(g, layer_height, speed, (unsigned int) plan.refill_tool, plan.refill_rings);
+        gcode += this->ping_cycle_split_rings(g, layer_height, speed, plan.visits.front().first, plan.visits.front().second);
     } else {
         bool first_move = true;
         auto extrude_ring = [&](const Polyline& ring, const char* what) {
@@ -4362,10 +4367,11 @@ std::string GCode::ping_cycle_tower_visit(const Print& print, const std::vector<
     if (obj_layer == nullptr)
         return std::string();
     const auto plan = m_ping_cycle->split_plan(layer_tools.extruders);
-    if (plan.empty() || plan.front().first == extruder_id)   // 第一個顏色層首那趟已洗過
+    // 補洗色（R12-7）不在 visits 裡——它本層印不到，所以只在層首那趟出現，不會走到這裡。
+    if (plan.visits.empty() || plan.visits.front().first == extruder_id)   // 第一個顏色層首那趟已洗過
         return std::string();
-    auto it = std::find_if(plan.begin(), plan.end(), [extruder_id](const std::pair<unsigned int, std::vector<int>>& p) { return p.first == extruder_id; });
-    if (it == plan.end())
+    auto it = std::find_if(plan.visits.begin(), plan.visits.end(), [extruder_id](const std::pair<unsigned int, std::vector<int>>& p) { return p.first == extruder_id; });
+    if (it == plan.visits.end())
         return std::string();
     const float layer_height = (float) obj_layer->height;
     const PingCycle::LayerGeometry& g = m_ping_cycle->geometry_for(layer_height, false);
