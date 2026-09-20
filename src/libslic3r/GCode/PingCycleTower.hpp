@@ -58,6 +58,17 @@ struct Stage {
     int         first_lap = 0, last_lap = 0;   // 1-based
 };
 
+// 一層的進塔計畫。
+// visits＝本層真的要印的顏色各自洗哪幾圈，**依 layer_extruders 的列印順序**（visits[0]＝層首那趟）。
+// 🔴 refill＝「補洗色」（規格 §12 R12-7，Eric 2026-09-19 定原則、09-20 裁 Q1～Q5「照建議」）：
+//    本層印不到它，但**它那支料整層都洗不到** ⇒ 留著它 R12-1 的原圈位、在層首先洗一趟，總圈數不變（Q2）。
+//    refill_tool < 0 ＝本層不需要補洗（兩支料本來就都會被洗到）。
+struct SplitPlan {
+    std::vector<std::pair<unsigned int, std::vector<int>>> visits;
+    int                                                    refill_tool = -1;
+    std::vector<int>                                       refill_rings;
+};
+
 // 某個層高下的整塔幾何（圈的中心線，已含塔位置、scaled 座標）
 struct LayerGeometry {
     float                 layer_height = 0.f;
@@ -113,9 +124,17 @@ public:
     //   **K=2 是 R12-4 的特例、維持 4 圈** ⇒ 最深色拿到第 1～2 圈，與 T044 出貨版逐位相同。
     // 本層沒有的顏色把圈併給同層下一個顏色（淺→深），後面沒有就給前一個（Eric 0913 Q2）。
     // 適用範圍＝**雙料 且 總圈數 ≥ 色數＋1**；四料照 R12-3「不動」⇒ split_active()=false，照舊層首一趟整塔。
+    //
+    // 🔴 **R12-7 每層兩支料都要洗到**（Eric 2026-09-19 定原則、09-20 裁 Q1～Q5「照建議」）：
+    //   上面那條「缺色就把圈併給鄰色」在**整層只有純深灰**時會把 4 圈全給深灰 ⇒ 白料整段時間零流量
+    //   （0919 年輕女實印：第 1～214 層，白料停擺約一小時；塔外皮也變成深灰，打破 R12-1 自己的理由）。
+    //   ⇒ 改成：先看本層兩支料是不是都洗得到（**任何混合配方 0<S<1 就算兩支都洗到，不設門檻**＝Q3），
+    //     缺哪一支就把**那一支的純色**當「補洗色」、**沿用它 R12-1 的原圈位**（不另外加圈 ⇒ 總圈數不變＝Q2），
+    //     由 GCode 在**層首先洗補洗色、再洗本層第一色**。只做雙料（Q4）。
+    //   ⚠️ 因此 K=2／K=3 的純單色層會比 0916 版多一趟補洗＝**刻意的行為改變**，不是回歸。
     bool                                 split_active() const { return !m_split_roles.empty(); }
-    // 本層每個顏色要洗哪幾圈，依 layer_extruders 的列印順序；空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）
-    std::vector<std::pair<unsigned int, std::vector<int>>> split_plan(const std::vector<unsigned int>& layer_extruders) const;
+    // 本層的進塔計畫：visits 為空＝本層不適用（沒開、或本層沒有 palette 裡的顏色）⇒ 照舊層首一趟整塔。
+    SplitPlan                            split_plan(const std::vector<unsigned int>& layer_extruders) const;
 
     // behind＝塔擺在磚的**後方（+Y）**而不是右邊（+X）。只有右邊放不下時才會是 true（Eric 2026-09-16 裁「乙」），
     // 因為照片磚必須沿 X 擺、不得轉 90°（規格 §6 R6-12：校正表是在 X 方向量的）。
