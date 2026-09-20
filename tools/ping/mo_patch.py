@@ -212,6 +212,11 @@ NEW_ENTRIES = {
     "Our customization covers profiles for the full PING printer range, slicing parameters tuned for our high-flow and multi-material toolheads, and features developed in Taiwan such as color mixing and photo tiles.": "客製內容包含 PING 全系列機型設定、為高流量與多料噴頭調校的切片參數，以及混色列印與照片磚等臺灣自行研發的功能。",
     # src/slic3r/GUI/AboutDialog.cpp（AboutDialog 主畫面第 3 段）
     "PING Slicer is released under the GNU Affero General Public License v3. Its complete source code is publicly available, so anyone may inspect, modify and redistribute it under the same license. We thank every upstream open-source project and contributor whose work made this possible.": "PING Slicer 依 GNU Affero 通用公共授權條款第 3 版（AGPL-3.0）發行，完整原始碼公開於 GitHub，任何人皆可查驗、修改並以相同授權再散布。謹向所有上游開源專案與貢獻者致謝。",
+    # PING(2026-09-20・牌 c-0920-CFB-02)：角落固定塊。它不是支撐，是防翹曲用的硬結構，
+    #   立在棧板／Brim 外緣把棧板按住（Eric：「它的功能並不是支撐，而是防翹曲的固定塊」）。
+    #   src/slic3r/GUI/GUI_Factories.cpp（右鍵選單）／src/slic3r/GUI/GUI_ObjectList.cpp（零件名）
+    "Add corner fixing block": "新增角落固定塊",
+    "Corner fixing block": "角落固定塊",
 }
 
 

@@ -288,6 +288,9 @@ public:
     //void                load_part(ModelObject& model_object, std::vector<ModelVolume*>& added_volumes, ModelVolumeType type, bool from_galery = false);
     void                load_modifier(const wxArrayString& input_files, ModelObject& model_object, std::vector<ModelVolume*>& added_volumes, ModelVolumeType type, bool from_galery = false);
     void                load_generic_subobject(const std::string& type_name, const ModelVolumeType type);
+    // PING 2026-09-20 (c-0920-CFB-02): adds a "corner fixing block" - a plain printed part that
+    // stands beside the object on the same raft and keeps it from curling up (anti-warping).
+    void                add_corner_fixing_block();
     void                load_shape_object(const std::string &type_name);
     void                load_mesh_object(const TriangleMesh &mesh, const wxString &name, bool center = true);
     // BBS
