@@ -2448,6 +2448,150 @@ void ObjectList::load_generic_subobject(const std::string& type_name, const Mode
     }
 }
 
+// PING 2026-09-20 (c-0920-CFB-02): "corner fixing block".
+//
+// 它不是支撐。Eric 2026-09-20：「它的功能並不是支撐，而是防翹曲的固定塊」——它立在棧板／Brim 外緣，
+// 形成一個硬結構把棧板按在原地，棧板不被拉起來，件就不翹。作用對象是棧板，不是本體。
+//
+// 走 MODEL_PART（普通零件）而不是支撐系統的理由（2026-09-20 實查）：
+//   wall_loops / top_shell_layers / bottom_shell_layers / sparse_infill_density / extruder
+//   全部屬於 PrintRegionConfig ⇒ 逐零件覆寫是現成能力；而 9 個支撐鍵全在 PrintObjectConfig，
+//   逐塊覆寫在現行架構做不到（PrintObject.cpp 的 volume config 只流向 PrintRegionConfig）。
+// 刻意不新增 ModelVolumeType：它就是一個帶設定的普通零件，3mf 存讀零相容性風險。
+// Eric 2026-09-20 裁 Q4「舊的先保留也沒關係」⇒ 與既有的支撐塊並存，不取代。
+//
+// 放下去之後就是一個普通零件：移動／旋轉／縮放全走既有 gizmo（Eric 2026-09-20：
+// 「希望可以調整大小，利用上方的縮放功能去調整」），所以這裡不做任何專用面板。
+void ObjectList::add_corner_fixing_block()
+{
+    // BBS: single snapshot
+    Plater::SingleSnapshot single(wxGetApp().plater());
+
+    const int obj_idx = get_selected_obj_idx();
+    if (obj_idx < 0)
+        return;
+
+    const Selection& selection = scene_selection();
+    if (selection.get_instance_idxs().empty())
+        return;
+    const int instance_idx = *selection.get_instance_idxs().begin();
+    if (instance_idx == -1)
+        return;
+
+    take_snapshot("Add corner fixing block");
+
+    ModelObject&        model_object = *(*m_objects)[obj_idx];
+    const BoundingBoxf3 instance_bb  = model_object.instance_bounding_box(instance_idx);
+
+    // 料：預設槽 2（易拆支撐料）；單料機只有一槽，自動退回槽 1（Eric 2026-09-20 裁 Q3）。
+    const int extruder_id = filaments_count() > 1 ? 2 : 1;
+
+    // 縫＝1×噴頭口徑，跟著機器走、不寫死（Eric 2026-09-20 當場修正：「是口徑，不是口徑一半，
+    // 所以如果 0.4 口徑，那應該是 0.4」）。它是脫模間隙，不是結構間隙。
+    const DynamicPrintConfig& printer_config = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+    double gap = printer_config.opt_float("nozzle_diameter", std::max(0, extruder_id - 1));
+    if (gap < EPSILON)
+        gap = 0.4;
+
+    // 預設尺寸。使用者用既有的縮放工具改，所以這裡只要是個合理的起點即可。
+    const double block_w = 12., block_d = 12., block_h = 5.;
+
+    const wxString block_label = _L("Corner fixing block");
+    const std::string block_name = into_u8(block_label);
+    const Transform3d inst_matrix = model_object.instances[instance_idx]->get_matrix();
+
+    auto volume_bb = [&inst_matrix](const ModelVolume* mv) {
+        return mv->mesh().transformed_bounding_box(inst_matrix * mv->get_matrix());
+    };
+
+    // 參考包圍盒＝**不含既有固定塊**的那些零件。不扣掉的話，加第二塊時第一塊已經把包圍盒撐大，
+    // 後面每一塊都會再往外飄一段。用名字認：認不出來（使用者改過名／換過語言）最多就是落點偏外，
+    // 不會出錯，所以刻意不為了它去動資料模型。
+    BoundingBoxf3 core_bb;
+    for (const ModelVolume* mv : model_object.volumes) {
+        if (mv->type() != ModelVolumeType::MODEL_PART || mv->name == block_name)
+            continue;
+        core_bb.merge(volume_bb(mv));
+    }
+    if (!core_bb.defined)
+        core_bb = instance_bb;
+
+    // 四個角落，逐一找第一個還空著的（右前 → 左前 → 左後 → 右後）。塊是斜向落在角落外側，
+    // X 與 Y 各留一個口徑的縫。四個都佔滿就回到右前，剩下的交給使用者自己拖。
+    const Vec2d candidates[4] = {
+        Vec2d(core_bb.max.x() + gap,           core_bb.min.y() - gap - block_d),  // 右前
+        Vec2d(core_bb.min.x() - gap - block_w, core_bb.min.y() - gap - block_d),  // 左前
+        Vec2d(core_bb.min.x() - gap - block_w, core_bb.max.y() + gap),            // 左後
+        Vec2d(core_bb.max.x() + gap,           core_bb.max.y() + gap)             // 右後
+    };
+
+    int pick = 0;
+    for (int i = 0; i < 4; ++i) {
+        const double cx0 = candidates[i].x(), cx1 = cx0 + block_w;
+        const double cy0 = candidates[i].y(), cy1 = cy0 + block_d;
+        bool corner_is_free = true;
+        for (const ModelVolume* mv : model_object.volumes) {
+            if (mv->type() != ModelVolumeType::MODEL_PART)
+                continue;
+            const BoundingBoxf3 vb = volume_bb(mv);
+            if (vb.max.x() > cx0 && vb.min.x() < cx1 && vb.max.y() > cy0 && vb.min.y() < cy1) {
+                corner_is_free = false;
+                break;
+            }
+        }
+        if (corner_is_free) {
+            pick = i;
+            break;
+        }
+    }
+
+    TriangleMesh mesh(its_make_cube(block_w, block_d, block_h));
+    ModelVolume* new_volume = model_object.add_volume(std::move(mesh), ModelVolumeType::MODEL_PART);
+
+    // 與 load_generic_subobject 同一套擺法：先把新零件轉成與列印平台對齊，再擺到算好的角落、貼地。
+    const GLVolume* v = selection.get_first_volume();
+    new_volume->set_transformation(v->get_instance_transformation().get_matrix_no_offset().inverse());
+    const BoundingBoxf3 mesh_bb = new_volume->mesh().bounding_box();
+    const Vec3d offset = Vec3d(candidates[pick].x(), candidates[pick].y(), instance_bb.min.z())
+                       + 0.5 * mesh_bb.size() - v->get_instance_offset();
+    new_volume->set_offset(v->get_instance_transformation().get_matrix_no_offset().inverse() * offset);
+
+    // BBS: backup
+    Slic3r::save_object_mesh(model_object);
+
+    new_volume->name = block_name;
+
+    // Eric 2026-09-20 裁的結構：外牆 1、頂層 0（不封頂）、稀疏填充 0、料走槽 2。
+    // 底層**刻意不覆寫**——製程預設本來就是實心底層，那正是「跟棧板／Brim 結合的那幾層」，
+    // 沒必要在這裡編一個數字進去。
+    new_volume->config.set_key_value("extruder",             new ConfigOptionInt(extruder_id));
+    new_volume->config.set_key_value("wall_loops",           new ConfigOptionInt(1));
+    new_volume->config.set_key_value("top_shell_layers",     new ConfigOptionInt(0));
+    new_volume->config.set_key_value("sparse_infill_density", new ConfigOptionPercent(0));
+    new_volume->source.is_from_builtin_objects = true;
+
+    select_item([this, obj_idx, new_volume]() {
+        wxDataViewItem sel_item;
+        wxDataViewItemArray items = reorder_volumes_and_get_selection(obj_idx, [new_volume](const ModelVolume* volume) { return volume == new_volume; });
+        if (!items.IsEmpty())
+            sel_item = items.front();
+        return sel_item;
+    });
+
+    // update printable state on canvas
+    wxGetApp().plater()->get_view3D_canvas3D()->update_instance_printable_state_for_object((size_t)obj_idx);
+
+    // apply the instance transform to all volumes and reset instance transform except the offset
+    apply_object_instance_transfrom_to_all_volumes(&model_object);
+
+    selection_changed();
+
+    //BBS: notify partplate the modify
+    notify_instance_updated(obj_idx);
+
+    wxGetApp().params_panel()->switch_to_object(true);
+}
+
 void ObjectList::switch_to_object_process()
 {
     wxGetApp().params_panel()->switch_to_object(true);

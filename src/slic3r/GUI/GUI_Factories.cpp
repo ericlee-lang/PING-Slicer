@@ -698,6 +698,13 @@ void MenuFactory::append_menu_items_add_volume(wxMenu* menu)
             []() { return obj_list()->is_instance_or_object_selected(); }, m_parent);
     }
 
+    // PING 2026-09-20 (c-0920-CFB-02): 角落固定塊。它不是支撐，所以**不進上面那個陣列**
+    // （那個陣列的索引就是 ModelVolumeType，加進去等於新增一種 volume 型別）。它是一個
+    // 普通零件，只是建立時就把該有的設定寫好、擺到角落並留一個噴頭口徑的縫。
+    append_menu_item(menu, wxID_ANY, _L("Add corner fixing block"), "",
+        [](wxCommandEvent&) { obj_list()->add_corner_fixing_block(); }, "menu_add_part", menu,
+        []() { return obj_list()->is_instance_or_object_selected(); }, m_parent);
+
     append_menu_item_layers_editing(menu);
 }
 
