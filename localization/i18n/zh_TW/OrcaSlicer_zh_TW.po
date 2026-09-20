@@ -21555,3 +21555,12 @@ msgstr "已加入支撐塊，但尚未啟用支撐。請在「支撐」勾選「
 
 msgid "Support meshes only work with normal support. Please change the support type to Normal."
 msgstr "支撐塊只會以普通支撐產生。請把支撐「類型」改為「普通 (自動)」或「普通 (手動)」。"
+
+#
+# ==== 以下由 tools/ping/mo_patch.py 自動補入：只存在於入版 .mo 的條目 ====
+# .po 不是生效來源（CMake 的 gettext_po_to_mo 不在 ALL_BUILD 內），
+# 產品吃 resources/i18n/zh_TW/*.mo。改譯文請走本腳本，見 SOP_翻譯與i18n入版.md。
+#
+
+msgid "The support block overlaps another object (%1%). Its support would be printed inside that object. Move the block away, or add the support block to that object instead."
+msgstr "支撐塊與另一個物件（%1%）重疊，它的支撐會印在那個物件裡面。請把支撐塊移開，或改在那個物件上新增支撐塊。"

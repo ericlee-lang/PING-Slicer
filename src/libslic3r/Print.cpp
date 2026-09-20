@@ -1571,6 +1571,36 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
                 } else if (is_tree(object->config().support_type.value)) {
                     warningtemp.string  = L("Support meshes only work with normal support. Please change the support type to Normal.");
                     warningtemp.opt_key = "support_type";
+                } else {
+                    // PING 2026-09-20 (Eric 裁「甲」, 牌 c-0919-SB-02): a support block belongs to the object it was
+                    // added to, and support is generated per object ⇒ a block poking into ANOTHER object gets its
+                    // support printed inside that object. 0920 實測：CLI 報 "gcode path conflicts found between ..."
+                    // （GUI 是切完才報的嚴重警告）⇒ 這裡在切片前先講，並指名撞到誰。只比對 XY 凸包（保守、寧可多叫）。
+                    std::string hit_name;
+                    for (const PrintInstance &inst : object->instances()) {
+                        if (inst.model_instance == nullptr) continue;
+                        Polygons blocks;
+                        for (const ModelVolume *mv : object->model_object()->volumes)
+                            if (mv->is_support_mesh())
+                                blocks.emplace_back(mv->get_convex_hull_2d(inst.model_instance->get_matrix()));
+                        if (blocks.empty()) continue;
+                        for (const PrintObject *other : m_objects) {
+                            if (other == object) continue;
+                            for (const PrintInstance &other_inst : other->instances()) {
+                                if (other_inst.model_instance == nullptr) continue;
+                                Polygon other_hull = other->model_object()->convex_hull_2d(other_inst.model_instance->get_matrix());
+                                if (other_hull.empty()) continue;
+                                if (! intersection(blocks, Polygons{ other_hull }).empty()) {
+                                    hit_name = other->model_object()->name;
+                                    break;
+                                }
+                            }
+                            if (! hit_name.empty()) break;
+                        }
+                        if (! hit_name.empty()) break;
+                    }
+                    if (! hit_name.empty())
+                        warningtemp.string = (boost::format(L("The support block overlaps another object (%1%). Its support would be printed inside that object. Move the block away, or add the support block to that object instead.")) % hit_name).str();
                 }
                 if (! warningtemp.string.empty()) {
                     warningtemp.object = object;

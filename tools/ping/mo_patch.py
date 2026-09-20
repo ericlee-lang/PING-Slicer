@@ -222,6 +222,8 @@ NEW_ENTRIES = {
     # src/libslic3r/Print.cpp（Print::validate 警告）
     "Support meshes are used but support is not enabled. Please enable support.": "已加入支撐塊，但尚未啟用支撐。請在「支撐」勾選「啟用支撐」。",
     "Support meshes only work with normal support. Please change the support type to Normal.": "支撐塊只會以普通支撐產生。請把支撐「類型」改為「普通 (自動)」或「普通 (手動)」。",
+    # PING(2026-09-20・牌 c-0919-SB-02，Eric 裁「甲」)：支撐塊認主——碰到別的物件就在切片前指名警告。
+    "The support block overlaps another object (%1%). Its support would be printed inside that object. Move the block away, or add the support block to that object instead.": "支撐塊與另一個物件（%1%）重疊，它的支撐會印在那個物件裡面。請把支撐塊移開，或改在那個物件上新增支撐塊。",
 }
 
 
