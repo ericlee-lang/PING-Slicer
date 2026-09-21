@@ -295,7 +295,7 @@
     "name": "0.125mm @FD800 Pro 同進 (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP977",
+    "setting_id": "PINGP1117",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 同進 0.25 nozzle"

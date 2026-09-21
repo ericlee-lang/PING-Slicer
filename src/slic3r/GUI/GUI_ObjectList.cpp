@@ -22,6 +22,7 @@
 #include "MsgDialog.hpp"
 #include "Widgets/ProgressDialog.hpp"
 #include "SingleChoiceDialog.hpp"
+#include "StepMeshDialog.hpp"
 #include "StepPreflight.hpp"
 
 

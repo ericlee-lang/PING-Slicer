@@ -103,7 +103,9 @@ function PingBaseLabel(series) {
 function PingVariantLabel(model, series) {
 	let s = model.slice(series.length).trim();
 	if (s === '') return PingBaseLabel(series);
-	// PING 2026-09-08（Eric）：「ABS 關門」不是一個列印模式，只是 FD300／FP300 關門時列印範圍縮到 Ø200 的限制
+	// PING 2026-09-08（Eric）：「ABS 關門」不是一個列印模式，只是 FD300／FP300 關門時列印範圍縮小的限制
+	// ⚠ 2026-09-11 更正：出貨線的關門可印區**不是 Ø200 圓**，是 Eric 2026-08-11 看圖裁的圓角三角
+	//   （尖端朝 +Y、平邊朝門側；X ±142.5、Y -100~150）。Ø200 是 2026-07-26 的舊版，開發線至今仍是那版。
 	// ⇒ 說明區的 ABS 頁籤拿掉，改在變體列旁註明用途。
 	if (s === '關門') return '關門（ABS）';
 	return s;

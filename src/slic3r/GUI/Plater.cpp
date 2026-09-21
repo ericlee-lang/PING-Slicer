@@ -161,6 +161,7 @@
 #include "DailyTips.hpp"
 #include "CreatePresetsDialog.hpp"
 #include "FileArchiveDialog.hpp"
+#include "StepMeshDialog.hpp"
 #include "StepPreflight.hpp"
 #include "FilamentMapDialog.hpp"
 #include "CloneDialog.hpp"
@@ -1262,7 +1263,7 @@ bool Sidebar::priv::switch_diameter(bool single)
         return false;
     }
     preset->is_visible = true; // force visible
-    // PING(2026-09-20 回移出貨線批3 R5-1)：口徑下拉＝使用者手勢，最後一個參數 user_initiated 傳 true。
+    // PING(2026-08-14 批3 R5-1)：口徑下拉＝使用者手勢，最後一個參數 user_initiated 傳 true。
     // 切口徑與切機器殊途同歸 select_preset(printer) ⇒ 這一個參數就同時接上了「口徑那條連動」。
     return wxGetApp().get_tab(Preset::TYPE_PRINTER)->select_preset(preset->name, false, "", false, false, true);
 }
@@ -9418,9 +9419,9 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
 
             update_objects_position_when_select_preset([this, &preset_type, &preset_name]() {
                 wxWindowUpdateLocker noUpdates2(sidebar->filament_panel());
-                // PING(2026-09-20 回移出貨線批3 R5-1)：側欄印表機下拉＝使用者手勢，末參數 user_initiated 傳 true。
-                // ⚠ 這條路徑會呼叫 select_preset 兩次（本處＋下方那處）⇒ 收斂必須冪等（批2 R3-1 已保證：
-                //   已一致就只重繪不換）。
+                // PING(2026-08-14 批3 R5-1)：側欄印表機下拉＝使用者手勢，末參數 user_initiated 傳 true。
+                // ⚠ 這條路徑會呼叫 select_preset 兩次（本處＋下方那處）⇒ 收斂必須冪等（R3-1 已保證：
+                //   已一致就只重繪不換）。審查複驗過兩次收斂同結果、無震盪。
                 wxGetApp().get_tab(preset_type)->select_preset(preset_name, false, "", false, false, true);
                 // update plater with new config
                 q->on_config_change(wxGetApp().preset_bundle->full_config());
@@ -9458,7 +9459,7 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
         //BBS
         //wxWindowUpdateLocker noUpdates1(sidebar->print_panel());
         wxWindowUpdateLocker noUpdates2(sidebar->filament_panel());
-        // PING(2026-09-20 回移出貨線批3 R5-1)：側欄下拉（印表機／製程）＝使用者手勢，末參數 user_initiated 傳 true。
+        // PING(2026-08-14 批3 R5-1)：側欄下拉（印表機/製程）＝使用者手勢，末參數 user_initiated 傳 true。
         // 收斂只在 printer 型別的趟尾觸發，其餘型別傳了也不會做事（見 Tab::select_preset 趟尾條件）。
         wxGetApp().get_tab(preset_type)->select_preset(preset_name, false, "", false, false, true);
     }
@@ -9514,10 +9515,11 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
          plate->update_slice_result_valid_state(false);
     }
 
-    // PING(2026-09-20 回移出貨線批2 R3，牌 c-0920-ABS-01)：材料 → 製程自動收斂＋過濾重繪。
-    // ⚠ 掛點**必須是本函式最尾端**：中段（set_filament_preset 之後）filaments「集合」的選中還是
-    //   舊料，此時任何會觸發 update_compatible 的呼叫，都會讓單槽機分支把 filament_presets.front()
-    //   覆寫回舊料（PresetBundle.cpp）⇒ 後續判斷全跑在錯的資料上。到這裡單槽與多槽都已完全落地。
+    // PING(2026-08-14 批2 R3)：材料 → 製程自動收斂＋乙案過濾重繪。
+    // ⚠ 掛點**必須是本函式最尾端**：中段（9351 set_filament_preset 之後）filaments「集合」的
+    //   選中還是舊料，此時任何會觸發 update_compatible 的呼叫，都會讓單槽機分支把
+    //   filament_presets.front() 覆寫回舊料（PresetBundle.cpp:4541-4544）⇒ 後續判斷全跑在錯的
+    //   資料上。到這裡單槽與多槽都已完全落地（SOP_preset連動與下拉過濾 §3 時序洞）。
     // ⚠ 代價＝上面那圈 update_slice_result_valid_state(false) 已經跑過，收斂若真的換了製程，
     //   由 ping_converge_process 自己再標一次失效。
     if (preset_type == Preset::TYPE_FILAMENT)

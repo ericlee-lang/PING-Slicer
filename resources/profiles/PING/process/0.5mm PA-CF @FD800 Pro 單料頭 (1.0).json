@@ -295,7 +295,7 @@
     "name": "0.5mm PA-CF @FD800 Pro 單料頭 (1.0)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP216",
+    "setting_id": "PINGP248",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD800 Pro 單料頭 1.0 nozzle"

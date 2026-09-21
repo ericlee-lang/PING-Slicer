@@ -540,6 +540,11 @@ wxMenu* MenuFactory::append_submenu_add_handy_model(wxMenu* menu, ModelVolumeTyp
         {"Z平面校正確認", "PING_Z_plane_check.3mf"},
         {"易拆鑰匙圈",    "PING_keychain.stl"},
         {"花瓶 Ribbon",   "PING_ribbon_vase.stl"},
+        // PING(2026-08-13 Eric)：雙料起子＝軟硬結合（TPE+PLA）測試件。
+        // 3mf 內含兩物件（硬料芯→擠出機 1、軟料握把→擠出機 2），**兩件共用同一平移**
+        // ⇒ 相對位置在檔內就對好了。⚠ 不可拆成兩支 STL 分別載入——load_files 會把每個
+        //   物件各自置中到盤心，兩件會錯位（0810 報價包 smoke 實證）。
+        {"雙料起子（軟硬結合）", "PING_dual_screwdriver.3mf"},
         // 法鬥（31MB）/摩埃（11MB）原始 STL——Eric 2026-07-26 裁「抽掉」＝安裝檔瘦身；
         // 要回加＝補 handy_models 檔＋本表各一列（來源在專案「測試列印件」夾）。
     };

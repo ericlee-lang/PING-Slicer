@@ -726,7 +726,9 @@ void PingMixEditor::build_controls()
     m_collapse_btn = new ::Button(this, wxString::FromUTF8("收合"));
     m_collapse_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
     bind_ping_dark_tooltip(m_collapse_btn,
-        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色停用」重新啟用"));
+        // PING(2026-08-10 #43)：浮鈕標籤由「混色停用」改為「混色 ⌄」下拉樣式，說明跟著改，
+        // 否則提示會指向畫面上已不存在的字。
+        wxString::FromUTF8("收合並停用混色——輸出 G-code 恢復原樣不插混色指令；點右上「混色」可重新展開"));
     m_collapse_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         // B 案：收合＝混色關閉（輸出 gcode 還原原樣、預覽退出混色檢視）
         if (wxGetApp().plater() != nullptr)

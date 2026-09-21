@@ -295,7 +295,7 @@
     "name": "0.3mm PA-CF @FP300 (0.6)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP186",
+    "setting_id": "PINGP218",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FP300 0.6 nozzle"

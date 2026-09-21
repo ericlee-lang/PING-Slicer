@@ -477,6 +477,11 @@ void BBLTopbar::SetTitle(wxString title)
     // 版號跟 SoftFever_VERSION 走（發版 bump 即自動更新）；組好存回 m_titleText，
     // Rescale 重設標題時沿用組好的字串、不會重複前綴。
     wxString composed = wxString::Format("PING Slicer V%s", SoftFever_VERSION);
+    // PING(2026-08-12 Eric 裁「標題列顯示 Beta T0xx」)：廠內測試版把版次寫在最顯眼處——
+    // 起因是有人只看圖示點進去、不看檔名，開了 app 分不出手上是哪一顆 T 版。
+    // 🔴 出貨版 PING_TEST_BUILD 為空字串 ⇒ 這裡不附加任何東西（出貨版不得帶測試版標記）。
+    if (*PING_TEST_BUILD)   // 非空才附加
+        composed += wxString::Format(" Beta %s", PING_TEST_BUILD);
     if (!title.IsEmpty())
         composed += "  -  " + title;
     m_titleText = composed;

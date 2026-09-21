@@ -295,7 +295,7 @@
     "name": "0.2mm PA-CF 樹狀 @FP300 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP185",
+    "setting_id": "PINGP217",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FP300 0.4 nozzle"

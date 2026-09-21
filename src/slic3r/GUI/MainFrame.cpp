@@ -2811,14 +2811,9 @@ static wxMenu* generate_help_menu()
     // Show Beginner's Tutorial
     append_menu_item(helpMenu, wxID_ANY, _L("Setup Wizard"), _L("Setup Wizard"), [](wxCommandEvent &) {wxGetApp().ShowUserGuide();});
 
-    // PING: 照片磚產生器（開啟內建 HTML 工具，拖照片→出彩色 3MF）
-    append_menu_item(helpMenu, wxID_ANY,
-        wxString::FromUTF8("照片磚產生器"),
-        wxString::FromUTF8("產生照片磚彩色 3MF（於瀏覽器開啟）"),
-        [](wxCommandEvent&) {
-            std::string html_path = Slic3r::resources_dir() + "/web/phototile/index.html";
-            wxLaunchDefaultBrowser(wxString::FromUTF8(html_path.c_str()));
-        });
+    /* PING(2026-09-12 Eric 裁「拿掉」，牌 c-0912-PTI-01)：說明選單原有「照片磚產生器（於瀏覽器開啟）」一項——
+       那是 0706 企劃期把 web/phototile/index.html 丟到外部瀏覽器跑的入口。工作室改成隱形宿主架構後，頁面要靠
+       C++ 端 PhotoTileEngineHost 才能產磚，外部瀏覽器裡沒有宿主＝死入口。正式入口＝準備頁上方列「照片磚」鈕。 */
 
     /* PING：色彩校正（Eric 2026-08-17 裁「獨立選單項、兩線都進」）。
        流程＝印一塊 48 格校正塊 → 拍照 → 在工具裡點色塊的**四個外角** → 讀出 48 格實際顏色。

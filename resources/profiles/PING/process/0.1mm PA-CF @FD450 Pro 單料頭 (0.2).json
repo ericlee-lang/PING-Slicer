@@ -295,7 +295,7 @@
     "name": "0.1mm PA-CF @FD450 Pro 單料頭 (0.2)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP987",
+    "setting_id": "PINGP1133",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD450 Pro 單料頭 0.2 nozzle"

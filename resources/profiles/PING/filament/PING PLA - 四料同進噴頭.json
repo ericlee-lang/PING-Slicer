@@ -135,7 +135,7 @@
         "nil"
     ],
     "filament_retract_restart_extra": [
-        "0.6"
+        "0"
     ],
     "filament_retract_when_changing_layer": [
         "nil"
@@ -144,7 +144,7 @@
         "nil"
     ],
     "filament_retraction_length": [
-        "3"
+        "0.8"
     ],
     "filament_retraction_minimum_travel": [
         "3"

@@ -295,7 +295,7 @@
     "name": "0.2mm PA-CF @FD600 Pro 單料頭 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP206",
+    "setting_id": "PINGP238",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD600 Pro 單料頭 0.4 nozzle"

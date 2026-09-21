@@ -915,13 +915,10 @@ static void run_wizard(ConfigWizard::StartPage sp)
     wxGetApp().run_wizard(ConfigWizard::RR_USER, sp);
 }
 
-// PING(2026-09-20 回移出貨線批2 R4，牌 c-0920-ABS-01)：ping_suggest_pallet_for_abs()（#39
-// 「手選 ABS → 建議切棧板版」對話框）與其 COMBO_TO_PALLET 對照表**已整支退役**——批2 的
-// 材料→製程自動收斂（ping_converge_process，Tab.cpp）已涵蓋同一件事，對話框成了重複動作。
-// ⓘ 退役時實查到它本來就有一處啞掉：原 935-936 行「已是+棧板版就不打擾」的第二個判斷寫成
-//   亂碼字面（UTF-8 被當 Latin-1 再編碼一次）⇒ 永不命中；雙料+棧板版仍會被重複建議。
-//   整支退役後此缺陷一併消失，不另修。
-// 舊實作可取回：git show f982d2c684:src/slic3r/GUI/PresetComboBoxes.cpp
+// PING(2026-08-14 批2 R4・Eric 0813 裁4)：ping_suggest_pallet_for_abs()（#39「手選 ABS →
+// 建議切筏層版」對話框）與其 COMBO_TO_PALLET 對照表**已整支退役**——批2 的材料→製程自動收斂
+//（ping_converge_process，Tab.cpp）已涵蓋同一件事，對話框成了重複動作。
+// 舊實作可取回：git show 44dc1123b7:src/slic3r/GUI/PresetComboBoxes.cpp
 
 void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
 {
@@ -954,9 +951,9 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
         m_last_selected = selected_item;
         if (m_type == Preset::TYPE_FILAMENT) {
             update_ams_color();
-            // PING(2026-09-20 回移批2 R4)：#39「手選 ABS → 建議切棧板版」對話框**已退役**。
-            // 理由＝批2 的材料→製程自動收斂（ping_converge_process）直接把製程收斂到 _棧板／
-            // 易拆(Z0)+棧板，對話框變成「先問一次、然後系統自己也會做」的重複動作。
+            // PING(2026-08-14 批2 R4・Eric 0813 裁4)：#39「手選 ABS → 建議切筏層版」對話框**已退役**。
+            // 理由＝批2 的材料→製程自動收斂（ping_converge_process）直接把製程收斂到 _筏層／
+            // 易拆+筏層，對話框變成「先問一次、然後系統自己也會做」的重複動作。
             // 收斂觸發點＝Plater::priv::on_select_preset 尾端（側欄換料）與 Tab combo（線材分頁）。
         }
     }
@@ -1638,17 +1635,16 @@ void TabPresetComboBox::update()
             m_preset_bundle->physical_printers.unselect_printer();
     }
 
-    // PING(2026-09-20 回移出貨線批2 R2・乙案，牌 c-0920-ABS-01)：製程下拉「材料家族」過濾——
-    // 不符當前線材組合所推導的（家族, 筏層）之**系統**製程直接不列。Eric 0920 裁「ABS 族只相容
-    // 棧板製程」就是靠這條落地。疊在 Orca 原生的 compatible_printers 口徑過濾之上，是同型延伸
-    //（原生就是「不相容不列」）。三道豁免：fail-open／非系統支／目前選中。
+    // PING(2026-08-14 批2 R2・乙案)：製程下拉「材料家族」過濾——不符當前線材組合所推導的
+    // （家族, 筏層）之**系統**製程直接不列。疊在 Orca 原生的 compatible_printers 口徑過濾之上，
+    // 是同型延伸（原生就是「不相容不列」）。三道豁免：fail-open／非系統支／目前選中。
     PingFamily ping_derived;
     bool       ping_filter_active = false;
     if (m_type == Preset::TYPE_PRINT) {
         ping_derived = ping_derive_family();
         // R2-2 fail-open：先掃一遍「可見 ∧ 相容 ∧ 系統支」，若**沒有任何一支**符合推導家族，
-        // 本次就整批照列、完全不過濾。FF600／FF800 全系（四料／3in1／同進，零棧板製程）、
-        // 單料頭放 SupABS、ABS+PVA、DL1016 都靠這條維持與今天相同的行為（零迴歸）；
+        // 本次就整批照列、完全不過濾。FF 四料本體（預設槽4＝SupPLA 但全機零易拆製程）、3in1、
+        // DUAL Classic、ABS+PVA、單料頭放 SupPLA、DL1016 都靠這條維持與今天相同的行為（零迴歸）；
         // 嚴格過濾會讓這些機型開機就 0 支可選＝直接不能用。
         for (const Preset &p : presets) {
             if (!p.is_visible || !p.is_compatible || !p.is_system) continue;
@@ -1661,7 +1657,7 @@ void TabPresetComboBox::update()
         const Preset& preset = presets[i];
         if (!preset.is_visible || (!show_incompatible && !preset.is_compatible && i != idx_selected))
             continue;
-        // PING(2026-09-20 回移批2 R2-3／R2-4)：**只過濾系統支**——使用者自存製程與專案內嵌製程
+        // PING(2026-08-14 批2 R2-3／R2-4)：**只過濾系統支**——使用者自存製程與專案內嵌製程
         // 是他自己的資產、名字不受本專案 token 規則管轄（沒 token ⇒ 會被判「一般」⇒ 在預設就是
         // 易拆家族的 FD 雙料機上集體消失），故永不過濾；目前選中的那支也永遠列出，避免 combo
         // 顯示文字與實際選擇脫鉤。

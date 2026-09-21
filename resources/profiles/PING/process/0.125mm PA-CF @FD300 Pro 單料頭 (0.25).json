@@ -295,7 +295,7 @@
     "name": "0.125mm PA-CF @FD300 Pro 單料頭 (0.25)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP194",
+    "setting_id": "PINGP226",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FD300 Pro 單料頭 0.25 nozzle"

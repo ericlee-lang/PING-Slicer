@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.00.89",
+    "version": "01.00.01.23",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -127,6 +127,70 @@
         {
             "name": "FF800 同進照片磚",
             "sub_path": "machine/FF800 同進照片磚.json"
+        },
+        {
+            "name": "EDU 200",
+            "sub_path": "machine/EDU 200.json"
+        },
+        {
+            "name": "PING 200",
+            "sub_path": "machine/PING 200.json"
+        },
+        {
+            "name": "PING 270",
+            "sub_path": "machine/PING 270.json"
+        },
+        {
+            "name": "PING 300+",
+            "sub_path": "machine/PING 300+.json"
+        },
+        {
+            "name": "DUAL 300",
+            "sub_path": "machine/DUAL 300.json"
+        },
+        {
+            "name": "DUAL 300 同進",
+            "sub_path": "machine/DUAL 300 同進.json"
+        },
+        {
+            "name": "DUAL 300 單料頭",
+            "sub_path": "machine/DUAL 300 單料頭.json"
+        },
+        {
+            "name": "DUAL 450",
+            "sub_path": "machine/DUAL 450.json"
+        },
+        {
+            "name": "DUAL 450 同進",
+            "sub_path": "machine/DUAL 450 同進.json"
+        },
+        {
+            "name": "DUAL 450 單料頭",
+            "sub_path": "machine/DUAL 450 單料頭.json"
+        },
+        {
+            "name": "DUAL 600",
+            "sub_path": "machine/DUAL 600.json"
+        },
+        {
+            "name": "DUAL 600 同進",
+            "sub_path": "machine/DUAL 600 同進.json"
+        },
+        {
+            "name": "DUAL 600 單料頭",
+            "sub_path": "machine/DUAL 600 單料頭.json"
+        },
+        {
+            "name": "DUAL 800",
+            "sub_path": "machine/DUAL 800.json"
+        },
+        {
+            "name": "DUAL 800 同進",
+            "sub_path": "machine/DUAL 800 同進.json"
+        },
+        {
+            "name": "DUAL 800 單料頭",
+            "sub_path": "machine/DUAL 800 單料頭.json"
         }
     ],
     "process_list": [
@@ -163,52 +227,52 @@
             "sub_path": "process/0.3mm @FP300 關門 (0.6).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD300 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD300 (0.25).json"
+            "name": "0.125mm 易拆 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD300 (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 (0.25).json"
+            "name": "0.125mm @FD300 (0.25)",
+            "sub_path": "process/0.125mm @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD300 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD300 (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 (0.25).json"
+            "name": "0.125mm_筏層 @FD300 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD300 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD300 (0.4).json"
+            "name": "0.2mm 易拆 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD300 (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 (0.4).json"
+            "name": "0.2mm @FD300 (0.4)",
+            "sub_path": "process/0.2mm @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD300 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD300 (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 (0.4).json"
+            "name": "0.2mm_筏層 @FD300 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD300 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD300 (0.6).json"
+            "name": "0.3mm 易拆 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD300 (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 (0.6).json"
+            "name": "0.3mm @FD300 (0.6)",
+            "sub_path": "process/0.3mm @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD300 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD300 (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 (0.6).json"
+            "name": "0.3mm_筏層 @FD300 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 (0.6).json"
         },
         {
             "name": "0.125mm @FD300 單料頭 (0.25)",
@@ -235,100 +299,100 @@
             "sub_path": "process/0.3mm @FD300 同進 (0.6).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD300 關門 (0.25).json"
+            "name": "0.125mm 易拆 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 關門 (0.25).json"
+            "name": "0.125mm @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 關門 (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 關門 (0.25).json"
+            "name": "0.125mm_筏層 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 關門 (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD300 關門 (0.4).json"
+            "name": "0.2mm 易拆 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 關門 (0.4).json"
+            "name": "0.2mm @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 關門 (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 關門 (0.4).json"
+            "name": "0.2mm_筏層 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 關門 (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD300 關門 (0.6).json"
+            "name": "0.3mm 易拆 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 關門 (0.6).json"
+            "name": "0.3mm @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 關門 (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 關門 (0.6).json"
+            "name": "0.3mm_筏層 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 關門 (0.6).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD300 Pro (0.25).json"
+            "name": "0.125mm 易拆 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD300 Pro (0.25).json"
+            "name": "0.125mm @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD300 Pro (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD300 Pro (0.25).json"
+            "name": "0.125mm_筏層 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 Pro (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD300 Pro (0.4).json"
+            "name": "0.2mm 易拆 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD300 Pro (0.4).json"
+            "name": "0.2mm @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD300 Pro (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD300 Pro (0.4).json"
+            "name": "0.2mm_筏層 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 Pro (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD300 Pro (0.6).json"
+            "name": "0.3mm 易拆 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD300 Pro (0.6).json"
+            "name": "0.3mm @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD300 Pro (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD300 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD300 Pro (0.6).json"
+            "name": "0.3mm_筏層 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 Pro (0.6).json"
         },
         {
             "name": "0.125mm @FD300 Pro 單料頭 (0.25)",
@@ -355,68 +419,68 @@
             "sub_path": "process/0.3mm @FD300 Pro 同進 (0.6).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD450 Pro (0.25).json"
+            "name": "0.125mm 易拆 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD450 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD450 Pro (0.25).json"
+            "name": "0.125mm @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm @FD450 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD450 Pro (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD450 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD450 Pro (0.25).json"
+            "name": "0.125mm_筏層 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD450 Pro (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD450 Pro (0.4).json"
+            "name": "0.2mm 易拆 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD450 Pro (0.4).json"
+            "name": "0.2mm @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD450 Pro (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD450 Pro (0.4).json"
+            "name": "0.2mm_筏層 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD450 Pro (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD450 Pro (0.6).json"
+            "name": "0.3mm 易拆 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD450 Pro (0.6).json"
+            "name": "0.3mm @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD450 Pro (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD450 Pro (0.6).json"
+            "name": "0.3mm_筏層 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD450 Pro (0.6).json"
         },
         {
-            "name": "0.5mm 易拆(Z0) @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0) @FD450 Pro (1.0).json"
+            "name": "0.5mm 易拆 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆 @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙) @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙) @FD450 Pro (1.0).json"
+            "name": "0.5mm @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)+棧板 @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD450 Pro (1.0).json"
+            "name": "0.5mm 易拆+筏層 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆+筏層 @FD450 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙)+棧板 @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD450 Pro (1.0).json"
+            "name": "0.5mm_筏層 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD450 Pro (1.0).json"
         },
         {
             "name": "0.1mm @FD450 Pro 單料頭 (0.2)",
@@ -451,68 +515,68 @@
             "sub_path": "process/0.5mm @FD450 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD600 Pro (0.25).json"
+            "name": "0.125mm 易拆 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD600 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD600 Pro (0.25).json"
+            "name": "0.125mm @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm @FD600 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD600 Pro (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD600 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD600 Pro (0.25).json"
+            "name": "0.125mm_筏層 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD600 Pro (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD600 Pro (0.4).json"
+            "name": "0.2mm 易拆 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD600 Pro (0.4).json"
+            "name": "0.2mm @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD600 Pro (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD600 Pro (0.4).json"
+            "name": "0.2mm_筏層 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD600 Pro (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD600 Pro (0.6).json"
+            "name": "0.3mm 易拆 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD600 Pro (0.6).json"
+            "name": "0.3mm @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD600 Pro (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD600 Pro (0.6).json"
+            "name": "0.3mm_筏層 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD600 Pro (0.6).json"
         },
         {
-            "name": "0.5mm 易拆(Z0) @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0) @FD600 Pro (1.0).json"
+            "name": "0.5mm 易拆 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆 @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙) @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙) @FD600 Pro (1.0).json"
+            "name": "0.5mm @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)+棧板 @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD600 Pro (1.0).json"
+            "name": "0.5mm 易拆+筏層 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆+筏層 @FD600 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙)+棧板 @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD600 Pro (1.0).json"
+            "name": "0.5mm_筏層 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD600 Pro (1.0).json"
         },
         {
             "name": "0.1mm @FD600 Pro 單料頭 (0.2)",
@@ -547,68 +611,68 @@
             "sub_path": "process/0.5mm @FD600 Pro 同進 (1.0).json"
         },
         {
-            "name": "0.125mm 易拆(Z0) @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0) @FD800 Pro (0.25).json"
+            "name": "0.125mm 易拆 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆 @FD800 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙) @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙) @FD800 Pro (0.25).json"
+            "name": "0.125mm @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm @FD800 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)+棧板 @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)+棧板 @FD800 Pro (0.25).json"
+            "name": "0.125mm 易拆+筏層 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆+筏層 @FD800 Pro (0.25).json"
         },
         {
-            "name": "0.125mm 雙料(Z隙)+棧板 @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 雙料(Z隙)+棧板 @FD800 Pro (0.25).json"
+            "name": "0.125mm_筏層 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD800 Pro (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0) @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0) @FD800 Pro (0.4).json"
+            "name": "0.2mm 易拆 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙) @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙) @FD800 Pro (0.4).json"
+            "name": "0.2mm @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)+棧板 @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)+棧板 @FD800 Pro (0.4).json"
+            "name": "0.2mm 易拆+筏層 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆+筏層 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.2mm 雙料(Z隙)+棧板 @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 雙料(Z隙)+棧板 @FD800 Pro (0.4).json"
+            "name": "0.2mm_筏層 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD800 Pro (0.4).json"
         },
         {
-            "name": "0.3mm 易拆(Z0) @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0) @FD800 Pro (0.6).json"
+            "name": "0.3mm 易拆 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙) @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙) @FD800 Pro (0.6).json"
+            "name": "0.3mm @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)+棧板 @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)+棧板 @FD800 Pro (0.6).json"
+            "name": "0.3mm 易拆+筏層 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆+筏層 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.3mm 雙料(Z隙)+棧板 @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 雙料(Z隙)+棧板 @FD800 Pro (0.6).json"
+            "name": "0.3mm_筏層 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD800 Pro (0.6).json"
         },
         {
-            "name": "0.5mm 易拆(Z0) @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0) @FD800 Pro (1.0).json"
+            "name": "0.5mm 易拆 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆 @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙) @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙) @FD800 Pro (1.0).json"
+            "name": "0.5mm @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)+棧板 @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)+棧板 @FD800 Pro (1.0).json"
+            "name": "0.5mm 易拆+筏層 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆+筏層 @FD800 Pro (1.0).json"
         },
         {
-            "name": "0.5mm 雙料(Z隙)+棧板 @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 雙料(Z隙)+棧板 @FD800 Pro (1.0).json"
+            "name": "0.5mm_筏層 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD800 Pro (1.0).json"
         },
         {
             "name": "0.1mm @FD800 Pro 單料頭 (0.2)",
@@ -715,6 +779,410 @@
             "sub_path": "process/0.45mm 易拆 @FF800 3in1 (1.0).json"
         },
         {
+            "name": "0.3mm @EDU 200 (0.6)",
+            "sub_path": "process/0.3mm @EDU 200 (0.6).json"
+        },
+        {
+            "name": "0.2mm @PING 200 (0.4)",
+            "sub_path": "process/0.2mm @PING 200 (0.4).json"
+        },
+        {
+            "name": "0.2mm @PING 270 (0.4)",
+            "sub_path": "process/0.2mm @PING 270 (0.4).json"
+        },
+        {
+            "name": "0.2mm @PING 300+ (0.4)",
+            "sub_path": "process/0.2mm @PING 300+ (0.4).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 (0.4).json"
+        },
+        {
+            "name": "0.25mm @DUAL 450 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 450 (0.6).json"
+        },
+        {
+            "name": "0.25mm @DUAL 600 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 600 (0.6).json"
+        },
+        {
+            "name": "0.25mm @DUAL 800 (0.6)",
+            "sub_path": "process/0.25mm @DUAL 800 (0.6).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 同進 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 300 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm @DUAL 450 同進 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 450 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 450 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 450 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm @DUAL 450 單料頭 (0.2)",
+            "sub_path": "process/0.1mm @DUAL 450 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 450 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 450 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 600 同進 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 600 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 600 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 600 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm @DUAL 600 單料頭 (0.2)",
+            "sub_path": "process/0.1mm @DUAL 600 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 600 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 600 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 800 同進 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 800 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 同進 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 800 同進 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 800 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 同進 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm @DUAL 800 單料頭 (0.2)",
+            "sub_path": "process/0.1mm @DUAL 800 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 單料頭 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm @DUAL 800 單料頭 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 800 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 單料頭 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.1mm_筏層 @FP300 (0.2)",
+            "sub_path": "process/0.1mm_筏層 @FP300 (0.2).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FP300 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FP300 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FP300 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FP300 (0.6).json"
+        },
+        {
+            "name": "0.1mm_筏層 @FP300 關門 (0.2)",
+            "sub_path": "process/0.1mm_筏層 @FP300 關門 (0.2).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FP300 關門 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FP300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FP300 關門 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FP300 關門 (0.6).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD300 同進 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD300 同進 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD300 同進 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 同進 (0.6).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD300 Pro 單料頭 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 Pro 單料頭 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD300 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD300 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD300 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD300 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD300 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD300 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD300 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD300 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.1mm_筏層 @FD450 Pro 單料頭 (0.2)",
+            "sub_path": "process/0.1mm_筏層 @FD450 Pro 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD450 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD450 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD450 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD450 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD450 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD450 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD450 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD450 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD450 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD450 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD450 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD450 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD450 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD450 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm_筏層 @FD600 Pro 單料頭 (0.2)",
+            "sub_path": "process/0.1mm_筏層 @FD600 Pro 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD600 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD600 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD600 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD600 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD600 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD600 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD600 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD600 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD600 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD600 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD600 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD600 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD600 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD600 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.1mm_筏層 @FD800 Pro 單料頭 (0.2)",
+            "sub_path": "process/0.1mm_筏層 @FD800 Pro 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD800 Pro 單料頭 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD800 Pro 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD800 Pro 單料頭 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD800 Pro 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD800 Pro 單料頭 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD800 Pro 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm_筏層 @FD800 Pro 同進 (0.25)",
+            "sub_path": "process/0.125mm_筏層 @FD800 Pro 同進 (0.25).json"
+        },
+        {
+            "name": "0.2mm_筏層 @FD800 Pro 同進 (0.4)",
+            "sub_path": "process/0.2mm_筏層 @FD800 Pro 同進 (0.4).json"
+        },
+        {
+            "name": "0.3mm_筏層 @FD800 Pro 同進 (0.6)",
+            "sub_path": "process/0.3mm_筏層 @FD800 Pro 同進 (0.6).json"
+        },
+        {
+            "name": "0.5mm_筏層 @FD800 Pro 同進 (1.0)",
+            "sub_path": "process/0.5mm_筏層 @FD800 Pro 同進 (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD300 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD300 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD300 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD300 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD300 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD450 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD450 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆水溶 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆水溶 @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD600 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD600 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆水溶 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆水溶 @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆水溶 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆水溶 @FD800 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆水溶 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆水溶 @FD800 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆水溶 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆水溶 @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆水溶 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆水溶 @FD800 Pro (1.0).json"
+        },
+        {
             "name": "0.35mm @FF800 同進照片磚 (0.6)",
             "sub_path": "process/0.35mm @FF800 同進照片磚 (0.6).json"
         },
@@ -789,258 +1257,6 @@
         {
             "name": "0.5mm @FD800 Pro 同進照片磚 (1.0)",
             "sub_path": "process/0.5mm @FD800 Pro 同進照片磚 (1.0).json"
-        },
-        {
-            "name": "0.1mm_棧板 @FP300 (0.2)",
-            "sub_path": "process/0.1mm_棧板 @FP300 (0.2).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FP300 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FP300 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FP300 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FP300 (0.6).json"
-        },
-        {
-            "name": "0.1mm_棧板 @FP300 關門 (0.2)",
-            "sub_path": "process/0.1mm_棧板 @FP300 關門 (0.2).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FP300 關門 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FP300 關門 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FP300 關門 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FP300 關門 (0.6).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD300 單料頭 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD300 單料頭 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD300 單料頭 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD300 單料頭 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD300 單料頭 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD300 單料頭 (0.6).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD300 同進 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD300 同進 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD300 同進 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD300 同進 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD300 同進 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD300 同進 (0.6).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD300 Pro 單料頭 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD300 Pro 單料頭 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD300 Pro 單料頭 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD300 Pro 單料頭 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD300 Pro 單料頭 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD300 Pro 單料頭 (0.6).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD300 Pro 同進 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD300 Pro 同進 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD300 Pro 同進 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD300 Pro 同進 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD300 Pro 同進 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD300 Pro 同進 (0.6).json"
-        },
-        {
-            "name": "0.1mm_棧板 @FD450 Pro 單料頭 (0.2)",
-            "sub_path": "process/0.1mm_棧板 @FD450 Pro 單料頭 (0.2).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD450 Pro 單料頭 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD450 Pro 單料頭 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD450 Pro 單料頭 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD450 Pro 單料頭 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD450 Pro 單料頭 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD450 Pro 單料頭 (1.0).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD450 Pro 同進 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD450 Pro 同進 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD450 Pro 同進 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD450 Pro 同進 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD450 Pro 同進 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD450 Pro 同進 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD450 Pro 同進 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD450 Pro 同進 (1.0).json"
-        },
-        {
-            "name": "0.1mm_棧板 @FD600 Pro 單料頭 (0.2)",
-            "sub_path": "process/0.1mm_棧板 @FD600 Pro 單料頭 (0.2).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD600 Pro 單料頭 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD600 Pro 單料頭 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD600 Pro 單料頭 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD600 Pro 單料頭 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD600 Pro 單料頭 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD600 Pro 單料頭 (1.0).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD600 Pro 同進 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD600 Pro 同進 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD600 Pro 同進 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD600 Pro 同進 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD600 Pro 同進 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD600 Pro 同進 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD600 Pro 同進 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD600 Pro 同進 (1.0).json"
-        },
-        {
-            "name": "0.1mm_棧板 @FD800 Pro 單料頭 (0.2)",
-            "sub_path": "process/0.1mm_棧板 @FD800 Pro 單料頭 (0.2).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD800 Pro 單料頭 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD800 Pro 單料頭 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD800 Pro 單料頭 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD800 Pro 單料頭 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD800 Pro 單料頭 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD800 Pro 單料頭 (1.0).json"
-        },
-        {
-            "name": "0.125mm_棧板 @FD800 Pro 同進 (0.25)",
-            "sub_path": "process/0.125mm_棧板 @FD800 Pro 同進 (0.25).json"
-        },
-        {
-            "name": "0.2mm_棧板 @FD800 Pro 同進 (0.4)",
-            "sub_path": "process/0.2mm_棧板 @FD800 Pro 同進 (0.4).json"
-        },
-        {
-            "name": "0.3mm_棧板 @FD800 Pro 同進 (0.6)",
-            "sub_path": "process/0.3mm_棧板 @FD800 Pro 同進 (0.6).json"
-        },
-        {
-            "name": "0.5mm_棧板 @FD800 Pro 同進 (1.0)",
-            "sub_path": "process/0.5mm_棧板 @FD800 Pro 同進 (1.0).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD300 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD300 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD300 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 (0.6).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 關門 (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 關門 (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 關門 (0.6).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD300 Pro (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD300 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD300 Pro (0.6).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD450 Pro (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD450 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD450 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm 易拆(Z0)水溶 @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD450 Pro (1.0).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD600 Pro (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD600 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD600 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm 易拆(Z0)水溶 @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD600 Pro (1.0).json"
-        },
-        {
-            "name": "0.125mm 易拆(Z0)水溶 @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)水溶 @FD800 Pro (0.25).json"
-        },
-        {
-            "name": "0.2mm 易拆(Z0)水溶 @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)水溶 @FD800 Pro (0.4).json"
-        },
-        {
-            "name": "0.3mm 易拆(Z0)水溶 @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)水溶 @FD800 Pro (0.6).json"
-        },
-        {
-            "name": "0.5mm 易拆(Z0)水溶 @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)水溶 @FD800 Pro (1.0).json"
         },
         {
             "name": "0.2mm 高流量 @FF800 同進 (0.4)",
@@ -1223,88 +1439,252 @@
             "sub_path": "process/0.5mm PA-CF 樹狀 @FD800 Pro 單料頭 (1.0).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD300 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 (0.25).json"
+            "name": "0.125mm PA-CF @DUAL 300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm PA-CF @DUAL 300 單料頭 (0.25).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD300 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 (0.4).json"
+            "name": "0.125mm PA-CF 樹狀 @DUAL 300 單料頭 (0.25)",
+            "sub_path": "process/0.125mm PA-CF 樹狀 @DUAL 300 單料頭 (0.25).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD300 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 (0.6).json"
+            "name": "0.2mm PA-CF @DUAL 300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @DUAL 300 單料頭 (0.4).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD300 關門 (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 關門 (0.25).json"
+            "name": "0.2mm PA-CF 樹狀 @DUAL 300 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @DUAL 300 單料頭 (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD300 關門 (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 關門 (0.4).json"
+            "name": "0.3mm PA-CF @DUAL 300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @DUAL 300 單料頭 (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD300 關門 (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 關門 (0.6).json"
+            "name": "0.3mm PA-CF 樹狀 @DUAL 300 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @DUAL 300 單料頭 (0.6).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD300 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD300 Pro (0.25).json"
+            "name": "0.1mm PA-CF @DUAL 450 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF @DUAL 450 單料頭 (0.2).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD300 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD300 Pro (0.4).json"
+            "name": "0.1mm PA-CF 樹狀 @DUAL 450 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF 樹狀 @DUAL 450 單料頭 (0.2).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD300 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD300 Pro (0.6).json"
+            "name": "0.2mm PA-CF @DUAL 450 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @DUAL 450 單料頭 (0.4).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD450 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD450 Pro (0.25).json"
+            "name": "0.2mm PA-CF 樹狀 @DUAL 450 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @DUAL 450 單料頭 (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD450 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD450 Pro (0.4).json"
+            "name": "0.3mm PA-CF @DUAL 450 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @DUAL 450 單料頭 (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD450 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD450 Pro (0.6).json"
+            "name": "0.3mm PA-CF 樹狀 @DUAL 450 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @DUAL 450 單料頭 (0.6).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)樹狀 @FD450 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD450 Pro (1.0).json"
+            "name": "0.5mm PA-CF @DUAL 450 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @DUAL 450 單料頭 (1.0).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD600 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD600 Pro (0.25).json"
+            "name": "0.5mm PA-CF 樹狀 @DUAL 450 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @DUAL 450 單料頭 (1.0).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD600 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD600 Pro (0.4).json"
+            "name": "0.1mm PA-CF @DUAL 600 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF @DUAL 600 單料頭 (0.2).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD600 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD600 Pro (0.6).json"
+            "name": "0.1mm PA-CF 樹狀 @DUAL 600 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF 樹狀 @DUAL 600 單料頭 (0.2).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)樹狀 @FD600 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD600 Pro (1.0).json"
+            "name": "0.2mm PA-CF @DUAL 600 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @DUAL 600 單料頭 (0.4).json"
         },
         {
-            "name": "0.125mm 易拆(Z0)樹狀 @FD800 Pro (0.25)",
-            "sub_path": "process/0.125mm 易拆(Z0)樹狀 @FD800 Pro (0.25).json"
+            "name": "0.2mm PA-CF 樹狀 @DUAL 600 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @DUAL 600 單料頭 (0.4).json"
         },
         {
-            "name": "0.2mm 易拆(Z0)樹狀 @FD800 Pro (0.4)",
-            "sub_path": "process/0.2mm 易拆(Z0)樹狀 @FD800 Pro (0.4).json"
+            "name": "0.3mm PA-CF @DUAL 600 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @DUAL 600 單料頭 (0.6).json"
         },
         {
-            "name": "0.3mm 易拆(Z0)樹狀 @FD800 Pro (0.6)",
-            "sub_path": "process/0.3mm 易拆(Z0)樹狀 @FD800 Pro (0.6).json"
+            "name": "0.3mm PA-CF 樹狀 @DUAL 600 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @DUAL 600 單料頭 (0.6).json"
         },
         {
-            "name": "0.5mm 易拆(Z0)樹狀 @FD800 Pro (1.0)",
-            "sub_path": "process/0.5mm 易拆(Z0)樹狀 @FD800 Pro (1.0).json"
+            "name": "0.5mm PA-CF @DUAL 600 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @DUAL 600 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm PA-CF 樹狀 @DUAL 600 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @DUAL 600 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.1mm PA-CF @DUAL 800 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF @DUAL 800 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.1mm PA-CF 樹狀 @DUAL 800 單料頭 (0.2)",
+            "sub_path": "process/0.1mm PA-CF 樹狀 @DUAL 800 單料頭 (0.2).json"
+        },
+        {
+            "name": "0.2mm PA-CF @DUAL 800 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF @DUAL 800 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.2mm PA-CF 樹狀 @DUAL 800 單料頭 (0.4)",
+            "sub_path": "process/0.2mm PA-CF 樹狀 @DUAL 800 單料頭 (0.4).json"
+        },
+        {
+            "name": "0.3mm PA-CF @DUAL 800 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF @DUAL 800 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.3mm PA-CF 樹狀 @DUAL 800 單料頭 (0.6)",
+            "sub_path": "process/0.3mm PA-CF 樹狀 @DUAL 800 單料頭 (0.6).json"
+        },
+        {
+            "name": "0.5mm PA-CF @DUAL 800 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF @DUAL 800 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.5mm PA-CF 樹狀 @DUAL 800 單料頭 (1.0)",
+            "sub_path": "process/0.5mm PA-CF 樹狀 @DUAL 800 單料頭 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 300 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 300 (0.25).json"
+        },
+        {
+            "name": "0.3mm @DUAL 300 (0.6)",
+            "sub_path": "process/0.3mm @DUAL 300 (0.6).json"
+        },
+        {
+            "name": "0.2mm @DUAL 450 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 450 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 450 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 450 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 450 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 450 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 600 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 600 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 600 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 600 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 600 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 600 (0.25).json"
+        },
+        {
+            "name": "0.2mm @DUAL 800 (0.4)",
+            "sub_path": "process/0.2mm @DUAL 800 (0.4).json"
+        },
+        {
+            "name": "0.5mm @DUAL 800 (1.0)",
+            "sub_path": "process/0.5mm @DUAL 800 (1.0).json"
+        },
+        {
+            "name": "0.125mm @DUAL 800 (0.25)",
+            "sub_path": "process/0.125mm @DUAL 800 (0.25).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD300 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD300 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD300 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD300 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD300 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD300 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD300 關門 (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD300 關門 (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD300 關門 (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD300 關門 (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD300 關門 (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD300 關門 (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD300 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD300 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD300 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD300 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD300 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD300 Pro (0.6).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD450 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD450 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD450 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD450 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD450 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD450 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀 @FD450 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀 @FD450 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD600 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD600 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD600 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD600 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD600 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD600 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀 @FD600 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀 @FD600 Pro (1.0).json"
+        },
+        {
+            "name": "0.125mm 易拆樹狀 @FD800 Pro (0.25)",
+            "sub_path": "process/0.125mm 易拆樹狀 @FD800 Pro (0.25).json"
+        },
+        {
+            "name": "0.2mm 易拆樹狀 @FD800 Pro (0.4)",
+            "sub_path": "process/0.2mm 易拆樹狀 @FD800 Pro (0.4).json"
+        },
+        {
+            "name": "0.3mm 易拆樹狀 @FD800 Pro (0.6)",
+            "sub_path": "process/0.3mm 易拆樹狀 @FD800 Pro (0.6).json"
+        },
+        {
+            "name": "0.5mm 易拆樹狀 @FD800 Pro (1.0)",
+            "sub_path": "process/0.5mm 易拆樹狀 @FD800 Pro (1.0).json"
         }
     ],
     "filament_list": [
@@ -1377,6 +1757,22 @@
             "sub_path": "filament/PING SupPLA - 高流量噴頭.json"
         },
         {
+            "name": "PING PLA - Classic 210",
+            "sub_path": "filament/PING PLA - Classic 210.json"
+        },
+        {
+            "name": "PING PLA - Classic 220",
+            "sub_path": "filament/PING PLA - Classic 220.json"
+        },
+        {
+            "name": "PING SupPLA - Classic",
+            "sub_path": "filament/PING SupPLA - Classic.json"
+        },
+        {
+            "name": "PING PLA - EDU Classic",
+            "sub_path": "filament/PING PLA - EDU Classic.json"
+        },
+        {
             "name": "PING TPE - 210",
             "sub_path": "filament/PING TPE - 210.json"
         },
@@ -1387,6 +1783,34 @@
         {
             "name": "PING PVA",
             "sub_path": "filament/PING PVA.json"
+        },
+        {
+            "name": "PING ABS - Classic",
+            "sub_path": "filament/PING ABS - Classic.json"
+        },
+        {
+            "name": "PING SupABS - Classic",
+            "sub_path": "filament/PING SupABS - Classic.json"
+        },
+        {
+            "name": "PING PETG - Classic",
+            "sub_path": "filament/PING PETG - Classic.json"
+        },
+        {
+            "name": "PING PA-CF - Classic",
+            "sub_path": "filament/PING PA-CF - Classic.json"
+        },
+        {
+            "name": "PING PVA - Classic",
+            "sub_path": "filament/PING PVA - Classic.json"
+        },
+        {
+            "name": "PING TPE - Classic 210",
+            "sub_path": "filament/PING TPE - Classic 210.json"
+        },
+        {
+            "name": "PING SupTPE - Classic",
+            "sub_path": "filament/PING SupTPE - Classic.json"
         },
         {
             "name": "PING PLA - 四料同進噴頭",
@@ -1751,6 +2175,158 @@
             "sub_path": "machine/FF800 同進 1.0 nozzle.json"
         },
         {
+            "name": "EDU 200 0.6 nozzle",
+            "sub_path": "machine/EDU 200 0.6 nozzle.json"
+        },
+        {
+            "name": "PING 200 0.4 nozzle",
+            "sub_path": "machine/PING 200 0.4 nozzle.json"
+        },
+        {
+            "name": "PING 270 0.4 nozzle",
+            "sub_path": "machine/PING 270 0.4 nozzle.json"
+        },
+        {
+            "name": "PING 300+ 0.4 nozzle",
+            "sub_path": "machine/PING 300+ 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 0.25 nozzle",
+            "sub_path": "machine/DUAL 450 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 0.2 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 0.2 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 0.25 nozzle",
+            "sub_path": "machine/DUAL 600 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 0.2 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 0.2 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 單料頭 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 0.25 nozzle",
+            "sub_path": "machine/DUAL 800 同進 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 同進 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 同進 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 同進 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 同進 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 0.2 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 0.2 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 0.6 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 單料頭 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 單料頭 1.0 nozzle.json"
+        },
+        {
             "name": "FF800 同進照片磚 0.6 nozzle",
             "sub_path": "machine/FF800 同進照片磚 0.6 nozzle.json"
         },
@@ -1825,6 +2401,50 @@
         {
             "name": "FD800 Pro 同進照片磚 1.0 nozzle",
             "sub_path": "machine/FD800 Pro 同進照片磚 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.25 nozzle",
+            "sub_path": "machine/DUAL 300 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 300 0.6 nozzle",
+            "sub_path": "machine/DUAL 300 0.6 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 0.4 nozzle",
+            "sub_path": "machine/DUAL 450 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 1.0 nozzle",
+            "sub_path": "machine/DUAL 450 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 450 0.25 nozzle",
+            "sub_path": "machine/DUAL 450 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 0.4 nozzle",
+            "sub_path": "machine/DUAL 600 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 1.0 nozzle",
+            "sub_path": "machine/DUAL 600 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 600 0.25 nozzle",
+            "sub_path": "machine/DUAL 600 0.25 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 0.4 nozzle",
+            "sub_path": "machine/DUAL 800 0.4 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 1.0 nozzle",
+            "sub_path": "machine/DUAL 800 1.0 nozzle.json"
+        },
+        {
+            "name": "DUAL 800 0.25 nozzle",
+            "sub_path": "machine/DUAL 800 0.25 nozzle.json"
         }
     ]
 }

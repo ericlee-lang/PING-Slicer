@@ -93,23 +93,23 @@
     "default_filament_colour": [
         "#EA4E16"
     ],
+    "filament_is_support": [
+        "0"
+    ],
+    "filament_soluble": [
+        "0"
+    ],
     "filament_retraction_speed": [
         "30"
     ],
     "filament_deretraction_speed": [
         "30"
     ],
-    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/",
-    "slow_down_min_speed": [
-        "25"
-    ],
+    "compatible_printers_condition": "printer_notes!~/.*PHOTOTILE.*/ and printer_notes!~/.*CLASSIC.*/",
     "filament_shrink": [
         "99.75%"
     ],
-    "filament_is_support": [
-        "0"
-    ],
-    "filament_soluble": [
-        "0"
+    "slow_down_min_speed": [
+        "25"
     ]
 }

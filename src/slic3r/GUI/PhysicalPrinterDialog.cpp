@@ -62,12 +62,27 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent) :
     std::string suffix = _CTX_utf8(L_CONTEXT("Copy", "PresetName"), "PresetName");
     // PING(2026-06-10)：系統 preset 另存實體列印設備時，預設名直接帶機型（如「FD300 同進」），
     // 取代「FD300 同進 0.25 nozzle - 複製」（使用者規格）；printer_model 缺值時退回原邏輯。
+    // PING(2026-09-15 Eric 裁「A」)：**預設名要再帶口徑**（如「FD300 同進 0.25」）。
+    //   只帶 printer_model 時，不論從哪個口徑按「連線」，預設名都是同一個；撞名只出
+    //   「已存在・儲存將覆蓋」的 Warning、**確定鍵不會被停用** ⇒ 一個機型只留得住一顆 IP，
+    //   而那顆的 inherits 綁死在當時選的那個口徑上。製程的 compatible_printers 是**逐口徑
+    //   寫死**的（`0.25mm @X (0.4)` 只列 0.4），自訂機型走 is_compatible_with_parent_printer
+    //   回退時比的是 inherits ⇒ 只命中那一個口徑那組 ⇒ 使用者會看到「別的口徑的製程整組不見」。
+    //   實查 151 支機型 preset：149 支同時有 printer_model 與 printer_variant（另 2 支是
+    //   fdm_machine_common／fdm_ping_common 共通基底、使用者選不到），且 149 支的 preset 名
+    //   100% 是「<model> <variant> nozzle」；model+variant 組出的新預設名零重複、也不撞任何
+    //   既有系統 preset 名。缺任一鍵時逐級退回舊行為。
     std::string   preset_name;
     if (sel_preset.is_default)
         preset_name = "Untitled";
     else if (sel_preset.is_system) {
-        preset_name = sel_preset.config.opt_string("printer_model");
-        if (preset_name.empty())
+        const std::string model   = sel_preset.config.opt_string("printer_model");
+        const std::string variant = sel_preset.config.opt_string("printer_variant");
+        if (! model.empty() && ! variant.empty())
+            preset_name = model + " " + variant;
+        else if (! model.empty())
+            preset_name = model;
+        else
             preset_name = (boost::format(("%1% - %2%")) % sel_preset.name % suffix).str();
     } else
         preset_name = sel_preset.name;

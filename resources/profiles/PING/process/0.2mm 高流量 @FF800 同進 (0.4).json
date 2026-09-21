@@ -290,7 +290,7 @@
     "name": "0.2mm 高流量 @FF800 同進 (0.4)",
     "from": "system",
     "instantiation": "true",
-    "setting_id": "PINGP179",
+    "setting_id": "PINGP211",
     "inherits": "fdm_process_ping_common",
     "compatible_printers": [
         "FF800 同進 0.4 nozzle"

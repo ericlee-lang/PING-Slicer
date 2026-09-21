@@ -115,14 +115,17 @@ GuideFrame::GuideFrame(GUI_App *pGUI, long style)
     PrivacyUse    = false;
     StealthMode   = false;
     InstallNetplugin = false;
+    // PING devices do not split services by sales region. Keep the hidden value deterministic
+    // now that the welcome and region pages are skipped (Eric 2026-07-15).
+    m_Region = "Asia-Pacific";
 
     m_MainPtr = pGUI;
 
     // set the frame icon
     wxBoxSizer *topsizer = new wxBoxSizer(wxVERTICAL);
 
-    wxString TargetUrl = SetStartPage(BBL_WELCOME, false);
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(",  set start page to welcome ");
+    wxString TargetUrl = SetStartPage(BBL_MODELS, false);
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(",  set start page to models ");
 
     // Create the webview
     m_browser = WebView::CreateWebView(this, TargetUrl);
@@ -179,7 +182,7 @@ GuideFrame::GuideFrame(GUI_App *pGUI, long style)
     // Bind(wxEVT_CLOSE_WINDOW, &GuideFrame::OnClose, this);
 
     // UI
-    SetStartPage(BBL_REGION);
+    SetStartPage(BBL_MODELS);
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(",  finished");
     wxGetApp().UpdateDlgDarkUI(this);
@@ -497,7 +500,8 @@ void GuideFrame::OnScriptMessage(wxWebViewEvent &evt)
             this->EndModal(wxID_CANCEL);
             this->Close();
         } else if (strCmd == "save_region") {
-            m_Region = j["region"];
+            // Legacy page may still be reachable from old cached web content; PING remains APAC-only.
+            m_Region = "Asia-Pacific";
         }
         else if (strCmd == "network_plugin_install") {
             std::string sAction = j["data"]["action"];
@@ -1216,8 +1220,8 @@ int GuideFrame::SaveProfileData()
                 m_ProfileJson["filament"][filament_name]["selected"] = 1;
         }
 
-        //----region
-        m_Region = wxGetApp().app_config->get("region");
+        // PING has no regional device/profile split. The wizard starts at models and always stores APAC.
+        m_Region = "Asia-Pacific";
         m_ProfileJson["region"] = m_Region;
 
         m_ProfileJson["network_plugin_install"] = wxGetApp().app_config->get("app","installed_networking");
