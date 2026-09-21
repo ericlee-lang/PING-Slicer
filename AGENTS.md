@@ -3,16 +3,16 @@
 > 🔴 **跨專案鐵則不在這個檔裡，而 Codex 不會自動載入它**——它的專案文件預算走到 git repo 邊界就停，
 > 本 repo 是巢狀獨立 repo ⇒ 根 `D:/dev/2026claude/AGENTS.md` 不會出現在你的 context 裡。
 > **開工時先把它讀一次；收工前再看一次〈收工清單〉**（那裡有你這條線要跑的檢查與推送邊界）。
-> 途中特別會踩到的題目：轉態的按鈕要兩階段／跨系統變更三問與 `v_*` 契約（**改自己的 view 也要查誰在引用**）／
-> 契約與治理檔的鏡像兩邊一式／新增的檢查先提示不硬擋／共用帳號可共用但守門機制不能共用／
-> 靠 `max+1` 自己發號／改共用治理檔（收件匣、認領簿、待確認）的寫入協定／動共用資源要掛牌／
-> 回報跨線共同編輯物要帶 commit、不要說「現在」／回報 PM 走 `PM收件匣.md` 不要 `send_message`／
-> `CLAUDE.md` 第一行的 `@AGENTS.md` 橋接與文件池預算／skill 發布／D→G 發布與專案搬遷／寫檔時的內插陷阱。
+> 題目直接看那份的目錄——在這裡抄一份只會過期。
 > ⚠️ **這一段是指路牌，不是規則**——它列的是題目，不是條文。照這幾行做事等於沒讀過那些規則。
 > ⚠️ 開不了那個路徑（權限設定擋住）＝**回報，不要當成沒有規則**。
 > 📎 `D:/dev/2026claude/事故庫/20260904_Codex文件預算是共用池而且到repo邊界就停.md`
 
-> 🔴 **本檔是 OrcaSlicer 上游的通用指南，不是 PING 這條線的正本**——PING 的正本是同目錄 `CLAUDE.md`（10 KB），Codex 同樣不會自動載入它 ⇒ **開工時一併讀一次**。
+## 🔴 兩線同源三句
+
+**規則**：①功能分支**一律從 `origin/release/v3.6` 切**（桌面 App 開的工作樹基底是 `main`，兩條線都不是）②**同一條分支併兩邊**——上車 merge 進 `release/v3.6`、先試 merge 進 `ping/v3.5`，不 cherry-pick、不另移植一份 ③**出貨線每前進一步，同一棒收工前回併開發線**（`git merge origin/release/v3.6`），**方向永遠只有出貨線→開發線**。動參數就把 `resources/profiles/PING.json` 的 `version` 抬成**兩線最大值＋1**（兩線共用一條號碼線；撞號時 git 會在那一行報衝突＝守衛，而違反②會讓這個守衛失效）。
+**為什麼**：兩線曾分岔到 737 個檔，根因是「同一件事在兩條線各做一次」——搬的時候改寫、併顆、順手抬不同的號。
+📎 正本＝`../00治理文件/SOP_參數入版紀律.md` §V（收工跑同夾 `check_two_lines_sync.cjs`）；做法＝`../SOP_兩線對齊與回併.md`。
 
 # Repository Guidelines
 
@@ -23,7 +23,7 @@ OrcaSlicer’s C++17 sources live in `src/`, split by feature modules and platfo
 Use out-of-source builds:
 - `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` configures dependencies and generates build files.
 - `cmake --build build --target OrcaSlicer --config Release -- "/m:1" "/p:CL_MPCount=6"` compiles the app.
-  ⚠ Windows 本機**不要**加 `--parallel`／`-- -m` 全平行（2026-08-04 實測：PCH 吃爆 commit → C3859/C1076 → MSBuild tracker 弄髒 → 之後「exit 0 但漏編」的 DLL 啟動即崩）；build 前先 `Get-PSDrive C` 確認 ≥15GB。細節見 `../SOP_WebView2隱形宿主與跨層協定.md` §11。
+  ⚠ Windows 本機**不要**加 `--parallel`／`-- -m`；理由、安全值與 C 槽餘量門檻見同目錄 `CLAUDE.md`〈Building on Windows〉。
 - `cmake --build build --target tests` then `ctest --test-dir build --output-on-failure` runs automated suites.
 Platform helpers such as `build_linux.sh`, `build_release_macos.sh`, and `build_release_vs2022.bat` wrap the same flow with toolchain flags. Use `build_release_macos.sh -sx` when reproducing macOS build issues, and `scripts/DockerBuild.sh` for reproducible container builds.
 
