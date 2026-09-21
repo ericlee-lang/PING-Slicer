@@ -213,6 +213,13 @@ static inline bool overlap_in_xy(const PrintObjectRegions::BoundingBox &l, const
               l.max().y() < r.min().y() || l.min().y() > r.max().y());
 }
 
+// PING (CFB 2026-09-21): a model part flagged ping_keep_clear_of_parts (corner fixing block) yields to the other
+// model parts of its object. Modifiers inherit the flag through their parent's config, thus test the volume type as well.
+static inline bool keeps_clear_of_parts(const PrintObjectRegions::VolumeRegion &region)
+{
+    return region.model_volume->is_model_part() && region.region != nullptr && region.region->config().ping_keep_clear_of_parts;
+}
+
 static std::vector<PrintObjectRegions::LayerRangeRegions>::const_iterator layer_range_first(const std::vector<PrintObjectRegions::LayerRangeRegions> &layer_ranges, double z)
 {
     auto  it = lower_bound_by_predicate(layer_ranges.begin(), layer_ranges.end(),
@@ -279,6 +286,9 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                     for (int idx_region = 0; idx_region < int(layer_range.volume_regions.size()); ++ idx_region) {
                         const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
                         if (region.bbox->min().z() <= z && region.bbox->max().z() >= z) {
+                            // PING: such part is trimmed by the others even if their bounding boxes do not touch.
+                            if (keeps_clear_of_parts(region))
+                                complex = true;
                             if (idx_first_printable_region == -1 && region.model_volume->is_model_part())
                                 idx_first_printable_region = idx_region;
                             else if (idx_first_printable_region != -1) {
@@ -316,7 +326,7 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
         }
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, zs_complex.size()),
-            [&slices_by_region, &print_object_regions, &zs_complex, &layer_ranges_regions_to_slices, clip_multipart_objects, &throw_on_cancel_callback]
+            [&slices_by_region, &print_config, &print_object_regions, &zs_complex, &layer_ranges_regions_to_slices, clip_multipart_objects, &throw_on_cancel_callback]
                 (const tbb::blocked_range<size_t> &range) {
                 float z              = zs_complex[range.begin()].second;
                 auto  it_layer_range = layer_range_first(print_object_regions.layer_ranges, z);
@@ -377,6 +387,23 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                             const PrintObjectRegions::VolumeRegion &volume_region = layer_range.volume_regions[&slices - layer_range_regions_to_slices.data()];
                             temp_slices.push_back({ std::move(slices->slices[z_idx]), volume_region.region ? volume_region.region->print_object_region_id() : -1, volume_region.model_volume->id() });
                         }
+                    }
+                    // PING: parts flagged ping_keep_clear_of_parts give way to the other model parts and stay one nozzle diameter
+                    // away from them, however the user moved or scaled them. They are trimmed up front against the untouched slices,
+                    // so that the clipping below takes nothing from the other parts and their modifiers see the trimmed shape.
+                    if (std::any_of(layer_range.volume_regions.begin(), layer_range.volume_regions.end(), keeps_clear_of_parts)) {
+                        ExPolygons other_parts;
+                        for (size_t idx_region = 0; idx_region < temp_slices.size(); ++ idx_region)
+                            if (const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
+                                region.model_volume->is_model_part() && ! keeps_clear_of_parts(region))
+                                append(other_parts, temp_slices[idx_region].expolygons);
+                        if (! other_parts.empty())
+                            for (size_t idx_region = 0; idx_region < temp_slices.size(); ++ idx_region)
+                                if (const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
+                                    keeps_clear_of_parts(region) && ! temp_slices[idx_region].expolygons.empty()) {
+                                    const double nozzle_diameter = print_config.nozzle_diameter.get_at(region.region->config().wall_filament.value - 1);
+                                    temp_slices[idx_region].expolygons = diff_ex(temp_slices[idx_region].expolygons, offset_ex(other_parts, float(scale_(nozzle_diameter))));
+                                }
                     }
                     for (int idx_region = 0; idx_region < int(layer_range.volume_regions.size()); ++ idx_region)
                         if (! temp_slices[idx_region].expolygons.empty()) {

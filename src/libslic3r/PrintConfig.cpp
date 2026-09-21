@@ -1611,6 +1611,14 @@ void PrintConfigDef::init_fff_params()
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionFloat(8.));
 
+    // PING 角落固定塊（CFB 線 2026-09-21）——逐零件旗標，由「新增角落固定塊」寫進零件設定、不在 UI 露出（comDevelop）。
+    def = this->add("ping_keep_clear_of_parts", coBool);
+    def->label = L("PING keep clear of other parts");
+    def->category = L("PING");
+    def->tooltip = L("A part with this flag yields to the other parts of its object when slicing: it never takes their area and stays one nozzle diameter away from them. Set on corner fixing blocks.");
+    def->mode = comDevelop;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("brim_type", coEnum);
     def->label = L("Brim type");
     def->category = L("Support");
