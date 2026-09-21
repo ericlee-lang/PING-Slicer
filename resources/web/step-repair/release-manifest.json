@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "coreVersion": "1.1.0-alpha.4",
+  "coreVersion": "1.1.0-alpha.6",
   "protocolVersion": 1,
   "owner": "聯造實業有限公司 / PING Slicer",
   "artifact": "step-repair-browser-release",
@@ -17,13 +17,13 @@
     },
     {
       "path": "assets/step-repair.js",
-      "bytes": 877377,
-      "sha256": "b8fcc79a502be88182a7f299b803613d2b36b7ac8baeb13a30f81303702d42e4"
+      "bytes": 877391,
+      "sha256": "0b1cfe042c61f50e71112b955f20f3543a311bfe1a38cfe85283c914657bddee"
     },
     {
       "path": "index.html",
-      "bytes": 6931,
-      "sha256": "6fe54f30dc95977ab92c3279fe6cd3005da330172208fc004716be7b5d23911b"
+      "bytes": 6952,
+      "sha256": "8f126ece32519d8aedfdf853c1faacd0b8b1f27b7a6826133dc4d4ed84cdbca6"
     },
     {
       "path": "licenses/replicad-MIT.txt",
