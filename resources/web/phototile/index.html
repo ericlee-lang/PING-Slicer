@@ -405,6 +405,13 @@
         <!-- ⚠ summary 不可設 display:flex——會收掉展開三角形（0822 實錄，Eric 問「沒有載入圖檔是看不到嗎？」）；右側狀態用 float -->
         <summary style="font-weight:700; cursor:pointer">色彩校正<span class="sub" id="calibSummary"
           style="font-weight:400; float:right">尚未校正（用理論色）</span></summary>
+        <!-- 四色時整段換成一句話、連那顆鈕都不顯示（Eric 2026-09-21 驗收乙6① 裁「②」）。
+             為什麼不是原本那行小灰字「四料請先切回雙料」：從 FF600 同進機進工作室，料數已經被機台鎖成四色，
+             切不回去 ⇒ 那是一句做不到的指示。要做校正只能換一台同進機進來，所以直接講那件事。 -->
+        <div class="sub" id="calibQuadNote" style="display:none; margin:4px 0 8px">
+          目前只支援雙料同進機，請從 FD 同進機進工作室。
+        </div>
+        <div id="calibBody">
         <div class="sub" style="margin:4px 0 8px">
           量出這兩支料<b>實際印出來</b>的顏色，取代理論推算（0914 實錄：深灰料的蓋色力遠強於線性模型，中間色靠理論值印不出來）。校正資料只綁線材，換機型／口徑／層高不必重做。
         </div>
@@ -453,6 +460,7 @@
             <div class="sub" id="calibStretchStat" style="margin-left:20px"></div>
           </li>
         </ol>
+        </div><!-- /#calibBody -->
       </details>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
@@ -684,6 +692,9 @@ function calibSummaryText(){
     if(params.calibGen && g && !g.applied) return '已校正・色階未套用（護欄擋下）';
     return '已校正・僅顯示用實測色';
   }
+  /* 四色時整段不顯示（見 #calibQuadNote），摘要就不要再講「尚未校正（用理論色）」——
+     那句在四色下沒有意義，而且會讓人以為校正一下就能用（Eric 2026-09-21 乙6① 裁「②」）。 */
+  if(slotCount!==2) return '（雙料專用）';
   if(calibTable) return '⚠ 校正表與目前料色不符，未套用';
   if(calibMadeColors){
     const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
@@ -693,6 +704,15 @@ function calibSummaryText(){
   return '尚未校正（用理論色）';
 }
 function applyCalibSummary(){ const sum=document.getElementById('calibSummary'); if(sum) sum.textContent=calibSummaryText(); }
+/* 乙6①（Eric 2026-09-21 裁「②」）：四色時整段色彩校正收掉、只留一句話，那顆「產生校正片」不顯示。
+   ⚠ 要在 renderCalibGenStat 的任何 early return **之前**呼叫，否則切到四色時鈕會留在畫面上。 */
+function applyCalibMode(){
+  const quad = slotCount!==2;
+  const body = document.getElementById('calibBody');
+  const note = document.getElementById('calibQuadNote');
+  if(body) body.style.display = quad ? 'none' : '';
+  if(note) note.style.display = quad ? '' : 'none';
+}
 function calibSpecText(){
   const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
   const eng=window.PhotoTileEngine;
@@ -725,6 +745,7 @@ function calibTableStat(){
 }
 /* ④-2 的狀態列：套了沒、為什麼沒套，一律講清楚。⛔ 不准出現只講好消息的「已套用校正」——被擋下時使用者要知道印出來的還是理論階梯。 */
 function renderCalibGenStat(K){
+  applyCalibMode();                                  // 乙6①：先決定整段顯不顯示，再談狀態文字
   const el=document.getElementById('calibGenStat'); if(!el) return;
   const chk=document.getElementById('calibGenChk'); if(chk) chk.checked=!!params.calibGen;
   const spec=document.getElementById('calibSpec'); if(spec) spec.textContent=calibSpecText();
@@ -821,7 +842,9 @@ async function sendCalib3mfToSlicer(blob, fname, st){
 }
 document.getElementById('btnCalib').onclick=async()=>{
   const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
-  if(slotCount!==2){ st.textContent='　校正片目前只有雙料版（四料請先切回雙料）。'; return; }
+  /* 四色時整顆鈕已經不顯示（applyCalibMode），這裡是第二道（鍵盤／程式觸發也擋）。
+     訊息與 #calibQuadNote 同一句：從 FF600 同進進來料數已鎖四色，叫人「切回雙料」是做不到的指示。 */
+  if(slotCount!==2){ st.textContent='　目前只支援雙料同進機，請從 FD 同進機進工作室。'; return; }
   if(!window.PhotoTileEngine || !PhotoTileEngine.buildCalibStrip){ st.textContent='　引擎未載入，請重新整理頁面。'; return; }
   b.disabled=true; st.textContent='　產生中…';
   try{
@@ -2764,9 +2787,14 @@ function ptGalToast(t){
 }
 
 function ptGalList(){
-  if(ptGalCat===PT_GAL_MY) return ptMine;                       // R11-9：「我的圖」不過濾
+  if(ptGalCat===PT_GAL_MY) return ptMine;                       // R11-9：「我的圖」不過濾（自己的圖自己一櫃，不看料數）
   var m=ptGalMode(), built=ptGalSamples().filter(function(i){ return i.mode===m; });
-  if(ptGalCat==='全部') return built.concat(ptMine);
+  /* 🔴 R11-9 甲案（Eric 2026-09-21 驗收乙6② 裁「甲」）：「全部」**只放內建範例**。
+     原本是 built.concat(ptMine)——而存圖時沒有記料數（見下面的存圖路徑），所以四色模式下
+     「全部」會混進雙料存過的灰白圖，Eric 實走原話「多色的照片磚裡面混著灰白」。
+     修法選「全部只放內建」而不是「我的圖也照料數過濾」：料數是機台決定的，
+     使用者自己的照片本來就不分料數，硬給它一個料數標籤會在切機台時讓圖憑空消失。 */
+  if(ptGalCat==='全部') return built;
   return built.filter(function(i){ return i.cat===ptGalCat; });
 }
 
