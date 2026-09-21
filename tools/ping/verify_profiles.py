@@ -20,10 +20,13 @@ import math
 import os
 import re
 import sys
-try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
+# 輸出一被轉向到檔案／管線，Windows 的 Python 就退回 cp950 ⇒ 印 ✅／🔴 的那行會
+# UnicodeEncodeError，**檢查早就跑完了 exit code 卻不可信**（SOP_參數入版紀律 §T 源頭修）。
+for _s in (sys.stdout, sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 PINGDIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                        "resources", "profiles", "PING")
@@ -1534,6 +1537,80 @@ else:
                 err(f"[跨層護欄・C-12 renamed 回溯] PresetBundle.cpp {_pat!r} 出現 {_got} 次"
                     f"（應 ≥{_need}＝load_selections＋update_selections 各一）")
 
+# 🆕 甲案覆蓋盤點（Eric 2026-09-20 裁甲案；2026-09-21 自開發線回移並改寫，牌 c-0921-CONV-07）：
+# 離線重算「線材組合 → 允許的製程」，確認「ABS 只能選到筏層製程、PLA 選不到」成立，
+# 且**沒有機型會被打成零製程**。把當初做決策時的實查數字釘成回歸測試。
+# 為什麼上面的 G3 不夠：G3 驗的是「那幾支 C++ 函式還在」，驗不到「規則套下去之後每台機還剩哪些
+#   製程」——那要拿 profile 的 compatible_printers 重算才知道。少一支相容製程＝下拉整個空掉，
+#   而 C++ 那層看起來完全正常。
+# ⚠ 刻意掛在**模組層**（同 G2 的理由）：本段只吃 profile，不該因為找不到 Tab.cpp 就整條靜默失效。
+# 🔴 分類必須與 Tab.cpp 同語意，動了 C++ 那邊就要回來同步改這裡：
+#   ping_parse_process_name()：head＝'@' 之前去尾空白；token＝head 末端空白後那一段；
+#     raft_suffix＝head 含「_筏層」（現行）或「_棧板」（舊名相容）。
+#   ping_classify_process()：易拆水溶→EASY_SOL；易拆+筏層→(EASY, 筏層恆 True)；
+#     易拆／易拆樹狀→EASY；其餘（含未知 token 與不合命名規範）→PLAIN，筏層照 raft_suffix。
+#   ping_derive_family()：有支撐料→EASY（水溶→EASY_SOL）；筏層＝本體槽全是 ABS。
+# ⚠ 「有沒有筏層」在兩個地方用不同判準，不是筆誤：_classify 內用「_筏層／_棧板」（層高後綴，
+#   對應 raft_suffix），機器/製程層面用不帶底線的「筏層／棧板」——因為 token「易拆+筏層」不帶底線，
+#   只比對底線版會把只有易拆+筏層的機器整台漏掉。
+_RAFT_SFX = ("_筏層", "_棧板")
+
+def _check_abs_raft_coverage():
+    def _is_raftish(_n):
+        return ("筏層" in _n) or ("棧板" in _n)
+
+    def _classify(_name):
+        """製程名 →（家族, 筏層）。Tab.cpp ping_classify_process 的離線鏡像。"""
+        _at = _name.find("@")
+        if _at <= 0:
+            return ("PLAIN", False)          # 不符命名規範＝當一般（與未知 token 同待遇）
+        _h = _name[:_at].rstrip()
+        _rf = any(_s in _h for _s in _RAFT_SFX)
+        _sp = _h.rfind(" ")
+        _tk = _h[_sp + 1:] if _sp >= 0 else ""
+        if _tk == COMBO_CAT_PVA:
+            return ("EASY_SOL", _rf)
+        if _tk == COMBO_CAT_EASYPAL:
+            return ("EASY", True)
+        if _tk in (COMBO_CAT_EASY, COMBO_CAT_EASYTREE):
+            return ("EASY", _rf)
+        return ("PLAIN", _rf)
+
+    _by_printer = {}
+    for _n, (_k, _d) in presets.items():
+        if _k != "process" or _d.get("instantiation") != "true":
+            continue
+        for _pr in (_d.get("compatible_printers") or []):
+            _by_printer.setdefault(_pr, []).append(_n)
+    # ABS 會推導出兩種家族，**看機器有幾槽**：雙料機 ABS＋SupABS ⇒（易拆, 筏層）；
+    # 單槽機（單料頭／同進／FP300）只放得下 ABS 本體、ABS+ABS 雙料也一樣 ⇒（一般, 筏層）。
+    # 任一台機器只會走到其中一種，故判準＝「兩者聯集非空」，不是「兩者都要有」。
+    _ABS_FAMS = (("EASY", True), ("PLAIN", True))
+    _PLA_FAMS = (("EASY", False), ("PLAIN", False))
+    _checked = 0
+    for _pr, _ns in sorted(_by_printer.items()):
+        if not [x for x in _ns if _is_raftish(x)]:
+            continue                 # 該機沒有筏層製程（FF 全系）＝走 fail-open，不受本規則管
+        _checked += 1
+        _abs_ok = [x for x in _ns if _classify(x) in _ABS_FAMS]
+        _pla_ok = [x for x in _ns if _classify(x) in _PLA_FAMS]
+        if not _abs_ok:
+            err(f"[跨層護欄・甲案覆蓋] {_pr}：有筏層製程卻推導不出任何 ABS 可用製程（過濾會誤殺）")
+        for _x in _abs_ok:
+            if not _is_raftish(_x):
+                err(f"[跨層護欄・甲案覆蓋] {_pr}：ABS 組合仍可選到非筏層製程 {_x!r}（違反 Eric 0920 裁甲案）")
+        if not _pla_ok:
+            err(f"[跨層護欄・甲案覆蓋・反向] {_pr}：PLA 組合一支製程都不剩（過濾誤殺非 ABS 路徑）")
+        for _x in _pla_ok:
+            if _is_raftish(_x):
+                err(f"[跨層護欄・甲案覆蓋・反向] {_pr}：PLA 組合竟可選到筏層製程 {_x!r}")
+    if _checked == 0:
+        err("[跨層護欄・甲案覆蓋・防空轉] 一台帶筏層製程的機器都沒掃到 ⇒ compatible_printers 建法"
+            "或筏層命名有變，本段形同虛設")
+    print("甲案覆蓋（ABS 只到筏層／PLA 只到非筏層）：帶筏層製程的機型 %d 台逐台離線重算" % _checked)
+
+_check_abs_raft_coverage()
+
 # 🆕 G2（Eric 2026-08-13 裁・連動規格批1）：C++ 連動表的配料 ↔ profile 屬性「語意一致」
 # 為什麼：`Tab.cpp` 的 COMBO_FILAMENTS 是「類別預設配料」**捷徑表**（手選製程時自動帶哪兩支），
 #   而新連動改用**材料屬性**（filament_is_support／filament_soluble）反推家族。兩者若對不上——
@@ -1956,9 +2033,13 @@ for _rel, _needles, _strip in _ver_chain:
 # 出貨版守則：PING_TEST_BUILD 有值＝這顆是廠內測試版。不在此擋（值本來就會隨 T 號變），
 # 但明示於輸出，讓打包時一眼看到自己在包哪一種。
 _vi = io.open(os.path.join(_repo, "version.inc"), encoding="utf-8", errors="ignore").read()
-_m = re.search(r'set\(PING_TEST_BUILD\s+"([^"]*)"\s*\)', _vi)
+# 🔴 取**最後一個**（2026-09-21，牌 c-0921-CONV-07）：CMake 後面的 set 蓋前面的，而開發線在
+#    version.inc 檔尾多一行覆寫（`set(PING_TEST_BUILD "DEV")`，SOP_參數入版紀律 §V 保留清單）。
+#    取第一個會在開發線印出出貨線的 T 號＝印的不是 build 實際會用到的那個值。
+_mv = re.findall(r'set\(PING_TEST_BUILD\s+"([^"]*)"\s*\)', _vi)
+_mv = _mv[-1] if _mv else ""
 print("標題列版次：PING_TEST_BUILD = %s"
-      % (f"{_m.group(1)!r}（廠內測試版）" if _m and _m.group(1) else "空字串（出貨版，標題不附加）"))
+      % (f"{_mv!r}（廠內測試版）" if _mv else "空字串（出貨版，標題不附加）"))
 
 # ★ 跨層護欄（0727 Classic 變體）：profile 出了 Classic DUAL 同進機型，C++ 若沒有
 #   「printer_model DUAL 開頭 → M6050 舊格式」分支，逐層插的會是 M6051（前代 Marlin
