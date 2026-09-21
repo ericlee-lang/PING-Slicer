@@ -11,8 +11,14 @@ OrcaSlicer is an open-source 3D slicer application forked from Bambu Studio, bui
 ### Building on Windows
 **Always use this command to build the project when testing build issues on Windows.**
 ```bash
-cmake --build . --config %build_type% --target ALL_BUILD -- -m
+cmake --build . --config %build_type% --target ALL_BUILD -- "/m:1" "/p:CL_MPCount=6"
 ```
+⚠ 本機實測（2026-08-04）：**不要用 `-- -m` 全平行**——PCH 會把 commit（虛擬記憶體）吃爆
+（C3859/C1076），死掉那輪還會弄髒 MSBuild tracker，之後的增量編譯「exit 0 但漏編」
+（352 顆 obj 只重編十幾顆 → app 啟動即 0xc0000005）。安全值＝`/m:1 /p:CL_MPCount=6`
+（PowerShell 會把裸的 `-m:4` 拆成 `-m: 4`，參數一律加引號）。
+**build 前先 `Get-PSDrive C`：低於 15~20GB 先清再 build**（commit 上限被 C 槽分頁檔綁住）。
+細節見 `../SOP_WebView2隱形宿主與跨層協定.md` §11。
 
 ### Building on macOS
 **Always use this command to build the project when testing build issues on macOS.**
