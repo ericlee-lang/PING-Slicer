@@ -188,6 +188,15 @@ void CopyrightsDialog::onCloseDialog(wxEvent &)
      this->EndModal(wxID_CLOSE);
 }
 
+/* PING(2026-09-22 Eric「英文字不要切斷，尤其是品牌名稱」，牌 c-0922-ACC-04)：
+   中文段落換行的「不可斷單位」判定。可見 ASCII（字母、數字、半形標點）要跟鄰居黏成一個
+   單字，不得從中間斷開；其餘（中文、全形標點、空白）各自成為一個可斷單位。 */
+static bool ping_is_atomic_ascii(wxUniChar c)
+{
+    const wxUint32 u = c.GetValue();
+    return u > 0x20 && u < 0x7F;
+}
+
 AboutDialog::AboutDialog()
     : DPIDialog(static_cast<wxWindow *>(wxGetApp().mainframe),wxID_ANY,from_u8((boost::format(_utf8(L("About %s"))) % (wxGetApp().is_editor() ? SLIC3R_APP_FULL_NAME : GCODEVIEWER_APP_NAME)).str()),wxDefaultPosition,
         wxDefaultSize, /*wxCAPTION*/wxDEFAULT_DIALOG_STYLE)
@@ -267,17 +276,33 @@ AboutDialog::AboutDialog()
         staticText->SetMinSize(wxSize(FromDIP(520), -1));
         staticText->SetFont(Label::Body_12);
         if (is_zh) {
-            wxString find_txt = "";
-            wxString count_txt = "";
-            for (auto  o = 0; o < text_list[i].length(); o++) {
-                auto size = staticText->GetTextExtent(count_txt);
-                if (size.x < FromDIP(506)) {
-                    find_txt += text_list[i][o];
-                    count_txt += text_list[i][o];
-                } else {
-                    find_txt += std::string("\n") + text_list[i][o];
-                    count_txt = text_list[i][o];
+            /* PING(2026-09-22 Eric「英文字不要切斷，尤其是品牌名稱」，牌 c-0922-ACC-04)：
+               原本這裡逐「字元」累加、滿了就換行。中文沒問題，但英文單字會被從中間切開——
+               T057 實拍到「針對 PIN／G 3D 印表機」與「公開於 GitH／ub」。
+               改成逐「不可斷單位」：可見 ASCII 連在一起的一串（PING Slicer／OrcaSlicer／
+               AGPL-3.0／GitHub／3D）算一個單位，中文與空白各自一個單位，只在單位之間斷。
+               ⚠ 不能改回 Wrap()：它只認空白，整段中文會被當成一個字而爆版——那正是當初改成
+               逐字元的原因（見上一行 is_zh 的註解）。
+               順帶修掉原本「先量再加」造成的溢出：現在是「加得下才加」，行寬不再超過門檻
+               （單一單位自己就超寬時才會溢出，與任何排版器同）。 */
+            const wxString &src   = text_list[i];
+            const int       max_w = FromDIP(506);
+            wxString        find_txt;
+            wxString        line;
+            size_t          o = 0;
+            while (o < src.length()) {
+                size_t end = o + 1;
+                if (ping_is_atomic_ascii(src[o]))
+                    while (end < src.length() && ping_is_atomic_ascii(src[end])) ++end;
+                const wxString unit = src.Mid(o, end - o);
+                o = end;
+                if (!line.IsEmpty() && staticText->GetTextExtent(line + unit).x > max_w) {
+                    find_txt += "\n";
+                    line.clear();
+                    if (unit == " ") continue;   // 換行之後不要用空白起頭
                 }
+                find_txt += unit;
+                line     += unit;
             }
             staticText->SetLabel(find_txt);
         } else {

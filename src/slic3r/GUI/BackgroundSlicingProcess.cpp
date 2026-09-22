@@ -22,6 +22,7 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/GCode/PostProcessor.hpp"
 #include "libslic3r/GCode/PingColorMix.hpp"
+#include "libslic3r/GCode/PingCycleTower.hpp"   // collect_photo_parts（三處共用的名冊收集）
 #include "libslic3r/Format/SL1.hpp"
 #include "libslic3r/Thread.hpp"
 #include "libslic3r/libslic3r.h"
@@ -322,19 +323,11 @@ static void ping_defer_in_retract_state(const std::string& gcode_path)
 // 這裡把每個 Tn 換成該零件的 M6052/M6051，混色靠韌體 M605x。
 // 蒐集規則（全有全無，避免誤傷一般專案）：模型「所有」列印零件的名稱都解析得出
 // 配比、且 ≥2 件才成立。完全無配方＝普通專案；只有部分配方／漏指派＝髒照片磚，停止後處理而不套用其他混色曲線。
+// 名冊怎麼收（含「角落固定塊不進名冊」）＝`PingCycle::collect_photo_parts`，三處呼叫點共用同一支。
 static PingMix::PhotoPaletteStatus ping_collect_photo_palette(const Print& print, std::map<int, std::string>& palette)
 {
     std::vector<PingMix::PhotoPartAssignment> parts;
-    for (const ModelObject* obj : print.model().objects) {
-        for (const ModelVolume* vol : obj->volumes) {
-            if (!vol->is_model_part()) continue; // 修飾/支撐體不參與
-            const ConfigOption* extruder = vol->config.option("extruder");
-            if ((extruder == nullptr || extruder->getInt() == 0) && vol->get_object() != nullptr)
-                extruder = vol->get_object()->config.option("extruder");
-            const int explicit_tool = extruder != nullptr && extruder->getInt() > 0 ? extruder->getInt() - 1 : -1;
-            parts.push_back({explicit_tool, vol->name});
-        }
-    }
+    PingCycle::collect_photo_parts(print.model(), parts);
 
     PingMix::PhotoPalette parsed;
     std::string           reason;

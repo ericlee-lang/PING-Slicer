@@ -113,19 +113,29 @@ bool enabled_for(const Print& print)
     return false;
 }
 
-bool collect_palette(const Model& model, std::map<int, std::string>& palette, std::string& reason)
+// 說明（含「為什麼排除角落固定塊」）見 PingCycleTower.hpp 的宣告處。
+void collect_photo_parts(const Model& model, std::vector<PingMix::PhotoPartAssignment>& out)
 {
-    std::vector<PingMix::PhotoPartAssignment> parts;
+    out.clear();
     for (const ModelObject* obj : model.objects) {
         for (const ModelVolume* vol : obj->volumes) {
-            if (!vol->is_model_part()) continue;
+            if (!vol->is_model_part()) continue;   // 修飾／支撐體不參與
+            // 角落固定塊：刻意加進來的非磚零件，不該被要求有配方（牌 c-0922-ACC-05）
+            const ConfigOption* keep_clear = vol->config.option("ping_keep_clear_of_parts");
+            if (keep_clear != nullptr && keep_clear->getBool()) continue;
             const ConfigOption* extruder = vol->config.option("extruder");
             if ((extruder == nullptr || extruder->getInt() == 0) && vol->get_object() != nullptr)
                 extruder = vol->get_object()->config.option("extruder");
             const int explicit_tool = extruder != nullptr && extruder->getInt() > 0 ? extruder->getInt() - 1 : -1;
-            parts.push_back({explicit_tool, vol->name});
+            out.push_back({explicit_tool, vol->name});
         }
     }
+}
+
+bool collect_palette(const Model& model, std::map<int, std::string>& palette, std::string& reason)
+{
+    std::vector<PingMix::PhotoPartAssignment> parts;
+    collect_photo_parts(model, parts);
     PingMix::PhotoPalette parsed;
     const auto status = PingMix::collect_photo_palette(parts, parsed, reason);
     if (status != PingMix::PhotoPaletteStatus::Valid) {

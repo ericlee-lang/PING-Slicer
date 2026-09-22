@@ -56,6 +56,7 @@
 //#include "libslic3r/Format/3mf.hpp"
 #include "libslic3r/Format/bbs_3mf.hpp"
 #include "libslic3r/GCode/ThumbnailData.hpp"
+#include "libslic3r/GCode/PingCycleTower.hpp"   // collect_photo_parts（三處共用的照片磚名冊收集）
 #include "libslic3r/Model.hpp"
 #include "libslic3r/SLA/Hollowing.hpp"
 #include "libslic3r/SLA/SupportPoint.hpp"
@@ -5777,17 +5778,9 @@ static PingMix::PhotoPaletteStatus ping_analyze_photo_tile_import(const Model& m
                                                                   PingMix::PhotoPalette& palette,
                                                                   std::string& reason)
 {
+    // 名冊怎麼收（含「角落固定塊不進名冊」）＝`PingCycle::collect_photo_parts`，三處呼叫點共用同一支。
     std::vector<PingMix::PhotoPartAssignment> parts;
-    for (const ModelObject* object : model.objects) {
-        for (const ModelVolume* volume : object->volumes) {
-            if (!volume->is_model_part()) continue;
-            const ConfigOption* extruder = volume->config.option("extruder");
-            if ((extruder == nullptr || extruder->getInt() == 0) && volume->get_object() != nullptr)
-                extruder = volume->get_object()->config.option("extruder");
-            const int explicit_tool = extruder != nullptr && extruder->getInt() > 0 ? extruder->getInt() - 1 : -1;
-            parts.push_back({explicit_tool, volume->name});
-        }
-    }
+    PingCycle::collect_photo_parts(model, parts);
     return PingMix::collect_photo_palette(parts, palette, reason);
 }
 
