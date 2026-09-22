@@ -20,6 +20,7 @@
 #include "../Polygon.hpp"
 #include "../Polyline.hpp"
 #include "../Point.hpp"
+#include "PingColorMix.hpp"   // PhotoPartAssignment（collect_photo_parts 的輸出型別）
 
 namespace Slic3r {
 
@@ -98,6 +99,21 @@ double      light_score(const std::string& cmd);
 
 // 讀某台 print 是否任何物件開了循環塔（ToolOrdering 用）
 bool enabled_for(const Print& print);
+
+/* 把模型的列印零件收成「照片磚名冊」，交給 PingMix::collect_photo_palette 判定。
+   三處呼叫點（本檔 collect_palette／BackgroundSlicingProcess／Plater 匯入分析）原本各有一份
+   逐字相同的迴圈——同一個洞要補三次，所以 2026-09-22 收成這一支（牌 c-0922-ACC-05）。
+
+   🔴 **帶 `ping_keep_clear_of_parts` 旗標的零件（角落固定塊）不進名冊。**
+   名冊採「全有全無」：每個列印零件的名稱都要解析得出混色配方，否則整盤判 Invalid（髒照片磚）。
+   那條規則立在角落固定塊（T057）之前，而固定塊是使用者**刻意加上去的非磚零件**、本來就不會有
+   配方 ⇒ 不排除它，照片磚只要加固定塊就切不了（Eric 2026-09-22 實撞：
+   "2 of 5 printable parts have no photo-tile recipe; first: 角落固定塊"）。
+   ⚠ 只認旗標、不認名字（名字會被改、會隨語言變）；T056 以前存的舊塊沒有旗標，不在射程內
+     ——那批本來就要「刪掉重加」才有 T057 的讓位保護（見 T057 版本資訊）。
+   ⚠ 閘門本身**不放寬**：磚零件真的掉了配方仍然必須被擋下，那是它存在的理由。 */
+void collect_photo_parts(const Model& model, std::vector<PingMix::PhotoPartAssignment>& out);
+
 // 從模型零件名收 palette（tool→配方命令），照片磚不合法回 false（與 GUI 端 collect 同一支判定）
 bool collect_palette(const Model& model, std::map<int, std::string>& palette, std::string& reason);
 
