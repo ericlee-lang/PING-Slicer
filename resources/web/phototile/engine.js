@@ -259,6 +259,157 @@ function filterLabels(labels, img, P, paletteSize, strategy){
   return { labels: finalLabels, stats };
 }
 
+/* ================= 四料 48 格校正塊（A 案；R6-2 附款／R6-6）=================
+   ＝ 照片磚_色彩校正/make_calib_quad_3mf.py 的同構 JS 版。**離線那支是參考正本**，
+   兩邊同參數產出的 3D/3dmodel.model 與 Metadata/model_settings.config 逐位元組相同，
+   由 tools/ping/phototile_calib_test.js 用 sha256 釘住（比照雙料釘 43062b6c…191717 的做法）。
+
+   排法＝A 案：**8 階沿 X 排、6 對往 Z 疊** ⇒ 正面 80×60 mm、厚 10 mm、48 格＋洗料柱＝49 支零件。
+   （否決的 B 案＝48 格全部沿 Z 疊 ⇒ 48 cm 高，FD300 印不下。記在 R6-6，免得日後有人重提。）
+   ⚠ Orca 零件上限 64，49 支在限內。
+
+   🔴 **幾何唯一來源在這裡，頁面不得再寫一份數字**——雙料 v1→v2c 分叉就是因為 index.html 自己寫了一份。
+   🔴 **洗料柱高度＝整塊高，不可縮**：同一層要換 8 次比例，柱矮於某層 ⇒ 那層以上沒被洗過、
+      量到的是殘料污染色（R6-6 實作細節 2）。
+   🔴 **整組置中要含洗料柱**：只用 -width/2 會讓磚置中、柱整根凸在右邊，重心偏到床邊。
+   ================================================================= */
+const CALIB_QUAD_GEO={cellMm:10, thickMm:10, levels:8, pillarMm:25, pillarGapMm:15};
+function calibQuadGeo(){ return Object.assign({}, CALIB_QUAD_GEO); }
+/* 產出的 3MF 內容一律 LF。本檔原始碼是 CRLF ⇒ 用 fromCharCode 講死，免得哪天被編輯器或補丁工具改成 CRLF，
+   那會讓與 python 參考正本的逐位元比對整張表轉紅，而原因看起來跟幾何完全無關。 */
+const CALIB_QUAD_LF=String.fromCharCode(10);
+/* 引擎量化式：w=round((1-s/(k-1))*100)。🔴 這條式子就是 quantizeQuad 產候選時用的那一條，
+   兩邊必須逐字相同，否則量了 70% 而引擎永遠只印 71%＝白量（R6-8）。 */
+function calibQuadSteps(k){ const o=[]; for(let s=0;s<k;s++) o.push(Math.round((1-s/(k-1))*100)); return o; }
+/* python 參考正本的 xml_esc 連單引號也跳脫；要談逐位元同構就得跟著它（XML 兩種寫法都合法，差別只在位元）。 */
+function xmlEscQuad(v){ return xmlEsc(v).replace(/'/g,'&apos;'); }
+/* 接縫規則（與 make_calib_quad_3mf.py 的 seam_rule 同一套語意）：
+     ① X 等值面且在內部 → paint_seam=4 enforcer：縫藏在格與格之間的接著面
+     ② X 等值面且在最外側 → 不標：最外側那格的縫退回它內側的接著面（Eric 說的「最外側色塊換邊」）
+     ③ Y 等值面（正面／背面）→ paint_seam=8 blocker
+   ③ 對校正塊比對照片磚更要緊——**正面就是要拍照回讀顏色的那一面**，縫疤會直接污染量到的色值。
+   ⚠ 洗料柱不套本規則（0720 c-0720-PT-01 定案）⇒ width 傳 null。 */
+function calibQuadBox(x0,y0,z0,x1,y1,z1,width){
+  const f=calibStripNum;
+  const vs=[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  const v=vs.map(p=>`<vertex x="${f(p[0])}" y="${f(p[1])}" z="${f(p[2])}"/>`).join('');
+  const eps=1e-9, tol=0.01;
+  const tri=CALIB_STRIP_TRI.map(t=>{
+    const a=vs[t[0]], b=vs[t[1]], c=vs[t[2]];
+    let seam=0;
+    if(width!==null && width!==undefined){
+      if(Math.abs(a[0]-b[0])<eps && Math.abs(a[0]-c[0])<eps) seam=(a[0]<tol || a[0]>width-tol) ? 0 : 4;
+      else if(Math.abs(a[1]-b[1])<eps && Math.abs(a[1]-c[1])<eps) seam=8;
+    }
+    return `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"${seam?` paint_seam="${seam}"`:''}/>`;
+  }).join('');
+  return {v, tri};
+}
+function buildCalibQuadParts(o){
+  o=o||{};
+  const LF=CALIB_QUAD_LF;
+  const pos=(v,d)=>Number(v)>0?Number(v):d;
+  const cell=pos(o.cellMm,CALIB_QUAD_GEO.cellMm), thick=pos(o.thickMm,CALIB_QUAD_GEO.thickMm);
+  const k=Math.max(2, Math.round(pos(o.levels,CALIB_QUAD_GEO.levels)));
+  /* pillarMm 明寫 0 ＝ 不加洗料柱（⚠ 量值會被殘料污染，只給離線對照用）；沒帶＝用定案值 */
+  const pillar=(o.pillarMm===undefined||o.pillarMm===null) ? CALIB_QUAD_GEO.pillarMm : Math.max(0,Number(o.pillarMm)||0);
+  const pillarGap=pos(o.pillarGapMm,CALIB_QUAD_GEO.pillarGapMm);
+  const colors=(o.colors||[]).map(h=>String(h||'').toUpperCase());
+  if(colors.length<4 || colors.slice(0,4).some(h=>!/^#[0-9A-F]{6}$/.test(h))) throw new Error('四料校正塊要四個 #RRGGBB 料色');
+  const names=(o.names&&o.names.length>=4 ? o.names : ['料A','料B','料C','料D']).slice(0,4);
+  const title=o.title||'照片磚色彩校正 四料 48 格';
+  const cols=colors.slice(0,4).map(hexLin);
+  /* 與 index.html simulateVerticalQuad 的 mixLin 同式：線性空間加權平均，再回 sRGB。 */
+  const mix=w=>'#'+[0,1,2].map(ch=>l2s((w[0]*cols[0][ch]+w[1]*cols[1][ch]+w[2]*cols[2][ch]+w[3]*cols[3][ch])/100)
+                                   .toString(16).padStart(2,'0')).join('').toUpperCase();
+  const ws=calibQuadSteps(k);
+  const width=cell*k, height=cell*CALIB_QUAD_PAIRS.length;
+  const objs=[], parts=[], pal=[];
+  let oid=0;
+  CALIB_QUAD_PAIRS.forEach((pr,r)=>{
+    const i=pr[0], j=pr[1], z0=r*cell;
+    ws.forEach((wi,c)=>{
+      oid++;
+      const w=[0,0,0,0]; w[i]=wi; w[j]=100-wi;
+      const x0=c*cell;
+      const b=calibQuadBox(x0,0,z0,x0+cell,thick,z0+cell,width);
+      objs.push(`<object id="${oid}" type="model"><mesh><vertices>${b.v}</vertices><triangles>${b.tri}</triangles></mesh></object>`);
+      const prev=mix(w);
+      /* 零件名尾端必須是 A.. B.. C.. D.. 四個 token 且前面至少還有一個（C++ parse_photo_part_name 要求 n>=5）；
+         #RRGGBB 供 parse_photo_part_color 取預覽色。 */
+      const nm=`校正R${r+1}C${c+1} ${prev} A${w[0]} B${w[1]} C${w[2]} D${w[3]}`;
+      parts.push([`    <part id="${oid}" subtype="normal_part">`,
+                  `      <metadata key="name" value="${xmlEscQuad(nm)}"/>`,
+                  '      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>',
+                  `      <metadata key="extruder" value="${oid}"/>`,
+                  '    </part>'].join(LF));
+      pal.push(`extruder ${oid}  R${r+1}C${c+1}  ${names[i]}／${names[j]} = ${wi}／${100-wi} %  預覽色 ${prev}`);
+    });
+  });
+  const cells=oid;
+  if(pillar>0){
+    const poid=oid+1;
+    const px0=width+pillarGap, py0=thick/2-pillar/2;
+    const b=calibQuadBox(px0,py0,0,px0+pillar,py0+pillar,height,null);
+    objs.push(`<object id="${poid}" type="model"><mesh><vertices>${b.v}</vertices><triangles>${b.tri}</triangles></mesh></object>`);
+    const pcol=mix([25,25,25,25]);
+    parts.push([`    <part id="${poid}" subtype="normal_part">`,
+                `      <metadata key="name" value="${xmlEscQuad('洗料柱 '+pcol+' A25 B25 C25 D25')}"/>`,
+                '      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>',
+                `      <metadata key="extruder" value="${poid}"/>`,
+                '      <metadata key="sparse_infill_density" value="100%"/>',
+                '    </part>'].join(LF));
+    pal.push(`extruder ${poid}  洗料柱 ${pillar}×${pillar}×${height} mm 實心  = M6052 A25 B25 C25 D25  預覽色 ${pcol}`);
+  }
+  const MID=1000, f=calibStripNum;
+  const totalW=width+(pillar>0 ? (pillarGap+pillar) : 0);
+  const comps=objs.map((_,i)=>`<component objectid="${i+1}" transform="1 0 0 0 1 0 0 0 1 0 0 0"/>`).join('');
+  const model=['<?xml version="1.0" encoding="UTF-8"?>',
+    '<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">',
+    ' <metadata name="Application">PING-PhotoTile-ColorCalib-Quad</metadata>',
+    ' <resources>']
+    .concat(objs.map(x=>'  '+x))
+    .concat([`  <object id="${MID}" type="model"><components>${comps}</components></object>`,
+             ' </resources>',
+             ` <build><item objectid="${MID}" transform="1 0 0 0 1 0 0 0 1 ${f(-totalW/2)} ${f(-thick/2)} 0" printable="1"/></build>`,
+             '</model>']).join(LF);
+  const cfg=['<?xml version="1.0" encoding="UTF-8"?>', '<config>',
+             `  <object id="${MID}">`,
+             `    <metadata key="name" value="${xmlEscQuad(title)}"/>`,
+             parts.join(LF), '  </object>', '</config>'].join(LF);
+  /* ⚠ txt 只是給人看的說明，**不在 sha256 釘住的範圍內**（同雙料：只釘 model／cfg）。 */
+  const txt=[title,
+    `四料 M6052（A/B/C/D ＝各料佔比 %）｜${cells} 格＝${CALIB_QUAD_PAIRS.length} 對 × ${k} 階｜每格 ${cell}×${cell} mm`,
+    `正面 ${width}×${height} mm、厚 ${thick} mm｜零件 ${objs.length} 支` + (pillar>0 ? `（含洗料柱 ${pillar}×${pillar} mm）` : '（無洗料柱）'),
+    colors.slice(0,4).map((h,i)=>`${'ABCD'[i]}（E${i+1}）＝${names[i]} ${h}`).join(' ／ '),
+    '',
+    '【量測方式】正面平放拍照、整塊入鏡；每格取中心區（避開四周 2 mm，那裡有外牆轉角的陰影）。',
+    '【設計註記】洗料柱高度＝整塊高，不可縮：同一層要換多次比例，柱矮於某層 ⇒ 那層以上沒被洗過、量到的是殘料污染色。',
+    '回讀：主程式「幫助 → 色彩校正」選四料 48 格，四個料色照上面填。',
+    '', pal.join(LF), ''].join(LF);
+  return {model, cfg, txt, cell, thick, levels:k, width, height, pillar, pillarGap,
+          cells, partCount:objs.length, title, colors:colors.slice(0,4), names};
+}
+async function buildCalibQuad(o){
+  const c=buildCalibQuadParts(o||{});
+  const blob=await makeZip([
+    {name:'[Content_Types].xml', data:['<?xml version="1.0" encoding="UTF-8"?>',
+      '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">',
+      ' <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+      ' <Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/>',
+      ' <Default Extension="config" ContentType="text/xml"/>',
+      ' <Default Extension="txt" ContentType="text/plain"/>',
+      '</Types>'].join(CALIB_QUAD_LF)},
+    {name:'_rels/.rels', data:['<?xml version="1.0" encoding="UTF-8"?>',
+      '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">',
+      ' <Relationship Target="/3D/3dmodel.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>',
+      '</Relationships>'].join(CALIB_QUAD_LF)},
+    {name:'3D/3dmodel.model', data:c.model},
+    {name:'Metadata/model_settings.config', data:c.cfg},
+    {name:'Metadata/ping_calib.txt', data:c.txt},
+  ]);
+  return Object.assign({blob}, c);
+}
 /* ================= 雙料量化（index.html:474-521 計算部；畫布/metric 拿掉） =================
    C-1：hooks.tick(frac) 為選配的「階段內進度＋讓步」鉤（見 §量化進度分塊）；
    雙料的逐格迴圈只有一次距離計算（實測 ≤0.1s），整段跑完回報一次即可。 */
@@ -298,8 +449,14 @@ function dualLadder(hexA, hexB, K){
 
    calib＝{ table:<回讀頁匯出的 JSON 原物>, apply:<bool，預設 true＝④-2；false＝只做 ④-1 顯示> }。
    四道護欄（①通道≥250 警告 ②相鄰階 ΔE<2 警告 ③L* 跨幅<K 擋 ④非單調 擋）與 0822 逐字同義。 */
+/* 分派：雙料走 calibParseDual（0914 原樣），四料走 calibParseQuad（R6-2 附款：六對全有）。
+   外部介面不變——index.html、dualLadderCalibrated 與測試都只呼叫這一支。
+   🔴 四料的回傳物**沒有 pts、改有 pairs**（六對各自一條曲線）——下游要用 `Array.isArray(tbl.pairs)` 分辨。 */
 function calibParseTable(json){
-  if(!json || json['料數']!==2) throw new Error('目前只支援雙料校正表（這張是 '+(json&&json['料數'])+' 料）');
+  return (json && json['料數']===4) ? calibParseQuad(json) : calibParseDual(json);
+}
+function calibParseDual(json){
+  if(!json || json['料數']!==2) throw new Error('校正表的料數只支援 2 或 4（這張是 '+(json&&json['料數'])+' 料）');
   const rows=json['量測'];
   if(!Array.isArray(rows) || !rows.length) throw new Error('找不到「量測」資料');
   const pts=rows.map(r=>{
@@ -312,6 +469,54 @@ function calibParseTable(json){
   if(pts.length<2) throw new Error('校正表至少要 2 個量測點');
   const slotsDecl=(json['料']||[]).map(x=>String(x['色']||'').toUpperCase());
   return {slots:slotsDecl, pts, kind:json['校正塊種類']||'', raw:json};
+}
+/* 四料 48 格校正表 → 6 對實測曲線（R6-2 附款：六對全有，不得砰成 24 格）。
+   來源＝calibration.html 的四料輸出：每列 {格:'R{列}C{行}', 配方:{A,B,C,D}, 量到色}。
+   🔴 **不能只靠「恰有兩個非零」認 pair**：每一對的兩端是純色錨點（100/0），
+   那兩格只有**一個**非零。改用「同一列（同一個 R）的非零聯集」認，聯集恰好兩支才算一對。
+   某一對整列缺席＝那一對沒量過（R6-4 允許），回傳的 pairs 就少一筆，**不丟例外**；
+   但格式壞掉（配方不合法、用到第三支料、加起來不是 100）是**表本身錯了**⇒ 丟例外，同雙料。 */
+const CALIB_QUAD_PAIRS=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];   // A/B A/C A/D B/C B/D C/D（R6-2 順序）
+function calibParseQuad(json){
+  if(!json || json['料數']!==4) throw new Error('這不是四料校正表（料數 '+(json&&json['料數'])+'）');
+  const rows=json['量測'];
+  if(!Array.isArray(rows) || !rows.length) throw new Error('找不到「量測」資料');
+  const per=Math.max(1, Math.round(rows.length/CALIB_QUAD_PAIRS.length));
+  const groups=new Map();
+  rows.forEach((r,idx)=>{
+    const f=r && r['配方'];
+    const w=['A','B','C','D'].map(k=>Number(f && f[k]));
+    const hex=r && r['量到色'];
+    const cell=String((r && r['格'])||'');
+    const at=cell||('第 '+(idx+1)+' 筆');
+    if(w.some(v=>!isFinite(v)||v<0) || !/^#[0-9a-fA-F]{6}$/.test(hex||''))
+      throw new Error(at+'的配方或量到色不合法');
+    if(Math.round(w[0]+w[1]+w[2]+w[3])!==100) throw new Error(at+'的配方加起來不是 100');
+    const m=/^R(\d+)C/.exec(cell);
+    const key=m ? ('R'+m[1]) : ('G'+Math.floor(idx/per));   // 沒有格名就照產生器順序切塊
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({w, hex:hex.toUpperCase(), at});
+  });
+  const pairs=[];
+  groups.forEach((g,key)=>{
+    const nz=new Set();
+    g.forEach(r=>r.w.forEach((v,i)=>{ if(v>0) nz.add(i); }));
+    const idx=[...nz].sort((a,b)=>a-b);
+    if(idx.length!==2) throw new Error(key+' 這一列不是「兩支料的混比」（用到 '+idx.length+' 支料）');
+    const i=idx[0], j=idx[1];
+    const pts=g.map(r=>{
+      /* 不在這裡再檢一次「用到第三支料」：那個索引一定已經進了上面的 nz 聯集，
+         idx.length!==2 那一道先擋下來了 ⇒ 寫了也永遠到不了，而永遠到不了的檢查測不出來。 */
+      /* S 的定義與雙料一致＝**前一支端點（i）的佔比**；鍵要跟引擎實際會吐的比例逐字相同（R6-8）。 */
+      return {S:Math.round(r.w[i])/100, lin:hexLin(r.hex), hex:r.hex};
+    }).sort((a,b)=>b.S-a.S);
+    if(pts.length<2) return;                       // 1 點內插不出曲線＝等同沒量過
+    pairs.push({i, j, pts});
+  });
+  if(!pairs.length) throw new Error('這張四料表沒有任何一對可用的量測');
+  pairs.sort((a,b)=>(a.i-b.i)||(a.j-b.j));
+  const slotsDecl=(json['料']||[]).map(x=>String(x['色']||'').toUpperCase());
+  return {slots:slotsDecl, pairs, kind:json['校正塊種類']||'', raw:json};
 }
 /* 在實測曲線上取 S 對應的顏色（線性空間內插；超出範圍夾到端點）＝④-1 顯示色 */
 function calibLookupLin(tbl, S){
@@ -402,6 +607,8 @@ function dualLadderCalibrated(slots, K, calib){
   try{ tbl = (calib.table.pts && calib.table.slots) ? calib.table : calibParseTable(calib.table); }
   catch(e){ out.calib.why='校正表讀不到：'+(e&&e.message?e.message:'格式不合'); return out; }
   out.calib.tableSlots=tbl.slots.slice(0,2);
+  /* 四料表沒有 pts（只有 pairs），落到下面會静默變成「沒有校正表」⇒ 這裡先講清楚。 */
+  if(Array.isArray(tbl.pairs)){ out.calib.why='這是四料校正表，雙料模式用不到'; return out; }
   if(!calibMatches(tbl, slots)){ out.calib.why='校正表與目前料色不符（'+tbl.slots.slice(0,2).join(' · ')+'），整段未套用'; return out; }
   out.calib.matches=true;
   out.lookupLin = S => calibLookupLin(tbl, S);          // ④-1：顯示色改實測，不動 t
@@ -570,18 +777,90 @@ async function quantizeDual(img, P, slots, hooks){
    await hooks.tick(frac)＝回報進度＋讓 cancel 指令被觀察到。
    ⚠ 迴圈順序、算式、寫入順序全部不變 ⇒ 標籤結果與 spike／工作室逐位元一致。 */
 const QUANT_ROWS_PER_BLOCK = 64;
+/* 四料校正的每對護欄（沿用雙料那四道，**逐對各判各的**——R6-4 定的失效單位就是 pair）。
+   🔴 跨幅這一道照 **R6-7 附款**（Eric 2026-09-22 裁 C 案）辦，不照雙料的 `span < K` 硬擋：
+      跨幅 ≥ 4 L* ⇒ **不擋**，只把「這一對做得出幾階」算出來（floor(跨幅)）交給畫面講；
+      跨幅 < 4 L* ⇒ 擋（連 4 階都做不出來，已不是「階數調一調」的範圍）。
+   為什麼不照抄雙料那道：雙料的 `span < K` 存在，是因為雙料要**反解一條單調梯子**；
+   四料不反解，是在 Lab 上找最近色 ⇒ 跨幅小的一對只是候選彼此接近，不會算壞。
+   而 R6-7 末段明寫「L* 跨幅不足 ≠ 兩支料之間沒有可用的色差」（白×黃相鄰階 ΔE76 有 10.9~25.1，差在彩度）
+   ⇒ 在四料把那種對整組擋掉，會平白少掉彩度那條路（R6-11）。
+   ⚠ 這一處是**規格正本（R6-7 附款）與實作計畫那句「沿用雙料四道」的差異**，已擇規格正本；
+      要改回硬擋，先改 R6-7 附款。 */
+const CALIB_QUAD_SPAN_MIN_L=4;
+function calibQuadPairGuard(pts, K){
+  const Lof = lin => { const y=lum709(...lin); return 116*(y>0.008856?Math.cbrt(y):(7.787*y+16/116))-16; };
+  const L=pts.map(p=>Lof(p.lin));
+  const span=Math.abs(L[0]-L[L.length-1]);
+  const warn=[], block=[];
+  const clipped=pts.filter(p=>Math.max(...hexRgb(p.hex))>=250).length;
+  if(clipped) warn.push(clipped+' 格有通道 ≥250（疑似拍照高光溢出，建議降曝光重拍）');
+  let flat=0;
+  for(let i=0;i<pts.length-1;i++){
+    const a=lin2lab(...pts[i].lin), b=lin2lab(...pts[i+1].lin);
+    if(Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])<2) flat++;
+  }
+  if(flat) warn.push(flat+' 對相鄰階色差 <2（人眼分不出）');
+  let mono=true;
+  const desc=L[0]>L[L.length-1];
+  for(let i=0;i<L.length-1;i++) if((desc ? L[i+1]-L[i] : L[i]-L[i+1]) > 0.5) mono=false;
+  if(!mono) block.push('實測 L* 不是單調的（多半是拍照或取色出了問題）');
+  if(span < CALIB_QUAD_SPAN_MIN_L) block.push('實測 L* 跨幅只有 '+span.toFixed(1)+'，連 4 階都做不出來');
+  return {ok:block.length===0, span, maxLevels:Math.max(0,Math.floor(span)),
+          warnOnly:warn.join('；'), blocked:block.join('；')};
+}
+/* 把 calib 攤成「哪幾對可以用、各自的查表函式是什麼」。
+   🔴 **hex 只當顯示與防呆，不當鍵**（R6-14 子題 1）：料色對不上只警示、不擋——
+   擋的判準在 R6-16，那是「有沒有量過」，不是「顏色像不像」。 */
+function calibQuadPlan(calib, slots, K){
+  const out={present:true, applied:false, why:'', kind:'', pairs:{}, skipped:[], notes:[], hexWarn:''};
+  let tbl;
+  try{ tbl = (calib.table && Array.isArray(calib.table.pairs)) ? calib.table : calibParseTable(calib.table); }
+  catch(e){ out.why='校正表讀不到：'+(e && e.message || e); return out; }
+  if(!tbl || !Array.isArray(tbl.pairs)){ out.why='這是雙料校正表，四料模式用不到'; return out; }
+  out.kind=tbl.kind||'';
+  const now=slots.slice(0,4).map(s=>String(s && s.color || '').toUpperCase());
+  const decl=(tbl.slots||[]).slice(0,4);
+  const bad=[];
+  for(let i=0;i<4;i++) if(decl[i] && now[i] && decl[i]!==now[i]) bad.push('ABCD'[i]+'（表 '+decl[i]+' · 現在 '+now[i]+'）');
+  if(bad.length) out.hexWarn='這些料量到的顏色跟現在裝的不一樣，是不是換批了？'+bad.join('、');
+  if(calib.apply===false){ out.why='未套用（只看不用）'; return out; }
+  for(const pr of tbl.pairs){
+    const g=calibQuadPairGuard(pr.pts, K);
+    if(!g.ok){ out.skipped.push({i:pr.i, j:pr.j, why:g.blocked}); continue; }
+    if(g.warnOnly) out.notes.push('ABCD'[pr.i]+'×'+'ABCD'[pr.j]+'：'+g.warnOnly);
+    out.pairs[pr.i+','+pr.j]={span:g.span, maxLevels:g.maxLevels, lookup:S=>calibLookupLin(pr, S)};
+  }
+  out.applied = Object.keys(out.pairs).length>0;
+  /* ⚠ 一對都不能用時**退回理論候選**（＝舊行為），不是擋下生成。
+     硬閘門（未校正的料選不到）是 R6-16 推論①，那要在畫面上擋（段 F）；
+     引擎這一層若直接擋，等於車 1 就改變了既有專案的行為——車 1 是純加法。這裡誠實回報狀態就好。 */
+  if(!out.applied) out.why='沒有任何一對通過護欄'+(out.skipped.length ? ('：'+out.skipped.map(x=>x.why).join('；')) : '');
+  return out;
+}
 async function quantizeQuad(img, P, slots, hooks){
   const K=Math.max(2,P.klevels);
   const cols=slots.slice(0,4).map(s=>hexLin(s.color));
   const mixLin=w=>[0,1,2].map(ch=>(w[0]*cols[0][ch]+w[1]*cols[1][ch]+w[2]*cols[2][ch]+w[3]*cols[3][ch])/100);
-  const PAIRS=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
+  const PAIRS=CALIB_QUAD_PAIRS;          // 單一來源：產生器與量化用同一張對表，才談得上「量了套得回去」
+  /* 🔒 保命索：slots[0].calib 缺席 ⇒ plan 是 null、下面每一行都走原路，
+     標籤與 palette 與舊版**逐位元相同**（同雙料 0914 的紀律）。 */
+  const calib = slots[0] && slots[0].calib ? slots[0].calib : null;
+  const plan = calib ? calibQuadPlan(calib, slots, K) : null;
+  const useCal = !!(plan && plan.applied);
   const cands=[]; const seenW=new Set();
   for(const [i,j] of PAIRS){
+    const cp = useCal ? plan.pairs[i+','+j] : null;
+    /* 🔴 沒有這一對的校正資料（或被護欄擋下）⇒ **那一對的候選整組不進候選池，不退回理論值**。
+       退回理論＝用沒人量過的數字決定成品，正是 R6-16 要擋的事；而其餘五對照常（R6-4）。 */
+    if(useCal && !cp) continue;
     for(let s=0;s<K;s++){
       const w=[0,0,0,0];
       w[i]=Math.round((1-s/(K-1))*100); w[j]=100-w[i];
       const key=w.join(','); if(seenW.has(key)) continue; seenW.add(key);
-      const lin=mixLin(w);
+      /* 用**曲線內插**取值，不是逐格查表——候選是 K 階、量測是 8 階，K≠8 時對不上；
+         而 w[i]/100 與校正表的鍵是同一條量化式算出來的（R6-8）。 */
+      const lin = cp ? cp.lookup(w[i]/100) : mixLin(w);
       cands.push({w, lin, lab:lin2lab(...lin)});
     }
   }
@@ -620,7 +899,15 @@ async function quantizeQuad(img, P, slots, hooks){
     rawLabels[p]=pi;
   }
   if (hooks && hooks.tick) await hooks.tick(1);
-  return { rawLabels, palette, dropped, candidates:cands.length, filterStrategy: 'mode' };
+  if(plan && useCal && cands.length){
+    /* R6-7 附款（Eric 2026-09-22 裁 Q4）：四料的「L* 跨幅」＝**48 格候選的實測 L* 全域跨幅**，
+       不是頭尾兩支料的亮度差。這裡只**算出來回報**，段 F 的畫面才拿它寫「這組料最多做得出 N 階」。 */
+    let lo=Infinity, hi=-Infinity;
+    for(const c of cands){ if(c.lab[0]<lo) lo=c.lab[0]; if(c.lab[0]>hi) hi=c.lab[0]; }
+    plan.spanL=hi-lo; plan.maxLevels=Math.max(0,Math.floor(hi-lo));
+  }
+  const out={ rawLabels, palette, dropped, candidates:cands.length, filterStrategy: 'mode' };
+  return plan ? Object.assign(out, {calib:plan}) : out;
 }
 
 /* ================= 平均色差診斷（index.html:512-520 / 458-461 的度量部） ================= */
@@ -1243,6 +1530,9 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          /* 0914 色彩校正（單一來源；頁面預覽與 3MF 生成共用） */
          calibParseTable, calibLookupLin, calibMatches, calibGenLadder, dualLadderCalibrated, toneStretch,
          buildCalibStrip, buildCalibStripParts, calibStripDefaultS, calibStripGeo,
+         /* 0922 四料 48 格（R6-2 附款／R6-6／R6-14；牌 c-0922-ACC-15） */
+         calibParseDual, calibParseQuad, calibQuadGeo, calibQuadSteps,
+         buildCalibQuad, buildCalibQuadParts, calibQuadPairGuard, calibQuadPlan,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },

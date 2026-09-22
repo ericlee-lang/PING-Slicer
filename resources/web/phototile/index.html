@@ -482,7 +482,8 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="engine.js?v=20260914b"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="matlib.js?v=20260922"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載 -->
+<script src="engine.js?v=20260922q"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -778,6 +779,42 @@ function calibSetTable(tbl, persist){
     if(s && window.PhotoTileEngine){ const raw=JSON.parse(s); const tbl=PhotoTileEngine.calibParseTable(raw); tbl.persisted=true; calibTable=tbl; }
   }catch(e){ calibTable=null; }
 })();
+/* ================= 材料庫接線（R6-14；牌 c-0922-ACC-15）=================
+   本段只做**資料通道**：開庫、遷移舊鍵、把收到的表寫進庫。
+   ⚙ 產圖流程要怎麼「從庫裡選一組料」、未校正的料怎麼呈現（硬闸門），是**段 F**（車 3）的事，這裡不碰版面。
+   🔴 舊鍵 CALIB_LS_KEY **不刪**（rollback 的唯一退路）；雙料那條路線一行未動⇒ 舊行為逐位元不變。 */
+let matLib=null, matLibNote='';
+function matlibReady(){ return !!(window.PhotoTileMatLib && window.PhotoTileEngine); }
+(function matlibBoot(){
+  if(!matlibReady()) return;
+  try{
+    matLib=PhotoTileMatLib.load();
+    /* 遷移：舊鍵還在就包成一個 pair 放進庫（不要求使用者重印，R6-14 子題 2 附款）。
+       migrateLegacy 自己是冪等的，而且不覆蓋庫裡已有的那一筆。 */
+    const old=PhotoTileMatLib.readLegacyRaw();
+    if(old){
+      const r=PhotoTileMatLib.migrateLegacy(matLib, PhotoTileEngine.calibParseTable(old), {});
+      if(r.added){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted) matLibNote=w.why; }
+    }
+  }catch(e){ matLib=PhotoTileMatLib.emptyLib(); matLibNote='材料庫讀不起來：'+(e&&e.message||e); }
+})();
+/* 把一張已解析的校正表寫進庫。回傳 {added, persisted, why}；失敗不影響匯入本身，但**要講出來**。
+   ⚙ 頁面拿不到 filament_id（那是 C++ 那邊的東西，段 B）⇒ 這裡寫進去的料 fid 是 null、
+   標籤先帶量到的色碼；之後要請使用者認領（needsClaim 會標出來）。 */
+function matlibRecord(tbl){
+  if(!matlibReady() || !matLib) return {added:0, persisted:false, why:'材料庫未載入'};
+  try{
+    const mats=(tbl.slots||[]).map(h=>({fid:null, label:String(h||'').toUpperCase(), hex:h}));
+    const at=new Date().toISOString().slice(0,10);
+    const pairs=Array.isArray(tbl.pairs)
+      ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:mats, measuredAt:at})
+      : [PhotoTileMatLib.pairFromDual(tbl, {materials:mats, measuredAt:at})];
+    pairs.forEach(p=>PhotoTileMatLib.upsertPair(matLib, p));
+    const w=PhotoTileMatLib.save(matLib);
+    matLibNote=w.persisted?'':w.why;
+    return {added:pairs.length, persisted:w.persisted, why:w.why};
+  }catch(e){ return {added:0, persisted:false, why:String(e&&e.message||e)}; }
+}
 function calibShowError(err){
   calibTable=null;
   document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
@@ -790,6 +827,22 @@ function calibShowError(err){
 function calibAcceptRaw(raw){
     try{
       const tbl=PhotoTileEngine.calibParseTable(raw);
+      /* 🔴 四料表走另一條路，**不碰 calibTable／舊鍵**。
+         為什麼要有這一分流：0922 之前 calibParseTable 對料數!==2 直接丟例外，四料表根本進不來；
+         現在它解析得過了，若沒有這一分流，一張四料表會被寫進那個**只有一格**的舊鍵，
+         把使用者的雙料表静默蓋掉——那是本次改動自己會造出來的回歸。
+         ⚙ 四料的**套用**（calibRequest）還沒開：那要等段 F 把畫面接上，否則就是「默默生效、畫面沒話」——
+         這條線一路最貴的失敗形態。所以這裡**誠實講出來**。 */
+      if(Array.isArray(tbl.pairs)){
+        const r=matlibRecord(tbl);
+        const el=document.getElementById('calibTableStat');
+        if(el) el.innerHTML=r.added
+          ? `✅ 已收下四料校正表（${tbl.pairs.length} 對）並存進<b>材料庫</b>。`
+            + (r.persisted?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`)
+            + '<br><span class="sub">⚠ 四料的套用還沒接上畫面，這次不會改變模擬與列印結果。</span>'
+          : `⚠ 這張四料表沒存進材料庫：${r.why}`;
+        return true;
+      }
       /* 0914（Eric 裁 Q2 乙「料槽顏色用實際線材色」）：校正表就是「這兩支料印出來的真色」的唯一實測來源
          ——匯入時直接把料 A／B 改成表宣告的料色（表的 料[1] 依 measured/README §一 修正法＝S=0 那階量到色）。
          不改＝表永遠對不上目前料色（0822 那兩張表就是這樣被關在門外）。只在雙料且表有兩支料色時做；四料不動。 */
@@ -800,6 +853,7 @@ function calibAcceptRaw(raw){
         if(before[0]!==tbl.slots[0]||before[1]!==tbl.slots[1]){ renderSlots(); applied=`料色已改成校正表的料（${tbl.slots[0]} · ${tbl.slots[1]}）。`; }
       }
       calibSetTable(tbl);
+      matlibRecord(tbl);          // 順手寫進材料庫（純加法：舊鍵照寫、calibTable 不動，舊行為不變）
       if(applied){ const el=document.getElementById('calibTableStat'); if(el) el.innerHTML=applied+'<br>'+el.innerHTML; }
       return true;
     }catch(err){ calibShowError(err); return false; }
@@ -2715,6 +2769,12 @@ if(embeddedMode) simulate(); else makeDemo();
       const eng=window.PhotoTileEngine;
       const sl=calibMadeS || ((eng&&eng.calibStripDefaultS&&hx.every(h=>/^[0-9A-F]{6}$/.test(h)))?eng.calibStripDefaultS('#'+hx[0],'#'+hx[1]):null);
       if(Array.isArray(sl)&&sl.length>=2) src+='&s='+sl.map(v=>String(Math.round(v*100)/100)).join(',')+'&ssrc='+(calibMadeS?'made':'derived');
+    }
+    /* ② 四料同理（本棒補，牌 c-0922-ACC-15）：不帶料色的話，校正頁會拿**它自己的預設白／紅／藍／黑**
+       寫進匯出表的「料」欄位 ⇒ 表宣告的料色跟機上實際裝的完全無關，而且不會報錯（同 CAL-02 那一類）。 */
+    if(slotCount===4){
+      const hx=slots.slice(0,4).map(s=>String(s.color||'').replace('#','').toUpperCase());
+      if(hx.every(h=>/^[0-9A-F]{6}$/.test(h))) src+=`&a=${hx[0]}&b=${hx[1]}&c=${hx[2]}&d=${hx[3]}`;
     }
     frame.src=src;
     frame.style.cssText='flex:1 1 auto; width:100%; border:0;';

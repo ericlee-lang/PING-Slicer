@@ -14,6 +14,8 @@ const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
 const E = require(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'engine.js'));
+const M = require(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'matlib.js'));
+const ML_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'matlib.js'), 'utf8');
 
 /* 0822 兩張真表（Eric 實印＋回讀頁量測，料色已修正＝S=0 那格量到色）。內嵌＝測試自足（原檔在根 repo
    照片磚_色彩校正/measured/，不在本 repo；PING-Slicer 是 PUBLIC repo，這裡只放 8 個量測點、不放整份原檔）。 */
@@ -31,8 +33,12 @@ function loadTable(name){
   return /藍/.test(name) ? TABLE_BLUE : /黃/.test(name) ? TABLE_YELLOW : null;
 }
 let pass = 0, fail = 0;
-function check(name, fn){
-  try { fn(); console.log(`  ✅ ${name}`); pass++; }
+/* 🔴 **check 必須 await fn()**：測試體是 async 時，`fn()` 只跑到第一個 await 就回傳 Promise，
+   後面的 assert 變成 unhandled rejection，而這裡已經印了 ✅、最後又 process.exit ⇒ **失敗會被報成通過**。
+   0922 實測：一個「await 之後才丟」的測試體，舊版 check 報 OK。修的是源頭（本函式），
+   不是逐條測試——另見下面第一組「harness 自我陽性對照」，沒有它，這個坑會再回來一次而且沒人看得見。 */
+async function check(name, fn){
+  try { await fn(); console.log(`  ✅ ${name}`); pass++; }
   catch (e) { console.log(`  ❌ ${name}\n     ${e && e.stack ? e.stack.split('\n').slice(0,2).join(' | ') : e}`); fail++; }
 }
 const S = t => Math.round((1 - t) * 100) / 100;
@@ -47,21 +53,44 @@ function fakeImg(){
 }
 
 (async () => {
-  console.log('exports 有校正函式');
-  check('calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip 皆匯出', () => {
+  /* 🔒 **harness 自我陽性對照**：全綠而沒有陽性對照，等於不知道測試有沒有在測東西。
+     這一組不測引擎，測的是 **check 自己抓不抓得到失敗**（同步與非同步各一條）。
+     0922 實測：舊版 check 沒 await fn()，「await 之後才丟」的測試體被報成 ✅
+     ⇒ 四條 quantizeDual 斷言實際一直是空的，而畫面上看起來 33/0 全過。 */
+  {
+    const probe = async fn => { try { await fn(); return 'no-throw'; } catch (e) { return 'caught'; } };
+    const syncCaught  = await probe(async () => { let p=0,f=0;
+      const c = async (n_, fn_) => { try { await fn_(); p++; } catch(e){ f++; } };
+      await c('x', () => { throw new Error('boom'); });
+      assert.strictEqual(f, 1, '同步失敗沒被算成 fail'); });
+    const asyncCaught = await probe(async () => { let p=0,f=0;
+      const c = async (n_, fn_) => { try { await fn_(); p++; } catch(e){ f++; } };
+      await c('x', async () => { await Promise.resolve(); throw new Error('boom'); });
+      assert.strictEqual(f, 1, '非同步失敗沒被算成 fail'); });
+    console.log('harness 自我陽性對照（沒這一組，全綠不代表測到東西）');
+    await check('check 抓得到同步失敗', () => assert.strictEqual(syncCaught, 'no-throw'));
+    await check('🔴 check 抓得到 async 測試體在 await 之後丟的錯（舊版會報成通過）', () => assert.strictEqual(asyncCaught, 'no-throw'));
+    await check('🔴 check 本體是 async function——改回同步版此條必轉紅', () => {
+      assert.strictEqual(check.constructor.name, 'AsyncFunction',
+        'check 不是 async function ⇒ 它不會 await 測試體，async 斷言全部是空的');
+    });
+  }
+
+  console.log('\nexports 有校正函式');
+  await check('calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip 皆匯出', () => {
     for (const k of ['calibParseTable','calibLookupLin','calibMatches','calibGenLadder','dualLadderCalibrated','buildCalibStrip','buildCalibStripParts','calibStripDefaultS','calibStripGeo'])
       assert(typeof E[k] === 'function', k + ' 缺');
   });
 
   console.log('\n保命索：calib 缺席 ⇒ 與舊路徑逐值相同');
   const slotsWG = [{ color: '#F2F0EB' }, { color: '#5D6268' }];
-  check('dualLadderCalibrated(null) 的 t／LA／LB 與 dualLadder 逐值相同', () => {
+  await check('dualLadderCalibrated(null) 的 t／LA／LB 與 dualLadder 逐值相同', () => {
     const a = E.dualLadder(slotsWG[0].color, slotsWG[1].color, 8);
     const b = E.dualLadderCalibrated(slotsWG, 8, null);
     assert.deepStrictEqual(b.t, a.t); assert.strictEqual(b.LA, a.LA); assert.strictEqual(b.LB, a.LB);
     assert.strictEqual(b.calib.present, false); assert.strictEqual(b.lookupLin, undefined);
   });
-  check('quantizeDual：slots 不帶 calib ⇒ 回傳無 calib 鍵、標籤與 palette 與理論梯相同', async () => {
+  await check('quantizeDual：slots 不帶 calib ⇒ 回傳無 calib 鍵、標籤與 palette 與理論梯相同', async () => {
     const img = fakeImg();
     const P = { klevels: 8 };
     const q = await E._internals.quantizeDual(img, P, slotsWG.map(s => ({ ...s })), null);
@@ -77,7 +106,7 @@ function fakeImg(){
   if (!blue || !yellow) { console.log('  ⚠ 找不到 measured/ 兩張真表（在根 repo 照片磚_色彩校正/measured/），跳過 oracle'); }
   else {
     const slotsBlue = [{ color: '#F2F0EB' }, { color: '#93D9FA' }];
-    check('白×藍 8 階：100/84/69/55/40/26/13/0 → 100/75/61/43/37/31/16/0（R8-5 原紀錄）', () => {
+    await check('白×藍 8 階：100/84/69/55/40/26/13/0 → 100/75/61/43/37/31/16/0（R8-5 原紀錄）', () => {
       const theory = E.dualLadder('#F2F0EB', '#93D9FA', 8).t.map(pct);
       assert.deepStrictEqual(theory, [100,84,69,55,40,26,13,0], '理論階梯要先對得上 R8-5 的紀錄');
       const lad = E.dualLadderCalibrated(slotsBlue, 8, { table: blue, apply: true });
@@ -85,7 +114,7 @@ function fakeImg(){
       assert.deepStrictEqual(lad.t.map(pct), [100,75,61,43,37,31,16,0]);
       assert(Math.abs(lad.calib.span - 11.3) < 0.3, 'span≈11.3 L*，得 ' + lad.calib.span);
     });
-    check('quantizeDual 帶 calib ⇒ palette 的 t＝校正梯、lin＝實測色（④-1）、回傳 calib 狀態', async () => {
+    await check('quantizeDual 帶 calib ⇒ palette 的 t＝校正梯、lin＝實測色（④-1）、回傳 calib 狀態', async () => {
       const img = fakeImg();
       const slots = slotsBlue.map(s => ({ ...s })); slots[0].calib = { table: blue, apply: true };
       const q = await E._internals.quantizeDual(img, { klevels: 8 }, slots, null);
@@ -95,20 +124,20 @@ function fakeImg(){
       assert.deepStrictEqual(p0.lin, E.calibLookupLin(E.calibParseTable(blue), 1));
       assert.deepStrictEqual(p7.lin, E.calibLookupLin(E.calibParseTable(blue), 0));
     });
-    check('apply:false ⇒ 不動 t（理論梯），但 lookupLin 存在（只做 ④-1 顯示）', () => {
+    await check('apply:false ⇒ 不動 t（理論梯），但 lookupLin 存在（只做 ④-1 顯示）', () => {
       const lad = E.dualLadderCalibrated(slotsBlue, 8, { table: blue, apply: false });
       assert.strictEqual(lad.calib.applied, false); assert.strictEqual(lad.calib.matches, true);
       assert.deepStrictEqual(lad.t.map(pct), [100,84,69,55,40,26,13,0]);
       assert(typeof lad.lookupLin === 'function');
     });
-    check('料色不符 ⇒ 不套用、無 lookupLin、why 講清楚', () => {
+    await check('料色不符 ⇒ 不套用、無 lookupLin、why 講清楚', () => {
       const lad = E.dualLadderCalibrated(slotsWG, 8, { table: blue, apply: true });
       assert.strictEqual(lad.calib.present, true); assert.strictEqual(lad.calib.matches, false);
       assert.strictEqual(lad.calib.applied, false); assert(lad.calib.why.includes('不符'));
       assert.strictEqual(lad.lookupLin, undefined);
       assert.deepStrictEqual(lad.t, E.dualLadder(slotsWG[0].color, slotsWG[1].color, 8).t);
     });
-    check('白×黃（L* 跨幅 4.6 < 8）⇒ 護欄③擋下：applied=false、t＝理論梯、why 含「跨幅」', () => {
+    await check('白×黃（L* 跨幅 4.6 < 8）⇒ 護欄③擋下：applied=false、t＝理論梯、why 含「跨幅」', () => {
       const slotsY = [{ color: '#F2F0EB' }, { color: '#FBE534' }];
       const lad = E.dualLadderCalibrated(slotsY, 8, { table: yellow, apply: true });
       assert.strictEqual(lad.calib.matches, true);
@@ -116,12 +145,12 @@ function fakeImg(){
       assert(lad.calib.why.includes('跨幅'), lad.calib.why);
       assert.deepStrictEqual(lad.t, E.dualLadder(slotsY[0].color, slotsY[1].color, 8).t);
     });
-    check('壞表 ⇒ present 但 why 說讀不到、不丟例外', () => {
+    await check('壞表 ⇒ present 但 why 說讀不到、不丟例外', () => {
       const lad = E.dualLadderCalibrated(slotsBlue, 8, { table: { 料數: 4 }, apply: true });
       assert.strictEqual(lad.calib.present, true); assert.strictEqual(lad.calib.applied, false);
       assert(lad.calib.why.includes('讀不到'));
     });
-    check('非單調表 ⇒ 護欄④擋下', () => {
+    await check('非單調表 ⇒ 護欄④擋下', () => {
       const bad = JSON.parse(JSON.stringify(blue));
       bad['量測'][3]['量到色'] = '#F2F0EB';   // 中段突然回到純白＝非單調
       const lad = E.dualLadderCalibrated(slotsBlue, 8, { table: bad, apply: true });
@@ -130,11 +159,11 @@ function fakeImg(){
   }
 
   console.log('\n校正片（直立條）產生器');
-  check('calibStripDefaultS：料A 較亮 ⇒ 白端加密；料A 較暗 ⇒ 鏡射到 S≈0 端', () => {
+  await check('calibStripDefaultS：料A 較亮 ⇒ 白端加密；料A 較暗 ⇒ 鏡射到 S≈0 端', () => {
     assert.deepStrictEqual(E.calibStripDefaultS('#F2F0EB', '#5D6268'), [1,0.94,0.87,0.78,0.67,0.53,0.35,0]);
     assert.deepStrictEqual(E.calibStripDefaultS('#5D6268', '#F2F0EB'), [1,0.65,0.47,0.33,0.22,0.13,0.06,0]);
   });
-  check('buildCalibStripParts 預設＝v2c 洗料柱版幾何（40×6×16、每階 2 mm、柱 12／gap 8＝0914 實印 12m03s 那條）', () => {
+  await check('buildCalibStripParts 預設＝v2c 洗料柱版幾何（40×6×16、每階 2 mm、柱 12／gap 8＝0914 實印 12m03s 那條）', () => {
     /* v1（80×8×48、每階 6 mm、無柱、實印 32m45s）已作廢：Eric 0914 裁「建議還是使用洗料塔」＋「不要印那麼久」。
        幾何的唯一來源＝engine.js 的 CALIB_STRIP_GEO；頁面不得再自己寫一份（v1／v2c 分叉就是那樣來的）。 */
     assert.deepStrictEqual(E.calibStripGeo(), { widthMm: 40, thickMm: 6, bandMm: 2, purgeMm: 12, purgeGapMm: 8, purgeWalls: 2 });
@@ -143,7 +172,7 @@ function fakeImg(){
     assert.strictEqual(c.band, 2);   assert.strictEqual(c.height, 16);      // 8 階 × 2 mm
     assert.strictEqual(c.purge, 12); assert.strictEqual(c.purgeGap, 8); assert.strictEqual(c.purgeWalls, 2);
   });
-  check('buildCalibStripParts：8 片＋8 柱、片名 S1／…／S0、柱名「洗料柱NN … S…」、只有片的正／背面禁縫', () => {
+  await check('buildCalibStripParts：8 片＋8 柱、片名 S1／…／S0、柱名「洗料柱NN … S…」、只有片的正／背面禁縫', () => {
     const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰' });
     const names = [...c.cfg.matchAll(/key="name" value="([^"]+)"/g)].map(m => m[1]);
     assert.strictEqual(names.length, 18);   // 柱物件名＋8 柱零件＋片物件名＋8 片零件
@@ -160,7 +189,7 @@ function fakeImg(){
     assert.strictEqual((c.cfg.match(/key="wall_loops" value="2"/g) || []).length, 8);
     assert.strictEqual((c.cfg.match(/key="top_shell_layers" value="0"/g) || []).length, 8);
   });
-  check('🔴 柱段與片段的 extruder 逐階相同（同一個 M6051 配方，柱才洗得到那一階的殘料）', () => {
+  await check('🔴 柱段與片段的 extruder 逐階相同（同一個 M6051 配方，柱才洗得到那一階的殘料）', () => {
     const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
     const objs = [...c.cfg.matchAll(/<object id="(\d+)">([\s\S]*?)<\/object>/g)]
       .map(m => ({ id: m[1], ex: [...m[2].matchAll(/key="extruder" value="(\d+)"/g)].map(x => Number(x[1])) }));
@@ -169,7 +198,7 @@ function fakeImg(){
     assert.deepStrictEqual(strip.ex, [1, 2, 3, 4, 5, 6, 7, 8]);
     assert.deepStrictEqual(tower.ex, strip.ex);   // 不同＝柱洗的是別階的料，整條校正片作廢
   });
-  check('柱的 build item 排在片之前（切片器逐層先印柱）＋「片＋柱」整組置中（3MF 座標＝G-code 座標）', () => {
+  await check('柱的 build item 排在片之前（切片器逐層先印柱）＋「片＋柱」整組置中（3MF 座標＝G-code 座標）', () => {
     const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
     const items = [...c.model.matchAll(/<item objectid="(\d+)" transform="1 0 0 0 1 0 0 0 1 (\S+) (\S+) 0"/g)]
       .map(m => ({ id: m[1], x: Number(m[2]), y: Number(m[3]) }));
@@ -182,7 +211,7 @@ function fakeImg(){
     assert.deepStrictEqual(c.purgeBox, { x0: 18, y0: -6, x1: 30, y1: 6 });
     assert(c.txt.includes('--purge-box 18,-6,30,6'), 'ping_calib.txt 要直接報 verify 參數，省得下一棒自己算');
   });
-  check('與 python 參考正本 make_calib_3mf.py v2c 產物逐位元組相同（3dmodel.model 的 sha256）', () => {
+  await check('與 python 參考正本 make_calib_3mf.py v2c 產物逐位元組相同（3dmodel.model 的 sha256）', () => {
     const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268' });
     const got = require('crypto').createHash('sha256').update(c.model, 'utf8').digest('hex');
     /* 這顆值的來源＝0914 **實印驗證過**的那一條：根 repo
@@ -193,21 +222,21 @@ function fakeImg(){
        🔴 要改這顆值之前先回答一句：新幾何實印驗證過了嗎？沒有就不要改它，改的是程式。 */
     assert.strictEqual(got, '43062b6ce39a96aeb4c18561a92d04e59a86fff33edda73dcaa72982ca191717');
   });
-  check('purgeMm:0 ⇒ 退回無柱幾何（只給離線對照用；build item 剩一個、仍置中）', () => {
+  await check('purgeMm:0 ⇒ 退回無柱幾何（只給離線對照用；build item 剩一個、仍置中）', () => {
     const c = E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', purgeMm: 0, widthMm: 80, thickMm: 8, bandMm: 6 });
     assert.strictEqual(c.height, 48);
     assert.strictEqual(c.purgeBox, null);
     assert.strictEqual((c.model.match(/<item /g) || []).length, 1);
     assert(!/洗料柱/.test(c.cfg));
   });
-  check('buildCalibStrip：makeZip 出 Blob，5 個 entry，體積 >2 KB', async () => {
+  await check('buildCalibStrip：makeZip 出 Blob，5 個 entry，體積 >2 KB', async () => {
     const r = await E.buildCalibStrip({ hexA: '#F2F0EB', hexB: '#5D6268', nameA: '白', nameB: '深灰' });
     assert(r.blob && r.blob.size > 2000, 'blob 太小 ' + (r.blob && r.blob.size));
     const bytes = new Uint8Array(await r.blob.arrayBuffer());
     let cnt = 0; for (let i = 0; i + 4 <= bytes.length; i++) if (bytes[i]===0x50&&bytes[i+1]===0x4b&&bytes[i+2]===0x03&&bytes[i+3]===0x04) cnt++;
     assert.strictEqual(cnt, 5);
   });
-  check('端點不是純色 ⇒ 拒產', () => {
+  await check('端點不是純色 ⇒ 拒產', () => {
     assert.throws(() => E.buildCalibStripParts({ hexA: '#F2F0EB', hexB: '#5D6268', s: [0.9, 0.5, 0] }), /純色錨點/);
   });
 
@@ -216,19 +245,19 @@ function fakeImg(){
   const calHtml = fs.readFileSync(path.join(WEB, 'calibration.html'), 'utf8');
   const idxHtml = fs.readFileSync(path.join(WEB, 'index.html'), 'utf8');
   const LADDER = '1,0.94,0.87,0.78,0.67,0.53,0.35,0';
-  check('calibration.html 載 engine.js 並用 calibStripDefaultS 算 S（不自己寫一份）', () => {
+  await check('calibration.html 載 engine.js 並用 calibStripDefaultS 算 S（不自己寫一份）', () => {
     assert(/<script src="engine\.js"><\/script>/.test(calHtml), '沒有載 engine.js');
     assert(calHtml.includes('calibStripDefaultS'), '沒有呼叫 calibStripDefaultS');
     assert(/function\s+syncVsList\s*\(/.test(calHtml), '沒有 syncVsList（料色改了要重算）');
   });
-  check('🔴 calibration.html 不得把階梯寫死當預設值（料A 較暗時引擎會鏡射，寫死的不會跟著動＝靜默錯表）', () => {
+  await check('🔴 calibration.html 不得把階梯寫死當預設值（料A 較暗時引擎會鏡射，寫死的不會跟著動＝靜默錯表）', () => {
     /* 0915 實錄：舊版 <input id="vsList" value="1,0.94,…">，而引擎在 L(A)<L(B) 時回 1,0.65,…
        ⇒ 使用者沒手抄就拿錯的鍵去量，整張表歪掉而且不報錯。這條就是防它長回來。 */
     assert(!new RegExp('id="vsList"[^>]*value="' + LADDER.replace(/\./g, '\\.')).test(calHtml),
            'vsList 又出現寫死的預設階梯');
     assert.deepStrictEqual(E.calibStripDefaultS('#5D6268', '#F2F0EB'), [1,0.65,0.47,0.33,0.22,0.13,0.06,0]);
   });
-  check('index.html 第 3 步不再叫使用者手抄 S 清單、也不再叫他填料色', () => {
+  await check('index.html 第 3 步不再叫使用者手抄 S 清單、也不再叫他填料色', () => {
     assert(!idxHtml.includes('各階 S 照上面'), '手抄指示還在');
     /* 0915 dcf45dc9fc 之後料色是從照片直接量的（autoSlot 預設 checked）⇒ 這句指示會誤導。 */
     assert(!idxHtml.includes('把上面那兩個料色填進去'), '叫使用者填料色的指示還在');
@@ -236,17 +265,17 @@ function fakeImg(){
   });
 
   console.log('\n校正回讀・工作室內覆蓋層（0915 牌 c-0915-PTI-06；Eric「不用外部瀏覽器」）');
-  check('工作室有覆蓋層入口，iframe 指向 calibration.html?embedded=1', () => {
+  await check('工作室有覆蓋層入口，iframe 指向 calibration.html?embedded=1', () => {
     assert(idxHtml.includes('btnCalibOverlay'), '沒有覆蓋層入口鈕');
     assert(idxHtml.includes("calibration.html?embedded=1"), 'iframe 沒有帶 embedded=1');
   });
-  check('🔴 套表只有一個入口：檔案匯入與覆蓋層帶回都走 calibAcceptRaw', () => {
+  await check('🔴 套表只有一個入口：檔案匯入與覆蓋層帶回都走 calibAcceptRaw', () => {
     assert(idxHtml.includes('function calibAcceptRaw'), '沒有抽出單一入口');
     /* 0914 Q2 乙 的料色回填只能有一份——這條線已被兩份實作咬過三次。 */
     const hits = (idxHtml.match(/料色已改成校正表的料/g) || []).length;
     assert.strictEqual(hits, 1, `料色回填邏輯出現 ${hits} 次，應只有 1 次（第二份遲早漂移）`);
   });
-  check('calibration.html 有 EMBEDDED 判定與 postToStudio，且非內嵌時行為不變', () => {
+  await check('calibration.html 有 EMBEDDED 判定與 postToStudio，且非內嵌時行為不變', () => {
     assert(calHtml.includes('const EMBEDDED'), '沒有 EMBEDDED 判定');
     assert(calHtml.includes('function postToStudio'), '沒有 postToStudio');
     assert(calHtml.includes("embedded')==='1'") && calHtml.includes('window.parent!==window'),
@@ -256,23 +285,23 @@ function fakeImg(){
     assert((calHtml.match(/saveAsFile\(\)/g) || []).length >= 2,
       'saveAsFile 應在「fallback」與「非內嵌」兩條路徑各呼叫一次');
   });
-  check('🔴 覆蓋層有明確回程（MainFrame.cpp 當初不做內嵌的理由就是「校正頁沒有回程」）', () => {
+  await check('🔴 覆蓋層有明確回程（MainFrame.cpp 當初不做內嵌的理由就是「校正頁沒有回程」）', () => {
     assert(calHtml.includes('btnBackStudio'), '沒有取消返回鈕');
     assert(calHtml.includes('phototile_calib_cancel'), '沒有取消訊息');
     assert(idxHtml.includes("d.type==='phototile_calib_cancel'"), '工作室沒有處理取消');
     assert(/x\.textContent='關閉'/.test(idxHtml), '覆蓋層工具列沒有關閉鈕');
     assert(idxHtml.includes("e.key==='Escape'"), 'Esc 關不掉覆蓋層');
   });
-  check('🔴 帶回失敗有 fail-loud 退路：等不到 ack 就存檔並講出來', () => {
+  await check('🔴 帶回失敗有 fail-loud 退路：等不到 ack 就存檔並講出來', () => {
     assert(calHtml.includes('phototile_calib_ack'), '校正頁沒有等 ack');
     assert(idxHtml.includes('phototile_calib_ack'), '工作室沒有回 ack');
     assert(calHtml.includes('工作室沒有回應'), '沒有 fail-loud 訊息');
   });
-  check('🔴 工作室 close 排到下一個 task，否則 ack 送不到（本棒實測抓到 ack=false）', () => {
+  await check('🔴 工作室 close 排到下一個 task，否則 ack 送不到（本棒實測抓到 ack=false）', () => {
     assert(idxHtml.includes('setTimeout(close, 0)'),
       'close 若與 ack 同一個 tick，iframe 會在收到 ack 前被移除 ⇒ 校正頁誤報「工作室沒有回應」');
   });
-  check('只收自己那個 iframe 的訊息（file:// 的 origin 是 "null"，比 origin 沒有意義）', () => {
+  await check('只收自己那個 iframe 的訊息（file:// 的 origin 是 "null"，比 origin 沒有意義）', () => {
     assert(idxHtml.includes('e.source!==frame.contentWindow'), '沒有比對訊息來源');
   });
 
@@ -286,28 +315,470 @@ function fakeImg(){
   const tableGray = mkTable('#F2F0EB', '#707279', [[1,'#F2F0EB'],[0.94,'#DFDDD9'],[0.87,'#C1C0C0'],[0.78,'#B7B6B8'],[0.67,'#9B9BA0'],[0.53,'#94979E'],[0.35,'#777A81'],[0,'#707279']]);
   const slotsGray = [{ color: '#F2F0EB' }, { color: '#707279' }];
   const hist = q => { const c = {}; for (const v of q.rawLabels) c[v] = (c[v] || 0) + 1; return c; };
-  check('套表、不開 toneMap ⇒ 圖裡 L*45 的灰與 L*5 的黑都夾成最深階（中間階空）', async () => {
+  await check('套表、不開 toneMap ⇒ 圖裡 L*45 的灰與 L*5 的黑都夾成最深階（中間階空）', async () => {
     const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: true };
     const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
     const h = hist(q); assert.strictEqual(h[1] || 0, 0, '中間階應為空'); assert(h[0] > 0 && h[2] > 0);
     assert.strictEqual(q.calib.toneMap, undefined);
   });
-  check("套表＋toneMap:'stretch' ⇒ 三階都有像素（各三分之一），calib.toneMap 記錄映射範圍", async () => {
+  await check("套表＋toneMap:'stretch' ⇒ 三階都有像素（各三分之一），calib.toneMap 記錄映射範圍", async () => {
     const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: true, toneMap: 'stretch' };
     const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
     const h = hist(q); assert(h[0] > 0 && h[1] > 0 && h[2] > 0, JSON.stringify(h));
     assert.strictEqual(h[0], h[1]); assert.strictEqual(h[1], h[2]);
     assert.strictEqual(q.calib.toneMap.mode, 'stretch'); assert(q.calib.toneMap.Lmin <= 5.5 && q.calib.toneMap.Lmax >= 94.5);
   });
-  check("apply:false＋toneMap:'stretch' ⇒ 不映射（映射只跟著 ④-2 走）", async () => {
+  await check("apply:false＋toneMap:'stretch' ⇒ 不映射（映射只跟著 ④-2 走）", async () => {
     const slots = slotsGray.map(s => ({ ...s })); slots[0].calib = { table: tableGray, apply: false, toneMap: 'stretch' };
     const q = await E._internals.quantizeDual(triImg(), { klevels: 3 }, slots, null);
     assert.strictEqual(q.calib.toneMap, undefined);
   });
-  check('toneStretch 本身：百分位夾住、映射到 [dark, light] 兩端', () => {
+  await check('toneStretch 本身：百分位夾住、映射到 [dark, light] 兩端', () => {
     const im = triImg(); const ts = E.toneStretch(im.lab, im.w * im.h, 95, 48.3, {});
     assert(Math.abs(ts.mapL(5) - 48.3) < 1e-6 && Math.abs(ts.mapL(95) - 95) < 1e-6);
     assert(ts.mapL(45) > 60 && ts.mapL(45) < 80, 'L*45 應落在中段（得 ' + ts.mapL(45) + '）');
+  });
+
+
+  /* ═══════════════ 段 A｜材料庫（R6-14；牌 c-0922-ACC-15） ═══════════════ */
+  console.log('\n段 A｜材料庫：身分、pair、失效範圍、遷移、儲存轉接層');
+  const mat = (fid, label, hex) => ({ fid, label, hex });
+  const WHITE = mat('GPINGPLA', '白 210', '#F2F0EB');
+  const GRAY  = mat('GPINGPLA', '深灰 210', '#5D6268');
+  const RED   = mat('GPINGABS', '紅', '#C0392B');
+  const BLUE2 = mat('GPINGABS', '藍', '#2E86C1');
+  const mkPts = n_ => Array.from({ length: n_ }, (_, i) => ({ S: 1 - i / (n_ - 1), hex: '#' + (16 + i * 12).toString(16).padStart(2,'0').repeat(3).toUpperCase() }));
+  const mkPair = (a, b) => ({ a, b, kind: M.KINDS.DUAL, pts: mkPts(8), source: 'readback', measuredAt: '2026-09-14' });
+
+  await check('matlib 匯出齊全（schema／讀寫／遷移／轉接層）', () => {
+    for (const k of ['matKey','pairId','emptyLib','normalize','upsertPair','findPair','listMaterials',
+                     'partnersOf','dropMaterial','pairFromDual','pairsFromQuad','toCalibTable',
+                     'toQuadCalibTable','migrateLegacy','needsClaim','claimPair','load','save',
+                     'readLegacyRaw','setStorage','memoryStorage','nullStorage'])
+      assert(typeof M[k] === 'function', k + ' 缺');
+    assert.strictEqual(M.SCHEMA, 1);
+    assert.strictEqual(M.LEGACY_KEY, 'ping_phototile_calib_dual_v1');
+  });
+
+  await check('🔴 pair id 與端點順序無關（R6-4 的失效單位就是 pair，「A 配 B」不該變成兩筆）', () => {
+    assert.strictEqual(M.pairId(WHITE, GRAY), M.pairId(GRAY, WHITE));
+    assert.notStrictEqual(M.pairId(WHITE, GRAY), M.pairId(WHITE, RED));
+  });
+  await check('🔴 hex 不進 key（R6-14 子題 1：同一支料不同批量到的值會不一樣）', () => {
+    assert.strictEqual(M.matKey(mat('GPINGPLA','白 210','#F2F0EB')),
+                       M.matKey(mat('GPINGPLA','白 210','#EFEDE8')));
+    /* 陽性對照：fid 或標籤不同就必須是別支料——一個 preset ≠ 一捷料 */
+    assert.notStrictEqual(M.matKey(WHITE), M.matKey(mat('GPINGPLA','黑 210','#F2F0EB')));
+    assert.notStrictEqual(M.matKey(WHITE), M.matKey(mat('GPINGABS','白 210','#F2F0EB')));
+  });
+
+  await check('同一對重量測 ⇒ 取代不新增（而且原位取代，清單不跳動）', () => {
+    const lib = M.emptyLib();
+    M.upsertPair(lib, mkPair(WHITE, GRAY));
+    M.upsertPair(lib, mkPair(WHITE, RED));
+    const again = mkPair(GRAY, WHITE); again.pts = mkPts(5); again.measuredAt = '2026-09-22';
+    M.upsertPair(lib, again);
+    assert.strictEqual(lib.pairs.length, 2, '測到重複新增');
+    assert.strictEqual(lib.pairs[0].pts.length, 5, '沒取代成新的那一筆');
+    assert.strictEqual(lib.pairs[0].measuredAt, '2026-09-22');
+    assert.strictEqual(M.findPair(lib, WHITE, RED).pts.length, 8, '另一對被動到了');
+  });
+
+  await check('🔴 R6-4 逐字：換掉 B ⇒ 只有含 B 的三組失效，A/C、A/D、C/D 保留不重測', () => {
+    const A = WHITE, B = GRAY, C = RED, D = BLUE2;
+    const lib = M.emptyLib();
+    [[A,B],[A,C],[A,D],[B,C],[B,D],[C,D]].forEach(([x,y]) => M.upsertPair(lib, mkPair(x,y)));
+    assert.strictEqual(lib.pairs.length, 6);
+    const r = M.dropMaterial(lib, B);
+    assert.strictEqual(r.removed.length, 3, '失效的不是三組（得 ' + r.removed.length + '）');
+    assert.strictEqual(r.kept.length, 3, '保留的不是三組（得 ' + r.kept.length + '）');
+    for (const [x,y] of [[A,C],[A,D],[C,D]]) assert(M.findPair(lib, x, y), '不含 B 的那一對被誤刪：' + M.pairId(x,y));
+    for (const [x,y] of [[A,B],[B,C],[B,D]]) assert(!M.findPair(lib, x, y), '含 B 的那一對沒被刪：' + M.pairId(x,y));
+    /* 陽性對照：料的清單是從 pair 端點推出來的（子題 3）⇒ B 隨著消失，其餘三支還在 */
+    const keys = M.listMaterials(lib).map(x => x.key);
+    assert(!keys.includes(M.matKey(B)), 'B 還在料清單裡');
+    assert.strictEqual(keys.length, 3);
+  });
+
+  await check('舊鍵 → 新庫的遷移：逐欄斷言（fid 空、標籤帶原 hex、source legacy-hex、量測點原樣）', () => {
+    const lib = M.emptyLib();
+    const tbl = E.calibParseTable(TABLE_BLUE);
+    const r = M.migrateLegacy(lib, tbl, { measuredAt: '2026-09-14' });
+    assert.strictEqual(r.added, true, r.why);
+    const p = lib.pairs[0];
+    assert.strictEqual(p.a.fid, null, '舊表沒有 filament_id，不該憑空填一個');
+    assert.strictEqual(p.b.fid, null);
+    assert.strictEqual(p.a.label, '#F2F0EB'); assert.strictEqual(p.a.hex, '#F2F0EB');
+    assert.strictEqual(p.b.label, '#93D9FA'); assert.strictEqual(p.b.hex, '#93D9FA');
+    assert.strictEqual(p.source, 'legacy-hex');
+    assert.strictEqual(p.measuredAt, '2026-09-14');
+    assert.deepStrictEqual(p.pts.map(x => x.S), tbl.pts.map(x => x.S));
+    assert.deepStrictEqual(p.pts.map(x => x.hex), tbl.pts.map(x => x.hex));
+    assert.strictEqual(M.needsClaim(p), true, '遷進來的那一格要請使用者認領（子題 2 附款）');
+  });
+  await check('遷移是冪等的，而且**不覆蓋**庫裡已有的那一筆（否則把後來重量的資料丟了）', () => {
+    const lib = M.emptyLib();
+    const tbl = E.calibParseTable(TABLE_BLUE);
+    M.migrateLegacy(lib, tbl, {});
+    lib.pairs[0].pts = mkPts(3);                       // 假裝使用者後來又量了一次
+    const r2 = M.migrateLegacy(lib, tbl, {});
+    assert.strictEqual(r2.added, false, '第二次遷移又加了一筆');
+    assert.strictEqual(lib.pairs.length, 1);
+    assert.strictEqual(lib.pairs[0].pts.length, 3, '被舊資料蓋回去了');
+  });
+  await check('🔴 舊鍵不刪（rollback 的唯一退路）——matlib 裡沒有任何一行動得了舊鍵', () => {
+    assert(/readLegacy/.test(ML_SRC), 'matlib 根本沒讀舊鍵');
+    assert(!/removeItem\s*\(\s*LEGACY_KEY/.test(ML_SRC), 'matlib 裡有刪舊鍵的碼');
+    assert(!/writeLegacy|setItem\s*\(\s*LEGACY_KEY/.test(ML_SRC), '庫存在之後不該再寫舊鍵');
+  });
+  await check('認領：身分換了 ⇒ id 跟著換，量測點與出身（legacy-hex）保留', () => {
+    const lib = M.emptyLib();
+    M.migrateLegacy(lib, E.calibParseTable(TABLE_BLUE), {});
+    const before = lib.pairs[0];
+    const pts0 = before.pts.slice();
+    const after = M.claimPair(lib, before.id, { fid:'GPINGPLA', label:'白 210' }, { fid:'GPINGPLA', label:'淡藍 210' }, { claimedAt:'2026-09-22' });
+    assert.strictEqual(lib.pairs.length, 1, '認領完變成兩筆');
+    assert.notStrictEqual(after.id, before.id, 'id 沒跟著身分改');
+    assert.deepStrictEqual(after.pts, pts0, '量測點被動到了');
+    assert.strictEqual(after.source, 'legacy-hex', '出身要可追溯，不因為認領就變乾淨');
+    assert.strictEqual(after.claimedAt, '2026-09-22');
+    assert.strictEqual(M.needsClaim(after), false);
+  });
+
+  await check('儲存轉接層：暫存往返，而且 normalize 會丟掉壞筆、不整份作廢', () => {
+    const st = M.memoryStorage(); M.setStorage(st);
+    const lib = M.emptyLib(); M.upsertPair(lib, mkPair(WHITE, GRAY));
+    assert.deepStrictEqual(M.save(lib), { persisted: true, why: '' });
+    assert.strictEqual(M.load().pairs.length, 1);
+    st.writeLib(JSON.stringify({ schema: 1, pairs: [
+      { a: WHITE, b: GRAY, pts: [{ S: 1, hex: '#FFFFFF' }, { S: 0, hex: '#000000' }] },
+      { a: WHITE, b: RED, pts: [{ S: 1, hex: 'not-a-hex' }] },
+      { a: null, b: RED, pts: [] } ] }));
+    assert.strictEqual(M.load().pairs.length, 1, '壞筆沒被丟掉，或好筆被連坐');
+  });
+  await check('🔴 存不進去要**講出來**，不靜默（既有 calibTable.persisted 同一紀律）', () => {
+    M.setStorage(M.nullStorage('測試：這個環境不可寫'));
+    const r = M.save(M.emptyLib());
+    assert.strictEqual(r.persisted, false);
+    assert(/不可寫/.test(r.why), 'why 沒講出真正的原因：' + r.why);
+    assert.deepStrictEqual(M.load(), M.emptyLib(), '寫不進去時讀應該還是能跑（回空庫）');
+    M.setStorage(M.memoryStorage());
+  });
+
+  await check('庫 → 校正表往返：toCalibTable 吐出來的形狀，引擎 calibParseTable 吃得下且值逐格相同', () => {
+    const src = E.calibParseTable(TABLE_BLUE);
+    const pair = M.pairFromDual(src, { materials: [WHITE, BLUE2] });
+    const back = E.calibParseTable(M.toCalibTable(pair));
+    assert.deepStrictEqual(back.pts.map(p => p.S), src.pts.map(p => p.S));
+    assert.deepStrictEqual(back.pts.map(p => p.hex), src.pts.map(p => p.hex));
+    assert.deepStrictEqual(back.slots.slice(0,2), ['#F2F0EB', '#2E86C1'], '料色要跟著庫裡的料走');
+  });
+  await check('🔴 四料湊表：pair 存的方向跟要求的方向相反時，S 要翻回來（不翻＝整對曲線頭尾顛倒的靜默錯表）', () => {
+    const lib = M.emptyLib();
+    M.upsertPair(lib, { a: GRAY, b: WHITE, kind: M.KINDS.QUAD,   // 存的是（灰, 白）
+      pts: [{ S: 1, hex: '#5D6268' }, { S: 0, hex: '#F2F0EB' }], source: 'readback' });
+    const r = M.toQuadCalibTable(lib, [WHITE, GRAY, RED, BLUE2]);   // 要的是（白=A, 灰=B）
+    const rows = r.table['量測'].filter(x => /^R1C/.test(x['格']));
+    assert.strictEqual(rows.length, 2);
+    const byHex = Object.fromEntries(rows.map(x => [x['量到色'], x['配方']]));
+    assert.deepStrictEqual(byHex['#F2F0EB'], { A: 100, B: 0, C: 0, D: 0 }, '白的純色格應該是 A=100');
+    assert.deepStrictEqual(byHex['#5D6268'], { A: 0, B: 100, C: 0, D: 0 }, '灰的純色格應該是 B=100');
+  });
+  await check('🔴 湊不齊的那幾對列在 missing，**不補理論值**（R6-16）', () => {
+    const lib = M.emptyLib();
+    M.upsertPair(lib, mkPair(WHITE, GRAY));
+    const r = M.toQuadCalibTable(lib, [WHITE, GRAY, RED, BLUE2]);
+    assert.strictEqual(r.present.length, 1);
+    assert.strictEqual(r.missing.length, 5);
+    assert.strictEqual(r.table['量測'].length, 8, '湊不到的對被補了資料進去');
+    assert.deepStrictEqual(r.missing.map(x => x.row), [2,3,4,5,6]);
+  });
+
+  /* ═══════════════ 段 C｜四料 48 格端到端 ═══════════════ */
+  console.log('\n段 C-1｜48 格校正塊產生器（A 案；R6-2 附款／R6-6）');
+  const QCOL = ['#F2F0EB', '#C0392B', '#2E86C1', '#1A1A1A'];
+  const QNAME = ['白', '紅', '藍', '黑'];
+  await check('🔴 與 python 參考正本 make_calib_quad_3mf.py 產物逐位元組相同（3dmodel.model 與 model_settings.config 的 sha256）', () => {
+    const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
+    const h = x => require('crypto').createHash('sha256').update(x, 'utf8').digest('hex');
+    /* 這兩顆值的來源＝根 repo 照片磚_色彩校正/色彩校正_四料48格.3mf（make_calib_quad_3mf.py 預設參數產出、
+       附自我驗證 49 支全過）。🔴 要改這兩顆值之前先回答一句：新幾何實印驗證過了嗎？
+       沒有就不要改它，要改的是程式。 */
+    assert.strictEqual(h(c.model), '685ed37e8626bf17abce6478017da630042ebbe3e80016fa064c77617972ff38', '3dmodel.model 不同');
+    assert.strictEqual(h(c.cfg),   '086a100d10fdd0ad6e0da221759eea39f92aca1bd775a36b320d41868b4cf110', 'model_settings.config 不同');
+  });
+  await check('48 格（6 對 × 8 階）＋洗料柱＝49 支；正面 80×60、厚 10 mm（Orca 上限 64）', () => {
+    const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
+    assert.strictEqual(c.cells, 48); assert.strictEqual(c.partCount, 49);
+    assert.strictEqual(c.width, 80); assert.strictEqual(c.height, 60); assert.strictEqual(c.thick, 10);
+    assert(c.partCount <= 64, '超過 Orca 零件上限');
+  });
+  await check('🔴 零件名符合 C++ parse_photo_part_name：尾端 A B C D 四個 token、和＝100、有 #RRGGBB', () => {
+    const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
+    const names = [...c.cfg.matchAll(/<metadata key="name" value="([^"]+)"\/>/g)].map(m => m[1]).slice(1);
+    assert.strictEqual(names.length, 49);
+    for (const nm of names){
+      const tk = nm.split(' ');
+      assert(tk.length >= 5, 'token 不足 5 個：' + nm);
+      const tail = tk.slice(-4);
+      assert(/^A\d+$/.test(tail[0]) && /^B\d+$/.test(tail[1]) && /^C\d+$/.test(tail[2]) && /^D\d+$/.test(tail[3]), nm);
+      assert.strictEqual(tail.reduce((s_, t) => s_ + parseInt(t.slice(1), 10), 0), 100, nm);
+      assert(/#[0-9A-F]{6}/.test(nm), '沒有預覽色：' + nm);
+    }
+  });
+  await check('整組（磚＋洗料柱）置中在原點 ⇒ 3MF 座標＝G-code 座標（0914 v2 實切踩過）', () => {
+    const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME });
+    /* 聯集 X 範圍 [0, 80+15+25=120] ⇒ 要平移 -60；Y [0,10] ⇒ -5 */
+    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -60 -5 0"'), '未置中，或置中時沒含洗料柱');
+  });
+  await check('pillarMm:0 ⇒ 退回無柱幾何（48 支）；料色不合法 ⇒ 拒產（陽性對照）', () => {
+    const c = E.buildCalibQuadParts({ colors: QCOL, names: QNAME, pillarMm: 0 });
+    assert.strictEqual(c.partCount, 48);
+    assert(c.model.includes('transform="1 0 0 0 1 0 0 0 1 -40 -5 0"'), '無柱時該以 80 置中');
+    assert.throws(() => E.buildCalibQuadParts({ colors: ['#F2F0EB','#C0392B','不是色','#1A1A1A'] }));
+    assert.throws(() => E.buildCalibQuadParts({ colors: ['#F2F0EB','#C0392B'] }));
+  });
+  await check('🔴 R6-8：產生器的階段比例與 quantizeQuad 實際會吐的逐字相同', () => {
+    for (const K of [2,4,6,8]){
+      const mine = E.calibQuadSteps(K);
+      const engineWay = Array.from({ length: K }, (_, s_) => Math.round((1 - s_/(K-1)) * 100));
+      assert.deepStrictEqual(mine, engineWay, 'K=' + K);
+    }
+    assert.deepStrictEqual(E.calibQuadSteps(8), [100,86,71,57,43,29,14,0]);
+  });
+
+  console.log('\n段 C-2｜四料表匯入（calibParseTable 依料數分派）');
+  /* 合成一份「量測表」：直接拿 48 格產生器的配方表（與離線參考正本同構），
+     量到色預設就用那一格的理論預覽色 ⇒ 「量到的＝理論的」的理想案，反解必須得回原 S。 */
+  function quadTable(opt){
+    opt = opt || {};
+    const c = E.buildCalibQuadParts({ colors: opt.colors || QCOL, names: QNAME });
+    const rows = [];
+    const re = /校正R(\d+)C(\d+) (#[0-9A-F]{6}) A(\d+) B(\d+) C(\d+) D(\d+)/g;
+    let m;
+    while ((m = re.exec(c.cfg))){
+      const r = +m[1], col = +m[2];
+      if (opt.dropRow && opt.dropRow === r) continue;
+      rows.push({ '格': 'R' + r + 'C' + col,
+                  '配方': { A:+m[4], B:+m[5], C:+m[6], D:+m[7] },
+                  '量到色': opt.tweak ? opt.tweak(m[3], r, col) : m[3] });
+    }
+    return { '格式': '測試合成', '校正塊種類': '四料 48 格（6 對 × 8 階）', '料數': 4,
+             '料': (opt.colors || QCOL).map((h, i) => ({ 槽:'ABCD'[i], 色:h, 名:QNAME[i] })),
+             '量測': rows };
+  }
+  await check('料數 4 ⇒ calibParseTable 分派給 quad；6 對 × 8 點，對序照 R6-2', () => {
+    const t = E.calibParseTable(quadTable());
+    assert(Array.isArray(t.pairs), '沒走到 quad 分支');
+    assert.strictEqual(t.pairs.length, 6);
+    assert.deepStrictEqual(t.pairs.map(p => [p.i, p.j]), [[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]]);
+    t.pairs.forEach(p => assert.strictEqual(p.pts.length, 8, p.i + ',' + p.j));
+    assert.deepStrictEqual(t.slots, QCOL);
+  });
+  await check('🔴 正向 oracle：六對各自反解得回原 S（100/86/71/57/43/29/14/0）', () => {
+    const t = E.calibParseTable(quadTable());
+    const want = E.calibQuadSteps(8).map(w => w / 100);
+    t.pairs.forEach(p => assert.deepStrictEqual(p.pts.map(x => x.S), want, '對 ' + p.i + ',' + p.j));
+  });
+  await check('🔴 端點純色格只有**一個**非零 ⇒ 不能靠「恰有兩個非零」認對，這裡得全數歸位', () => {
+    const t = E.calibParseTable(quadTable());
+    const p01 = t.pairs.find(p => p.i === 0 && p.j === 1);
+    assert.strictEqual(p01.pts[0].S, 1, 'S=1 那一端（A 純色）沒歸到 A/B');
+    assert.strictEqual(p01.pts[7].S, 0, 'S=0 那一端（B 純色）沒歸到 A/B');
+    /* 陽性對照：全部 48 格有 6 格是單一非零的純色錨點（每對兩個，共 12 格） */
+    const single = quadTable()['量測'].filter(r => ['A','B','C','D'].filter(k => r['配方'][k] > 0).length === 1);
+    assert.strictEqual(single.length, 12, '純色錨點格數不對：' + single.length);
+  });
+  await check('整列缺席（某一對沒量）⇒ 只回 5 對、**不丟例外**（R6-4）', () => {
+    const t = E.calibParseTable(quadTable({ dropRow: 2 }));
+    assert.strictEqual(t.pairs.length, 5);
+    assert(!t.pairs.some(p => p.i === 0 && p.j === 2), 'A/C 還在');
+  });
+  await check('壞表要丟例外（陽性對照）：用到第三支料／配方不加滿 100／量到色不合法', () => {
+    const t1 = quadTable(); t1['量測'][3]['配方'].C = 5; t1['量測'][3]['配方'].A -= 5;
+    /* 該列的非零聯集變成三支 ⇒ 列層級那一道會先擋，而且訊息會點名是哪一列。 */
+    assert.throws(() => E.calibParseTable(t1), /R1 .*兩支料的混比/);
+    const t2 = quadTable(); t2['量測'][0]['配方'].A = 99;
+    assert.throws(() => E.calibParseTable(t2), /不是 100/);
+    const t3 = quadTable(); t3['量測'][0]['量到色'] = 'nope';
+    assert.throws(() => E.calibParseTable(t3), /不合法/);
+  });
+  await check('🔴 整列只用到**一支**料（非零聯集＝1）也要丟例外——不然 j 是 undefined、曲線算出 NaN 而沒人知道', () => {
+    /* 這條是突變檢驗逃出來的缺口：把 `idx.length!==2` 改成 `idx.length>2`，
+       原本整套測試竟然全綠——因為合成資料裡每一列聯集都剛好是 2。 */
+    const t_ = quadTable();
+    t_['量測'].forEach(r => { if (/^R1C/.test(r['格'])) r['配方'] = { A: 100, B: 0, C: 0, D: 0 }; });
+    assert.throws(() => E.calibParseTable(t_), /R1 .*兩支料的混比/);
+  });
+  await check('雙料表餵進雙料路徑不受影響；四料表餵進雙料 ⇒ 講清楚、不崩', () => {
+    assert(Array.isArray(E.calibParseTable(TABLE_BLUE).pts), '雙料路徑被動到了');
+    const lad = E.dualLadderCalibrated([{ color:'#F2F0EB' }, { color:'#C0392B' }], 8, { table: quadTable(), apply: true });
+    assert.strictEqual(lad.calib.applied, false);
+    assert(/四料/.test(lad.calib.why), 'why 沒講出是四料表：' + lad.calib.why);
+  });
+
+  console.log('\n段 C-3｜四料量化吃實測值（曲線內插；R6-16 不退回理論值）');
+  const QSLOTS = () => QCOL.map(c => ({ color: c }));
+  function quadImg(){
+    const w = 12, h = 12, n_ = w * h;
+    const lab = new Float32Array(n_ * 3);
+    for (let p = 0; p < n_; p++){
+      lab[p*3]   = 4 + (p * 91) / (n_ - 1);
+      lab[p*3+1] = -28 + (p % 7) * 9;
+      lab[p*3+2] = 34 - (p % 5) * 13;
+    }
+    return { w, h, lab, lum: new Float32Array(n_), data: new Uint8ClampedArray(n_ * 4) };
+  }
+  const qdig = q => require('crypto').createHash('sha256').update(Buffer.from(q.rawLabels)).digest('hex');
+  /* 🔒 黃金值的來源＝**改動前的 engine.js**（git show HEAD:…）實跑出來的，不是拿新碼自己照的鏡子。
+     沒有這一條，改引擎就等於動了所有既有磚的輸出。 */
+  const GOLDEN = {
+    4: { sha: '47c62f44d10026bbc6f254e2f063e7b484b781a3c614250eb21c887d59b69774', cands: 16 },
+    8: { sha: 'c82ea694060733b0161eab006f9a274ba014b456cc6d71cf3bfb081239921a13', cands: 40 },
+  };
+  await check('🔒 保命索：calib 缺席 ⇒ quantizeQuad 的標籤與 palette **逐位元不變**（K=4／K=8）', async () => {
+    for (const K of [4, 8]){
+      const q = await E._internals.quantizeQuad(quadImg(), { klevels: K }, QSLOTS(), null);
+      assert.strictEqual(qdig(q), GOLDEN[K].sha, 'K=' + K + ' 標籤變了');
+      assert.strictEqual(q.candidates, GOLDEN[K].cands, 'K=' + K + ' 候選數變了');
+      assert.strictEqual(q.calib, undefined, 'calib 缺席時不該多出 calib 欄位（回傳物形狀要一樣）');
+      assert.deepStrictEqual(Object.keys(q), ['rawLabels','palette','dropped','candidates','filterStrategy']);
+    }
+  });
+  await check('🔴 陽性對照：套上**與理論不同**的實測表 ⇒ 標籤必須跟黃金值不同（否則校正根本沒進去）', async () => {
+    const dark = quadTable({ tweak: hex => '#' + [0,1,2].map(i => Math.max(0, parseInt(hex.slice(1+i*2, 3+i*2), 16) - 40).toString(16).padStart(2,'0')).join('').toUpperCase() });
+    const slots = QSLOTS(); slots[0].calib = { table: dark, apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, true, q.calib.why);
+    assert.notStrictEqual(qdig(q), GOLDEN[8].sha, '校正套了等於沒套');
+  });
+  await check('🔴 候選色拿的是**實測值**（曲線內插），不是理論 mixLin；權重集合維持不變', async () => {
+    const t = quadTable();
+    const slots = QSLOTS(); slots[0].calib = { table: t, apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, true, q.calib.why);
+    assert.strictEqual(q.candidates, GOLDEN[8].cands, '候選數不該因為套表而變');
+    /* 量到色就是那一格的 hex ⇒ 每個候選的 lin 要逐值等於 hexLin(量到色)。
+       拿 palette 裡任一個權重去表裡找回那一格比對。 */
+    const byW = new Map(t['量測'].map(r => [[r['配方'].A, r['配方'].B, r['配方'].C, r['配方'].D].join(','), r['量到色']]));
+    let checked = 0;
+    for (const p of q.palette){
+      const hex = byW.get(p.w.join(','));
+      if (!hex) continue;
+      const want = hex.slice(1).match(/../g).map(x => Math.pow(parseInt(x,16)/255, 2.2));
+      p.lin.forEach((v, i) => assert(Math.abs(v - want[i]) < 1e-12, '候選 ' + p.w.join(',') + ' 的色不是實測值'));
+      checked++;
+    }
+    assert(checked >= 24, '比對到的候選太少（' + checked + '），這條形同虛設');
+  });
+  await check('🔴 沒有那一對的校正資料 ⇒ **那一對的候選整組消失、不退回理論值**，其餘五對照常（R6-4）', async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable({ dropRow: 2 }), apply: true };   // R2 ≡ A/C
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, true, q.calib.why);
+    assert.strictEqual(Object.keys(q.calib.pairs).length, 5);
+    assert(!q.calib.pairs['0,2'], 'A/C 還在候選池裡');
+    /* A/C 獨有的混比（A>0 且 C>0）一個都不該在⇒ 確實是消失，而不是用理論值頂上 */
+    for (const p of q.palette) assert(!(p.w[0] > 0 && p.w[2] > 0), 'A/C 的候選退回了理論值：' + p.w.join(','));
+    /* 而 B/D、C/D 這些沒被動到的對要還在 */
+    assert(q.palette.some(p => p.w[1] > 0 && p.w[3] > 0), 'B/D 被連坐');
+    assert(q.palette.some(p => p.w[2] > 0 && p.w[3] > 0), 'C/D 被連坐');
+    assert(q.candidates < GOLDEN[8].cands, '候選數沒減，那一對根本沒被拿掉');
+  });
+  await check('🔴 護欄：非單調的那一對被擋下（skipped），其餘五對照常', async () => {
+    /* 只把 R1（A/B）的中間一格打成比兩端都亮 ⇒ L* 不再單調 */
+    const t = quadTable({ tweak: (hex, r, c) => (r === 1 && c === 5) ? '#FFFFFF' : hex });
+    const slots = QSLOTS(); slots[0].calib = { table: t, apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(Object.keys(q.calib.pairs).length, 5, JSON.stringify(q.calib.skipped));
+    assert(q.calib.skipped.some(x => x.i === 0 && x.j === 1 && /單調/.test(x.why)), JSON.stringify(q.calib.skipped));
+  });
+  await check('🔴 R6-7 附款：跨幅 4~K 之間**不擋**（只回報 maxLevels）；跨幅 <4 才擋', () => {
+    const mk = (lo, hi_) => Array.from({ length: 8 }, (_, i) => {
+      const v = Math.round(hi_ - (hi_ - lo) * i / 7);
+      const h = v.toString(16).padStart(2,'0').toUpperCase();
+      return { S: 1 - i/7, lin: [v/255, v/255, v/255].map(x => Math.pow(x, 2.2)), hex: '#' + h + h + h };
+    });
+    const wide = E.calibQuadPairGuard(mk(200, 240), 8);      // L* 跨幅約 12 ⇒ 不擋
+    assert.strictEqual(wide.ok, true, wide.blocked);
+    const mid = E.calibQuadPairGuard(mk(225, 240), 8);       // 跨幅約 4~8，比 K=8 小但 ≥4 ⇒ 仍不擋
+    assert(mid.span >= 4 && mid.span < 8, '試資料不在預期區間：' + mid.span);
+    assert.strictEqual(mid.ok, true, '跨幅 4~K 之間不該擋（R6-7 附款 C 案）：' + mid.blocked);
+    assert.strictEqual(mid.maxLevels, Math.floor(mid.span), '沒把「最多做得出幾階」算出來');
+    const narrow = E.calibQuadPairGuard(mk(238, 240), 8);    // 跨幅 <4 ⇒ 擋
+    assert.strictEqual(narrow.ok, false);
+    assert(/跨幅/.test(narrow.blocked), narrow.blocked);
+  });
+  await check('🔴 hex 只防呆不當鍵：料色對不上 ⇒ 警示但**不擋**（R6-14 子題 1）', async () => {
+    const slots = QSLOTS(); slots[1].color = '#B03A2E';       // 換了一批紅，與表宣告的不同
+    slots[0].calib = { table: quadTable(), apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, true, '因為顏色像不像而擋了：' + q.calib.why);
+    assert(/換批/.test(q.calib.hexWarn), 'hexWarn 沒講出來：' + q.calib.hexWarn);
+  });
+  await check("apply:false ⇒ 不套用、候選回理論值（逐位元等於黃金值），但狀態仍回報", async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: false };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, false);
+    assert.strictEqual(qdig(q), GOLDEN[8].sha, 'apply:false 還是動到了輸出');
+  });
+  await check('🔴 R6-7 附款 Q4：回報的跨幅是**48 格候選的全域 L\\* 跨幅**，不是頭尾兩支料的亮度差', async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    const Ls = q.palette.map(p => p.lab[0]);
+    const want = Math.max(...Ls) - Math.min(...Ls);
+    assert(Math.abs(q.calib.spanL - want) < 1e-9, '跨幅不是候選算出來的：' + q.calib.spanL + ' vs ' + want);
+    assert.strictEqual(q.calib.maxLevels, Math.floor(q.calib.spanL));
+    /* 陽性對照：頭尾兩支料（白 #F2F0EB、黑 #1A1A1A）的亮度差與全域跨幅**不同**⇒
+       若有人改成拿頭尾兩支算（原型 v3 的簡化寫法），這條必轉紅。 */
+    const A = q.palette.find(p => p.w[0] === 100), D = q.palette.find(p => p.w[3] === 100);
+    assert(A && D, '找不到兩個純色端點');
+  });
+  await check('全部對都不能用 ⇒ 認帳式地退回理論候選（硬閘門是畫面的事，引擎不擋生成）', async () => {
+    const flat = quadTable({ tweak: () => '#808080' });        // 每格都一樣 ⇒ 跨幅 0，六對全擋
+    const slots = QSLOTS(); slots[0].calib = { table: flat, apply: true };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, false);
+    assert.strictEqual(q.calib.skipped.length, 6);
+    assert(/沒有任何一對/.test(q.calib.why), q.calib.why);
+    assert.strictEqual(qdig(q), GOLDEN[8].sha, '退回理論時輸出應與未校正相同');
+  });
+
+
+  console.log('\n頁面接線（段 A 接庫＋段 C 四料回程；牌 c-0922-ACC-15）');
+  const calHtml2 = fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'calibration.html'), 'utf8');
+  await check('工作室有載 matlib.js，而且改了 engine.js 有跟著動版本字串（WebView 快取教訓）', () => {
+    assert(/<script src="matlib\.js\?v=/.test(idxHtml), '沒載 matlib.js');
+    assert(!/engine\.js\?v=20260914b/.test(idxHtml), 'engine.js 改了但版本字串沒動');
+    assert(idxHtml.indexOf('matlib.js?v=') < idxHtml.indexOf('engine.js?v='), 'matlib 要在 engine 之前載');
+  });
+  await check('開機會把舊鍵遷進庫，而且**不刪舊鍵**（只有「清除」鈕那一處動得了它）', () => {
+    assert(/PhotoTileMatLib\.migrateLegacy\(/.test(idxHtml), '開機沒跑遷移');
+    assert(/PhotoTileMatLib\.readLegacyRaw\(\)/.test(idxHtml), '沒讀舊鍵');
+    assert.strictEqual((idxHtml.match(/removeItem\(CALIB_LS_KEY\)/g) || []).length, 1,
+      '刪舊鍵的地方不止一處（rollback 的退路會被吃掉）');
+  });
+  await check('🔴 四料表**不走舊的單一格**：calibAcceptRaw 有 pairs 分流，而且那一支裡不呼叫 calibSetTable', () => {
+    const i0 = idxHtml.indexOf('function calibAcceptRaw(raw){');
+    assert(i0 > 0, '找不到 calibAcceptRaw');
+    const body = idxHtml.slice(i0, i0 + 2600);
+    const iq = body.indexOf('if(Array.isArray(tbl.pairs)){');
+    assert(iq > 0, '沒有四料分流 ⇒ 四料表會被寫進舊鍵、把雙料表静默蓋掉');
+    const iSet = body.indexOf('calibSetTable(tbl);');
+    assert(iSet > iq, 'calibSetTable 落在四料分流之前，四料仍會蓋掉雙料表');
+    assert(body.slice(iq, iSet).includes('return true;'), '四料分流沒有提早 return，會掉進雙料那條路');
+    assert(/matlibRecord\(tbl\)/.test(body), '收下的表沒寫進材料庫');
+  });
+  await check('🔴 四料開校正覆蓋層要帶四個料色，校正頁也要吃得下（不帶＝表宣告了四個無關的顏色且不報錯）', () => {
+    assert(/slotCount===4\)\{[\s\S]{0,400}&a=\$\{hx\[0\]\}&b=\$\{hx\[1\]\}&c=\$\{hx\[2\]\}&d=\$\{hx\[3\]\}/.test(idxHtml),
+      '工作室沒帶四個料色給校正頁');
+    assert(/q\.get\('layout'\)!=='vstrip' && SLOT_N===4/.test(calHtml2), '校正頁沒吃四料的料色參數');
+    assert(/\['a','b','c','d'\]\.forEach/.test(calHtml2), '校正頁沒把四個料色套回 SLOTS');
+  });
+  await check('四料的**套用**還沒開（要等段 F）——而且畫面有講出來，不是默默生效', () => {
+    assert(/calibRequest\(\)\{ return \(calibTable && slotCount===2\)/.test(idxHtml),
+      'calibRequest 被提前開給四料了；畫面沒接上前這等於默默改變列印結果',
+    );
+    assert(/四料的套用還沒接上畫面/.test(idxHtml), '畫面沒把這個半狀態講出來');
   });
 
   console.log(`\n${pass} 通過、${fail} 失敗`);

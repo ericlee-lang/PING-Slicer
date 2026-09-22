@@ -893,6 +893,14 @@ renderSlots(); stepUI(); syncSlotCountUI();
    名稱改成工作室的叫法「料 1／料 2」——保留預設的「白／紅」會讓匯出表寫著紅、實際是深灰。 */
 if(EMBEDDED){
   const q=new URLSearchParams(location.search);
+  /* 四料（本棒補，牌 c-0922-ACC-15）：工作室帶四個料色來就照用。
+     不帶的話這裡會用頁面預設的白／紅／藍／黑，匯出表的「料」就宣告了四個跟機上無關的顏色——
+     而且不會報錯（同 0918 CAL-02 那一類静默錯表）。量到的色點完四角仍會蓋過去，這裡只是宣告值。 */
+  if(q.get('layout')!=='vstrip' && SLOT_N===4){
+    ['a','b','c','d'].forEach((k,i)=>{ const v=String(q.get(k)||'').toUpperCase();
+      if(/^[0-9A-F]{6}$/.test(v)){ SLOTS[i].hex='#'+v; SLOTS[i].name='料 '+(i+1); } });
+    renderSlots();
+  }
   if(q.get('layout')==='vstrip'){
     ['a','b'].forEach((k,i)=>{ const v=String(q.get(k)||'').toUpperCase();
       if(/^[0-9A-F]{6}$/.test(v)){ SLOTS[i].hex='#'+v; SLOTS[i].name='料 '+(i+1); } });
