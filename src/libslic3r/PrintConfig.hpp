@@ -1204,6 +1204,11 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,       scarf_joint_speed))
     ((ConfigOptionFloat,                scarf_joint_flow_ratio))
     ((ConfigOptionPercent,              scarf_overhang_threshold))
+
+    // PING 角落固定塊（CFB 線 2026-09-21）：帶此旗標的零件切片時讓出「同物件其他零件外擴 1×噴頭口徑」
+    // （PrintObjectSlice.cpp slices_to_regions）。由「新增角落固定塊」寫在零件上，不在 UI 露出、不進製程 preset；
+    // 未開＝切片路徑完全不變。
+    ((ConfigOptionBool,                 ping_keep_clear_of_parts))
 )
 
 PRINT_CONFIG_CLASS_DEFINE(

@@ -5054,8 +5054,20 @@ void GLCanvas3D::do_scale(const std::string& snapshot_type)
             else if (selection_mode == Selection::Volume) {
                 auto cur_mv = model_object->volumes[volume_idx];
                 if (cur_mv->get_transformation() != v->get_volume_transformation()) {
+                    // PING (CFB 2026-09-22): a corner fixing block stands on the build plate, so scaling has to grow it
+                    // upwards instead of around its centre. Scaling around the centre reaches below the object, and the
+                    // "fixes sinking/flying instances" pass further down then lifts the whole object so the block touches
+                    // the plate -- which leaves the model itself floating above it (measured 0.31 mm, Eric 2026-09-22).
+                    const ConfigOption *opt       = cur_mv->config.option("ping_keep_clear_of_parts");
+                    const bool          keep_base = cur_mv->is_model_part() && opt != nullptr && opt->getBool();
+                    const double        base_z    = keep_base ? cur_mv->mesh().transformed_bounding_box(cur_mv->get_matrix()).min.z() : 0.;
                     model_object->instances[instance_idx]->set_transformation(v->get_instance_transformation());
                     cur_mv->set_transformation(v->get_volume_transformation());
+                    if (keep_base) {
+                        const double new_base_z = cur_mv->mesh().transformed_bounding_box(cur_mv->get_matrix()).min.z();
+                        if (std::abs(new_base_z - base_z) > EPSILON)
+                            cur_mv->set_offset(Z, cur_mv->get_offset(Z) + base_z - new_base_z);
+                    }
                     // BBS: backup
                     Slic3r::save_object_mesh(*model_object);
                 }

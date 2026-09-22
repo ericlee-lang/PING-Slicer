@@ -213,6 +213,13 @@ static inline bool overlap_in_xy(const PrintObjectRegions::BoundingBox &l, const
               l.max().y() < r.min().y() || l.min().y() > r.max().y());
 }
 
+// PING (CFB 2026-09-21): a model part flagged ping_keep_clear_of_parts (corner fixing block) yields to the other
+// model parts of its object. Modifiers inherit the flag through their parent's config, thus test the volume type as well.
+static inline bool keeps_clear_of_parts(const PrintObjectRegions::VolumeRegion &region)
+{
+    return region.model_volume->is_model_part() && region.region != nullptr && region.region->config().ping_keep_clear_of_parts;
+}
+
 static std::vector<PrintObjectRegions::LayerRangeRegions>::const_iterator layer_range_first(const std::vector<PrintObjectRegions::LayerRangeRegions> &layer_ranges, double z)
 {
     auto  it = lower_bound_by_predicate(layer_ranges.begin(), layer_ranges.end(),
@@ -254,6 +261,46 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
 
     std::vector<std::vector<ExPolygons>> slices_by_region(print_object_regions.all_regions.size(), std::vector<ExPolygons>(zs.size(), ExPolygons()));
 
+    // PING (CFB 2026-09-22): area a part flagged ping_keep_clear_of_parts must never take, per region id.
+    // It is the footprint of the OTHER model parts over ALL layers, grown by one nozzle diameter -- not just their
+    // slice at the current layer. A per-layer rule leaves the flagged part free above the other parts' top, where it
+    // re-expands and prints on top of them (found on a block taller than the body, 2026-09-22).
+    std::vector<std::pair<int, ExPolygons>> keep_clear_masks;
+    {
+        std::vector<ObjectID> others;
+        bool                  any_flagged = false;
+        for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
+            for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
+                if (region.model_volume->is_model_part()) {
+                    if (keeps_clear_of_parts(region))
+                        any_flagged = true;
+                    else
+                        others.emplace_back(region.model_volume->id());
+                }
+        if (any_flagged && ! others.empty()) {
+            std::sort(others.begin(), others.end());
+            others.erase(std::unique(others.begin(), others.end()), others.end());
+            Polygons footprint;
+            for (const VolumeSlices &vs : volume_slices)
+                if (std::binary_search(others.begin(), others.end(), vs.volume_id))
+                    for (const ExPolygons &slice : vs.slices)
+                        polygons_append(footprint, slice);
+            if (! footprint.empty()) {
+                const ExPolygons merged = union_ex(footprint);
+                for (const PrintObjectRegions::LayerRangeRegions &layer_range : print_object_regions.layer_ranges)
+                    for (const PrintObjectRegions::VolumeRegion &region : layer_range.volume_regions)
+                        if (keeps_clear_of_parts(region)) {
+                            const int id = region.region->print_object_region_id();
+                            if (std::none_of(keep_clear_masks.begin(), keep_clear_masks.end(),
+                                             [id](const auto &m) { return m.first == id; })) {
+                                const double nozzle_diameter = print_config.nozzle_diameter.get_at(region.region->config().wall_filament.value - 1);
+                                keep_clear_masks.emplace_back(id, offset_ex(merged, float(scale_(nozzle_diameter))));
+                            }
+                        }
+            }
+        }
+    }
+
     // First shuffle slices into regions if there is no overlap with another region possible, collect zs of the complex cases.
     std::vector<std::pair<size_t, float>> zs_complex;
     {
@@ -279,6 +326,9 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                     for (int idx_region = 0; idx_region < int(layer_range.volume_regions.size()); ++ idx_region) {
                         const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
                         if (region.bbox->min().z() <= z && region.bbox->max().z() >= z) {
+                            // PING: such part is trimmed by the others even if their bounding boxes do not touch.
+                            if (keeps_clear_of_parts(region))
+                                complex = true;
                             if (idx_first_printable_region == -1 && region.model_volume->is_model_part())
                                 idx_first_printable_region = idx_region;
                             else if (idx_first_printable_region != -1) {
@@ -316,7 +366,7 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
         }
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, zs_complex.size()),
-            [&slices_by_region, &print_object_regions, &zs_complex, &layer_ranges_regions_to_slices, clip_multipart_objects, &throw_on_cancel_callback]
+            [&slices_by_region, &keep_clear_masks, &print_object_regions, &zs_complex, &layer_ranges_regions_to_slices, clip_multipart_objects, &throw_on_cancel_callback]
                 (const tbb::blocked_range<size_t> &range) {
                 float z              = zs_complex[range.begin()].second;
                 auto  it_layer_range = layer_range_first(print_object_regions.layer_ranges, z);
@@ -378,6 +428,21 @@ static std::vector<std::vector<ExPolygons>> slices_to_regions(
                             temp_slices.push_back({ std::move(slices->slices[z_idx]), volume_region.region ? volume_region.region->print_object_region_id() : -1, volume_region.model_volume->id() });
                         }
                     }
+                    // PING: parts flagged ping_keep_clear_of_parts give way to the other model parts and stay one nozzle
+                    // diameter away from their whole footprint, however the user moved, scaled or stretched them. Trimmed
+                    // up front, so that the clipping below takes nothing from the other parts and the modifiers attached
+                    // to the flagged part see the trimmed shape.
+                    if (! keep_clear_masks.empty())
+                        for (size_t idx_region = 0; idx_region < temp_slices.size(); ++ idx_region)
+                            if (const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];
+                                keeps_clear_of_parts(region) && ! temp_slices[idx_region].expolygons.empty()) {
+                                const int id = region.region->print_object_region_id();
+                                for (const auto &mask : keep_clear_masks)
+                                    if (mask.first == id) {
+                                        temp_slices[idx_region].expolygons = diff_ex(temp_slices[idx_region].expolygons, mask.second);
+                                        break;
+                                    }
+                            }
                     for (int idx_region = 0; idx_region < int(layer_range.volume_regions.size()); ++ idx_region)
                         if (! temp_slices[idx_region].expolygons.empty()) {
                             const PrintObjectRegions::VolumeRegion &region = layer_range.volume_regions[idx_region];

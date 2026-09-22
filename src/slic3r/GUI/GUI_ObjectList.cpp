@@ -2486,13 +2486,6 @@ void ObjectList::add_corner_fixing_block()
     // 料：預設槽 2（易拆支撐料）；單料機只有一槽，自動退回槽 1（Eric 2026-09-20 裁 Q3）。
     const int extruder_id = filaments_count() > 1 ? 2 : 1;
 
-    // 縫＝1×噴頭口徑，跟著機器走、不寫死（Eric 2026-09-20 當場修正：「是口徑，不是口徑一半，
-    // 所以如果 0.4 口徑，那應該是 0.4」）。它是脫模間隙，不是結構間隙。
-    const DynamicPrintConfig& printer_config = wxGetApp().preset_bundle->printers.get_edited_preset().config;
-    double gap = printer_config.opt_float("nozzle_diameter", std::max(0, extruder_id - 1));
-    if (gap < EPSILON)
-        gap = 0.4;
-
     // 預設尺寸。使用者用既有的縮放工具改，所以這裡只要是個合理的起點即可。
     const double block_w = 12., block_d = 12., block_h = 5.;
 
@@ -2504,34 +2497,40 @@ void ObjectList::add_corner_fixing_block()
         return mv->mesh().transformed_bounding_box(inst_matrix * mv->get_matrix());
     };
 
+    // 既有固定塊：認旗標（改名／換語言都認得）；T056 存的舊塊沒有旗標，仍用名字認。
+    auto is_fixing_block = [&block_name](const ModelVolume* mv) {
+        return mv->config.has("ping_keep_clear_of_parts") || mv->name == block_name;
+    };
+
     // 參考包圍盒＝**不含既有固定塊**的那些零件。不扣掉的話，加第二塊時第一塊已經把包圍盒撐大，
-    // 後面每一塊都會再往外飄一段。用名字認：認不出來（使用者改過名／換過語言）最多就是落點偏外，
-    // 不會出錯，所以刻意不為了它去動資料模型。
+    // 後面每一塊都會再往外飄一段。
     BoundingBoxf3 core_bb;
     for (const ModelVolume* mv : model_object.volumes) {
-        if (mv->type() != ModelVolumeType::MODEL_PART || mv->name == block_name)
+        if (mv->type() != ModelVolumeType::MODEL_PART || is_fixing_block(mv))
             continue;
         core_bb.merge(volume_bb(mv));
     }
     if (!core_bb.defined)
         core_bb = instance_bb;
 
-    // 四個角落，逐一找第一個還空著的（右前 → 左前 → 左後 → 右後）。塊是斜向落在角落外側，
-    // X 與 Y 各留一個口徑的縫。四個都佔滿就回到右前，剩下的交給使用者自己拖。
+    // 四個角落，逐一找第一個還空著的（右前 → 左前 → 左後 → 右後）。塊的中心對準外框角點＝一放下去就
+    // 包住角落（Eric 2026-09-21 裁 Q2 c）；與主體重疊的部分和 1×噴頭口徑的縫由切片端負責
+    // （ping_keep_clear_of_parts），怎麼拖、怎麼縮放都在。四個都佔滿就回到右前，剩下的交給使用者自己拖。
     const Vec2d candidates[4] = {
-        Vec2d(core_bb.max.x() + gap,           core_bb.min.y() - gap - block_d),  // 右前
-        Vec2d(core_bb.min.x() - gap - block_w, core_bb.min.y() - gap - block_d),  // 左前
-        Vec2d(core_bb.min.x() - gap - block_w, core_bb.max.y() + gap),            // 左後
-        Vec2d(core_bb.max.x() + gap,           core_bb.max.y() + gap)             // 右後
+        Vec2d(core_bb.max.x() - 0.5 * block_w, core_bb.min.y() - 0.5 * block_d),  // 右前
+        Vec2d(core_bb.min.x() - 0.5 * block_w, core_bb.min.y() - 0.5 * block_d),  // 左前
+        Vec2d(core_bb.min.x() - 0.5 * block_w, core_bb.max.y() - 0.5 * block_d),  // 左後
+        Vec2d(core_bb.max.x() - 0.5 * block_w, core_bb.max.y() - 0.5 * block_d)   // 右後
     };
 
     int pick = 0;
     for (int i = 0; i < 4; ++i) {
         const double cx0 = candidates[i].x(), cx1 = cx0 + block_w;
         const double cy0 = candidates[i].y(), cy1 = cy0 + block_d;
+        // 包角的塊一定與主體重疊，所以「空著」只跟既有固定塊比。
         bool corner_is_free = true;
         for (const ModelVolume* mv : model_object.volumes) {
-            if (mv->type() != ModelVolumeType::MODEL_PART)
+            if (mv->type() != ModelVolumeType::MODEL_PART || !is_fixing_block(mv))
                 continue;
             const BoundingBoxf3 vb = volume_bb(mv);
             if (vb.max.x() > cx0 && vb.min.x() < cx1 && vb.max.y() > cy0 && vb.min.y() < cy1) {
@@ -2561,13 +2560,16 @@ void ObjectList::add_corner_fixing_block()
 
     new_volume->name = block_name;
 
-    // Eric 2026-09-20 裁的結構：外牆 1、頂層 0（不封頂）、稀疏填充 0、料走槽 2。
+    // Eric 裁的結構：外牆 1、頂層 0（不封頂）、料走槽 2（2026-09-20）；稀疏填充 10%（2026-09-21 實走後改裁：
+    // 「沒有填充，強度不夠」；填充圖樣不覆寫、跟製程走）。
     // 底層**刻意不覆寫**——製程預設本來就是實心底層，那正是「跟棧板／Brim 結合的那幾層」，
     // 沒必要在這裡編一個數字進去。
     new_volume->config.set_key_value("extruder",             new ConfigOptionInt(extruder_id));
     new_volume->config.set_key_value("wall_loops",           new ConfigOptionInt(1));
     new_volume->config.set_key_value("top_shell_layers",     new ConfigOptionInt(0));
-    new_volume->config.set_key_value("sparse_infill_density", new ConfigOptionPercent(0));
+    new_volume->config.set_key_value("sparse_infill_density", new ConfigOptionPercent(10));
+    // 切片時讓出同物件其他零件外擴 1×噴頭口徑：不吃主體、縫一直在（Eric 2026-09-21 裁問題 1 甲）。
+    new_volume->config.set_key_value("ping_keep_clear_of_parts", new ConfigOptionBool(true));
     new_volume->source.is_from_builtin_objects = true;
 
     select_item([this, obj_idx, new_volume]() {
