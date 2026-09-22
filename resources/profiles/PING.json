@@ -1,6 +1,6 @@
 {
     "name": "PING",
-    "version": "01.00.01.23",
+    "version": "01.00.01.24",
     "force_update": "0",
     "description": "PING 3D Printer (LINKIN FACTORY) delta printers",
     "machine_model_list": [
@@ -1839,6 +1839,14 @@
         {
             "name": "PING PLA(照片磚 FD高流量)",
             "sub_path": "filament/PING PLA(照片磚 FD高流量).json"
+        },
+        {
+            "name": "PING Cast - 200",
+            "sub_path": "filament/PING Cast - 200.json"
+        },
+        {
+            "name": "PING SupCast",
+            "sub_path": "filament/PING SupCast.json"
         }
     ],
     "machine_list": [
