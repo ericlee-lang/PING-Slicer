@@ -1,0 +1,94 @@
+/* 照片磚「產圖流程 × 校正流程」（段 F，車 3；牌 c-0923-ACC-23）。版面與元件照原型 v3（原型_照片磚料與校正_v3_20260922.html）。
+   獨立成檔：index.html 已到工具讀取上限的 91%，新樣式不再往那裡塞。🔴 改了本檔要動 index.html 裡的版本字串（WebView 快取）。 */
+
+/* ---- 兩條流程的切換（標題旁；原型 v3 右上那組）---- */
+#flowSeg button{padding:6px 18px;}
+body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #exportStat{display:none !important;}
+
+/* ---- 產圖流程第 1 步「選顏色」----
+   收起時只剩一行（第一眼看得到「用的是哪組料、最多幾階」）；選的時候就地展開（同圖庫 R11-1：要選才打開，選完就收）。
+   橫跨三欄（index.html 的 main 是三欄 grid）：放在左欄會把原圖卡往下推、破掉 0918「兩張圖頂端對齊」。
+   展開時內容收在 880 px 內——表格拉滿 1900 px 寬，眼睛要從左掃到右才對得上一列。 */
+#matPanel{grid-column:1/-1;}
+#matPanel > .pad{max-width:880px;}
+.mfNo{flex:0 0 22px; height:22px; border-radius:50%; background:var(--orange); color:#fff; font:700 12.5px/22px Inter,Arial,sans-serif;
+      text-align:center;}
+/* 鈕緊貼在摘要後面，不推到最右（這一列橫跨三欄，推到最右＝離它所指的那組料一千多 px：七律#3 標籤緊貼所指物） */
+#matPanel h2 .btn{margin-left:10px; flex:0 0 auto; padding:3px 10px; font-size:12.5px; font-family:inherit;}
+#matPanel h2 .hint{margin-left:2px;}
+.mfSum{display:inline-flex; align-items:center; gap:6px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+       font:600 13.5px/1.4 "Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+.mfX{color:#999; font-weight:400;}
+.mfSw{display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid #bbb; vertical-align:-2px; flex:0 0 auto;}
+.mfSw.none{background:repeating-linear-gradient(45deg,#fff 0 3px,#ddd 3px 6px);}
+.mfMeta{padding-top:6px; padding-bottom:8px;}
+.mfMeta .sub + .sub{margin-top:2px;}
+.mfEmpty{border:1px dashed #ccc; border-radius:8px; padding:14px; font-size:13.5px; line-height:1.8; color:#444;}
+.mfActs{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+.mfTable{border-collapse:collapse; width:100%; font-size:13.5px; margin-top:6px;}
+.mfTable th{color:#777; font-weight:700; font-size:12px; text-align:left; padding:4px 6px; border-bottom:1px solid var(--black);}
+.mfTable td{padding:6px; border-bottom:1px solid var(--gray); vertical-align:middle;}
+.mfTable td:first-child{width:38px;}
+.mfTable td code{font-family:Consolas,monospace; font-size:12px; color:#555;}
+.mfRow{cursor:pointer;}
+.mfRow:hover{background:#FAFAFA;}
+.mfRow.picked{background:#FFF3EE;}
+/* 選不到的列：不純灰（HIE-16／HIE-50：灰色沒有語意）——虛線＋🔒、字維持可讀，原因直接寫在列上；點下去再講一次並給出口（FBK-11）。 */
+.mfRow.no{cursor:help;}
+.mfRow.no td{border-bottom-style:dashed; color:#555;}
+.mfWhy{font-size:12px; color:#946310; margin-top:1px;}
+.mfPick{display:inline-block; width:22px; height:22px; line-height:20px; text-align:center; border-radius:50%;
+        border:1px solid #bbb; font-size:12px; color:#777; background:#fff;}
+.mfPick.on{background:var(--orange); border-color:var(--orange); color:#fff; font-weight:700;}
+.mfRow.no .mfPick{border-style:dashed; font-size:11px;}
+.mfNow{margin-top:6px;}
+.mfFlash{margin-top:8px; padding:8px 10px; background:#FFF6DF; border-left:4px solid #946310; font-size:13px; line-height:1.7;}
+.mfFlash .btn{margin-left:6px; padding:2px 9px; font-size:12.5px;}
+.mfExit{margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px;}
+.mfExit .btn{padding:3px 10px; font-size:12.5px;}
+
+/* ---- 列印模擬標題列：擠出機小色塊（Eric 0919：看模擬圖的同時知道哪一支裝什麼顏色）----
+   原本是取色器（任意改色＝可以設一個沒量過的顏色，R6-16 擋的正是這件事）；改成按鈕，點了打開第 1 步換一組。 */
+#slotList button.ext{border:1px solid #ccc; border-radius:6px; background:#fff; padding:2px 8px 2px 4px; font-family:inherit;}
+#slotList button.ext:hover{border-color:var(--black);}
+#slotList .ext .mfSw{width:22px; height:18px;}
+@container (max-width:450px){ #slotList .ext .mfSw{width:18px;} }
+
+/* ---- 認領（R6-14 子題 2 附款）---- */
+.mfClaim{max-width:520px;}
+.mfClaimRow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; font-size:13px;}
+.mfClaimRow select{max-width:260px;}
+.mfClaimRow input[type=text]{flex:1 1 140px; padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:13px;}
+/* LAY-15：肯定在左、取消（跳過）恆在最右——.cfmBtns 靠右排，DOM 順序就是左到右。 */
+
+/* ---- 校正流程（五步；原型 v3 的步驟樣式）---- */
+#calFlow{padding:14px 22px 40px;}
+.calWrap{max-width:980px; margin:0 auto;}
+.calIntro{background:#FFF6DF; border-left:4px solid #946310; padding:10px 14px; margin:0 0 16px; font-size:13.5px; line-height:1.8; border-radius:0 4px 4px 0;}
+.calStep{display:flex; gap:14px; margin:0 0 12px;}
+.calStep .num{flex:0 0 28px; height:28px; border-radius:50%; background:var(--gray); color:#777; display:flex; align-items:center;
+              justify-content:center; font:700 14px Inter,Arial,sans-serif; margin-top:6px;}
+.calStep.now .num{background:var(--orange); color:#fff;}
+.calStep.done .num{background:#fff; color:#2E7D32; border:1px solid #BEE0BF; font-size:0;}
+.calStep.done .num::after{content:'✓'; font-size:14px;}   /* 走過的步驟打勾（原型 v3） */
+.calStep .body{flex:1 1 auto; border:1px solid #DCDCDC; border-radius:6px; padding:10px 14px; min-width:0;}
+.calStep.now .body{border-color:var(--black);}
+.calStep .t{font-weight:700; font-size:14.5px;}
+.calStep.done .t{cursor:pointer;}
+.calStep.done .t::after{content:'　（點一下回到這一步）'; font-weight:400; font-size:12px; color:#999;}
+.calStep .d{color:#555; font-size:13px; line-height:1.8; margin-top:2px;}
+/* 還沒走到、已經走過的步驟只留標題（一次只做這一步：七律#2）。 */
+.calStep:not(.now) .body > :not(.t){display:none;}
+.calActs{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;}
+.calMats{display:grid; gap:10px; margin-top:8px; grid-template-columns:repeat(2,minmax(220px,1fr)); max-width:720px;}
+.calMat{border:1px solid var(--gray); border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:6px; font-size:13px;}
+.calMatT{font-weight:700;}
+.calMat label{display:flex; align-items:center; gap:6px;}
+.calMat label.lbl input{flex:1 1 auto; padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:13px;}
+.calMat select{max-width:100%; min-width:0; flex:1 1 auto;}
+#calMatsErr{color:var(--orange); font-weight:700; font-size:13px; margin-top:6px;}
+#calMatsErr:empty{display:none;}
+.mfTags{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0;}
+.mfTag{display:inline-flex; align-items:center; gap:5px; font-size:12px; padding:2px 8px; border-radius:10px;
+       border:1px solid #BEE0BF; background:#F3FAF3; color:#2E7D32;}
+@media (max-width:700px){ .calMats{grid-template-columns:1fr;} }

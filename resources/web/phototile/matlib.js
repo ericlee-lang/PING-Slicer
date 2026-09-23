@@ -107,6 +107,8 @@ function normalize(obj){
       measuredAt: typeof p.measuredAt === 'string' ? p.measuredAt : null,
       source: p.source === 'legacy-hex' ? 'legacy-hex' : 'readback',
       claimedAt: typeof p.claimedAt === 'string' ? p.claimedAt : null,
+      /* 車 3（段 F）：認領「一次性、可跳過」——跳過也要記住，否則每次選到都再問一次＝不是一次性。 */
+      claimSkippedAt: typeof p.claimSkippedAt === 'string' ? p.claimSkippedAt : null,
     });
   }
   return lib;
@@ -219,6 +221,25 @@ function toCalibTable(pair){
     量測: pair.pts.map((p, i) => ({ 格: 'C' + (i + 1), 配方: { S: p.S }, 量到色: p.hex })),
   };
 }
+/* 雙料：從庫裡取這兩支料那一對，照**槽位順序**（m0＝擠出機 1）吐回校正表（車 3 段 F，牌 c-0923-ACC-23）。
+   pair 在庫裡的 a/b 順序是量測當下決定的，不保證等於槽位順序 ⇒ 反了就把 S 對回「m0 的佔比」並對調料色；
+   不翻＝engine.calibMatches 比料色對不上（整段不套用），或整條曲線頭尾顛倒（靜默錯表，同 toQuadCalibTable 的理由）。 */
+function toDualCalibTable(lib, m0, m1){
+  const a = makeMaterial(m0), b = makeMaterial(m1);
+  const p = findPair(lib, a, b);
+  if (!p) return { table: null, pair: null };
+  const flip = matKey(p.a) !== matKey(a);
+  const A = flip ? p.b : p.a, B = flip ? p.a : p.b;
+  return { pair: p, table: {
+    格式: 'PING 照片磚色彩校正表 v0（材料庫產出）',
+    校正塊種類: p.kind || '',
+    料數: 2,
+    料: [{ 槽: 'A', 色: A.hex, 名: A.label }, { 槽: 'B', 色: B.hex, 名: B.label }],
+    量測: p.pts.map((pt, i) => ({ 格: 'C' + (i + 1),
+                                  配方: { S: flip ? Math.round((1 - pt.S) * 100) / 100 : pt.S },
+                                  量到色: pt.hex })),
+  } };
+}
 /* 四料：從庫裡湊出這四支料的六對。
    🔴 **湊不齊不補理論值**——湊不到的那一對就是沒有，回傳的 missing 讓呼叫端講給人聽（R6-16）。 */
 function toQuadCalibTable(lib, materials){
@@ -268,6 +289,12 @@ function migrateLegacy(lib, tbl, opt){
   });
   const exists = getPair(lib, pair.id);
   if (exists) return { added: false, pair: exists, why: '庫裡已經有這一對，不覆蓋' };
+  /* 🆕 車 3（段 F，牌 c-0923-ACC-23）：同一組量測點已經在庫裡（任何身分）＝這張舊表遷過了，不再加一次。
+     為什麼要比內容：認領（claimPair）會把身分換成 filament_id＋標籤 ⇒ id 跟著變，只比 id 的話
+     每次開工作室都會把舊鍵那張表再遷進來一次，清單上就多一組以色碼命名的重複項（段 F 瀏覽器實走抓到）。 */
+  const pts = pair.pts.map(p => p.S + p.hex).join('|');
+  const same = (lib.pairs || []).find(p => p.pts.map(x => x.S + x.hex).join('|') === pts);
+  if (same) return { added: false, pair: same, why: '這張舊表的量測已經在庫裡（可能已經認領過）' };
   upsertPair(lib, pair);
   return { added: true, pair: getPair(lib, pair.id), why: '' };
 }
@@ -516,7 +543,7 @@ return {
   matKey, makeMaterial, pairId,
   emptyLib, normalize, getPair, findPair, upsertPair,
   listMaterials, partnersOf, dropMaterial,
-  pairFromDual, pairsFromQuad, toCalibTable, toQuadCalibTable,
+  pairFromDual, pairsFromQuad, toCalibTable, toDualCalibTable, toQuadCalibTable,
   migrateLegacy, needsClaim, claimPair,
   memoryStorage, nullStorage, detectStorage, getStorage, setStorage,
   load, save, readLegacyRaw,

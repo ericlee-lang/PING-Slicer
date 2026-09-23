@@ -212,6 +212,7 @@
            font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:60;}
   .pttoast.on{opacity:1;}
 </style>
+<link rel="stylesheet" href="matflow.css?v=20260923a">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
 </head>
 <body>
 
@@ -231,8 +232,10 @@
   <span class="brand">PING</span>
   <div>
     <h1>照片磚工作室</h1>
-    <div class="sub">選圖片、調整色階與尺寸，完成後直接放到列印板</div>
+    <div class="sub">選顏色、選圖片、調整色階與尺寸，完成後直接放到列印板</div>
   </div>
+  <!-- 段 F（車 3，R6-15 附款）：產圖與校正是兩條分開的流程，一個畫面只服務一條；兩條共用的只有材料庫。 -->
+  <div class="seg" id="flowSeg"><button data-flow="gen" class="on" type="button">產圖</button><button data-flow="cal" type="button">校正</button></div>
   <div class="grow"></div>
   <div class="seg" id="modeSeg">
     <button data-n="2" class="on">雙料</button>
@@ -261,6 +264,10 @@
 </header>
 
 <main>
+  <!-- 第 1 步：選顏色（段 F；R6-15「選料在選圖之前」、R6-16「只列量過的料」）。內容由 matflow.js 畫。
+       橫跨三欄放在最上面（matflow.css grid-column:1/-1），不塞進左欄：塞左欄會把原圖卡往下推，
+       破掉 0918 版面 A「原圖與列印模擬兩張圖頂端對齊」（Eric 裁；並排比對不要上下跳）。 -->
+  <section class="panel" id="matPanel"></section>
   <!-- 左欄＝原圖＋款式（同一個 grid item，見 .colstack 註解） -->
   <div class="colstack">
   <!-- 原圖 -->
@@ -362,7 +369,8 @@
     <h2>列印設定 <span class="hint">改任何值即時重算</span></h2>
     <div class="pad">
       <div class="row" id="levelsRow"><label>色階數</label>
-        <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值） -->
+        <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值）；段 F：選的那組料跨幅不夠時 ptMatApply 再往下壓（R6-7 附款） -->
+        <span class="sub warn" id="levelsCap"></span>
         <span class="sub">階＝拆成幾種混色色塊零件（雙料＝漸層階數；邊界＝層線，銳利）</span>
       </div>
       <div class="row" id="nozzleRow"><label>口徑</label>
@@ -385,6 +393,14 @@
       <div class="row" id="p2aRow"><label>縫遮罩</label>
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
       </div>
+      <!-- 段 F（車 3，牌 c-0923-ACC-23；R6-16 推論③「勾選項留著當逃生門，預設開、位置降級」）：原本在右欄「色彩校正」段，
+           校正整段搬進校正流程之後，這兩個會改變列印內容的開關降級到這裡——料一定來自材料庫，平常不該有人去關它。 -->
+      <div class="row" id="calibGenRow"><label>校正值</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="calibGenChk" checked> 用實測顏色決定色階（預設開；關掉＝色階照理論推算，會改變列印內容）</label>
+      </div>
+      <div class="row" id="calibStretchRow"><label>明暗範圍</label>
+        <label style="min-width:0; font-weight:400"><input type="checkbox" id="calibStretchChk" checked> 把圖的明暗壓進這組料印得出來的範圍再分階（預設開）</label>
+      </div>
       </details>
       <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；
            圈數：雙料＝唯讀自動（＝色階數＋1，K=2 特例 4；§12 R12-5），四料＝深色（料2+3+4 同時擠）／白色兩欄手動（Eric 2026-09-10 兩段制）。 -->
@@ -398,73 +414,8 @@
         <span class="sub" id="pillarInfo"></span>
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
-      <!-- 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04：救回 3fc1a61f2f 的 8/22 功能——它在 T042 整區移植（7374b2011d）
-           以開發線頁面覆蓋本頁時被整段刪掉，三棵樹都沒了）。落點與形狀照 0822 原案（Eric 裁 Q1 B「放進工作室右欄」）：
-           LAY-21 管理性功能預設收合、摺疊標題帶現態摘要；LAY-12 比照隔壁「進階／實驗選項」「換料清單」同為 details。
-           🔴 計算全部住 engine.js（calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip＝單一來源），
-           本頁只做 UI 與狀態；預覽（simulateVertical）與 3MF 生成（quantizeDual）呼叫同一支 ⇒ R8-5「兩把尺一起換」由結構保證。 -->
-      <details id="calibDetails">
-        <!-- ⚠ summary 不可設 display:flex——會收掉展開三角形（0822 實錄，Eric 問「沒有載入圖檔是看不到嗎？」）；右側狀態用 float -->
-        <summary style="font-weight:700; cursor:pointer">色彩校正<span class="sub" id="calibSummary"
-          style="font-weight:400; float:right">尚未校正（用理論色）</span></summary>
-        <!-- 四色時整段換成一句話、連那顆鈕都不顯示（Eric 2026-09-21 驗收乙6① 裁「②」）。
-             為什麼不是原本那行小灰字「四料請先切回雙料」：從 FF600 同進機進工作室，料數已經被機台鎖成四色，
-             切不回去 ⇒ 那是一句做不到的指示。要做校正只能換一台同進機進來，所以直接講那件事。 -->
-        <div class="sub" id="calibQuadNote" style="display:none; margin:4px 0 8px">
-          目前只支援雙料同進機，請從 FD 同進機進工作室。
-        </div>
-        <div id="calibBody">
-        <div class="sub" style="margin:4px 0 8px">
-          量出這兩支料<b>實際印出來</b>的顏色，取代理論推算（0914 實錄：深灰料的蓋色力遠強於線性模型，中間色靠理論值印不出來）。校正資料只綁線材，換機型／口徑／層高不必重做。
-        </div>
-        <ol style="margin:0; padding-left:18px; line-height:1.9">
-          <li><b>產生校正片</b><span class="sub" id="calibSpec"></span>
-            <div style="margin:4px 0 8px">
-              <button class="btn" id="btnCalib">產生校正片並載入列印板</button>
-              <span class="sub" id="calibStat"></span>
-            </div>
-            <div class="sub" style="margin-bottom:6px">8 階直立條，旁邊帶一根<b>隨階換比例的洗料柱</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，所以片從每階第一層就是乾淨色、每階只要 2 mm（FD300 0.4 實印約 <b>12 分</b>；舊的無柱版要 33 分）。印完<b>整階都可以量</b>，柱不用拍。</div>
-          </li>
-          <li><b>印出來，拍一張正面照</b>
-            <div class="sub" id="calibShootHint" style="margin-bottom:6px">直立拍（最下面那階是料 1 的純色；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。</div>
-          </li>
-          <li><b>讀照片，量出實際顏色</b>
-            <div class="sub" style="margin-bottom:6px">
-              按下面這顆，校正頁會<b>直接蓋在工作室上面</b>——不跳出去、不用另存檔：
-              上傳照片 → 點整條的四個外角 → 按「<b>完成，帶回工作室</b>」，量到的值就填回來了。
-              <b>料色不用填</b>（校正頁會從照片直接量），各階 S 也會自動算。
-            </div>
-            <div style="margin-bottom:4px">
-              <button class="btn" id="btnCalibOverlay">讀校正照片…</button>
-            </div>
-            <div class="sub">
-              也可以走舊路徑：主程式 <b>幫助</b> 選單 →「<b>色彩校正</b>」開外部瀏覽器，量完匯出 .json，
-              再用下面的「選擇檔案」匯回來。
-            </div>
-          </li>
-          <li><b>把校正表匯回來</b>
-            <div class="sub" style="margin-bottom:6px">
-              匯入後，模擬圖與下面的色條改用<b>實際量到的顏色</b>（④-1）；下面的勾選開著時，色階也改在<b>實測</b>亮度上均分（④-2，會改變列印內容）。
-            </div>
-            <div style="margin-bottom:4px">
-              <input type="file" id="calibFile" accept=".json,application/json" style="font-size:12px">
-              <button class="btn" id="btnCalibClear" style="display:none">清除</button>
-            </div>
-            <div class="sub" id="calibTableStat">尚未匯入校正表</div>
-            <!-- ④-2：這個勾選會改變「印出來的東西」，所以獨立成一個看得見的開關，不藏在進階區。 -->
-            <label style="display:block; margin-top:8px"><input type="checkbox" id="calibGenChk" checked>
-              <b>用校正值決定色階</b> <span class="sub">（會改變列印內容：色階改在<b>實測</b>亮度上均分）</span></label>
-            <div class="sub" id="calibGenStat" style="margin-left:20px"></div>
-            <!-- 乙案（0914，待 Eric 裁）：套表後分箱的兩端＝料的實測亮度，圖裡比最深料還暗的全夾成最深一階；
-                 勾這個＝先把圖的明暗範圍壓進料的可印範圍再分階（每階都有肉、對比按比例縮）。 -->
-            <label style="display:block; margin-top:6px"><input type="checkbox" id="calibStretchChk" checked>
-              <b>把圖的明暗壓進料的可印範圍</b> <span class="sub">（圖裡比最深料還暗的部分不再全部變成最深；對比按比例縮）</span></label>
-            <div class="sub" id="calibStretchStat" style="margin-left:20px"></div>
-          </li>
-        </ol>
-        </div><!-- /#calibBody -->
-      </details>
-      <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
+      <!-- 色彩校正整段 2026-09-23 搬進「校正流程」（段 F，車 3；R6-15 附款＋ping-ux LAY-21：常駐只留工作中真正要看的）。
+           原本在這裡的 0914 救回版（牌 c-0914-PTI-04）步驟、鈕與 id 原樣搬到 #calFlow；兩個開關降級到上面「進階」。 -->
       <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
            （空間不夠先砍間距與裝飾、絕不砍可操作區）收成 details，功能一個沒少。
            要用的時候在旁邊、平常不佔 262px。 -->
@@ -480,16 +431,56 @@
   </section>
 </main>
 
+<!-- 校正流程（段 F，車 3，牌 c-0923-ACC-23；R6-15 附款：校正與產圖是兩條分開的流程，不得混在同一個畫面）。
+     五步照原型 v3。第 2～4 步沿用原本右欄「色彩校正」那段的鈕與 id（產生校正片／讀校正照片覆蓋層／匯入 .json
+     ＝同一個入口 calibAcceptRaw），只是從右欄常駐搬成「校正流程才出現」。第 1 步與第 5 步的內容由 matflow.js 畫。 -->
+<section id="calFlow" hidden>
+<div class="calWrap">
+  <div class="calIntro"><b>校正流程</b>（偶爾做一次，換料才要重來）：放一組料 → 印校正片 → 拍照 → 完成之後，<b>這組顏色就進材料庫，產圖時選得到</b>。校正資料只綁線材，換機型／口徑／層高不必重做。</div>
+  <div class="calStep" data-step="1"><div class="num">1</div><div class="body">
+    <div class="t" data-cal-go="1">放一組料</div>
+    <div class="d" id="calMatsHint"></div>
+    <div id="calMats"></div>
+    <div id="calMatsErr"></div>
+    <div class="d">標籤是讓你之後在清單上認得出這捲料（例：白、深灰），可以改。</div>
+    <div class="calActs"><button class="btn primary" type="button" data-cal-next>下一步</button></div>
+  </div></div>
+  <div class="calStep" data-step="2"><div class="num">2</div><div class="body">
+    <div class="t" data-cal-go="2">產生校正片，載入列印板</div>
+    <div class="d" id="calibSpec"></div>
+    <div class="calActs"><button class="btn primary" id="btnCalib" type="button">產生校正片並載入列印板</button><span class="sub" id="calibStat"></span></div>
+    <div class="calActs"><button class="btn ghost" type="button" data-cal-go="4">已經印好拍好了，直接去讀照片</button></div>
+  </div></div>
+  <div class="calStep" data-step="3"><div class="num">3</div><div class="body">
+    <div class="t" data-cal-go="3">印出來，拍一張正面照</div>
+    <div class="d" id="calibShootHint"></div>
+    <div class="calActs"><button class="btn primary" type="button" data-cal-go="4">我印好也拍好了</button></div>
+  </div></div>
+  <div class="calStep" data-step="4"><div class="num">4</div><div class="body">
+    <div class="t" data-cal-go="4">上傳照片，點四個角</div>
+    <div class="d">按下面這顆，校正頁會<b>直接蓋在工作室上面</b>——不跳出去、不用另存檔：上傳照片 → 點校正片的四個外角 → 按「<b>完成，帶回工作室</b>」，量到的值就收進材料庫。<b>料色不用填</b>（校正頁會從照片直接量），各階 S 也會自動算。</div>
+    <div class="calActs"><button class="btn primary" id="btnCalibOverlay" type="button">讀校正照片…</button></div>
+    <div class="d">也可以匯入量好的校正表（主程式 <b>幫助 → 色彩校正</b> 在外部瀏覽器量完匯出的 .json）：<input type="file" id="calibFile" accept=".json,application/json" style="font-size:12px"></div>
+    <div class="d" id="calibTableStat"></div>
+  </div></div>
+  <div class="calStep" data-step="5"><div class="num">5</div><div class="body">
+    <div class="t">校正完成</div>
+    <div id="calDone"></div>
+  </div></div>
+</div>
+</section>
+
 <script src="mesh_union.js?v=20260902"></script>   <!-- 🔴 改了 mesh_union.js 就要動這個版本字串，否則 WebView 會續用快取的舊模組（2026-08-22 實撞：新函式 not a function、工作室直接壞） -->
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="matlib.js?v=20260923b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
-<script src="engine.js?v=20260923e"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="matlib.js?v=20260923c"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
+<script src="engine.js?v=20260923f"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
+<script src="matflow.js?v=20260923a"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
-<script id="ptStyleLib" type="application/json">{"_說明":"照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。","version":"0.1","updated":"2026-09-16","constants":{"aiImage":{"sizes":["1024x1024","1536x1024","1024x1536"],"quality":"low","maxRetry":2,"unitCostNtd":{"low":0.3,"medium":1.3,"high":5.5},"_sizes":"R9-8：gpt-image-2 只有這三種尺寸，照磚體長寬比自動挑、不讓使用者選——選錯會讓 prompt 裡的 {minPx} 失準，而使用者沒有判斷依據。","_quality":"R9-8：預設 low。理由不是省錢——生出來的圖接下來會被壓成 4~8 個平色階再過三道濾除，high 多出來的細節在量化那一步就沒了。但這條尚未用數據定案：驗收時要用同一張照片跑 low vs medium 比 keyRegion 的關鍵區色階數（成本 NT$1.6）。","_maxRetry":"R9-5：只在『自動驗沒過』時重試，最多 2 次；逾時／網路錯／401 一律不重試（那只是重複燒錢）。","_unitCostNtd":"R9-6：單價講死、總額講上限。每張固定級距計費 ⇒ 單張寫「NT$0.3」不要寫「約」；總額因為允許重試 2 次 ⇒ 寫「最多 NT$0.9」。兩個都用『約』是懶惰，兩個都寫死是說謊。"},"minWidthFactor":2,"_minWidthFactor":"最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。","nozzles":[0.4,0.6,1.0],"_nozzles":"引擎 NOZZLES 白名單；沒有 0.8。","kMax":8,"gridMax":3200,"defaultThickMm":10,"_defaultThickMm":"厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。","toneRules":"ADDITIONAL MANDATORY RULES (if these conflict with the palette or colour-count instructions above, THE INSTRUCTIONS ABOVE WIN): Gallery-grade silkscreen / vector pop-art poster — adult, graphic, something that looks right framed on a wall. FORBIDDEN: cute, cartoon, mascot, chibi, kawaii, children-book illustration, emoji-like faces, sticker art, rounded friendly shapes. The subject MUST FILL THE FRAME: a head portrait fills at least 85% of the frame width, a full-body figure at least 80% of the frame height — no large empty margins. Eyes and facial features MUST be drawn as definite shapes with clear internal structure, never reduced to dots, tiny circles or thin lines. Colour boundaries must follow the REAL light/shadow edges of the source photo (cheekbone, brow, muzzle, fur mass, ridge line), not decorative invented shapes.","_toneRules":"Eric 2026-09-16 裁「寫進去」。這套鐵則原本只活在臨時檔 style.txt，**要有人記得疊上去才有效**——四料五張第一輪直接用 promptTemplate 生，四張漂成可愛卡通（最嚴重那張貓臉變成大白圓＋兩顆黑點），疊上鐵則重生後五張全過。🔴 消費端有兩處，改一處就會漂：index.html 的 ptAiGenerate 與 照片磚管線/pipeline.py；兩邊都必須接這一段。刻意寫成「與上面的配色指示衝突時以上面為準」，否則會把雙料款式那句『只用米白與近黑』推翻掉。"},"policies":{"slotSelection":{"rule":"AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）","why":"原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"},"aiRedrawBoundary":{"case":"中間案","rule":"AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。","why":"低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。","ruledBy":"Eric 2026-08-15"},"outOfScope":{"商品照":"Eric 2026-08-15 裁「先不考慮」，暫不列入。"}},"_minTileMm說明":"只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。","subjects":[{"id":"portrait_closeup","name":"人像特寫","keyFeature":"眼睛","detect":"偵測到臉且臉寬 ≥ 畫面 35%"},{"id":"person_full","name":"人物全身","keyFeature":"姿勢與輪廓","detect":"偵測到臉且 8% ≤ 臉寬 < 畫面 20%"},{"id":"landscape","name":"風景","keyFeature":"相鄰山脊的分離度","detect":"偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"},{"id":"pet_short","name":"寵物・短毛高對比","keyFeature":"輪廓與耳形","detect":"人工指定；動態範圍 ≥ 120"},{"id":"pet_long","name":"寵物・長毛低對比","keyFeature":"輪廓＋大塊毛色分區","detect":"人工指定；動態範圍 < 120"}],"styles":[{"id":"stencil2","name":"模板風","requiresAI":true,"subjects":["portrait_closeup"],"tones":2,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","五官"],"drops":["明暗結構","髮絲","衣服圖案"],"composition":{"faceFillMin":0.85,"_why":"臉不填滿畫面時 100mm 印不出眼睛"},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.29,"note":"需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.","priority":1,"deltaEBySubject":{"portrait_closeup":5.29},"lockSlots":true},{"id":"silhouette","name":"純剪影","requiresAI":true,"subjects":["person_full","pet_short","landscape"],"tones":3,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","姿勢","耳形","大塊斑紋"],"drops":["五官","毛髮質感","明暗結構"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":10.07,"note":"目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.","priority":1,"deltaEBySubject":{"pet_short":10.07,"landscape":10.64},"lockSlots":true},{"id":"flat_warm","name":"平色塊（暖）","requiresAI":true,"subjects":["pet_long"],"tones":4,"mode":"quad","slots":["#f2f0eb","#e6b072","#c26a1c","#3a2416"],"slotsDualFallback":["#f2f0eb","#6b3f22"],"preserves":["輪廓","毛色分區","眼鼻位置"],"drops":["毛髮質感","絨毛邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.49,"note":"四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster using ONLY this warm palette: warm paper white (#F2F0EB), light amber (#E6B072), burnt orange (#C26A1C) and dark brown (#3A2416). No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"pet_long":5.49},"lockSlots":true},{"id":"ridge_layers","name":"山巒分層","requiresAI":true,"subjects":["landscape"],"tones":5,"mode":"dual","slots":["#f2ead6","#1e2a33"],"preserves":["山脊分層","天際線"],"drops":["細桿","電線","樹葉細節","天空漸層"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.55,"note":"原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"landscape":6.55},"lockSlots":true},{"id":"screenprint","name":"絹印撞色","requiresAI":true,"subjects":["portrait_closeup"],"tones":5,"mode":"quad","slots":["#f2f0eb","#022561","#44a1dc","#0e1418"],"preserves":["輪廓","五官","明暗結構"],"drops":["衣服細格紋","髮絲"],"composition":{"faceFillMin":0.85},"minTileMm":{"0.4":320,"0.6":480,"1.0":800},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":7.86,"note":"最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use bold saturated ink colours that suit this photo — never a grayscale image. A classic reference palette is warm paper white, sky blue, deep navy and near-black, but feel free to choose a different ink family that fits the subject. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. Flat single-color background at the darkest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":2,"deltaEBySubject":{"portrait_closeup":7.86},"lockSlots":true},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"flat_contrast","name":"平色塊（短毛）","subjects":["pet_short"],"tones":4,"slots":["#f2f0eb","#cfc6b8","#6e5a48","#1a1a1a"],"preserves":["輪廓","耳形","大塊斑紋","眼鼻位置"],"drops":["毛髮質感","細鬚","背景細節"],"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster with EXACTLY {tones} solid colours: one paper off-white plus three ink tones chosen to suit this animal's coat (light, mid, near-black). CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the animal's outline, so the whole head and body read as one closed shape against it. If the animal is mostly white or very light, make the BACKGROUND a mid or dark ink and keep the off-white for the coat; if the animal is dark, keep the background off-white. Never let coat and background share a tone. No gradients, no texture, no dithering, no outlines. Remove all fur texture and whiskers — the outline must be one smooth clean silhouette edge, and the markings must be clean flat shapes that keep the characteristic ear shape and face pattern readable. Draw the eyes and nose boldly as solid near-black shapes clearly separated from the surrounding coat. Nothing anywhere narrower than {minPx} pixels. No text."},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"poster_pose","name":"海報色塊（全身）","subjects":["person_full"],"tones":4,"slots":["#f2f0eb","#d9c1a3","#8a3b2f","#1c1c1c"],"preserves":["輪廓","姿勢","衣物大塊色區"],"drops":["五官細節","布料質感","背景細節"],"promptTemplate":"Convert this full-body photo of a person into a flat {tones}-colour poster with EXACTLY {tones} solid colours: one paper off-white plus three ink colours chosen to suit this photo — typically one skin/light tone, one clothing or accent colour, and one near-black. Never a grayscale image. CRITICAL — the silhouette must survive: the background is ONE flat tone clearly different from every tone touching the person's outline, so the pose and body read as one closed shape. If the clothing or skin is very light, make the BACKGROUND a mid or dark ink and keep the off-white for the person; never let the person and the background share a tone. No gradients, no texture, no halftone, no outlines. Simplify clothing into large flat colour blocks and hair into one solid mass. The face may be simplified to a few bold shapes — do not invent fine facial detail. Nothing anywhere narrower than {minPx} pixels. No text."},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"ridge_layers_quad","name":"山巒分層（四料）","subjects":["landscape"],"tones":5,"slots":["#f2ead6","#a9c8d8","#3e6d86","#1e2a33"],"preserves":["山脊分層","天際線","天空與山的色相分離"],"drops":["細桿","電線","樹葉細節","天空漸層"],"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using TWO ink families: the sky is ONE flat light tone in its own hue, and the land is a stepped ramp of the remaining tones in a second hue, ending in near-black for the nearest ground. Choose the two hues to suit this photo (for example warm paper sky over cool blue-grey ridges, or pale blue sky over earth tones). CRITICAL: the sky must be clearly lighter than the farthest ridge and the two hues must never share a tone, so the skyline is always readable; each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. No gradients, no texture, no noise, no dithering, no outlines. Sky is one flat tone only, no banding, no clouds. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text."},{"id":"local_flat","name":"本地款式","requiresAI":false,"subjects":["portrait_closeup","person_full","pet_long","landscape","pet_short"],"tonesBySubject":{"portrait_closeup":6,"person_full":6,"pet_long":6,"pet_short":6,"landscape":4},"_tonesBySubject":"題材相依的色階數（Eric 2026-08-22 裁「乙」）。tones 的 4 是當初用 **dev 端風格化管線** （bilateral→mean-shift→k-means）調出來的，但**產品沒有跑那條管線**（ptApply 只設料數/料色/色階數）⇒ 等於用 A 條件調的值套在 B 條件上。原始照片直接量化時 4 階太粗：陰影與五官會落進同一階而黏成一塊（實測 Eric 的黃金獵犬，100mm／白×#6B4C32：4 階時左眼與左耳陰影併成一大塊，改 6 階即分離）。風景維持 4——階數多反而讓山脊糊在一起（見 ridge_layers 的 verified 註記：色階預算被天空吃光時山會併成一塊）。沒列到的題材 fallback 回 tones。","tones":4,"mode":"dual","slots":["#f2f0eb","#784430"],"preserves":["輪廓","大塊明暗分區"],"drops":["細節質感","銳利邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.12,"note":"沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"pipeline":["bilateral x3","pyrMeanShiftFiltering(sp=18,sr=32)","kmeans(Lab,K=4)","medianBlur(5,7)","ramp by luminance"],"promptTemplate":null,"priority":9,"deltaEBySubject":{"portrait_closeup":6.12,"landscape":11.69,"pet_short":5.04,"pet_long":13.22},"lockSlots":false,"_subjects註":"pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"}],"selection":{"_說明":"自動挑款式的順序","steps":["1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值","2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度","3. 偵測主體 → 判 subject（見 subjects.detect）","4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數","5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false","6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗","7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸","8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"]},"acceptance":{"deltaE":{"warn":12,"fail":20,"_note":"ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"},"keyRegion":{"status":"未實作","_note":"依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"}}}</script>
+<script id="ptStyleLib" type="application/json">{"_說明":"照片磚 AI 風格化款式庫（P1）。系統依『尺寸＋口徑＋主體在畫面裡多大』自動挑一個保得住的款式，而不是讓使用者選一個必然爛掉的。規則出處＝規格_照片磚AI風格化_20260815.html，全部以 PhotoTileEngine C1-20260731 實跑驗證。","version":"0.1","updated":"2026-09-16","constants":{"aiImage":{"sizes":["1024x1024","1536x1024","1024x1536"],"quality":"low","maxRetry":2,"unitCostNtd":{"low":0.3,"medium":1.3,"high":5.5},"_sizes":"R9-8：gpt-image-2 只有這三種尺寸，照磚體長寬比自動挑、不讓使用者選——選錯會讓 prompt 裡的 {minPx} 失準，而使用者沒有判斷依據。","_quality":"R9-8：預設 low。理由不是省錢——生出來的圖接下來會被壓成 4~8 個平色階再過三道濾除，high 多出來的細節在量化那一步就沒了。但這條尚未用數據定案：驗收時要用同一張照片跑 low vs medium 比 keyRegion 的關鍵區色階數（成本 NT$1.6）。","_maxRetry":"R9-5：只在『自動驗沒過』時重試，最多 2 次；逾時／網路錯／401 一律不重試（那只是重複燒錢）。","_unitCostNtd":"R9-6：單價講死、總額講上限。每張固定級距計費 ⇒ 單張寫「NT$0.3」不要寫「約」；總額因為允許重試 2 次 ⇒ 寫「最多 NT$0.9」。兩個都用『約』是懶惰，兩個都寫死是說謊。"},"minWidthFactor":2,"_minWidthFactor":"最小可印寬度 ＝ 2×口徑（mm）。實體尺寸，不隨磚大小改變。","nozzles":[0.4,0.6,1.0],"_nozzles":"引擎 NOZZLES 白名單；沒有 0.8。","kMax":8,"gridMax":3200,"defaultThickMm":10,"_defaultThickMm":"厚度＝換色清料空間。Eric 2026-08-15 裁 6 → 10；已同步 index.html:181 與 engine.js:94。","toneRules":"ADDITIONAL MANDATORY RULES (if these conflict with the palette or colour-count instructions above, THE INSTRUCTIONS ABOVE WIN): Gallery-grade silkscreen / vector pop-art poster — adult, graphic, something that looks right framed on a wall. FORBIDDEN: cute, cartoon, mascot, chibi, kawaii, children-book illustration, emoji-like faces, sticker art, rounded friendly shapes. The subject MUST FILL THE FRAME: a head portrait fills at least 85% of the frame width, a full-body figure at least 80% of the frame height — no large empty margins. Eyes and facial features MUST be drawn as definite shapes with clear internal structure, never reduced to dots, tiny circles or thin lines. Colour boundaries must follow the REAL light/shadow edges of the source photo (cheekbone, brow, muzzle, fur mass, ridge line), not decorative invented shapes.","_toneRules":"Eric 2026-09-16 裁「寫進去」。這套鐵則原本只活在臨時檔 style.txt，**要有人記得疊上去才有效**——四料五張第一輪直接用 promptTemplate 生，四張漂成可愛卡通（最嚴重那張貓臉變成大白圓＋兩顆黑點），疊上鐵則重生後五張全過。🔴 消費端有兩處，改一處就會漂：index.html 的 ptAiGenerate 與 照片磚管線/pipeline.py；兩邊都必須接這一段。刻意寫成「與上面的配色指示衝突時以上面為準」，否則會把雙料款式那句『只用米白與近黑』推翻掉。"},"policies":{"slotSelection":{"rule":"AI 款式自帶料色、不呼叫 suggestSlots；本地款式改用自動配色（lockSlots 欄位控制）","why":"原規則是「一律鎖定」，理由是 suggestSlots 在單色佔大面積時挑錯料（四題材實測全中）。D-1（2fc9492d42）已修好該評分，且規格自己的杜賓案例是自動配色 8.28 優於手動鎖定 8.45；而本地款式吃的是**原始照片**、不是 AI 生的平面化圖，鎖死一組固定料色反而更差（實測：鎖米白＋棕在綠色風景上 ΔE 37.9→44.8）。Eric 2026-08-17 裁「D-1 已經修好就不鎖了」。"},"aiRedrawBoundary":{"case":"中間案","rule":"AI 可重繪五官，但臉須佔畫面寬 20% 以上；低於此擋下，要求換照片或裁切。","why":"低於 20% 沒有輪廓可依據，AI 會憑空生五官 ⇒ 客人拿到的是別人。","ruledBy":"Eric 2026-08-15"},"outOfScope":{"商品照":"Eric 2026-08-15 裁「先不考慮」，暫不列入。"}},"_minTileMm說明":"只有口徑 0.4 是實測值；0.6／1.0 按『最小可印寬度與口徑成正比』等比推算，尚未實跑驗證。","subjects":[{"id":"portrait_closeup","name":"人像特寫","keyFeature":"眼睛","detect":"偵測到臉且臉寬 ≥ 畫面 35%"},{"id":"person_full","name":"人物全身","keyFeature":"姿勢與輪廓","detect":"偵測到臉且 8% ≤ 臉寬 < 畫面 20%"},{"id":"landscape","name":"風景","keyFeature":"相鄰山脊的分離度","detect":"偵測不到臉，或臉框 < 畫面 8%（視為誤判）。🔴 下限守門是必要的：Haar 會在風景的建物／樹叢上誤判出極小的臉，實錄 2026-08-15 椰子樹那張被找到 3% 的臉、誤走純剪影，山的分層因此被壓平"},{"id":"pet_short","name":"寵物・短毛高對比","keyFeature":"輪廓與耳形","detect":"人工指定；動態範圍 ≥ 120"},{"id":"pet_long","name":"寵物・長毛低對比","keyFeature":"輪廓＋大塊毛色分區","detect":"人工指定；動態範圍 < 120"}],"styles":[{"id":"stencil2","name":"模板風","requiresAI":true,"subjects":["portrait_closeup"],"tones":2,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","五官"],"drops":["明暗結構","髮絲","衣服圖案"],"composition":{"faceFillMin":0.85,"_why":"臉不填滿畫面時 100mm 印不出眼睛"},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.29,"note":"需搭配『眼睛加粗』與裁切；未加粗時同尺寸眼睛完全消失","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a high-contrast two-tone stencil poster. EXACTLY 2 flat colors: cream white background and pure black, nothing else. No gradients, no halftone, no texture, no outlines. CRITICAL: draw the EYES boldly — thick black upper-eyelid line, the iris as one solid bold shape, and a WIDE clear cream gap separating each eyebrow from the eye below it so they never touch. Nothing anywhere may be narrower than {minPx} pixels. Simplify hair, beard and clothing into solid black masses with smooth curved edges. Flat cream background. No text. Fill the frame with the face.","priority":1,"deltaEBySubject":{"portrait_closeup":5.29},"lockSlots":true},{"id":"silhouette","name":"純剪影","requiresAI":true,"subjects":["person_full","pet_short","landscape"],"tones":3,"mode":"dual","slots":["#f2f0eb","#141414"],"preserves":["輪廓","姿勢","耳形","大塊斑紋"],"drops":["五官","毛髮質感","明暗結構"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":10.07,"note":"目前最乾淨的一張成品；完全不畫五官反而在小磚最好看；🔴 2026-08-15 管線實測補入風景：前景複雜的風景（椰子樹＋建物＋電線）用山巒分層連三次都不過（ΔE 19.4／17.4／17.7），改用純剪影一次就過（10.64）","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this photo into a bold 3-tone poster: cream white background, one mid tone, and near-black for the subject. No gradients, no fur or fabric texture, no individual hairs, no outlines. The subject is a strong clean silhouette — keep the distinctive outline, pose and any characteristic shapes perfectly readable. Simplify markings into the single mid tone as clean flat shapes. Nothing anywhere may be narrower than {minPx} pixels. Flat background. No text.","priority":1,"deltaEBySubject":{"pet_short":10.07,"landscape":10.64},"lockSlots":true},{"id":"flat_warm","name":"平色塊（暖）","requiresAI":true,"subjects":["pet_long"],"tones":4,"mode":"quad","slots":["#f2f0eb","#e6b072","#c26a1c","#3a2416"],"slotsDualFallback":["#f2f0eb","#6b3f22"],"preserves":["輪廓","毛色分區","眼鼻位置"],"drops":["毛髮質感","絨毛邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":5.49,"note":"四料 ΔE 5.49；雙料退化版 10.82（毛色偏灰）或 8.36（毛色對但眼鼻變橘）——雙料無法兼得，見硬約束⑤","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster using ONLY this warm palette: warm paper white (#F2F0EB), light amber (#E6B072), burnt orange (#C26A1C) and dark brown (#3A2416). No gradients, no texture, no dithering, no outlines. CRITICAL: remove all fur texture and individual hairs — the outline must be one smooth clean silhouette edge, and the coat colour boundaries must be clean flat shapes. Draw the eyes and nose boldly as solid dark shapes clearly separated from the surrounding fur. Background is one single flat tone at the lightest extreme. Nothing anywhere narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"pet_long":5.49},"lockSlots":true},{"id":"ridge_layers","name":"山巒分層","requiresAI":true,"subjects":["landscape"],"tones":5,"mode":"dual","slots":["#f2ead6","#1e2a33"],"preserves":["山脊分層","天際線"],"drops":["細桿","電線","樹葉細節","天空漸層"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.55,"note":"原圖直出 ΔE 7.93 看似及格，實際山巒全部併成一塊——色階預算被天空的雲吃光；⚠ 只吃得下「乾淨山巒」，前景複雜的風景要退到純剪影","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using ONE cool ramp. No gradients, no texture, no noise, no dithering, no outlines. CRITICAL: each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. Sky is one flat tone only, no banding. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text.","priority":1,"deltaEBySubject":{"landscape":6.55},"lockSlots":true},{"id":"screenprint","name":"絹印撞色","requiresAI":true,"subjects":["portrait_closeup"],"tones":5,"mode":"quad","slots":["#f2f0eb","#022561","#44a1dc","#0e1418"],"preserves":["輪廓","五官","明暗結構"],"drops":["衣服細格紋","髮絲"],"composition":{"faceFillMin":0.85},"minTileMm":{"0.4":320,"0.6":480,"1.0":800},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":7.86,"note":"最接近 Pinterest 那味，但可印性代價 3.19（四款最高）；100mm 會掉 7.6% 細節，要 320mm 才達標","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"promptTemplate":"Convert this portrait into a 1960s silkscreen pop-art poster with EXACTLY {tones} flat colors. Use bold saturated ink colours that suit this photo — never a grayscale image. A classic reference palette is warm paper white, sky blue, deep navy and near-black, but feel free to choose a different ink family that fits the subject. Hard-edged color separation, no gradients, no texture, no halftone dots, no line-art outlines. Bold graphic shapes with smooth vector-like curves, tones grouped by facial anatomy. CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the person's outline (hair, skin, clothing), so the head and shoulders read as one closed shape against it. If the hair or clothing is dark, make the BACKGROUND a light or mid ink; if the person is very light, make it a mid or dark ink; never let the person and the background share a tone. Nothing anywhere narrower than {minPx} pixels. No text.","priority":2,"deltaEBySubject":{"portrait_closeup":7.86},"lockSlots":true},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"flat_contrast","name":"平色塊（短毛）","subjects":["pet_short"],"tones":4,"slots":["#f2f0eb","#cfc6b8","#6e5a48","#1a1a1a"],"preserves":["輪廓","耳形","大塊斑紋","眼鼻位置"],"drops":["毛髮質感","細鬚","背景細節"],"promptTemplate":"Convert this animal photo into a flat {tones}-tone poster with EXACTLY {tones} solid colours: one paper off-white plus three ink tones chosen to suit this animal's coat (light, mid, near-black). CRITICAL — the silhouette must survive: the background is ONE flat tone that is clearly different from every tone touching the animal's outline, so the whole head and body read as one closed shape against it. If the animal is mostly white or very light, make the BACKGROUND a mid or dark ink and keep the off-white for the coat; if the animal is dark, keep the background off-white. Never let coat and background share a tone. No gradients, no texture, no dithering, no outlines. Remove all fur texture and whiskers — the outline must be one smooth clean silhouette edge, and the markings must be clean flat shapes that keep the characteristic ear shape and face pattern readable. Draw the eyes and nose boldly as solid near-black shapes clearly separated from the surrounding coat. Nothing anywhere narrower than {minPx} pixels. No text."},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"poster_pose","name":"海報色塊（全身）","subjects":["person_full"],"tones":4,"slots":["#f2f0eb","#d9c1a3","#8a3b2f","#1c1c1c"],"preserves":["輪廓","姿勢","衣物大塊色區"],"drops":["五官細節","布料質感","背景細節"],"promptTemplate":"Convert this full-body photo of a person into a flat {tones}-colour poster with EXACTLY {tones} solid colours: one paper off-white plus three ink colours chosen to suit this photo — typically one skin/light tone, one clothing or accent colour, and one near-black. Never a grayscale image. CRITICAL — the silhouette must survive: the background is ONE flat tone clearly different from every tone touching the person's outline, so the pose and body read as one closed shape. If the clothing or skin is very light, make the BACKGROUND a mid or dark ink and keep the off-white for the person; never let the person and the background share a tone. No gradients, no texture, no halftone, no outlines. Simplify clothing into large flat colour blocks and hair into one solid mass. The face may be simplified to a few bold shapes — do not invent fine facial detail. Nothing anywhere narrower than {minPx} pixels. No text."},{"requiresAI":true,"mode":"quad","composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"priority":1,"lockSlots":true,"verified":null,"_verified註":"2026-09-08 依 Eric 裁「寵物短毛、人物全身、風景都補四料款式」新增（待確認「四料入口兩題」②）。🔴 首跑實錄（Eric 0908 15:xx）：平色塊（短毛）在**白毛＋棕耳的卡通米格魯**上，AI 把白色臉部畫成與紙白背景同一色 ⇒ 頭部輪廓消失、只剩耳朵眼鼻浮著；同款在**淺褐色巴哥**上正常（Downloads/照片磚/四料_PING照片磚_AI_平色塊（短毛）_20260908-1507.png）。根因＝prompt 寫死「背景用紙白」又叫它「從毛色取三個墨色」，淺色主體必撞。修法＝三款都改成「背景是一個與主體輪廓上任何一色都不同的實色；主體淺色就用中／深色背景，紙白留給主體」。✅ 改 prompt 後實跑（0908 16:0x，AI 生的白臉棕耳小狗，FF600 同進 0.6、150 mm）：AI 自動把背景改成深灰、頭身輪廓完整、4 階、模擬色差 0.2 ⇒ 平色塊（短毛）通過；海報色塊（全身）／山巒分層（四料）同一條修法但尚未實跑。ΔE／minTileMm 仍沿用同題材既有款的實測值當假設，第一次生圖通過後回填 verified／deltaEBySubject。丙案下四料 AI 款式料色隨 AI 圖走（suggest()），slots 只是沒圖時的參考初值。","deltaEBySubject":{},"id":"ridge_layers_quad","name":"山巒分層（四料）","subjects":["landscape"],"tones":5,"slots":["#f2ead6","#a9c8d8","#3e6d86","#1e2a33"],"preserves":["山脊分層","天際線","天空與山的色相分離"],"drops":["細桿","電線","樹葉細節","天空漸層"],"promptTemplate":"Convert this landscape into a flat {tones}-tone poster using TWO ink families: the sky is ONE flat light tone in its own hue, and the land is a stepped ramp of the remaining tones in a second hue, ending in near-black for the nearest ground. Choose the two hues to suit this photo (for example warm paper sky over cool blue-grey ridges, or pale blue sky over earth tones). CRITICAL: the sky must be clearly lighter than the farthest ridge and the two hues must never share a tone, so the skyline is always readable; each ridge must be ONE solid flat tone, clearly separated from the ridge behind it by a distinct tone step — the layered depth IS the subject, do not let neighbouring ridges merge. No gradients, no texture, no noise, no dithering, no outlines. Sky is one flat tone only, no banding, no clouds. Remove hairline objects entirely: no thin poles, wires or twigs. Nothing kept may be narrower than {minPx} pixels. No text."},{"id":"local_flat","name":"本地款式","requiresAI":false,"subjects":["portrait_closeup","person_full","pet_long","landscape","pet_short"],"tonesBySubject":{"portrait_closeup":6,"person_full":6,"pet_long":6,"pet_short":6,"landscape":4},"_tonesBySubject":"題材相依的色階數（Eric 2026-08-22 裁「乙」）。tones 的 4 是當初用 **dev 端風格化管線** （bilateral→mean-shift→k-means）調出來的，但**產品沒有跑那條管線**（ptApply 只設料數/料色/色階數）⇒ 等於用 A 條件調的值套在 B 條件上。原始照片直接量化時 4 階太粗：陰影與五官會落進同一階而黏成一塊（實測 Eric 的黃金獵犬，100mm／白×#6B4C32：4 階時左眼與左耳陰影併成一大塊，改 6 階即分離）。風景維持 4——階數多反而讓山脊糊在一起（見 ridge_layers 的 verified 註記：色階預算被天空吃光時山會併成一塊）。沒列到的題材 fallback 回 tones。","tones":4,"mode":"dual","slots":["#f2f0eb","#784430"],"preserves":["輪廓","大塊明暗分區"],"drops":["細節質感","銳利邊緣"],"composition":{},"minTileMm":{"0.4":100,"0.6":150,"1.0":250},"verified":{"tileMm":100,"nozzle":0.4,"deltaE":6.12,"note":"沒填 API 金鑰的 baseline。品質意外地好（只輸模板風），但眼睛偏弱、邊緣較鈍。管線＝邊緣保留平滑 → mean-shift 成塊 → Lab k-means → 形態學清理。","_note_ΔE":"ΔE 是「款式×照片」的配對值，見 deltaEBySubject；不可跨題材套用"},"pipeline":["bilateral x3","pyrMeanShiftFiltering(sp=18,sr=32)","kmeans(Lab,K=4)","medianBlur(5,7)","ramp by luminance"],"promptTemplate":null,"priority":9,"deltaEBySubject":{"portrait_closeup":6.12,"landscape":11.69,"pet_short":5.04,"pet_long":13.22},"lockSlots":false,"_subjects註":"pet_short 於 2026-08-17 補列（Eric 裁「補一個」）。不是新做一個款式——deltaEBySubject 本來就有 pet_short: 5.04，是這條管線在所有題材裡最好的分數，只是 subjects 漏列。keyFeature「輪廓與耳形」由 preserves 的「輪廓」涵蓋。"}],"selection":{"_說明":"自動挑款式的順序","steps":["1. 讀機台口徑；尺寸取預設值（100mm）或使用者已設定值","2. 換算細節下限 minPx = 2×口徑 ÷ 磚寬 × 生圖解析度","3. 偵測主體 → 判 subject（見 subjects.detect）","4. 篩出 subjects 含該題材、且 minTileMm[口徑] ≤ 磚寬 的款式；預設選 priority 最小者（＝為該題材設計的 AI 款式），本地款式僅在無 AI 或使用者手選時出線。🔴 不得用 ΔE 排序——ΔE 只管「印得出來嗎」，不是品質分數","5. 有 API 金鑰 → 全部可選；無金鑰 → 只留 requiresAI=false","6. 逐款生圖（把 minPx 與 composition 要求寫進 prompt）→ 鎖料色量化 → 自動驗","7. 沒過門檻就重生；重生兩次仍不過 → 標記該款不可用並提示放大尺寸","8. 🔴 重生策略＝先同款式加強 2 次，仍不過就**換下一順位款式**，全部款式都不過才回報「這張救不起來」。只在同一款式上一直加強會白燒——實錄：山巒分層在前景複雜的風景上連三次不過，換純剪影一次就過。"]},"acceptance":{"deltaE":{"warn":12,"fail":20,"_note":"ΔE 只管『機器印得出來嗎』，不管好不好看。本次三度誤導：5.34(無眼睛) vs 5.29(有眼睛)、7.93(山不見了)。必須配合 keyRegion。"},"keyRegion":{"status":"未實作","_note":"依 subject.keyFeature 檢查關鍵區有沒有活下來。這是 P5 的工作。"}}}</script>
 <!-- R11-6（Eric 2026-09-16 裁）：刪除自訂圖要跳確認窗。窗裡放縮圖＋圖名（七律#3 標籤緊貼所指物），
      寫明後果；鈕序＝「刪除」在左、「取消」恆在最右（ping-ux LAY-15）；ESC 與點背景＝取消。
      ⚠️ 刻意不套 LAY-15 增補的「末鈕深色主要」——那條與「取消恆在最右」有已登記的互斥，Eric 2026-08-18 明示暫緩。 -->
@@ -645,149 +636,88 @@ function renderCycleUI(){
   const pr=document.getElementById('pillarRow'); if(pr) pr.style.display=on?'none':'';
 }
 function renderSlots(){
-  if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變
-  /* 垂直混色：雙料＝亮暗兩端；四料＝白＋三彩混搭調色（2026-09-07 平躺移除後只剩這一種）
-     2026-09-19（牌 c-0919-UI-01）：搬到「列印模擬」標題列、標成「擠出機 N」（＝料 N＝機上 E N，同號）。
-     原本右欄那句角色說明收進滑鼠提示——標題列只放得下「哪一支裝什麼顏色」這一件事。 */
-  const roles = slotCount===2
-    ? ['亮端——每個色階＝兩支料的一個混合比例','暗端——正面實色平整']
-    : ['白——調亮度用','彩色——與白／其他彩料混搭','彩色','彩色'];
+  /* 2026-09-19（牌 c-0919-UI-01）：料色在「列印模擬」標題列、標成「擠出機 N」（＝料 N＝機上 E N，同號）。
+     🔴 段 F（車 3，牌 c-0923-ACC-23；R6-16）：原本是取色器——任意改色＝可以把一個沒量過的顏色設上去，
+     那正是 R6-16 要擋的事（Eric 0922：「他要怎麼樣把一個未校正的顏色設定在上面呢？」）。
+     改成材料庫選的那組的小色塊，點了打開第 1 步換一組（matflow.js）；料色只由 ptMatApply() 從選的那組寫進料槽。 */
+  ptMatApply(window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null);
+  if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變（放在 ptMatApply 後：它可能壓色階數）
   slotList.className = 'n'+slotCount;   // 收窄門檻依料數（CSS @container）
-  slotList.innerHTML = '<span class="extPre">擠出機</span>';   // 收窄時才顯示：字首只寫一次
-  for(let i=0;i<slotCount;i++){
-    const lab=document.createElement('label'); lab.className='ext';
-    lab.title=`擠出機 ${i+1}（料 ${i+1}）：${roles[i]}\n點色塊可以改成機上實際裝的顏色`;
-    lab.innerHTML=`<input type="color" value="${slots[i].color}" data-i="${i}" data-k="color"><span class="extW">擠出機 </span>${i+1}`;
-    slotList.appendChild(lab);
-  }
+  slotList.innerHTML = window.PhotoTileMatFlow ? PhotoTileMatFlow.chipsHtml(slotCount) : '';
+  if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   // 料數變了 ⇒ 第 1 步跟著換（雙料挑 2／四料挑 4）
   /* §11 R11-9：料數換了內建範例也要換（雙料灰階／四料彩色）。掛這裡＝四個 slotCount 切換點都會經過。 */
   if(typeof ptGalRender==='function') ptGalRender();
 }
-slotList.addEventListener('input', e=>{
-  const i=+e.target.dataset.i, k=e.target.dataset.k;
-  if(k==='color') slots[i].color=e.target.value;
-  queue();
-});
-/* ================= 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04）=================
-   救回 3fc1a61f2f（2026-08-22 ④-1／④-2）——T042 整區移植（7374b2011d）以開發線頁面覆蓋本頁時整段被刪。
-   這次計算全部住 engine.js（calibParseTable／calibGenLadder／dualLadderCalibrated／buildCalibStrip），
-   本頁只管：匯入表（＋localStorage 續命）、勾選 ④-2、狀態列講實話、把表掛進 request.slots[0].calib、產生校正片。
-   儲存：試 localStorage，失敗就只活這個 session（WebView2 file:// 能否持久化未證實 ⇒ 用它但不依賴它，畫面誠實標示）。 */
-const CALIB_LS_KEY='ping_phototile_calib_dual_v1';
-let calibTable=null;          // 引擎 calibParseTable 的形狀 {slots:[hexA,hexB], pts, raw}（＋persisted）
-let calibMadeColors=null;     // 產出校正片當下的料色（產完又改料色 ⇒ 舊摘要會說謊，要標出來）
-let calibMadeS=null;          // 產出校正片當下的 S 清單（由下往上）＝印出來那條的真實配方；讀照片時要用它，不能事後由料色重算
-/* 🔴 校正表一旦匯入，料槽顏色就是「機上實際那兩支線材量出來的真色」＝事實，不是建議
-   ⇒ 自動配色不得改寫它。這是 Eric 2026-09-14 裁 Q2「乙」（料槽顏色用實際裝的線材色，
-   不再從照片自動挑）還沒補上的防護面。
-   實爆（2026-09-15 杜賓範本棒）：匯入白×深灰校正表後再載一張新照片，ptApply→suggest()
-   把 B 槽改成近黑 #262121，校正表隨即被判「與目前料色不符・未套用」，而**畫面上沒有任何
-   警告** ⇒ 使用者以為校正有生效，實際印出來走的還是理論階梯。
-   🔴 這是同一支 suggest() 靜默覆寫家族的**第 5 次發作**（前四次的修補註解見本檔 931／
-   1306／1502／1563），前四次補的都是「使用者手調的料色」，沒人想到實測值走同一條路。
-   判準刻意**不**看 calibMatchesNow()：表對不上目前料色時（換了料），料色一樣該由人決定、
-   不該由照片決定；要回到自動配色請按校正區的「清除」。 */
-function calibOwnsSlots(){ return !!(calibTable && slotCount===2); }
-function calibRequest(){ return (calibTable && slotCount===2) ? {table:calibTable.raw, apply:!!params.calibGen, toneMap:(params.calibGen&&params.calibStretch)?'stretch':'none'} : null; }
-function calibMatchesNow(){ return !!(calibTable && slotCount===2 && window.PhotoTileEngine && PhotoTileEngine.calibMatches(calibTable, slots.slice(0,2))); }
-/* 摺疊標題的現態摘要——單一來源，每條分支都要同步（LAY-21）。⛔ 不准只講好消息（R8-5：④-2 之後那句話會變成謊話）。 */
-function calibSummaryText(){
-  const g=window.__calibGen;
-  if(calibTable && calibMatchesNow()){
-    if(params.calibGen && g && g.applied) return '已校正・色階用實測值（會影響列印）';
-    if(params.calibGen && g && !g.applied) return '已校正・色階未套用（護欄擋下）';
-    return '已校正・僅顯示用實測色';
-  }
-  /* 四色時整段不顯示（見 #calibQuadNote），摘要就不要再講「尚未校正（用理論色）」——
-     那句在四色下沒有意義，而且會讓人以為校正一下就能用（Eric 2026-09-21 乙6① 裁「②」）。 */
-  if(slotCount!==2) return '（雙料專用）';
-  if(calibTable) return '⚠ 校正表與目前料色不符，未套用';
-  if(calibMadeColors){
-    const now=slots.slice(0,slotCount).map(s=>s.color.toUpperCase()).join(' · ');
-    return (now===calibMadeColors) ? `已產出校正片（${calibMadeColors}），尚未回讀`
-                                   : `⚠ 料色已改（現在是 ${now}）——先前那條校正片是 ${calibMadeColors}，要重產`;
-  }
-  return '尚未校正（用理論色）';
+/* 段 F：選的那組 → 料槽料色＋色階上限（R6-7 附款：floor(實測 L* 跨幅)；四料用 48 格候選的全域跨幅）。
+   沒選齊＝料槽不動，模擬與「產生」都會講「先選顏色」——不拿理論色偷偷頂上（R6-16 推論①）。 */
+function ptMatApply(inf){
+  if(inf) inf.colors.forEach((c,i)=>{ if(slots[i]) slots[i].color=String(c).toLowerCase(); });
+  const cap=inf ? inf.cap : 8, lv=document.getElementById('levelsIn');
+  if(lv){ lv.max=cap; if(params.klevels>cap){ params.klevels=cap; lv.value=cap; } }
+  const cs=document.getElementById('levelsCap');
+  if(cs) cs.textContent=(inf && cap<8) ? `這組料最多做得出 ${cap} 階` : '';
 }
-function applyCalibSummary(){ const sum=document.getElementById('calibSummary'); if(sum) sum.textContent=calibSummaryText(); }
-/* 乙6①（Eric 2026-09-21 裁「②」）：四色時整段色彩校正收掉、只留一句話，那顆「產生校正片」不顯示。
-   ⚠ 要在 renderCalibGenStat 的任何 early return **之前**呼叫，否則切到四色時鈕會留在畫面上。 */
-function applyCalibMode(){
-  const quad = slotCount!==2;
-  const body = document.getElementById('calibBody');
-  const note = document.getElementById('calibQuadNote');
-  if(body) body.style.display = quad ? 'none' : '';
-  if(note) note.style.display = quad ? '' : 'none';
+/* ================= 色彩校正（0914 Q3 甲，牌 c-0914-PTI-04；2026-09-23 段 F 搬進校正流程）=================
+   救回 3fc1a61f2f（2026-08-22 ④-1／④-2）——T042 整區移植（7374b2011d）以開發線頁面覆蓋本頁時整段被刪。
+   計算全部住 engine.js；本頁只管：匯入表、把表掛進 request.slots[0].calib、產生校正片。
+   🆕 段 F（車 3，牌 c-0923-ACC-23）：料一律來自材料庫（R6-16 推論①）⇒「料槽歸誰管」「掛進請求的校正表」
+   都改問 matflow.js 選的那組。舊的單一格（鍵 ping_phototile_calib_dual_v1）**不再寫、不再套用、也不刪**：
+   開機照舊遷進庫一次（matlib.readLegacyRaw／migrateLegacy），原資料留著當 rollback 的退路。
+   為什麼連寫都停：計畫 §四段 A 寫明「庫存在之後就不再寫它」（車 1／2 是過渡期照寫）；照寫的話下次開機它又被當成
+   一張舊表遷進來，清單上多一組以色碼命名的重複項（段 F 瀏覽器實走抓到）。「清除」鈕隨自動配色一起退場。 */
+let calibMadeS=null;          // 產出校正片當下的 S 清單（由下往上）＝印出來那條的真實配方；讀照片時要用它，不能事後由料色重算
+/* 🔴 R6-13（第 5 次靜默覆寫的防護面）在 R6-16 之後的形狀：選了材料庫的料 ⇒ 料槽歸它管，
+   款式宣告的料色、任何自動配色都不得改寫（要換料＝回第 1 步換一組）。 */
+function calibOwnsSlots(){ return !!(window.PhotoTileMatFlow && PhotoTileMatFlow.ready()); }
+/* 🔴 四料的套用從這裡開（車 1 刻意沒開＝等段 F 把畫面接上）：選的那組是四料 ⇒ 掛四料表（六對由材料庫湊）。 */
+function calibRequest(){ return window.PhotoTileMatFlow ? PhotoTileMatFlow.calibRequest() : null; }
+/* 校正流程第 1 步的料色（產校正片、帶給校正頁的都是這一組，不是產圖流程選的那組：兩條流程只共用材料庫）。 */
+function calColors(){
+  return (window.PhotoTileMatFlow ? PhotoTileMatFlow.calColors() : slots.slice(0,slotCount).map(s=>s.color)).map(c=>String(c).toUpperCase());
 }
 function calibSpecText(){
-  const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
-  const eng=window.PhotoTileEngine;
+  const cols=calColors(), eng=window.PhotoTileEngine;
+  /* 幾何數字一律問引擎（CALIB_STRIP_GEO／CALIB_QUAD_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
+  if(slotCount===4){
+    const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:10,levels:8,pillarMm:25};
+    return `${cols.join(' · ')}｜四料 48 格（六對 × ${g.levels} 階，${g.cellMm*g.levels}×${g.cellMm*6}×${g.thickMm} mm）＋${g.pillarMm} mm 洗料柱——<b>六對一次做到位</b>，不砍成只做白配其他三色。`;
+  }
   const S=(eng&&eng.calibStripDefaultS)?eng.calibStripDefaultS(cols[0],cols[1]):[];
-  /* 幾何數字一律問引擎（CALIB_STRIP_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
   const g=(eng&&eng.calibStripGeo)?eng.calibStripGeo():null;
   const geo=g?`${S.length} 階直立條 ${g.widthMm}×${g.thickMm}×${(S.length*g.bandMm)} mm（每階 ${g.bandMm} mm）＋洗料柱 ${g.purgeMm}×${g.purgeMm} mm`:`${S.length} 階直立條`;
-  return `　${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`;
+  return `${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`
+       + '<br>旁邊的<b>洗料柱隨階換比例</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，片從每階第一層就是乾淨色（FD300 0.4 實印約 <b>12 分</b>）；印完整階都可以量，柱不用拍。';
 }
-/* 第 2 步拍照提示（Eric 2026-09-18 裁「②做」，牌 c-0918-CAL-02）：原本寫死「純白那階在最下面」，
-   但校正片最底階＝S 清單第一個＝1＝**全料 1**（engine.js buildCalibStripParts「S 必須由下往上嚴格遞減」）——
-   料 1 較暗時最底階是深色，照舊句會把照片轉反（0918 Eric 截圖料 1＝#1A1A1A 就是這種）。改成照目前料 1 講。 */
+/* 第 3 步拍照提示（Eric 2026-09-18 裁「②做」，牌 c-0918-CAL-02）：校正片最底階＝S 清單第一個＝1＝**全料 1**
+   ——料 1 較暗時最底階是深色，照舊句「純白那階在最下面」會把照片轉反。四料＝最下面那排是料 1×料 2（校正頁 R1 在最下）。 */
 function calibShootHintHtml(){
-  const c=String(slots[0].color||'').toUpperCase();
+  if(slotCount===4) return '正面照，照印出來的方向拍、不要轉（最下面那排是<b>料 1×料 2</b>，最左邊那欄是純色）；整塊入鏡、四個角都在畫面裡；順光，避免反光與陰影。';
+  const c=calColors()[0]||'';
   const sw=/^#[0-9A-F]{6}$/.test(c)?`<span style="display:inline-block;width:10px;height:10px;border:1px solid #6F7773;vertical-align:-1px;background:${c}"></span> ${c}`:'';
   return `直立拍（最下面那階是<b>料 1</b> 的純色 ${sw}；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。`;
 }
-function calibTableStat(){
-  const el=document.getElementById('calibTableStat'); if(!el) return;
-  const btn=document.getElementById('btnCalibClear');
-  if(!calibTable){ el.textContent='尚未匯入校正表'; if(btn) btn.style.display='none'; return; }
-  if(btn) btn.style.display='';
-  const now=slots.slice(0,2).map(s=>s.color.toUpperCase()).join(' · ');
-  if(slotCount!==2) el.innerHTML='已匯入雙料校正表，但目前是<b>四色</b>模式 —— 未套用。';
-  else if(!calibMatchesNow())
-    el.innerHTML=`⚠ 已匯入的校正表是 <b>${calibTable.slots.slice(0,2).join(' · ')}</b> 這組料，目前料色是 <b>${now}</b> —— <b>未套用</b>。校正資料只綁線材，換了料就要重新校正。`;
-  else
-    el.innerHTML=`✅ 已套用（${calibTable.pts.length} 點，${calibTable.slots.slice(0,2).join(' · ')}）—— 模擬圖與色條顯示的是<b>實測</b>顏色。${calibTable.persisted?'':'<br><span class="sub">⚠ 這次無法存進瀏覽器，關掉工作室後要重新匯入。</span>'}`;
-  if(slotCount===2) el.innerHTML+='<br><span class="sub">料色由校正表決定，自動配色不會覆寫它——要改回自動配色請按上面的「清除」。</span>';
-}
-/* ④-2 的狀態列：套了沒、為什麼沒套，一律講清楚。⛔ 不准出現只講好消息的「已套用校正」——被擋下時使用者要知道印出來的還是理論階梯。 */
-function renderCalibGenStat(K){
-  applyCalibMode();                                  // 乙6①：先決定整段顯不顯示，再談狀態文字
-  const el=document.getElementById('calibGenStat'); if(!el) return;
-  const chk=document.getElementById('calibGenChk'); if(chk) chk.checked=!!params.calibGen;
-  const spec=document.getElementById('calibSpec'); if(spec) spec.textContent=calibSpecText();
+/* 校正流程第 2、3 步的說明隨第 1 步的料走（matflow.js 畫完第 1 步後呼叫）。 */
+function calibRenderSteps(){
+  const spec=document.getElementById('calibSpec'); if(spec) spec.innerHTML=calibSpecText();
   const shoot=document.getElementById('calibShootHint'); if(shoot) shoot.innerHTML=calibShootHintHtml();
-  calibTableStat(); applyCalibSummary();
-  const g=window.__calibGen;
-  if(!calibTable){ el.textContent='（要先匯入校正表）'; return; }
-  if(slotCount!==2 || !calibMatchesNow()){ el.textContent='（校正表與目前料色不符，整段未套用）'; return; }
-  if(!params.calibGen){ el.textContent='已關閉：色階仍用理論推算，印出來的與匯入校正表前相同。'; return; }
-  if(!g){ el.textContent=''; return; }
-  if(!g.applied){ el.innerHTML='<b style="color:#b3281e">未套用</b>（護欄擋下）：'+g.why+'<br>⇒ 色階仍用理論推算，印出來的與匯入前相同。'; return; }
-  el.innerHTML='<b>已套用</b>：色階改在實測亮度上均分（實測 L* 跨幅 '+Number(g.span).toFixed(1)+'）。<b>印出來的東西已與匯入前不同。</b>'
-              +(g.warnOnly?'<br>⚠ 資料有疑慮但不擋：'+g.warnOnly:'');
-  const st=document.getElementById('calibStretchStat'); const sc=document.getElementById('calibStretchChk'); if(sc) sc.checked=!!params.calibStretch;
-  if(st){ const tm=window.__calibToneMap;
-    st.textContent = !params.calibStretch ? '已關閉：圖的 L* 直接對料的實測範圍分階，超出範圍夾住。'
-      : (tm ? `已套用：圖 L* ${tm.Lmin.toFixed(0)}～${tm.Lmax.toFixed(0)} → 料可印 ${tm.dark.toFixed(0)}～${tm.light.toFixed(0)} 再分階。` : ''); }
 }
-function calibSetTable(tbl, persist){
-  calibTable=tbl;
-  if(tbl && persist!==false){
-    try{ localStorage.setItem(CALIB_LS_KEY, JSON.stringify(tbl.raw)); tbl.persisted=true; }
-    catch(e){ tbl.persisted=false; }
-  }
-  calibTableStat(); simulate();
+/* 產圖流程第 1 步收起時的狀態行：只在「不是預設」的時候講——⛔ 不准只講好消息（R8-5）：
+   列印內容用的不是實測值（被關掉、或護欄擋下）時一定要看得到。 */
+function ptMatStatusLine(){
+  if(!params.calibGen) return '⚠ 已關閉「用實測顏色決定色階」（右欄「進階」）：色階照理論推算。';
+  const g = slotCount===4 ? window.__quadCalib : window.__calibGen;
+  if(g && g.applied===false && g.why) return '⚠ 實測值這次沒套用：'+g.why;
+  return '';
 }
-(function calibRestore(){
-  try{
-    const s=localStorage.getItem(CALIB_LS_KEY);
-    if(s && window.PhotoTileEngine){ const raw=JSON.parse(s); const tbl=PhotoTileEngine.calibParseTable(raw); tbl.persisted=true; calibTable=tbl; }
-  }catch(e){ calibTable=null; }
-})();
+/* 狀態變了才重畫第 1 步（那一行平時不佔位子，有話要講時才出現——要重畫才長得出來、講完才收得回去）。 */
+function ptMatStatus(){
+  const el=document.getElementById('mfStatus'), t=ptMatStatusLine();
+  if((el?el.textContent:'')!==t && window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();
+}
 /* ================= 材料庫接線（R6-14；牌 c-0922-ACC-15）=================
    本段只做**資料通道**：開庫、遷移舊鍵、把收到的表寫進庫。
-   ⚙ 產圖流程要怎麼「從庫裡選一組料」、未校正的料怎麼呈現（硬闸門），是**段 F**（車 3）的事，這裡不碰版面。
-   🔴 舊鍵 CALIB_LS_KEY **不刪**（rollback 的唯一退路）；雙料那條路線一行未動⇒ 舊行為逐位元不變。 */
+   ⚙ 產圖流程要怎麼「從庫裡選一組料」、未校正的料怎麼呈現（硬闸門）＝段 F（車 3），住 matflow.js。
+   🔴 舊鍵 **不刪**（rollback 的唯一退路）；段 F 起也**不再寫**（見上面色彩校正那段的說明）。 */
 /* 🆕 段 B（車 2，牌 c-0923-ACC-21）：在 App 裡開（產品路徑）＝庫住 **App 設定資料夾**，讀寫都走 C++
    （phototile_matlib_*）；瀏覽器直開（開發）仍用瀏覽器儲存區。
    App 那一份的讀檔是**非同步**的：開頁時先用空庫接住，讀檔回來（matlibLoaded）再把
@@ -814,6 +744,8 @@ function matlibBootBrowser(){
 function matlibAfterLoad(){
   window.__matlibState={ host:matLibHost, loading:matLibLoading, pairs:(matLib&&matLib.pairs.length)||0,
                          storage:(window.PhotoTileMatLib&&PhotoTileMatLib.getStorage().name)||'', note:matLibNote };
+  /* 段 F：庫讀回來（App 那一份是非同步）／收下新表／存不進去 ⇒ 第 1 步跟著重畫；選擇有變才會重套料槽。掛載前呼叫＝什麼都不做。 */
+  if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();
 }
 (function matlibBoot(){
   if(!matlibReady()) return;
@@ -881,66 +813,57 @@ function matlibOnHostSaved(msg){
 /* 段 B（車 2）：機上裝了哪幾支線材（capability 的 filaments；料 N＝擠出機 N）。車 3 的選料／認領拿它當選項。
    🔴 只當選項清單：不拿它去猜「校正片的哪一端是哪一支」——猜錯＝整筆資料掛錯身分，而且沒人會發現。 */
 function hostFilamentList(){ return (machineCap && Array.isArray(machineCap.filaments)) ? machineCap.filaments : []; }
-/* 把一張已解析的校正表寫進庫。回傳 {added, persisted, why}；失敗不影響匯入本身，但**要講出來**。
-   ⚙ 頁面拿不到 filament_id（那是 C++ 那邊的東西，段 B）⇒ 這裡寫進去的料 fid 是 null、
-   標籤先帶量到的色碼；之後要請使用者認領（needsClaim 會標出來）。 */
-function matlibRecord(tbl){
+/* 把一張已解析的校正表寫進庫。mats＝校正流程第 1 步確認的身分（filament_id＋標籤），照槽位順序；
+   沒給（長度不對）＝fid null、標籤帶量到的色碼，之後在產圖流程第一次選到時請使用者認領（needsClaim）。
+   量到的色一律用表裡的（hex 只當顯示與防呆，不當鍵：R6-14 子題 1）。
+   回傳 {added, persisted, pending, why, mats}；失敗不影響匯入本身，但**要講出來**。 */
+function matlibRecord(tbl, mats){
   if(!matlibReady() || !matLib) return {added:0, persisted:false, why:'材料庫未載入'};
   try{
-    const mats=(tbl.slots||[]).map(h=>({fid:null, label:String(h||'').toUpperCase(), hex:h}));
+    const n=Array.isArray(tbl.pairs)?4:2;
+    const ids=(Array.isArray(mats)&&mats.length===n) ? mats.map(m=>({fid:m.fid||null, label:m.label})) : [];
     const at=new Date().toISOString().slice(0,10);
-    const pairs=Array.isArray(tbl.pairs)
-      ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:mats, measuredAt:at})
-      : [PhotoTileMatLib.pairFromDual(tbl, {materials:mats, measuredAt:at})];
+    const pairs=n===4
+      ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:ids, measuredAt:at})
+      : [PhotoTileMatLib.pairFromDual(tbl, {materials:ids, measuredAt:at})];
     pairs.forEach(p=>PhotoTileMatLib.upsertPair(matLib, p));
+    const outMats=(tbl.slots||[]).slice(0,n).map((h,i)=>PhotoTileMatLib.makeMaterial(Object.assign({hex:h}, ids[i]||{})));
     /* 🔴 App 那一份還沒讀回來 ⇒ 先不存（一存就把整份庫蓋成只剩這幾筆）；讀檔回來時會併進去一起存。 */
-    if(matLibLoading){ matlibAfterLoad(); return {added:pairs.length, persisted:false, pending:true, why:''}; }
+    if(matLibLoading){ matlibAfterLoad(); return {added:pairs.length, persisted:false, pending:true, why:'', mats:outMats}; }
     const w=PhotoTileMatLib.save(matLib);
     matLibNote=(w.persisted||w.pending)?'':w.why;
     matlibAfterLoad();
-    return {added:pairs.length, persisted:w.persisted, pending:!!w.pending, why:w.why};
+    return {added:pairs.length, persisted:w.persisted, pending:!!w.pending, why:w.why, mats:outMats};
   }catch(e){ return {added:0, persisted:false, why:String(e&&e.message||e)}; }
 }
+/* 段 F：認領或跳過改了庫之後存一次（matflow.js 呼叫）。 */
+function matlibSaveNow(){
+  if(!matLib || matLibLoading || !matlibReady()) return;
+  const w=PhotoTileMatLib.save(matLib); matLibNote=(w.persisted||w.pending)?'':w.why; matlibAfterLoad();
+}
 function calibShowError(err){
-  calibTable=null;
-  document.getElementById('calibTableStat').innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
-  document.getElementById('btnCalibClear').style.display='none';
-  applyCalibSummary();
+  const el=document.getElementById('calibTableStat');
+  if(el) el.innerHTML='⚠ 讀不到這張表：'+(err && err.message ? err.message : '格式不合');
+}
+function calMatsFor(n){ const m=window.PhotoTileMatFlow ? PhotoTileMatFlow.calMaterials() : []; return m.length===n ? m : []; }
+/* 收下之後：講結果、交給 matflow.js 進第 5 步（新量的那組直接成為產圖流程的選擇）。 */
+function calibRecordShow(r, quad, what){
+  const el=document.getElementById('calibTableStat'), kind=quad?'四料':'雙料';
+  if(!r.added){ if(el) el.innerHTML=`⚠ 這張${kind}表沒存進材料庫：${r.why}`; return; }
+  if(el) el.innerHTML=`✅ 已收下${kind}校正表（${what}）並存進<b>材料庫</b>。`
+    + ((r.persisted||r.pending)?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`);
+  if(window.PhotoTileMatFlow) PhotoTileMatFlow.onCalibrated(quad?'quad':'dual', r.mats);
 }
 /* 🔴 **單一入口**（2026-09-15，牌 c-0915-PTI-06）：檔案匯入與「工作室內覆蓋層直接帶回來」
-   走的是這同一支。新增覆蓋層路徑時刻意**不另寫一套套表邏輯**——下面 0914 的料色回填
-   若有兩份，遲早會漂移（這條線已經被兩份實作咬過三次）。 */
+   走的是這同一支（這條線已經被兩份實作咬過三次）。
+   🔴 段 F（車 3）：**不再在這裡改料槽**——0914 那段「匯入時把料 A／B 改成表的料色」的角色，
+   換成「新量的那組直接成為產圖流程的選擇」（matflow.onCalibrated）；料槽只由 ptMatApply() 從選的那組寫。 */
 function calibAcceptRaw(raw){
     try{
       const tbl=PhotoTileEngine.calibParseTable(raw);
-      /* 🔴 四料表走另一條路，**不碰 calibTable／舊鍵**。
-         為什麼要有這一分流：0922 之前 calibParseTable 對料數!==2 直接丟例外，四料表根本進不來；
-         現在它解析得過了，若沒有這一分流，一張四料表會被寫進那個**只有一格**的舊鍵，
-         把使用者的雙料表静默蓋掉——那是本次改動自己會造出來的回歸。
-         ⚙ 四料的**套用**（calibRequest）還沒開：那要等段 F 把畫面接上，否則就是「默默生效、畫面沒話」——
-         這條線一路最貴的失敗形態。所以這裡**誠實講出來**。 */
-      if(Array.isArray(tbl.pairs)){
-        const r=matlibRecord(tbl);
-        const el=document.getElementById('calibTableStat');
-        if(el) el.innerHTML=r.added
-          ? `✅ 已收下四料校正表（${tbl.pairs.length} 對）並存進<b>材料庫</b>。`
-            + ((r.persisted||r.pending)?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`)
-            + '<br><span class="sub">⚠ 四料的套用還沒接上畫面，這次不會改變模擬與列印結果。</span>'
-          : `⚠ 這張四料表沒存進材料庫：${r.why}`;
-        return true;
-      }
-      /* 0914（Eric 裁 Q2 乙「料槽顏色用實際線材色」）：校正表就是「這兩支料印出來的真色」的唯一實測來源
-         ——匯入時直接把料 A／B 改成表宣告的料色（表的 料[1] 依 measured/README §一 修正法＝S=0 那階量到色）。
-         不改＝表永遠對不上目前料色（0822 那兩張表就是這樣被關在門外）。只在雙料且表有兩支料色時做；四料不動。 */
-      let applied='';
-      if(slotCount===2 && tbl.slots.length>=2 && /^#[0-9A-F]{6}$/.test(tbl.slots[0]) && /^#[0-9A-F]{6}$/.test(tbl.slots[1])){
-        const before=slots.slice(0,2).map(x=>x.color.toUpperCase());
-        slots[0].color=tbl.slots[0].toLowerCase(); slots[1].color=tbl.slots[1].toLowerCase();
-        if(before[0]!==tbl.slots[0]||before[1]!==tbl.slots[1]){ renderSlots(); applied=`料色已改成校正表的料（${tbl.slots[0]} · ${tbl.slots[1]}）。`; }
-      }
-      calibSetTable(tbl);
-      matlibRecord(tbl);          // 順手寫進材料庫（純加法：舊鍵照寫、calibTable 不動，舊行為不變）
-      if(applied){ const el=document.getElementById('calibTableStat'); if(el) el.innerHTML=applied+'<br>'+el.innerHTML; }
+      /* 雙料、四料都只進材料庫（**不碰舊鍵**——車 1 為四料加的那道「不寫舊鍵」分流，段 F 起雙料也一樣）。 */
+      const quad=Array.isArray(tbl.pairs);
+      calibRecordShow(matlibRecord(tbl, calMatsFor(quad?4:2)), quad, quad ? tbl.pairs.length+' 對' : tbl.pts.length+' 點');
       return true;
     }catch(err){ calibShowError(err); return false; }
 }
@@ -956,18 +879,13 @@ document.getElementById('calibFile').onchange=e=>{
   rd.readAsText(f);
   e.target.value='';
 };
-document.getElementById('btnCalibClear').onclick=()=>{
-  calibTable=null;
-  try{ localStorage.removeItem(CALIB_LS_KEY); }catch(e){}
-  calibTableStat(); simulate();
-};
 document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
 document.getElementById('calibStretchChk').onchange=e=>{ params.calibStretch=e.target.checked; queue(); };
-/* 校正片＝引擎 buildCalibStrip（與 照片磚_色彩校正/make_calib_3mf.py --purge 同構的「直立條＋隨階換比例洗料柱」，
-   幾何＝0914 實印驗證過的 v2c；產出的 3dmodel.model 與 python 參考正本逐位元組相同，由 phototile_calib_test.js 釘住）。
-   產品路徑走 phototile_export_begin/chunk/end（GUI_App.cpp 舊收件口——C-2 後閒置但仍在；end 帶 mode/nozzle
-   ⇒ C++ photo_tile_deliver_3mf 先切對應同進照片磚機再開檔）；瀏覽器直開＝下載。 */
-async function sendCalib3mfToSlicer(blob, fname, st){
+/* 校正片＝引擎 buildCalibStrip（雙料：與 照片磚_色彩校正/make_calib_3mf.py --purge 同構的「直立條＋隨階換比例洗料柱」）
+   ／buildCalibQuad（四料 48 格：與 make_calib_quad_3mf.py 同構，車 1 已用 sha256 釘住）；幾何都住引擎。
+   產品路徑走 phototile_export_begin/chunk/end（end 帶 mode/nozzle ⇒ C++ photo_tile_deliver_3mf 先切對應的同進照片磚機再開檔）；
+   瀏覽器直開＝下載。 */
+async function sendCalib3mfToSlicer(blob, fname, st, mode){
   const bytes=new Uint8Array(await blob.arrayBuffer());
   const rawChunkSize=96*1024;                    // 可被 3 整除，不會在中段產生 base64 padding
   const chunks=Math.ceil(bytes.length/rawChunkSize);
@@ -978,31 +896,28 @@ async function sendCalib3mfToSlicer(blob, fname, st){
     st.textContent=`正在送入列印板… ${i+1}/${chunks}`;
     await new Promise(resolve=>setTimeout(resolve,0));
   }
-  sendSlicerMessage('phototile_export_end',{name:fname, mode:'dual', nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
+  sendSlicerMessage('phototile_export_end',{name:fname, mode:mode||'dual', nozzle:Number.isFinite(params.nozzle)?params.nozzle.toFixed(1):''});
 }
 document.getElementById('btnCalib').onclick=async()=>{
-  const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib');
-  /* 四色時整顆鈕已經不顯示（applyCalibMode），這裡是第二道（鍵盤／程式觸發也擋）。
-     訊息與 #calibQuadNote 同一句：從 FF600 同進進來料數已鎖四色，叫人「切回雙料」是做不到的指示。 */
-  if(slotCount!==2){ st.textContent='　目前只支援雙料同進機，請從 FD 同進機進工作室。'; return; }
-  if(!window.PhotoTileEngine || !PhotoTileEngine.buildCalibStrip){ st.textContent='　引擎未載入，請重新整理頁面。'; return; }
+  const st=document.getElementById('calibStat'), b=document.getElementById('btnCalib'), eng=window.PhotoTileEngine;
+  if(!eng || !eng.buildCalibStrip || !eng.buildCalibQuad){ st.textContent='　引擎未載入，請重新整理頁面。'; return; }
   b.disabled=true; st.textContent='　產生中…';
   try{
-    const cols=slots.slice(0,2).map(s=>s.color.toUpperCase());
-    /* 不帶幾何 ⇒ 用引擎的 CALIB_STRIP_GEO（v2c 定案：40×6、每階 2 mm、12 mm 洗料柱、gap 8）。
-       這裡寫死數字＝再製造一次 v1／v2c 分叉，不要做。 */
-    const r=await PhotoTileEngine.buildCalibStrip({hexA:cols[0], hexB:cols[1], nameA:'料A', nameB:'料B'});
-    const fname=`色彩校正_雙料${r.s.length}階直立條洗料柱_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
+    const cols=calColors(), quad=slotCount===4;
+    /* 不帶幾何 ⇒ 用引擎的定案值（雙料 v2c：40×6、每階 2 mm、12 mm 洗料柱；四料：10 mm 格、25 mm 柱）。這裡寫死數字＝再製造一次分叉。 */
+    const r=quad ? await eng.buildCalibQuad({colors:cols.slice(0,4)})
+                 : await eng.buildCalibStrip({hexA:cols[0], hexB:cols[1], nameA:'料A', nameB:'料B'});
+    const fname=quad ? `色彩校正_四料48格_${cols.slice(0,4).map(c=>c.slice(1)).join('_')}.3mf`
+                     : `色彩校正_雙料${r.s.length}階直立條洗料柱_${cols[0].slice(1)}_${cols[1].slice(1)}.3mf`;
     if(slicerBridgeReady()){
-      await sendCalib3mfToSlicer(r.blob, fname, st);
-      st.textContent='　已送入列印板。切片列印後拍正面照，再按下面第 3 步的「讀校正照片…」讀照片。';
+      await sendCalib3mfToSlicer(r.blob, fname, st, quad?'quad':'dual');
+      st.textContent='　已送入列印板。切片列印之後，拍一張正面照。';
     }else{
       const a=document.createElement('a'); a.href=URL.createObjectURL(r.blob); a.download=fname; a.click();
-      st.textContent=`　已輸出 ${fname}（${r.s.length} 階＋洗料柱、${r.width}×${r.thick}×${r.height} mm、${(r.blob.size/1024).toFixed(0)} KB）。`;
+      st.textContent=`　已輸出 ${fname}（${(r.blob.size/1024).toFixed(0)} KB）。`;
     }
-    calibMadeColors=cols.join(' · ');
-    calibMadeS=Array.isArray(r.s)?r.s.slice():null;
-    applyCalibSummary();
+    calibMadeS=(!quad && Array.isArray(r.s))?r.s.slice():null;
+    if(window.PhotoTileMatFlow) PhotoTileMatFlow.goCal(3);
   }catch(e){ st.textContent=`　產生失敗：${e && e.message ? e.message : '請重試'}`; }
   finally{ b.disabled=false; }
 };
@@ -1069,27 +984,23 @@ function simulateVerticalQuad(){
      兩料混的好處：同時最多 2 支進料（機構單純）＋校準色卡只要印 6 條階梯。
      上限：Orca 線材 64 支（MAXIMUM_EXTRUDER_NUMBER）——超過自動併掉最少用的。 */
   const K=Math.max(2,params.klevels);
-  const cols=slots.slice(0,4).map(s=>hexLin(s.color));
-  const mixLin=w=>[0,1,2].map(ch=>(w[0]*cols[0][ch]+w[1]*cols[1][ch]+w[2]*cols[2][ch]+w[3]*cols[3][ch])/100);
-  const PAIRS=[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]];
-  const cands=[]; const seenW=new Set();
-  for(const [i,j] of PAIRS){
-    for(let s=0;s<K;s++){
-      const w=[0,0,0,0];
-      w[i]=Math.round((1-s/(K-1))*100); w[j]=100-w[i];
-      const key=w.join(','); if(seenW.has(key)) continue; seenW.add(key);
-      const lin=mixLin(w);
-      cands.push({w, lin, lab:lin2lab(...lin)});
-    }
-  }
+  /* 🔴 段 F（車 3，牌 c-0923-ACC-23；R8-5「兩把尺一起換」）：候選色＋校正計畫改問引擎 quadCandidates
+     （＝3MF 生成 quantizeQuad 那一支），明暗映射的啟動條件問 quadToneStretch。車 2 以前這裡自己用 mixLin 算理論候選、
+     不吃校正——四料畫面接上之後，那就是「預覽一把尺、輸出一把尺」。 */
+  const eng=window.PhotoTileEngine, calibReq=calibRequest();
+  const qc=eng.quadCandidates(slots, K, calibReq);
+  const cands=qc.cands;
+  window.__quadCalib=qc.plan||null;                         // 產圖第 1 步的狀態行據此講實話（套了沒）
   let palette, labArr=null, usageF=null;
   const n=img? img.w*img.h : 0;
+  const ts=img ? eng.quadToneStretch(img.lab, n, qc, calibReq) : null;
+  const L0of=p=>ts ? ts.mapL(img.lab[p*3]) : img.lab[p*3];  // 段 E 映射（只動 L*，與引擎同式）
   let dropped=0;
   if(img){
     /* 每像素 → 全體候選找最近 → 只留有用到的、超過 64 併掉最少用的 */
     const assign=new Uint16Array(n); const usage=new Uint32Array(cands.length);
     for(let p=0;p<n;p++){
-      const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];
       let bi=0,bd=1e9;
       for(let i=0;i<cands.length;i++){ const c=cands[i].lab;
         const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -1106,8 +1017,8 @@ function simulateVerticalQuad(){
     labArr=new Uint8Array(n); usageF=new Uint32Array(palette.length);
     for(let p=0;p<n;p++){
       let pi=remap[assign[p]];
-      if(pi<0){                                                  // 被併掉→改對留下的最近色
-        const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      if(pi<0){                                                  // 被併掉→改對留下的最近色（同一個映射後的 L*）
+        const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];
         let bd=1e9; pi=0;
         for(let i=0;i<palette.length;i++){ const c=palette[i].lab;
           const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -1159,7 +1070,7 @@ function simulateVerticalQuad(){
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   lastDeltaE=de;
-  const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——換料 B/C/D 的顏色試試（例如補圖中缺的色系）';
+  const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——在第 1 步換一組料試試（例如補上圖中缺的色系）';   // 段 F：料色不再能直接改，要換就換一組量過的
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
   /* 四料壓平（Eric 2026-09-03 裁③）：與 simulateVertical 尾端同一個掛鉤——這裡的 cands 就是
@@ -1211,7 +1122,6 @@ function simulateVertical(){
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
   for(let i=1;i<K;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
-  renderCalibGenStat(K);
   listVertical(levels);
   if(!img){ lastUsedColours=0; lastGenColours=0; if(typeof renderCycleUI==='function') renderCycleUI(); updateNoiseStat(null); return; }
   const t0=performance.now();
@@ -1265,7 +1175,20 @@ function listVertical(levels){
   });
   document.getElementById('swapList').textContent=lines.join('\n');
 }
-function simulate(){ simulateVertical(); if(slotCount===4) renderCalibGenStat(params.klevels); }   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色。0914：四料時也刷新校正狀態列（雙料表在四料下不套用要講）
+function simulate(){   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色
+  /* 🔴 段 F（R6-16 推論①）：還沒選顏色＝手上沒有量過的料 ⇒ 不拿理論色頂上，模擬區講清楚要先做什麼。 */
+  if(!calibOwnsSlots()){ simulateBlank(); return; }
+  simulateVertical(); ptMatStatus();
+}
+function simulateBlank(){
+  simCanvas.width=4; simCanvas.height=4; simCtx.clearRect(0,0,4,4);
+  coreCtx.clearRect(0,0,coreCanvas.width,coreCanvas.height);
+  document.getElementById('coreRight').textContent='';
+  document.getElementById('swapList').textContent='—';
+  document.getElementById('metric').textContent='先在左邊「1 選顏色」選一組校正過的料，這裡才看得到列印模擬——沒量過的料，系統不知道它印出來是什麼顏色。';
+  lastDeltaE=null; lastUsedColours=0; lastGenColours=0;
+  if(typeof renderCycleUI==='function') renderCycleUI();
+}
 
 /* ================= 圖片載入 ================= */
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
@@ -1580,6 +1503,7 @@ window.PINGPhotoTile={
     applyFixedModeFromHost();   /* 甲案（2026-09-08）：從同進機進來就照那台定料數 */
     applyNozzleFromHost();      /* 2026-09-08：口徑跟進來時機器的噴嘴（Eric：「口徑可否依照機器選擇的口徑自動變化」） */
     syncModeAvailability();
+    if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   /* 段 F：機上線材到了 ⇒ 校正第 1 步的預設、認領的選項才有 */
   },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
   jobProgress(p){
@@ -1797,7 +1721,8 @@ function updateSizeInfo(){
 document.getElementById('levelsIn').onchange=e=>{
   // 上限 8＝Eric 2026-08-02 裁 B；Math.round＝覆審 I-5：5.5 不 round 會存成小數，
   // C++ 端 get<int> 靜默回退預設 8 階（開發路徑卻做 6 階＝兩條路不同結果）
-  params.klevels=Math.max(2,Math.min(8,Math.round(+e.target.value)||8));
+  const cap=Math.min(8, +e.target.max||8);   // 段 F：這組料最多做得出幾階（R6-7 附款；ptMatApply 寫進 max）——要更多階選不到
+  params.klevels=Math.max(2,Math.min(cap,Math.round(+e.target.value)||cap));
   e.target.value=params.klevels;
   if(typeof renderCycleUI==='function') renderCycleUI();   // R12-5：塔圈數＝色階數＋1，色階一變圈數欄就要跟著變
   queue();
@@ -1929,11 +1854,11 @@ function genStatline(cls,text,action){
      「我在什麼時候要選擇機型呢？這個畫面並沒有讓我選擇的位置」）。
      🔴 用 textContent 寫字、按鈕走 appendChild——**不要改成 innerHTML**：
         這些訊息裡含使用者的檔案路徑，拼 HTML 等於開一個注入面。 */
-  if(action && slicerBridgeReady()){
+  if(action && (action.fn || slicerBridgeReady())){          // fn＝頁內出口（段 F「去選顏色」），不必經過宿主
     const b=document.createElement('button');
     b.className='btn ghost'; b.style.marginLeft='8px';
     b.textContent=action.label;
-    b.onclick=()=>sendSlicerMessage(action.cmd,{});
+    b.onclick=action.fn || (()=>sendSlicerMessage(action.cmd,{}));
     st.appendChild(b);
   }
 }
@@ -2022,6 +1947,8 @@ function buildRequest(){
 document.getElementById('btnGenCancel').onclick=genCancelClick;
 document.getElementById('btnExport').onclick=async()=>{
   if(genState) return;
+  /* 段 F（R6-16 推論①＋FBK-11）：還沒選顏色＝手上沒有量過的料 ⇒ 不產生；講缺什麼、給一顆過去的按鈕。 */
+  if(!calibOwnsSlots()){ genStatline('warn','還沒選顏色——先在左邊「1 選顏色」選一組校正過的料。',{label:'去選顏色',fn:()=>PhotoTileMatFlow.openPicker()}); return; }
   if(!img){ genStatline('warn','請先載入圖片'); return; }
   clearTimeout(tq); simulate();                    // 同舊行為：先套畫面上最新參數再生成
   const req=buildRequest();
@@ -2327,15 +2254,24 @@ function ptAiGenerate(s, tones){
     ptStyleStat('⚠ 請先載入一張照片，AI 款式是拿你的照片去改，不是憑空生一張。');
     return;
   }
+  /* R6-15（段 F）：先有顏色才產圖——AI 要照這組料印得出的顏色去畫，沒選料就沒有東西可以帶給它。 */
+  if(!calibOwnsSlots()){
+    ptStyleStat('⚠ 先在上面「1 選顏色」選一組校正過的料——AI 產圖會照這組料印得出的顏色去畫。');
+    return;
+  }
   const size=ptAiSize();
   /* 佔位代換與 dev 端 pipeline.py 逐字同法（那邊是 ground truth，別自己另發明一套）。 */
   /* 🔴 調性鐵則一律接在款式 prompt 後面（Eric 2026-09-16 裁「寫進去」）。
      在這之前它只活在臨時檔裡、要有人記得疊——四料第一輪就是沒疊，五張漂了四張。
      正本＝款式庫 constants.toneRules；**另一個消費端＝照片磚管線/pipeline.py，改這裡就要改那裡**。 */
+  /* 🆕 Q1（Eric 2026-09-23 裁「照建議」；R6-15）：尾端再接一行「只能用這組料的顏色，以及它們兩兩的混色」
+     （顏色＝第 1 步從材料庫選的那組量到的色）。接在 toneRules **後面**：它自己寫「與上面的配色指示衝突時以上面為準」，
+     放在它上面會被它讓位。⚠ 另一個消費端 照片磚管線/pipeline.py 沒有「選料」這一步（離線管線拿款式參考色），不接這一行。 */
   const prompt=String(s.promptTemplate||'')
     .split('{minPx}').join(String(ptAiMinPx(size)))
     .split('{tones}').join(String(tones))
-    + (s.promptTemplate ? '\n\n' + String(STYLE_LIB.constants.toneRules || '') : '');
+    + (s.promptTemplate ? '\n\n' + String(STYLE_LIB.constants.toneRules || '') : '')
+    + (s.promptTemplate ? '\n\n' + PhotoTileMatFlow.aiPaletteLine(PhotoTileMatFlow.info()) : '');
   ptAiJob='ai-'+Date.now(); ptAiChunks=null; ptAiMeta=null;
   ptSyncBusy();                                          // 生圖中：款式卡鎖住（Eric 2026-09-03：生圖中點到模板不該再問要不要生圖）
   ptAiStyle={id:s.id, tones:tones};        // aiEnd 要用它接續壓平（見那裡的說明）
@@ -2427,9 +2363,10 @@ function ptConfirmApply(s, isRegen, enlargeTo){
     }else{
       lines.push('這一款在你的電腦上重新計算，約 1~2 秒，不花錢。');
     }
-    lines.push('套用會覆蓋目前的色階數（改成 '+tones+' 階）與料色（'
-               +(s.lockSlots===false?'交給自動配色'
-                 :(s.requiresAI&&s.mode==='quad'?'先套款式參考色，生圖後照 AI 圖自動配色':'鎖成款式指定的顏色'))+'）。');
+    /* 段 F（R6-16）：款式只換「怎麼畫」，不換「用哪幾支料」——料色維持第 1 步選的那組；色階數照款式建議，但壓不過這組料的上限（R6-7 附款）。 */
+    const inf=window.PhotoTileMatFlow ? PhotoTileMatFlow.info(s.mode) : null, cap=inf ? inf.cap : 8;
+    lines.push('套用會把色階數改成 '+Math.min(tones,cap)+' 階'+(tones>cap?'（款式建議 '+tones+' 階，這組料最多做得出 '+cap+' 階）':'')
+               +'；料色維持你選的那組（由料決定圖）。');
 
     const back=document.createElement('div'); back.className='cfmBack';
     const box=document.createElement('div'); box.className='cfmBox';
@@ -2448,7 +2385,7 @@ function ptConfirmApply(s, isRegen, enlargeTo){
     const no=document.createElement('button'); no.className='btn'; no.textContent='取消';
     const yes=document.createElement('button'); yes.className='btn primary';
     yes.textContent=enlargeTo?'放大並套用':(isRegen?'確定再生成':'確定套用');
-    btns.appendChild(no); btns.appendChild(yes);
+    btns.appendChild(yes); btns.appendChild(no);   // LAY-15：肯定在左、取消恆在最右（段 F 動到這個窗時順手對齊；焦點仍在取消）
     box.appendChild(h); box.appendChild(b); box.appendChild(btns); back.appendChild(box);
     document.body.appendChild(back);
 
@@ -2471,17 +2408,19 @@ function ptApply(s){
   slotCount=want;
   const seg=document.getElementById('modeSeg');
   if(seg) for(const b of seg.children) b.classList.toggle('on', +b.dataset.n===want);
-  /* 料色：先寫進款式宣告的那組（沒有圖時的合理初值），再看要不要交給自動配色。
+  /* ⛔ 下面這段（2026-08-17）已被 R6-16 推翻（2026-09-22 裁；段 F 落地），原文保留供追溯、**不要照它做**：
+     料色：先寫進款式宣告的那組（沒有圖時的合理初值），再看要不要交給自動配色。
      🔴 分界＝這個款式吃的是「AI 生的平面化圖」還是「原始照片」（Eric 2026-08-17 裁）：
        · AI 款（lockSlots=true）**鎖定**——配色是款式設計的一部分，且自動配色在
          單色佔大面積的平面化圖上會挑錯料（臉填滿的模板風 38.17 → 鎖定後 5.29）。
        · 本地款（lockSlots=false）**交給自動配色**——D-1（2fc9492d42）修好評分之後，
          規格自己的杜賓案例就是自動 8.28 勝過手動鎖定 8.45；而鎖死一組固定料色
          碰到色系不同的照片反而更差（實測：米白＋棕在綠色風景 ΔE 37.9→44.8）。 */
-  /* 同 calibOwnsSlots()：款式宣告的料色是「沒有圖時的合理初值」，
-     壓不過實測值。四料（slotCount!==2）不受影響，行為逐字不變。 */
-  if(!calibOwnsSlots()) s.slots.forEach((hex,i)=>{ if(slots[i]) slots[i].color=hex; });
-  const tones=ptTones(s);
+  /* 🔴 段 F（車 3，R6-16）：料色一律來自材料庫選的那組——款式只換「怎麼畫」（色階數、畫風），不換「用哪幾支料」。
+     原本這裡把款式宣告的料色寫進料槽（「沒有圖時的合理初值」，壓不過校正表）；材料庫上線後那一行拿掉，
+     料槽只剩 ptMatApply() 一個寫入點。色階數照款式建議，但壓不過這組料的上限（R6-7 附款）。 */
+  const inf=window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null;
+  const tones=Math.min(ptTones(s), inf ? inf.cap : 8);
   params.klevels=tones;
   const lv=document.getElementById('levelsIn'); if(lv) lv.value=tones;
   if(typeof renderCycleUI==='function') renderCycleUI();   // 款式帶進來的色階數同樣會改塔圈數（R12-5）
@@ -2561,7 +2500,8 @@ function ptRender(){
       return '<div class="scard'+((s.id===ptStyle&&u.ok)?' sel':'')+(s.id===ptApplied?' applied':'')+(u.ok?'':' off')+'" data-s="'+s.id+'">'
         +'<div><span class="nm">'+s.name+'</span>'
         +'<span class="tag '+(s.requiresAI?'ai':'loc')+'">'+(s.requiresAI?'AI':'本地')+'</span></div>'
-        +'<div class="meta">建議 '+ptTones(s)+' 色階　·　'+(s.mode==='quad'?'四料':'雙料')+'　·　'+(s.lockSlots===false?'料色自動':(s.requiresAI&&s.mode==='quad'?'料色隨 AI 圖':'料色鎖定'))
+        /* 段 F（R6-16）：「料色鎖定／自動／隨 AI 圖」拿掉——料色一律是第 1 步選的那組，款式不再管料色。 */
+        +'<div class="meta">建議 '+ptTones(s)+' 色階　·　'+(s.mode==='quad'?'四料':'雙料')
         +'<br>保留 '+s.preserves.join('、')
         /* R9-7：Eric 2026-08-22 裁「臉佔畫面 20%」的**限制先不做**，但**理由不准跟著消失**——
            它防的不是品質，是**身分**：臉太小時 AI 沒有足夠像素判斷這隻狗的眼距／鼻樑／耳型，
@@ -2676,7 +2616,22 @@ const lvEl=document.getElementById('levelsIn');
 if(lvEl) lvEl.addEventListener('change',()=>setTimeout(ptInvalidateApplied,0));
 /* 車 2 段 D：btnSuggest 那一條拿掉了——那顆鈕已經不改料色（改成「依料重算圖面顏色」），按它不會讓設定偏離款式。 */
 document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
-document.getElementById('slotList').addEventListener('input',()=>setTimeout(ptInvalidateApplied,0));
+/* 段 F：料色那一條（slotList 的 input）拿掉——取色器已換成材料庫選料，款式也不再管料色，換料不算偏離款式。 */
+
+/* ================= 段 F：產圖流程第 1 步＋校正流程（matflow.js；牌 c-0923-ACC-23）=================
+   頁面這邊只交一個轉接物件（庫在哪、怎麼存、料數、機上線材、選好之後要做什麼）；畫面與規則住 matflow.js。
+   ⚠ 掛在這裡（啟動序最後段）而不是材料庫接線那段：轉接物件會碰到 machineCap（它的 let 在後面才宣告，早掛會踩 TDZ）。
+   選好一組之後：料槽改成那組、色階數壓到上限；已有圖＝照新的料重算圖面（R6-16 Q3：「料選完了，我讓圖面顏色跟著料去改變」）。 */
+function ptMatAfterChange(inf){
+  ptMatApply(inf);
+  if(img) recolorFromMaterials(); else { renderSlots(); simulate(); }
+}
+if(window.PhotoTileMatFlow) PhotoTileMatFlow.mount({
+  lib:()=>matLib, note:()=>matLibNote, save:matlibSaveNow, loading:()=>matLibLoading,
+  mode:()=>slotCount===4?'quad':'dual', params:()=>params,
+  filaments:hostFilamentList, slotColors:()=>slots.slice(0,slotCount).map(s=>s.color),
+  applied:ptMatAfterChange, statusLine:ptMatStatusLine, renderCalSteps:calibRenderSteps
+});
 ptSyncVisibility(); ptRender();
 renderSlots(); syncOrientUI();
 if(embeddedMode) simulate(); else makeDemo();
@@ -2734,7 +2689,8 @@ if(embeddedMode) simulate(); else makeDemo();
        ⇒ 雙料時直接告訴校正頁「直立條＋這兩個料色」（料色只用來排 S 清單方向；點完四角後照樣被照片實測值蓋過）。 */
     let src='calibration.html?embedded=1';
     if(slotCount===2){
-      const hx=slots.slice(0,2).map(s=>String(s.color||'').replace('#','').toUpperCase());
+      /* 段 F：料色＝校正流程第 1 步放的那組（calColors），不是產圖流程選的那組——兩條流程只共用材料庫。 */
+      const hx=calColors().slice(0,2).map(c=>c.replace('#',''));
       src+='&layout=vstrip'+(hx.every(h=>/^[0-9A-F]{6}$/.test(h))?`&a=${hx[0]}&b=${hx[1]}`:'');
       /* 🔴 S 清單要帶「產生校正片當下」那串（牌 c-0918-PTS-01 補 CAL-02 的洞）：校正頁點完四角會用照片量到的料色
          重算 S——工作室料色順序若跟機上實際裝的相反（0918 Eric 截圖料 1＝#1A1A1A、機上 E1 其實是白），
@@ -2746,7 +2702,7 @@ if(embeddedMode) simulate(); else makeDemo();
     /* ② 四料同理（本棒補，牌 c-0922-ACC-15）：不帶料色的話，校正頁會拿**它自己的預設白／紅／藍／黑**
        寫進匯出表的「料」欄位 ⇒ 表宣告的料色跟機上實際裝的完全無關，而且不會報錯（同 CAL-02 那一類）。 */
     if(slotCount===4){
-      const hx=slots.slice(0,4).map(s=>String(s.color||'').replace('#','').toUpperCase());
+      const hx=calColors().slice(0,4).map(c=>c.replace('#',''));
       if(hx.every(h=>/^[0-9A-F]{6}$/.test(h))) src+=`&a=${hx[0]}&b=${hx[1]}&c=${hx[2]}&d=${hx[3]}`;
     }
     frame.src=src;
