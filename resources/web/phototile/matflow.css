@@ -7,13 +7,15 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 
 /* ---- 產圖流程第 1 步「選顏色」----
    收起時只剩一行（第一眼看得到「用的是哪組料、最多幾階」）；選的時候就地展開（同圖庫 R11-1：要選才打開，選完就收）。
-   橫跨三欄（index.html 的 main 是三欄 grid）：放在左欄會把原圖卡往下推、破掉 0918「兩張圖頂端對齊」。
-   展開時內容收在 880 px 內——表格拉滿 1900 px 寬，眼睛要從左掃到右才對得上一列。 */
-#matPanel{grid-column:1/-1;}
-#matPanel > .pad{max-width:880px;}
+   🆕 2026-09-23 Eric 裁（牌 c-0923-ACC-25）：住在右欄「列印設定」卡片最上面、色階數上方——原本橫跨三欄放在頂端，
+   展開／收起會把原圖與列印模擬兩張圖整個往下推，而且自成一個新區塊。現在展開只推本卡下面的設定，兩張圖不動。
+   它是卡片裡的一個小節，不是第二張卡：標題不畫卡片標題的底線與內距，跟下面的設定之間用一條分隔線隔開。 */
+#matPanel{margin:0 0 10px; padding:0 0 10px; border-bottom:1px solid var(--gray);}
+#matPanel h2{padding:0; border-bottom:0; font-size:15px; flex-wrap:wrap; row-gap:4px;}   /* 右欄 400 px：放不下就讓「換一組…」換到下一行 */
+#matPanel > .pad{padding:6px 0 0;}
 .mfNo{flex:0 0 22px; height:22px; border-radius:50%; background:var(--orange); color:#fff; font:700 12.5px/22px Inter,Arial,sans-serif;
       text-align:center;}
-/* 鈕緊貼在摘要後面，不推到最右（這一列橫跨三欄，推到最右＝離它所指的那組料一千多 px：七律#3 標籤緊貼所指物） */
+/* 鈕緊貼在摘要後面（七律#3 標籤緊貼所指物） */
 #matPanel h2 .btn{margin-left:10px; flex:0 0 auto; padding:3px 10px; font-size:12.5px; font-family:inherit;}
 #matPanel h2 .hint{margin-left:2px;}
 .mfSum{display:inline-flex; align-items:center; gap:6px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
