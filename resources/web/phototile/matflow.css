@@ -57,7 +57,7 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 /* ---- 認領（R6-14 子題 2 附款）---- */
 .mfClaim{max-width:520px;}
 .mfClaimRow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; font-size:13px;}
-.mfClaimRow select{max-width:260px;}
+.mfClaimRow select{flex:1 1 auto; min-width:0;}   /* 選項是「擠出機 N：料名　色碼」，窄了色碼會被截掉 */
 .mfClaimRow input[type=text]{flex:1 1 140px; padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:13px;}
 /* LAY-15：肯定在左、取消（跳過）恆在最右——.cfmBtns 靠右排，DOM 順序就是左到右。 */
 

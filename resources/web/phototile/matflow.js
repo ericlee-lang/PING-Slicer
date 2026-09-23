@@ -188,7 +188,8 @@ function aiPaletteLine(info){
 
 let page = null;              // index.html 交進來的轉接物件（見 mount）
 let flow = 'gen';             // gen＝產圖流程｜cal＝校正流程
-let open = false;             // 產圖第 1 步展開中（正在選）
+let open = false;             // 使用者自己打開第 1 步（按「換一組…」）。還沒有可用的那組時，不論這個旗標都是展開的——
+                              // 🔴 兩件事不能混成一個旗標：App 的庫是非同步讀回來的，讀回來自動選好一組之後要自己收起（段 F 截圖抓到）
 let draft = null;             // 展開時正在點的那組（選齊才生效；沒選齊就收起＝維持原本那組）
 let flash = '';               // 點到選不到的列時的說明
 const applied = { dual: null, quad: null };   // 生效中的那組（setInfo 的結果）
@@ -366,14 +367,15 @@ function maybeClaim(){
   const mats = inf.mats.filter(m => !m.fid);
   if (!mats.length) return;
   claimOpen = true;
-  const at = inf.claim.map(p => p.measuredAt).filter(Boolean).sort()[0] || '之前';
+  const date = inf.claim.map(p => p.measuredAt).filter(Boolean).sort()[0];
+  const at = date ? ' ' + date + ' ' : '之前';                // 舊表沒有日期：讀成「這組是之前校正的…」，不要「這組是 之前 校正的」
   const back = root.document.createElement('div'); back.className = 'cfmBack';
   claimBack = back;
   /* 預設指給同一個槽位的那支（inf.mats 已照槽位排＝擠出機順序）；人可以改。 */
   const optsAt = sel => fil.map((f, i) => '<option value="' + i + '"' + (i === sel ? ' selected' : '') + '>'
     + esc('擠出機 ' + (i + 1) + '：' + (f.name || f.id || '') + (f.color ? '　' + String(f.color).toUpperCase() : '')) + '</option>').join('');
   back.innerHTML = '<div class="cfmBox mfClaim" role="dialog" aria-modal="true">'
-    + '<div class="cfmTitle">這組是 ' + esc(at) + ' 校正的 ' + inf.mats.map(m => esc(m.label)).join('×') + '，請指給現在的哪幾支線材？</div>'
+    + '<div class="cfmTitle">這組是' + esc(at) + '校正的 ' + inf.mats.map(m => esc(m.label)).join('×') + '，請指給現在的哪幾支線材？</div>'
     + '<div class="cfmBody">只問這一次。指定之後，換機器或改料名都認得出它；跳過也可以，那這組只能靠顏色比對。</div>'
     + mats.map(m => '<div class="mfClaimRow" data-key="' + esc(m.key) + '"><span class="mfSw" style="background:' + esc(m.hex) + '"></span>'
         + '<b>' + esc(m.label) + '</b> → <select>' + optsAt(Math.min(fil.length - 1, inf.mats.indexOf(m))) + '</select>'
@@ -428,7 +430,7 @@ function setFlow(f){
   if (seg) Array.prototype.forEach.call(seg.children, b => b.classList.toggle('on', b.getAttribute('data-flow') === flow));
   const cal = $('calFlow'); if (cal) cal.hidden = flow !== 'cal';
   if (flow === 'cal'){ if (!calIds || calIds.length !== NEED[mode()]) calIds = defaultCalIds(); renderCal(); }
-  else { open = !current(); renderPanel(); notify(); }
+  else { open = false; renderPanel(); notify(); }
 }
 
 /* ---- 校正流程 ---- */
@@ -554,7 +556,7 @@ function mount(p){
   if (seg) seg.addEventListener('click', e => { const f = e.target.getAttribute && e.target.getAttribute('data-flow'); if (f) setFlow(f); });
   const sl = $('slotList');
   if (sl) sl.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-mf="open"]')) openPicker(); });
-  open = !current();
+  open = false;
   renderPanel();
   notify(true);
   if (doc) doc.addEventListener('keydown', ev => { if (ev.key === 'Escape' && claimEsc) claimEsc(); });
@@ -562,7 +564,6 @@ function mount(p){
 /* 庫讀回來／存完／料數變了 ⇒ 重畫（頁面在這些時間點呼叫）。 */
 function refresh(){
   if (!page) return;
-  if (!open && !current()) open = true;
   renderPanel();
   if (flow === 'cal') renderCal();
   notify();
