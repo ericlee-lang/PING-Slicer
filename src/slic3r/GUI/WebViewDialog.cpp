@@ -386,11 +386,30 @@ void WebViewPanel::SendPhotoTileMachineCapability()
        頁面口徑沒跟機器走 ⇒ 0.6 的機會被切成 0.4 的照片磚機。nozzle_mm 讀 nozzle_diameter[0]（非同進機也有值）。 */
     std::string cur_nozzle_json = "null";
     if (cur.nozzle_mm > 0.0) { std::ostringstream os; os << cur.nozzle_mm; cur_nozzle_json = os.str(); }
+    /* 段 B（車 2，牌 c-0923-ACC-21）：機上裝了哪幾支線材（專案的線材順序＝頁面的料槽順序：料 N＝擠出機 N）。
+       頁面拿它做「選料」與「認領」的選項（R6-14 子題 1：材料身分＝filament_id＋使用者標籤；名稱會改，不能當鍵）。
+       🔴 只是**清單**：頁面不拿它去猜「校正片的哪一端是哪一支」——那要人指定（猜錯＝整筆資料掛錯身分，而且沒人會發現）。
+       舊頁面不認得這個欄位＝照舊運作（additive）。 */
+    std::string filaments_json = "[";
+    if (PresetBundle* bundle = wxGetApp().preset_bundle) {
+        const ConfigOptionStrings* colours = bundle->project_config.option<ConfigOptionStrings>("filament_colour");
+        for (size_t i = 0; i < bundle->filament_presets.size(); ++i) {
+            const std::string& name   = bundle->filament_presets[i];
+            const Preset*      preset = bundle->filaments.find_preset(name, false);
+            const std::string  colour = (colours != nullptr && i < colours->values.size()) ? colours->values[i] : std::string();
+            if (i > 0)
+                filaments_json += ",";
+            filaments_json += "{\"id\":" + json_str(preset != nullptr ? preset->filament_id : std::string())
+                            + ",\"name\":" + json_str(name) + ",\"color\":" + json_str(colour) + "}";
+        }
+    }
+    filaments_json += "]";
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
                            + ",\"hasQuad\":" + (has_quad ? "true" : "false")
                            + ",\"current\":" + cur_mode_json
                            + ",\"currentModel\":" + cur_model_json
-                           + ",\"currentNozzle\":" + cur_nozzle_json + "}";
+                           + ",\"currentNozzle\":" + cur_nozzle_json
+                           + ",\"filaments\":" + filaments_json + "}";
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");

@@ -100,7 +100,7 @@ function normalizeRequest(req){
        （K48 比 K12 慢 3.3 倍、零色數收益；ksweep_result_20260802.json）。
        同值另住 index.html 的輸入框 max 與 clamp——改要一起改。 */
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
-    noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
+    noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 1.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
@@ -239,7 +239,7 @@ function filterLabels(labels, img, P, paletteSize, strategy){
      （水平向已由 enforceMinHorizontalWidth 處理，這一步接手垂直與斜向）。
      ⚠ **順序很重要：必須放在 filterSmallComponents 之後。**
         放前面會這樣壞事——開運算切斷「眼睛↔眉毛」之間的細橋後，眼睛變成孤立連通塊，
-        而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣 ⇒ 被當雜訊清掉。
+        而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣（2.0＝當時的預設；2026-09-22 起預設 1.0，順序規則不變） ⇒ 被當雜訊清掉。
         實錄：先放前面時杜賓兩隻眼睛整個消失（前後差異圖量到兩塊 41×39 格的移除）。
         放後面則雜訊濾除看到的是原本的連通性，眼睛保得住，開運算再去修細橋與毛刺。 */
   const opened=root.PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
@@ -838,14 +838,14 @@ function calibQuadPlan(calib, slots, K){
   if(!out.applied) out.why='沒有任何一對通過護欄'+(out.skipped.length ? ('：'+out.skipped.map(x=>x.why).join('；')) : '');
   return out;
 }
-async function quantizeQuad(img, P, slots, hooks){
-  const K=Math.max(2,P.klevels);
+/* 車 3 段 F（牌 c-0923-ACC-23；R8-5「兩把尺一起換」）：四料的**候選色＋校正計畫**只有這一份——
+   頁面預覽（index.html simulateVerticalQuad）與 3MF 生成（quantizeQuad）都呼叫它。
+   車 2 以前頁面那份自己用 mixLin 算理論候選、不吃校正；四料畫面接上之後那就是「預覽一把尺、輸出一把尺」。
+   Lmin／Lmax＝候選色 L* 的全域兩端＝R6-7 附款 Q4 的「四料 L* 跨幅」，也是段 E 映射的目標範圍（同一個口徑）。 */
+function quadCandidates(slots, K, calib){
   const cols=slots.slice(0,4).map(s=>hexLin(s.color));
   const mixLin=w=>[0,1,2].map(ch=>(w[0]*cols[0][ch]+w[1]*cols[1][ch]+w[2]*cols[2][ch]+w[3]*cols[3][ch])/100);
   const PAIRS=CALIB_QUAD_PAIRS;          // 單一來源：產生器與量化用同一張對表，才談得上「量了套得回去」
-  /* 🔒 保命索：slots[0].calib 缺席 ⇒ plan 是 null、下面每一行都走原路，
-     標籤與 palette 與舊版**逐位元相同**（同雙料 0914 的紀律）。 */
-  const calib = slots[0] && slots[0].calib ? slots[0].calib : null;
   const plan = calib ? calibQuadPlan(calib, slots, K) : null;
   const useCal = !!(plan && plan.applied);
   const cands=[]; const seenW=new Set();
@@ -864,13 +864,39 @@ async function quantizeQuad(img, P, slots, hooks){
       cands.push({w, lin, lab:lin2lab(...lin)});
     }
   }
+  let Lmin=Infinity, Lmax=-Infinity;
+  for(const c of cands){ if(c.lab[0]<Lmin) Lmin=c.lab[0]; if(c.lab[0]>Lmax) Lmax=c.lab[0]; }
+  return {cands, plan, useCal, Lmin, Lmax};
+}
+/* 段 E 映射的啟動條件只寫這一份（預覽與生成共用）：表已套用（至少一對可用）且 calib.toneMap==='stretch'。 */
+function quadToneStretch(lab, n, qc, calib){
+  return (qc && qc.useCal && calib && calib.toneMap==='stretch' && qc.cands.length)
+    ? toneStretch(lab, n, qc.Lmin, qc.Lmax, calib) : null;
+}
+/* 單色的 L*（選料時排槽位＝擠出機 1 放最淺的；色彩數學只住引擎這一份）。 */
+function hexLstar(hex){ return lin2lab(...hexLin(hex))[0]; }
+async function quantizeQuad(img, P, slots, hooks){
+  const K=Math.max(2,P.klevels);
+  /* 🔒 保命索：slots[0].calib 缺席 ⇒ plan 是 null、下面每一行都走原路，
+     標籤與 palette 與舊版**逐位元相同**（同雙料 0914 的紀律）。 */
+  const calib = slots[0] && slots[0].calib ? slots[0].calib : null;
+  const qc = quadCandidates(slots, K, calib);
+  const cands=qc.cands, plan=qc.plan, useCal=qc.useCal;
   const n=img.w*img.h;
   let dropped=0;
+  /* 段 E（車 2，牌 c-0923-ACC-21；R6-16 推論③）：「把圖的明暗壓進這組料印得出來的範圍再分階」的四料版。
+     兩端＝候選色（實測內插值）的 L* 全域最小／最大——與 R6-7 附款 Q4 的「四料 L* 跨幅」同一個口徑。
+     映射本身用雙料那一支 toneStretch()，**不寫第二份實作**（這條線被兩份實作咬過三次）。
+     只在「表已套用（至少一對可用）且 calib.toneMap==='stretch'」時啟動；其餘一律原式 ⇒
+     calib 缺席、apply:false、或沒要 stretch 時，標籤與 palette 逐位元不變（保命索）。
+     只動 L*、不動 a*b*：候選之間靠彩度分開的那條路（R6-11）照舊。 */
+  const ts=quadToneStretch(img.lab, n, qc, calib);
+  const L0of = p => ts ? ts.mapL(img.lab[p*3]) : img.lab[p*3];
   const assign=new Uint16Array(n); const usage=new Uint32Array(cands.length);
   for(let y0=0;y0<img.h;y0+=QUANT_ROWS_PER_BLOCK){
     const pEnd=Math.min(n,(y0+QUANT_ROWS_PER_BLOCK)*img.w);
     for(let p=y0*img.w;p<pEnd;p++){
-      const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];
       let bi=0,bd=1e9;
       for(let i=0;i<cands.length;i++){ const c=cands[i].lab;
         const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -890,7 +916,7 @@ async function quantizeQuad(img, P, slots, hooks){
   for(let p=0;p<n;p++){
     let pi=remap[assign[p]];
     if(pi<0){
-      const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];   // 被併掉的候選改找最近：用同一個映射後的 L*（兩把尺一起換）
       let bd=1e9; pi=0;
       for(let i=0;i<palette.length;i++){ const c=palette[i].lab;
         const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -902,9 +928,8 @@ async function quantizeQuad(img, P, slots, hooks){
   if(plan && useCal && cands.length){
     /* R6-7 附款（Eric 2026-09-22 裁 Q4）：四料的「L* 跨幅」＝**48 格候選的實測 L* 全域跨幅**，
        不是頭尾兩支料的亮度差。這裡只**算出來回報**，段 F 的畫面才拿它寫「這組料最多做得出 N 階」。 */
-    let lo=Infinity, hi=-Infinity;
-    for(const c of cands){ if(c.lab[0]<lo) lo=c.lab[0]; if(c.lab[0]>hi) hi=c.lab[0]; }
-    plan.spanL=hi-lo; plan.maxLevels=Math.max(0,Math.floor(hi-lo));
+    plan.spanL=qc.Lmax-qc.Lmin; plan.maxLevels=Math.max(0,Math.floor(qc.Lmax-qc.Lmin));
+    if(ts) plan.toneMap={mode:'stretch', Lmin:ts.Lmin, Lmax:ts.Lmax, dark:ts.dark, light:ts.light};   // 同雙料 ladder.calib.toneMap 的形狀
   }
   const out={ rawLabels, palette, dropped, candidates:cands.length, filterStrategy: 'mode' };
   return plan ? Object.assign(out, {calib:plan}) : out;
@@ -1533,6 +1558,8 @@ return { generate, cancel, suggestSlots, gridDims, sha256Hex, dualLadder, ERR,
          /* 0922 四料 48 格（R6-2 附款／R6-6／R6-14；牌 c-0922-ACC-15） */
          calibParseDual, calibParseQuad, calibQuadGeo, calibQuadSteps,
          buildCalibQuad, buildCalibQuadParts, calibQuadPairGuard, calibQuadPlan,
+         /* 0923 車 3 段 F：四料候選色與映射條件（預覽與生成共用，R8-5）＋單色 L*（選料排槽位） */
+         quadCandidates, quadToneStretch, hexLstar,
          version: ENGINE_VERSION,
          metadataSchema: METADATA_SCHEMA,
          limitsDefault: { gridMax: GRID_MAX, maxDecodedPixels: 0 },
