@@ -52,5 +52,14 @@ if (!decl) {
   if (bad.length) fails.push('有地方用了不存在的識別字取 toneRules：' + [...new Set(bad)].join(',') + '（宣告的是 ' + ident + '）');
 }
 
+// #181 甲案（Eric 2026-09-23 裁 Q1「照建議」＝車 3 一起做，牌 c-0923-ACC-23）：絹印撞色不得再叫 AI 把背景畫成全圖最暗
+// ——乙8 實錄：背景最暗、頭髮也暗 ⇒ 壓平時頭髮併進背景。改成與其他三款四料（0908）同一條修法。
+const sp = (inline.styles || []).find(s => s.id === 'screenprint');
+if (!sp) fails.push('找不到 screenprint 款式');
+else {
+  if (/darkest extreme/.test(sp.promptTemplate)) fails.push('screenprint 還在叫 AI 把背景畫成全圖最暗（#181 甲案；乙8 頭髮併進背景的上游）');
+  if (!/clearly different from every tone touching/.test(sp.promptTemplate)) fails.push('screenprint 沒改成與其他三款四料同一條修法（背景要與人物輪廓上的每一色都不同）');
+}
+
 if (fails.length) { fails.forEach(f => console.error('FAIL ' + f)); process.exit(1); }
-console.log('OK 款式庫兩份一致（' + inline.styles.length + ' 款）、toneRules 已入庫且已接上消費端');
+console.log('OK 款式庫兩份一致（' + inline.styles.length + ' 款）、toneRules 已入庫且已接上消費端、screenprint 背景修法（#181 甲案）在');

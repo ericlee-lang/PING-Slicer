@@ -275,6 +275,14 @@ private:
     size_t          m_photo_tile_image_next_chunk{ 0 };
     bool            m_photo_tile_image_active{ false };
     std::string     m_photo_tile_image_mime;
+    /* 段 B（車 2，牌 c-0923-ACC-21）：照片磚「材料庫」存檔的收件狀態（照上面 m_photo_tile_image_* 的形狀）。
+       state：0＝閒置、1＝收件中、2＝這一批已作廢（原因記在 fail，等 end 一次回報）。 */
+    std::vector<unsigned char> m_photo_tile_matlib_buffer;
+    size_t          m_photo_tile_matlib_expected_size{ 0 };
+    size_t          m_photo_tile_matlib_expected_chunks{ 0 };
+    size_t          m_photo_tile_matlib_next_chunk{ 0 };
+    int             m_photo_tile_matlib_state{ 0 };
+    std::string     m_photo_tile_matlib_fail;
     /* 暫存檔記帳（覆審 I-7）：只在「自己寫暫存檔成功」那一刻設值＝我們擁有、可刪的唯一
        一顆。刪舊來源只刪記過帳的，**絕不憑檔名長相刪**——substring 比對會誤刪使用者
        留存的真實照片（拖放／開檔進來的真實路徑永遠不寫進這個成員）。空＝沒有待清的。 */
