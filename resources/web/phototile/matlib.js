@@ -292,8 +292,8 @@ function migrateLegacy(lib, tbl, opt){
   /* 🆕 車 3（段 F，牌 c-0923-ACC-23）：同一組量測點已經在庫裡（任何身分）＝這張舊表遷過了，不再加一次。
      為什麼要比內容：認領（claimPair）會把身分換成 filament_id＋標籤 ⇒ id 跟著變，只比 id 的話
      每次開工作室都會把舊鍵那張表再遷進來一次，清單上就多一組以色碼命名的重複項（段 F 瀏覽器實走抓到）。 */
-  const pts = pair.pts.map(p => p.S + p.hex).join('|');
-  const same = (lib.pairs || []).find(p => p.pts.map(x => x.S + x.hex).join('|') === pts);
+  const sig = ptsSig(pair);
+  const same = (lib.pairs || []).find(p => ptsSig(p) === sig);
   if (same) return { added: false, pair: same, why: '這張舊表的量測已經在庫裡（可能已經認領過）' };
   upsertPair(lib, pair);
   return { added: true, pair: getPair(lib, pair.id), why: '' };
@@ -443,13 +443,22 @@ function parseLib(raw){
     return { ok: false, lib: emptyLib(), why: '材料庫檔案的版本不認得（schema ' + (obj && obj.schema) + '）' };
   return { ok: true, lib: normalize(obj), why: '' };
 }
+/* 一組量測的內容簽名（各點的 S＋量到色）。認領會換身分、id 跟著變，但量測點不變 ⇒ 判「是不是同一次校正」要比它。 */
+function ptsSig(p){ return (p.pts || []).map(x => x.S + x.hex).join('|'); }
 /* 把 from 裡、into 還沒有的 pair 併進 into。🔴 **不覆蓋**已有的那一筆（into 那筆可能是後來重新量的）。
-   用途：①App 讀檔回來之前使用者先匯入的表 ②車 1 期間存在瀏覽器儲存區的庫——都要併進 App 那一份。 */
-function mergeLib(into, from){
+   用途：①App 讀檔回來之前使用者先匯入的表 ②車 1 期間存在瀏覽器儲存區的庫——都要併進 App 那一份。
+   🆕 opt.byContent（T060 跟車實走抓到，牌 c-0923-ACC-25）：同一組量測點已經在 into 裡（任何身分）就不再加。
+   為什麼：瀏覽器儲存區那份庫照設計只讀不刪，裡面還是認領前的 id；認領之後 App 那份的 id 變了 ⇒ 只比 id 的話，
+   認領過的那組每次開工作室都會以「未認領」再冒出來一次（清單多一組重複項、選到又要再認領一次）。
+   跟 migrateLegacy 看內容是同一條理由；②那條路徑一定要帶。 */
+function mergeLib(into, from, opt){
+  const sigs = opt && opt.byContent ? new Set((into.pairs || []).map(ptsSig)) : null;
   let added = 0;
   for (const p of (from && from.pairs) || []){
     if (getPair(into, p.id)) continue;
+    if (sigs && sigs.has(ptsSig(p))) continue;
     upsertPair(into, p); added++;
+    if (sigs) sigs.add(ptsSig(p));
   }
   return added;
 }

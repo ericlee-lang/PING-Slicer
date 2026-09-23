@@ -793,6 +793,23 @@ function fakeImg(){
     const other = E.calibParseTable(TABLE_BLUE);
     assert.strictEqual(M.migrateLegacy(lb, other, {}).added, true, '內容不同的舊表被擋掉了');
   });
+  /* 🆕 T060 跟車實走抓到（牌 c-0923-ACC-25）：上一條只修了「舊鍵」那條路；「車 1 期間存在瀏覽器儲存區的庫」那條
+     （index.html 讀檔回來時的 ②）還是只比 id ⇒ 認領過的那組重開就以「未認領」再冒出來（真 App：2 組→重開 3 組）。 */
+  await check('🔴 併車 1 瀏覽器庫也看內容：認領過（id 變了）的那組重開不會以「未認領」再冒出來', () => {
+    const app = M.emptyLib();
+    M.migrateLegacy(app, E.calibParseTable(tableGray), {});
+    const browser = JSON.parse(JSON.stringify(app));                  // 瀏覽器儲存區那份（照設計只讀不刪，id 停在認領前）
+    M.claimPair(app, app.pairs[0].id, { fid: 'GPLA', label: '白' }, { fid: 'GPLA', label: '深灰' }, { claimedAt: '2026-09-23' });
+    assert.strictEqual(M.mergeLib(app, browser, { byContent: true }), 0, '認領過的那組又以未認領的身分併回來了');
+    assert.strictEqual(app.pairs.length, 1);
+    // 陽性對照①：不帶 byContent＝舊行為，會再加一次（證明上面那條不是空守衛）
+    assert.strictEqual(M.mergeLib(JSON.parse(JSON.stringify(app)), browser), 1, '對照組沒重現舊行為');
+    // 陽性對照②：量測不同的一組照樣併得進來（不是一律擋）
+    const other = M.emptyLib(); M.migrateLegacy(other, E.calibParseTable(TABLE_BLUE), {});
+    assert.strictEqual(M.mergeLib(app, other, { byContent: true }), 1, '內容不同的一組被擋掉了');
+    // 頁面讀檔回來的 ② 那一行真的帶了 byContent
+    assert(/mergeLib\(matLib, b\.lib, \{byContent:true\}\)/.test(idxHtml), 'index.html 併車 1 瀏覽器庫那一行沒帶 byContent');
+  });
   await check('🔴 四料開校正覆蓋層要帶四個料色，校正頁也要吃得下（不帶＝表宣告了四個無關的顏色且不報錯）', () => {
     assert(/slotCount===4\)\{[\s\S]{0,400}&a=\$\{hx\[0\]\}&b=\$\{hx\[1\]\}&c=\$\{hx\[2\]\}&d=\$\{hx\[3\]\}/.test(idxHtml),
       '工作室沒帶四個料色給校正頁');
