@@ -866,11 +866,24 @@ async function quantizeQuad(img, P, slots, hooks){
   }
   const n=img.w*img.h;
   let dropped=0;
+  /* 段 E（車 2，牌 c-0923-ACC-21；R6-16 推論③）：「把圖的明暗壓進這組料印得出來的範圍再分階」的四料版。
+     兩端＝候選色（實測內插值）的 L* 全域最小／最大——與 R6-7 附款 Q4 的「四料 L* 跨幅」同一個口徑。
+     映射本身用雙料那一支 toneStretch()，**不寫第二份實作**（這條線被兩份實作咬過三次）。
+     只在「表已套用（至少一對可用）且 calib.toneMap==='stretch'」時啟動；其餘一律原式 ⇒
+     calib 缺席、apply:false、或沒要 stretch 時，標籤與 palette 逐位元不變（保命索）。
+     只動 L*、不動 a*b*：候選之間靠彩度分開的那條路（R6-11）照舊。 */
+  let ts=null;
+  if(useCal && calib.toneMap==='stretch' && cands.length){
+    let lo=Infinity, hi=-Infinity;
+    for(const c of cands){ if(c.lab[0]<lo) lo=c.lab[0]; if(c.lab[0]>hi) hi=c.lab[0]; }
+    ts=toneStretch(img.lab, n, lo, hi, calib);
+  }
+  const L0of = p => ts ? ts.mapL(img.lab[p*3]) : img.lab[p*3];
   const assign=new Uint16Array(n); const usage=new Uint32Array(cands.length);
   for(let y0=0;y0<img.h;y0+=QUANT_ROWS_PER_BLOCK){
     const pEnd=Math.min(n,(y0+QUANT_ROWS_PER_BLOCK)*img.w);
     for(let p=y0*img.w;p<pEnd;p++){
-      const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];
       let bi=0,bd=1e9;
       for(let i=0;i<cands.length;i++){ const c=cands[i].lab;
         const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -890,7 +903,7 @@ async function quantizeQuad(img, P, slots, hooks){
   for(let p=0;p<n;p++){
     let pi=remap[assign[p]];
     if(pi<0){
-      const L0=img.lab[p*3],A0=img.lab[p*3+1],B0=img.lab[p*3+2];
+      const L0=L0of(p),A0=img.lab[p*3+1],B0=img.lab[p*3+2];   // 被併掉的候選改找最近：用同一個映射後的 L*（兩把尺一起換）
       let bd=1e9; pi=0;
       for(let i=0;i<palette.length;i++){ const c=palette[i].lab;
         const d=(L0-c[0])**2+(A0-c[1])**2+(B0-c[2])**2;
@@ -905,6 +918,7 @@ async function quantizeQuad(img, P, slots, hooks){
     let lo=Infinity, hi=-Infinity;
     for(const c of cands){ if(c.lab[0]<lo) lo=c.lab[0]; if(c.lab[0]>hi) hi=c.lab[0]; }
     plan.spanL=hi-lo; plan.maxLevels=Math.max(0,Math.floor(hi-lo));
+    if(ts) plan.toneMap={mode:'stretch', Lmin:ts.Lmin, Lmax:ts.Lmax, dark:ts.dark, light:ts.light};   // 同雙料 ladder.calib.toneMap 的形狀
   }
   const out={ rawLabels, palette, dropped, candidates:cands.length, filterStrategy: 'mode' };
   return plan ? Object.assign(out, {calib:plan}) : out;

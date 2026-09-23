@@ -781,6 +781,58 @@ function fakeImg(){
     assert(/四料的套用還沒接上畫面/.test(idxHtml), '畫面沒把這個半狀態講出來');
   });
 
+  /* ================= 車 2 段 E（牌 c-0923-ACC-21）：四料也「把圖的明暗壓進可印範圍再分階」（R6-16 推論③） =================
+     兩端＝候選色（實測內插）的 L* 全域最小／最大；映射用雙料那一支 toneStretch()（不寫第二份）。 */
+  console.log('\n段 E｜四料 toneStretch（R6-16 推論③）');
+  /* 🔒 黃金值的來源＝**段 E 改動前的 engine.js**（分支 claude/pt-matlib2-0923 在 62d72b668b 時）實跑：
+     套了四料校正、沒要 toneMap 的標籤。段 E 之後必須逐位元相同——沒要 stretch 的人，印出來的東西不能變。 */
+  const GOLDEN_E = { 4: '747c8d34bf5bdc59bfb95121aa5919b9b55138fc8dac79cde2f1d253ea37868e',
+                     8: 'db12b6a68fb466b19b34fd306d030115e6a37dd48aac05b22c85167462ca69d7' };
+  await check('🔒 段 E 保命索：套了四料校正但沒要 toneMap ⇒ 標籤與段 E 改動前逐位元相同（K=4／K=8）', async () => {
+    for (const K of [4, 8]){
+      for (const tm of [undefined, 'none']){
+        const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: true, toneMap: tm };
+        const q = await E._internals.quantizeQuad(quadImg(), { klevels: K }, slots, null);
+        assert.strictEqual(q.calib.applied, true, q.calib.why);
+        assert.strictEqual(qdig(q), GOLDEN_E[K], 'K=' + K + ' toneMap=' + tm + ' 標籤變了');
+        assert.strictEqual(q.calib.toneMap, undefined, '沒要 stretch 卻記了映射');
+      }
+    }
+  });
+  await check("段 E：toneMap:'stretch' ⇒ 啟動映射，兩端＝候選 L* 的最小／最大；標籤必須與沒要時不同（陽性對照）", async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: true, toneMap: 'stretch' };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, true, q.calib.why);
+    const tm = q.calib.toneMap;
+    assert(tm && tm.mode === 'stretch', '沒記映射：' + JSON.stringify(tm));
+    /* 候選 L* 的兩端＝palette 用到的只是子集，這裡用 spanL（同一個口徑算的全域跨幅）對：light−dark 必須等於它 */
+    assert(Math.abs((tm.light - tm.dark) - q.calib.spanL) < 1e-9, '映射兩端不是候選 L* 的全域兩端：' + JSON.stringify(tm) + ' spanL=' + q.calib.spanL);
+    assert.notStrictEqual(qdig(q), GOLDEN_E[8], 'stretch 開了等於沒開');
+  });
+  await check("段 E：apply:false＋stretch ⇒ 不映射，標籤＝理論候選那一份（映射只跟著「表已套用」走）", async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: false, toneMap: 'stretch' };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.toneMap, undefined);
+    assert.strictEqual(qdig(q), GOLDEN[8].sha, 'apply:false 時應與 calib 缺席同一份標籤');
+  });
+  await check("段 E：六對全被護欄擋下＋stretch ⇒ 不映射（沒有實測範圍可以壓）", async () => {
+    const slots = QSLOTS(); slots[0].calib = { table: quadTable({ tweak: () => '#808080' }), apply: true, toneMap: 'stretch' };
+    const q = await E._internals.quantizeQuad(quadImg(), { klevels: 8 }, slots, null);
+    assert.strictEqual(q.calib.applied, false);
+    assert.strictEqual(q.calib.toneMap, undefined);
+  });
+  await check('段 E：這件事真正的用途——圖的明暗很窄（L* 40～60）時，壓進可印範圍之後用到的色階變多（K 階都有肉）', async () => {
+    const w = 16, h = 16, n_ = w * h; const lab = new Float32Array(n_ * 3);
+    for (let p = 0; p < n_; p++){ lab[p*3] = 40 + 20 * p / (n_ - 1); lab[p*3+1] = 0; lab[p*3+2] = 0; }
+    const narrow = () => ({ w, h, lab: lab.slice(), lum: new Float32Array(n_), data: new Uint8ClampedArray(n_ * 4) });
+    const distinct = q => new Set(q.rawLabels).size;
+    const s0 = QSLOTS(); s0[0].calib = { table: quadTable(), apply: true };
+    const s1 = QSLOTS(); s1[0].calib = { table: quadTable(), apply: true, toneMap: 'stretch' };
+    const q0 = await E._internals.quantizeQuad(narrow(), { klevels: 8 }, s0, null);
+    const q1 = await E._internals.quantizeQuad(narrow(), { klevels: 8 }, s1, null);
+    assert(distinct(q1) > distinct(q0), '壓進可印範圍之後用到的階數沒有變多：' + distinct(q0) + ' → ' + distinct(q1));
+  });
+
   /* ================= 車 2 段 D（牌 c-0923-ACC-21）：suggest() 退場＝料 → 圖（R6-16） =================
      頁面邏輯住在 index.html（node 載不進來）⇒ 這裡做**結構守衛**，而且每一條都配陽性對照
      （把被守的東西放回去，守衛必須轉紅——否則不知道它有沒有在看）。執行期的 R6-13 驗收
