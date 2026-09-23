@@ -2030,6 +2030,26 @@ for _rel, _needles, _strip in _ver_chain:
         if _needle not in _src:
             err(f"[標題版次・跨層] {os.path.join(*_rel)} 少了 {_needle!r} ⇒ "
                 f"標題列不會顯示廠內測試版版次（靜默失效）")
+# ☆ 提示（不擋；根 AGENTS「現階段新增的檢查一律先做提示」）：測試版獨立設定資料夾（Eric 2026-09-24 裁，
+#   版本治理第 4 件；牌 c-0924-DR-01）。鏈路＝GUI_App.cpp init_app_config() 測試版改 SetAppName(... "-Internal")
+#   ＋首次只讀複製；CMakeLists CPack 測試版裝獨立一格。上游合併若把任一處蓋回原樣＝測試版又跟正式版共用
+#   設定資料夾、裝 T 版會先移除正式版——編得過、跑得動、什麼都不會報。
+_dr_chain = (
+    (("src", "slic3r", "GUI", "GUI_App.cpp"),
+     ['SLIC3R_APP_KEY "-Internal"', "ping_seed_test_data_dir(data_dir_path);", "ping_seed_test_webview_storage();"], True),
+    (("CMakeLists.txt",),
+     ['set (PING_INSTALL_REGISTRY_KEY "PINGSlicer-Internal")',
+      'set (CPACK_PACKAGE_INSTALL_REGISTRY_KEY "${PING_INSTALL_REGISTRY_KEY}")'], False),
+)
+_dr_miss = []
+for _rel, _needles, _strip in _dr_chain:
+    _fp = os.path.join(_repo, *_rel)
+    _src = io.open(_fp, encoding="utf-8", errors="ignore").read() if os.path.isfile(_fp) else ""
+    if _strip:
+        _src = strip_cxx_comments(_src)
+    _dr_miss += [f"{os.path.join(*_rel)}：{_n}" for _n in _needles if _n not in _src]
+print("測試版獨立設定資料夾：%s" % ("兩處都在（GUI_App.cpp＋CMakeLists CPack）" if not _dr_miss else
+      "⚠ 提示（不擋）少了 " + "；".join(_dr_miss) + " ⇒ 測試版可能又跟正式版共用設定資料夾／裝 T 版會移除正式版"))
 # 出貨版守則：PING_TEST_BUILD 有值＝這顆是廠內測試版。不在此擋（值本來就會隨 T 號變），
 # 但明示於輸出，讓打包時一眼看到自己在包哪一種。
 _vi = io.open(os.path.join(_repo, "version.inc"), encoding="utf-8", errors="ignore").read()
