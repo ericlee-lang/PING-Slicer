@@ -319,7 +319,9 @@
          ③按鈕字去掉「與換層」：垂直混色的建議只換料色、不動色階數（suggest() 不寫 klevels），「換層」同樣是平躺殘留。 -->
     <h2 id="simTitle">列印模擬
       <span id="slotList"></span>
-      <button class="btn ghost" id="btnSuggest" type="button" title="依這張圖挑兩支（四料＝四支）料的顏色；色階數不變"><span class="bsL">依這張圖</span>建議配色</button>
+      <!-- 🔴 2026-09-23 車 2 段 D（R6-16，Eric 2026-09-22 裁 Q3）：這顆鈕的方向翻過來——不再「依圖挑料」，改成「依料重算圖面顏色」。
+           id 維持 btnSuggest（窄版 CSS 與既有監聽都掛在這個 id 上）。 -->
+      <button class="btn ghost" id="btnSuggest" type="button" title="照目前這組料的顏色，把圖重新分階、重新上色；不會改動料色（規格 R6-16：由材料顏色決定圖片）"><span class="bsL">依料</span>重算圖面顏色</button>
     </h2>
     <div class="canvasbox">
       <canvas class="view" id="simCanvas" width="4" height="4"></canvas>
@@ -540,6 +542,9 @@ const lum709 = (r,g,b) => 0.2126*r + 0.7152*g + 0.0722*b;   // 線性亮度
 const SLOT_DEFAULT = [ {color:'#f2f0eb'}, {color:'#1a1a1a'}, {color:'#c0392b'}, {color:'#e8c547'} ];   // 2026-09-07 平躺移除：td／start（透光距離／換層）一併拆掉
 let slots = SLOT_DEFAULT.map(s=>({...s}));
 let slotCount = 2;
+/* 車 2 段 D（牌 c-0923-ACC-21）：「依料重算圖面顏色」要知道目前來源是不是壓平／風格化過的圖、最後一次壓平用哪一款。
+   放在狀態區宣告（不放在用到它的函式旁邊）：ptSourceTitle() 在載入過程就會被呼叫，晚宣告的 let 會踩到 TDZ。 */
+let ptSourceKind='', ptLastStyleJob=null;
 const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.05mm（Eric 2026-07-19：格點跟上 0.05 層高，斜邊界才不出格點鋸齒/縫）；不暴露成使用者參數
 let params = { klevels:8,                        // 2026-09-07 平躺（疊色）移除：lh／layers／base／map／inv／orient 一併拆掉，工作室只有垂直混色
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
@@ -1332,15 +1337,18 @@ function loadBitmap(bmp, label){
   srcBitmap=bmp; srcLabel=label;
   if(typeof ptAiForget==='function') ptAiForget();            // 換圖＝上一張 AI 圖作廢（另存按鈕收掉）
   if(typeof ptSourceTitle==='function') ptSourceTitle('');   // 換圖＝回到「原圖」
+  ptLastStyleJob=null;                                        // 換圖＝上一張的壓平設定作廢（「依料重算」不會拿它去壓新圖）
   imgAspect=bmp.height/bmp.width;                      // 高/寬，尺寸寬高比連動
   if(sizeAspectLocked) applySizeChange('width',params.width,false);
   else syncSizeInputs();
   buildGrid();
   document.getElementById('dropHint').style.display='none';
   if(typeof ptGalOnLoaded==='function') ptGalOnLoaded();   /* §11 R11-1：有圖就縮成「目前這張＋換一張…」 */
-  suggest();           // 開圖即自動建議＋出模擬（零點擊先看到結果）
+  /* 🔴 R6-16（車 2 段 D，Eric 2026-09-22 裁）：料在選圖之前就定了——開圖只照**目前的料**出模擬（仍是零點擊先看到結果），
+     不再依這張圖改料色。這一行原本是 suggest()＝「開圖即自動建議」，也就是 R6-13 那五次靜默覆寫的主要入口。 */
+  renderSlots(); simulate();
   /* 問題材：只在垂直模式（平躺沒有款式的概念），而且**問完才重畫款式區**。
-     ⚠ 放在 suggest() 之後：先讓他看到結果，再問——問句擋在結果前面會像個路障。 */
+     ⚠ 放在出模擬之後：先讓他看到結果，再問——問句擋在結果前面會像個路障。 */
   const applySubject=id=>{
     if(!id || id===ptSubject) return;
     ptSubject=id;
@@ -1430,9 +1438,9 @@ window.PINGPhotoTile={
         return;
       }
       const bmp=await createImageBitmap(blob);
-      /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它結尾會跑 suggest()，
-         那會拿「已經套好料色的風格化圖」再建議一次料色 ⇒ 顏色會自己漂走。
-         只換來源、重建格點、重算——尺寸與料色一律不動。 */
+      /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它會把來源當成一張新照片（清 AI 狀態、來源標題回「原圖」、
+         清掉「依料重算」要用的壓平設定）。只換來源、重建格點、重算——尺寸與料色一律不動。
+         （0923 以前它結尾還會跑 suggest() 改料色；車 2 段 D 拿掉之後，上面這些理由仍然成立。） */
       srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('style'); ptSourceBusy('');
       ptStyleStat('已風格化（'+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。');
     }catch(e){
@@ -1495,7 +1503,11 @@ window.PINGPhotoTile={
          ・四料 AI 款式＝**料色跟著 AI 圖走**：suggest() 的四色引擎（白底＋三個色相家族）
            從剛回來的 AI 圖挑料 B/C/D。理由＝印得出來的顏色只有那 4 支料的混色，
            款式鎖藍時 AI 回紅圖怎麼壓都是灰或藍——0903 實走原話「原本產的圖不錯，
-           壓成平色階之後就只有出藍色」。款式 slots 從此是「給 AI 的風格參考」，不是鐵鎖。 */
+           壓成平色階之後就只有出藍色」。款式 slots 從此是「給 AI 的風格參考」，不是鐵鎖。
+         🔴 **上面「四料料色跟著 AI 圖走」已被推翻**（R6-16，Eric 2026-09-22 裁 Q2；R9-10 在「選色」這一關被取代）：
+           料在選圖之前就定了，AI 圖回來**只照目前的料**分階（下面壓平用的就是目前料的候選色），不再改料色。
+           「好看的紅圖被壓成藍」那個痛點的解法改成：產圖**之前**就讓 AI 知道這組料印得出哪些顏色（R6-15），
+           而不是產完再回頭換料。以上原文保留供追溯。 */
       /* 🔴 **排隊要在 simulate() 之前**（2026-09-02 攔截實測抓到）：排出去的工作是在
          simulateVertical 的**尾端**才發送，先 simulate 再設 pending ＝永遠慢一步、
          那個 pending 會躺在那裡沒人送 ⇒ 壓平整個沒觸發，而畫面看起來一切正常。
@@ -1504,8 +1516,7 @@ window.PINGPhotoTile={
         ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
       srcBitmap=bmp; buildGrid();
-      if(slotCount===4 && ptAiStyle && typeof suggest==='function') suggest();  // 丙案：料色隨 AI 圖（suggest 自帶 renderSlots+simulate）
-      else simulate();
+      simulate();                                          // R6-16：照目前的料分階，不改料色（原本四料這裡會跑 suggest()）
       ptSourceTitle('ai');
       /* 圖已經是新的了 ⇒ 遮罩要嘛關掉、要嘛換成下一段（壓平）在做的事。 */
       ptSourceBusy(ptStyleJob ? '壓成平色階中…' : '', ptStyleJob ? '約 1~2 秒' : '');
@@ -1628,154 +1639,29 @@ function makeDemo(){
   createImageBitmap(off).then(b=>loadBitmap(b,'測試圖'));
 }
 
-/* ================= 建議引擎 v2：取色保顯眼色＋自動搜料順序與換層 =================
-   v1 問題（Eric 實走發現：紅屋不紅）：
-   ①k-means 只看面積，小而顯眼的色（紅屋/黃日）被大面積天空草地吃掉
-   ②換層均分，沒為「疊到夠飽和」配層數、也沒搜料的上下順序
-   v2 作法：Lab 空間過取樣 k-means → greedy「距離×面積」保住顯眼色 →
-   枚舉料順序×換層位置、以整圖平均色差最小挑組合（底=最暗當背襯）。
-   建議色＝目標採購色（Eric 定：會照建議色備料，TD 依深淺給暫定值）。 */
-document.getElementById('btnSuggest').onclick=()=>{ if(img) suggest(); };
-function suggest(){
+/* ================= 🔴 建議引擎（suggest）已退場：料 → 圖（規格 R6-16，Eric 2026-09-22；車 2 段 D，牌 c-0923-ACC-21）=================
+   原本這裡是「依照片自動挑料色」（v2：Lab 過取樣 k-means＋距離×面積保顯眼色；0815 D-1 雙料評分修），
+   做的是**圖 → 料**：看這張圖有哪些顏色、就把料槽改成那些顏色。R6-16 把方向反過來——
+   「是應該由材料顏色來決定圖片的顏色，不是由圖片原來的顏色來選擇材料」（Eric 原話）。
+   它也是這條線最多次靜默覆寫使用者設定的來源（已發作 5 次，見 R6-13）⇒ 整支拿掉，不留一條還能改料色的路。
+   四個呼叫點的處置（實作計畫 §六，Eric 2026-09-22 裁 Q2／Q3）：
+     ①開圖即自動建議（loadBitmap）＝拿掉：料在選圖之前就定了，開圖只照目前的料出模擬
+     ②本地款式 lockSlots===false ＝拿掉：本地款式不再自動改料色
+     ③AI 四料回圖＝拿掉那次 suggest()：R9-10「料色跟著 AI 圖走」在選色這一關被 R6-16 取代
+     ④這顆鈕＝**留著、語意反轉**成「依料重算圖面顏色」（Q3 原話：「料選完了，我讓圖面顏色跟著料去改變」）
+   ⚙ 引擎的 suggestSlots()（engine.js）不動：它只在「請求沒帶料色」時才會被用到，而產品頁面**一定帶**料色
+     （buildRequest 的 slots 一定送）；拿掉它會讓 C++ 黃金閘門的 12 個基準案全部失去輸入（那 12 案全是自動配色案）。
+   ⚙ 「在已校正的料裡決定哪支放哪一槽」（R6-16 允許留下的那一小塊自動配色）要等車 3 的選料畫面，屆時另寫、不復活本段。
+   📎 舊碼要查：git show fad0c9b74b:resources/web/phototile/index.html（T059）裡的 function suggest()。 */
+function recolorFromMaterials(){
   if(!img) return;
-  /* 校正表擁有料色 ⇒ 跳過「改寫料槽」，其餘（重畫色條、重算模擬）照舊。
-     不靜默：算完之後在 #metric 補一句為什麼沒有幫他配色。#metric 由 simulate() 同步寫入，
-     所以這句一定要放在 simulate() 之後，否則會被蓋掉。 */
-  if(calibOwnsSlots()){
-    renderSlots(); simulate();
-    const mt=document.getElementById('metric');
-    if(mt) mt.innerHTML+=' <span class="sub">（料色來自校正表，未套用自動配色）</span>';
-    return;
-  }
-  document.getElementById('metric').textContent='建議計算中…';
-  setTimeout(()=>{
-    /* --- 1. Lab 空間過取樣 k-means（k=槽數×3，最多 9）--- */
-    const tl=img.thumbLab, m=tl.length/3;
-    const K=Math.min(9, slotCount*3);
-    let cen=[];                                    // 以亮度分位數初始化
-    const byL=[...Array(m).keys()].sort((a,b)=>tl[a*3]-tl[b*3]);
-    for(let i=0;i<K;i++){ const p=byL[Math.floor((i+0.5)/K*(m-1))];
-      cen.push([tl[p*3],tl[p*3+1],tl[p*3+2]]); }
-    let cnt=new Array(K).fill(0);
-    for(let it=0;it<14;it++){
-      const sum=cen.map(()=>[0,0,0,0]);
-      for(let p=0;p<m;p++){
-        let bi=0,bd=1e9;
-        for(let i=0;i<K;i++){ const c=cen[i];
-          const d=(tl[p*3]-c[0])**2+(tl[p*3+1]-c[1])**2+(tl[p*3+2]-c[2])**2;
-          if(d<bd){bd=d;bi=i;} }
-        sum[bi][0]+=tl[p*3]; sum[bi][1]+=tl[p*3+1]; sum[bi][2]+=tl[p*3+2]; sum[bi][3]++;
-      }
-      cen=cen.map((c,i)=> sum[i][3]? [sum[i][0]/sum[i][3],sum[i][1]/sum[i][3],sum[i][2]/sum[i][3]] : c);
-      cnt=sum.map(s=>s[3]);
-    }
-    const clusters=cen.map((c,i)=>({lab:c,n:cnt[i]})).filter(c=>c.n>m*0.005); // 濾雜訊(<0.5%)
-    /* --- 2. 候選色池：非近白叢集（四料建議從這裡取最遠點；色相家族分析已隨平躺拆除）--- */
-    let pool=clusters.filter(c=>c.lab[0]<86);
-    if(!pool.length) pool=clusters;
-    /* Lab→sRGB（gamma 2.2 近似，與模擬端一致） */
-    function lab2hex(lab){
-      const fy=(lab[0]+16)/116, fx=fy+lab[1]/500, fz=fy-lab[2]/200;
-      const inv=t=> t**3>0.008856 ? t**3 : (t-16/116)/7.787;
-      const x=inv(fx)*0.95047, y=inv(fy), z=inv(fz)*1.08883;
-      let r= 3.2406*x-1.5372*y-0.4986*z, g=-0.9689*x+1.8758*y+0.0415*z, b= 0.0557*x-0.2040*y+1.0570*z;
-      return rgbHex(l2s(r),l2s(g),l2s(b));
-    }
-    /* --- v1.2 雙料＝「白底＋單色漸層」（Eric 2026-07-06 定：像白藍/白綠那樣，
-       基底白色、疊越多層越深）：挑圖中最搶眼的主色（面積×彩度），對色自動切
-       「照明暗」（亮→少層近白、暗→多層深色）——先不考慮混色，純層數漸層 --- */
-    if(slotCount===2){
-      /* 【2026-08-15 D-1 修・Eric 裁 P0】⚠ 0815 那顆 `2fc9492d42` **只修了 engine.js**，
-         工作室這顆「依這張圖建議配色與換層」按鈕跑的是本段、一直還是舊的錯公式——
-         同步出貨線時才發現（兩線同一個洞）。內容與 engine.js `suggestSlots()` 的雙料分支同義。
-
-         原評分＝√n×(彩度+3)，**沒有任何明度分離項**：第二支料只要「面積大又有彩度」
-         就贏，四種題材實測全挑錯（真引擎／100mm／口徑 0.4）——
-           人像原照            → 米白＋淡粉 #eab6a3   ΔE 28.51（整張糊成粉紅）
-           臉填滿畫面的模板風  → 兩支米白            ΔE 38.17（等於白板）
-           風景剪影（大面積天空）→ 兩支米白          ΔE 30.40
-           黑色杜賓            → 米白＋棕 #975a30    ΔE 13.95（黑狗被印成棕狗）
-         共同觸發條件＝**單一顏色佔大面積**。修後 14.19／5.31／8.90／8.28。
-         ⚠ 遵守 Eric 2026-08-05「**分散是最佳化目標，不是閘門**」：加的是評分權重、無硬門檻。
-         （2026-09-07 平躺自產品移除後，本段只剩混色路徑，與 engine.js suggestSlots() 雙料分支同義。） */
-      const LA = lin2lab(...hexLin('#f2f0eb'))[0];   // slotA 固定米白，取其 L
-      let main=null, bs=-1;
-      for(const c of clusters){
-        const ch=Math.hypot(c.lab[1],c.lab[2]);
-        /* sep 刻意**不設飽和上限**：第二支越遠、整條可用色階越長，所以「更暗」要能
-           持續加分。實證＝黑白杜賓：黑(ΔL≈80) 與棕斑(ΔL≈50) 若都夾成 1 就只剩彩度
-           決勝，棕斑贏 ⇒ 黑狗被印成棕狗。 */
-        const s = Math.sqrt(c.n)*(1+ch/25)*(Math.abs(c.lab[0]-LA)/100);
-        if(s>bs){bs=s;main=c;}
-      }
-      if(main && Math.hypot(main.lab[1],main.lab[2])<8)      // 幾乎無彩度（黑白照）
-        main=clusters.reduce((a,b)=>a.lab[0]<b.lab[0]?a:b);  // → 用最暗的當主色
-      /* 垂直混色：料A=白（亮端）、料B=圖的主色深端；色階數維持使用者設定 */
-      slots[0]={color:'#f2f0eb'};
-      slots[1]={color:lab2hex(main.lab)};
-      renderSlots(); simulate();
-      return;
-    }
-    /* --- 四色（垂直混色）--- */
-    {
-      /* 垂直四料建議：料A=白（調亮度）＋三支從**分群層**最遠點取樣的彩色。
-         【2026-08-05 建議配色核心規格・Eric 裁「白＋不得複製充數」】
-         舊法用上面的 `top`（前三大色相家族的 deep），有兩個實測過的缺陷：
-           ①家族不足三個時 `while(top.length<slotCount-1) top.push(top[top.length-1])`
-             會**複製最後一族** ⇒ 兩支料吐出逐字元相同的 hex（四料當三料用）；
-           ②永遠取家族的 deep（最深那顆）⇒ 四支全擠暗端、中間調無代表。
-         實測（quad／400mm／格點 3200²）：舊法色數 19、ΔE 6.789；改最遠點後
-         色數 34、ΔE 5.634（且自動挑出 L*68 的中間膚色），比人工手挑的 6.251 還好。
-         ⚠ 分散是最佳化目標、**不是閘門**——不設「任兩支必須差多少」的門檻，
-           使用者要刻意選兩支相近色照樣可以；本規格只約束「我們主動建議的初值」。
-         ⚠ 本段與 engine.js suggestSlots() 的四料分支必須同步——兩份實作的統一另案處理。 */
-      slots[0]={color:'#f2f0eb'};
-      const picks=[];
-      if(pool.length){
-        let seed=pool[0], sw=-1;
-        for(const c of pool){
-          const w=c.n*(1+Math.hypot(c.lab[1],c.lab[2])/25);   // 沿用原權重式（偏好有彩度）
-          if(w>sw){ sw=w; seed=c; }
-        }
-        picks.push(seed);
-        while(picks.length<3 && picks.length<pool.length){
-          let best=null, bd=-1;
-          for(const c of pool){
-            if(picks.indexOf(c)>=0) continue;
-            let md=1e9;
-            for(const p of picks){
-              const d=Math.hypot(c.lab[0]-p.lab[0], c.lab[1]-p.lab[1], c.lab[2]-p.lab[2]);
-              if(d<md) md=d;
-            }
-            if(md>bd){ bd=md; best=c; }
-          }
-          if(!best) break;
-          picks.push(best);
-        }
-      }
-      /* 群數不足三：**不複製**——沿用色相、把亮度推到還沒被佔用的一側，產生真的不一樣的補色。 */
-      const labs=picks.map(c=>c.lab.slice());
-      while(labs.length<3){
-        const base=labs.length ? labs[labs.length-1] : [50,0,0];
-        const used=labs.length ? labs.map(l=>l[0]) : [50];
-        const L=(Math.max.apply(null,used)<50) ? Math.min(85, Math.max.apply(null,used)+28)
-                                               : Math.max(12, Math.min.apply(null,used)-28);
-        labs.push([L, base[1], base[2]]);
-      }
-      for(let i=0;i<3;i++) slots[i+1]={color:lab2hex(labs[i])};
-      /* 最後一道：不得吐出兩支逐字元相同的 hex（不同 Lab 也可能捨入到同一個 hex）。 */
-      for(let i=1;i<=3;i++){
-        let guard=0;
-        while(guard++<8 && slots.slice(1,i).some(function(s){ return s.color===slots[i].color; })){
-          labs[i-1][0]=Math.max(8, Math.min(92, labs[i-1][0] + (labs[i-1][0]>50 ? -9 : 9)));
-          slots[i].color=lab2hex(labs[i-1]);
-        }
-      }
-      renderSlots(); simulate();
-      return;
-    }
-  }, 30);
+  /* 來源是壓平／風格化過的圖 ⇒ 用**目前這組料**的色階重新壓一次，否則舊色階的色塊會騎在新門檻上（0902 實測的那種斑）。
+     本地款式從原照片重壓（input origin，不會越滾越大）；AI 圖從目前那張重新分階（input current）——**不回頭再生一張**（R6-15）。
+     色階數取目前的 params.klevels：使用者若在套款式之後改過階數，重算就照新的階數。 */
+  if(ptSourceKind==='style' && ptLastStyleJob) ptStylePending=Object.assign({}, ptLastStyleJob, {tones:params.klevels});
+  renderSlots(); simulate();
 }
+document.getElementById('btnSuggest').onclick=recolorFromMaterials;
 
 /* ================= 參數/模式事件 ================= */
 let machineCap=null;                    // null＝宿主沒告知 ⇒ 不擋（fail-open）
@@ -2299,6 +2185,7 @@ function ptSourceBusy(text, sub){
 }
 
 function ptSourceTitle(kind){
+  ptSourceKind=kind||'';                  // 車 2 段 D：「依料重算圖面顏色」要知道來源是不是壓平過的圖
   const el=document.getElementById('srcTitle'); if(!el) return;
   const hint='<span class="hint">拖放／貼上／開啟圖片</span>';
   /* 「另存 AI 圖…」只在本張照片生過圖之後出現（Eric 2026-09-03 裁①：按鈕放來源框標題右側，
@@ -2355,7 +2242,8 @@ function ptStylizeSend(job, levels, cands){
      （最多 64），所以送整組候選、對映改 nearest；C++ 端每群配「最近、且與已配過的相距 ≥3 ΔE」的候選。
      離線用 10 張 AI 圖實測：壓平前「騎在兩個候選色邊界 ±3 內」的像素最高 74%，壓平後 0%。
      🆕 0903 當日曾短暫改走「rank＋款式設計色梯」（乙案），Eric 實走同日推翻（好看的紅圖被染藍）
-     ⇒ 回到 nearest 保真；「四色被用到」改由丙案保證：料色已在 aiEnd 隨 AI 圖換過（見那裡）。 */
+     ⇒ 回到 nearest 保真；「四色被用到」改由丙案保證：料色已在 aiEnd 隨 AI 圖換過（見那裡）。
+     🔴 0923 起丙案「料色隨 AI 圖換」已被 R6-16 推翻（見 aiEnd）：這裡壓平用的就是**目前的料**的候選色，料色不再被改。 */
   const quad = (slotCount===4);
   const pal  = quad ? cands : levels;
   if((slotCount!==2 && slotCount!==4) || !pal || (quad ? pal.length<job.tones : pal.length!==job.tones)){
@@ -2363,6 +2251,7 @@ function ptStylizeSend(job, levels, cands){
     return;
   }
   ptStyleJob='sty-'+Date.now();
+  ptLastStyleJob={styleId:job.styleId, tones:job.tones, useCurrent:!!job.useCurrent};   // 「依料重算圖面顏色」照這一款重壓
   ptStyleChunks=null; ptStyleMeta=null;
   ptSyncBusy();                                          // 壓平中：款式卡鎖住
   ptStyleStat(job.useCurrent ? '正在把 AI 生成的圖壓成 '+job.tones+' 個平色階…（約 1~2 秒）'
@@ -2596,13 +2485,11 @@ function ptApply(s){
   params.klevels=tones;
   const lv=document.getElementById('levelsIn'); if(lv) lv.value=tones;
   if(typeof renderCycleUI==='function') renderCycleUI();   // 款式帶進來的色階數同樣會改塔圈數（R12-5）
-  if(s.lockSlots===false && img && typeof suggest==='function'){
-    /* suggest() 自己會收尾 renderSlots()+simulate()，實測 659 ms、且期間 #metric
-       會顯示「建議計算中…」＝已有回饋，不必另做進度。 */
-    renderSlots(); suggest();
-  }else{
-    renderSlots(); simulate();
-  }
+  /* 🔴 R6-16（車 2 段 D）：本地款式（lockSlots===false）原本在這裡交給 suggest() 依圖改料色——拿掉，不再依圖挑料。
+     ⚠ 上面那行「款式宣告的料色寫進料槽」仍在：它是「沒有圖時的合理初值」、壓不過校正表（calibOwnsSlots）。
+       車 3 選料畫面上線後料一律來自材料庫，那一行要跟著改成「壓不過已選的料」（calibOwnsSlots 擴成選料），
+       到那時套款式才完全只換「怎麼畫」、不換「用哪幾支料」。 */
+  renderSlots(); simulate();
   /* 甲案：只有「宣告了 pipeline 的款式」才要風格化（目前＝本地款式）。
      AI 款式不走這條——它們的圖是生出來的，不是把原照壓成色塊。
      這裡只排隊；真正發送在 simulateVertical 尾端（那時料色與色階才定案）。 */
@@ -2787,8 +2674,7 @@ document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptRen
    色階數＝onchange／自動配色＝click／料數＝click／料色＝slotList 聽的是 **input**（不是 change）。 */
 const lvEl=document.getElementById('levelsIn');
 if(lvEl) lvEl.addEventListener('change',()=>setTimeout(ptInvalidateApplied,0));
-const sgEl=document.getElementById('btnSuggest');
-if(sgEl) sgEl.addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
+/* 車 2 段 D：btnSuggest 那一條拿掉了——那顆鈕已經不改料色（改成「依料重算圖面顏色」），按它不會讓設定偏離款式。 */
 document.getElementById('modeSeg').addEventListener('click',()=>setTimeout(ptInvalidateApplied,0));
 document.getElementById('slotList').addEventListener('input',()=>setTimeout(ptInvalidateApplied,0));
 ptSyncVisibility(); ptRender();

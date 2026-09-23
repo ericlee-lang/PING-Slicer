@@ -781,6 +781,63 @@ function fakeImg(){
     assert(/四料的套用還沒接上畫面/.test(idxHtml), '畫面沒把這個半狀態講出來');
   });
 
+  /* ================= 車 2 段 D（牌 c-0923-ACC-21）：suggest() 退場＝料 → 圖（R6-16） =================
+     頁面邏輯住在 index.html（node 載不進來）⇒ 這裡做**結構守衛**，而且每一條都配陽性對照
+     （把被守的東西放回去，守衛必須轉紅——否則不知道它有沒有在看）。執行期的 R6-13 驗收
+     （手動設色／匯入校正表之後，無論再載幾張圖槽色都不變）另在瀏覽器實走。 */
+  /* 找「程式碼裡」的 suggest( 呼叫：先去掉 /* *\/ 區塊註解與 <!-- --> 註解，行內 // 之後的也不算。 */
+  const suggestCallsIn = src => {
+    const noBlock = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/<!--[\s\S]*?-->/g, '');
+    const hits = [];
+    noBlock.split(/\r?\n/).forEach((ln, i) => {
+      const k = ln.search(/(^|[^\w.])suggest\s*\(/);
+      if (k < 0) return;
+      const cmt = ln.indexOf('//');
+      if (cmt >= 0 && cmt < k) return;
+      hits.push(ln.trim());
+    });
+    return hits;
+  };
+  await check('🔴 R6-16 段 D：頁面程式碼裡不再有 suggest()——函式本體退場、四個呼叫點全拆（含陽性對照）', () => {
+    const hits = suggestCallsIn(idxHtml);
+    assert.deepStrictEqual(hits, [], '頁面還有 suggest( 呼叫或定義：' + hits.join(' ｜ '));
+    assert(!/function suggest\s*\(/.test(idxHtml.replace(/\/\*[\s\S]*?\*\//g, '')), 'function suggest( 還在（註解裡提到不算）');
+    // 陽性對照：把「開圖即自動建議」放回去，守衛必須抓到
+    const mutated = idxHtml.replace('  renderSlots(); simulate();\n', '  suggest();\n').replace('  renderSlots(); simulate();\r\n', '  suggest();\r\n');
+    assert(mutated !== idxHtml, '陽性對照沒改到東西（錨點失效）');
+    assert(suggestCallsIn(mutated).length >= 1, '守衛抓不到被放回去的 suggest()');
+  });
+  await check('🔴 R6-16 段 D：開圖（loadBitmap）不改料色——只照目前的料出模擬', () => {
+    const i0 = idxHtml.indexOf('function loadBitmap(bmp, label){');
+    assert(i0 > 0, '找不到 loadBitmap');
+    const i1 = idxHtml.indexOf('\nfunction ', i0 + 10);
+    const body = idxHtml.slice(i0, i1 > 0 ? i1 : i0 + 4000).replace(/\/\*[\s\S]*?\*\//g, '');
+    assert(/renderSlots\(\); simulate\(\);/.test(body), '開圖之後沒有出模擬（零點擊先看到結果被拿掉了）');
+    assert(!/slots\[[^\]]*\](\.color)?\s*=[^=]/.test(body), '開圖時還在改料槽');
+  });
+  await check('🔴 R6-16 段 D：AI 回圖不再依圖改料色（R9-10 在選色這一關被取代）', () => {
+    const i0 = idxHtml.indexOf('async aiEnd(m){');
+    assert(i0 > 0, '找不到 aiEnd');
+    const body = idxHtml.slice(i0, idxHtml.indexOf('ptSourceTitle(\'ai\');', i0)).replace(/\/\*[\s\S]*?\*\//g, '');
+    assert(!/slots\[[^\]]*\](\.color)?\s*=[^=]/.test(body), 'AI 回圖時還在改料槽');
+    assert(/simulate\(\);/.test(body), 'AI 回圖之後沒有照目前的料出模擬');
+  });
+  await check('🔴 R6-16 段 D：「依這張圖建議配色」語意反轉成「依料重算圖面顏色」，按它不改料色、不收回「已套用」', () => {
+    assert(/id="btnSuggest"[^>]*>[\s\S]{0,80}重算圖面顏色<\/button>/.test(idxHtml), '按鈕字沒換成「依料重算圖面顏色」');
+    assert(!/建議配色<\/button>/.test(idxHtml), '舊的「建議配色」按鈕字還在');
+    assert(/getElementById\('btnSuggest'\)\.onclick=recolorFromMaterials;/.test(idxHtml), '按鈕沒接到 recolorFromMaterials');
+    const i0 = idxHtml.indexOf('function recolorFromMaterials(){');
+    assert(i0 > 0, '找不到 recolorFromMaterials');
+    const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0)).replace(/\/\*[\s\S]*?\*\//g, '');
+    assert(!/slots\[[^\]]*\](\.color)?\s*=[^=]/.test(body), '「依料重算」在改料槽——方向又反了');
+    assert(/ptSourceKind==='style' && ptLastStyleJob/.test(body), '壓平過的圖沒有照新的料重壓（舊色階會騎在新門檻上）');
+    assert(!/sgEl\.addEventListener\('click'/.test(idxHtml), '按「依料重算」仍會收回「已套用」（它已不改料色，不算偏離款式）');
+  });
+  await check('R6-16 段 D：引擎的 suggestSlots() 仍在——C++ 黃金閘門 12 個基準案全靠它（請求不帶料色時）', () => {
+    const E = require(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'engine.js'));
+    assert.strictEqual(typeof E.suggestSlots, 'function', 'engine.suggestSlots 不見了（黃金閘門會全紅）');
+  });
+
   console.log(`\n${pass} 通過、${fail} 失敗`);
   process.exit(fail ? 1 : 0);
 })();
