@@ -212,7 +212,7 @@
            font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:60;}
   .pttoast.on{opacity:1;}
 </style>
-<link rel="stylesheet" href="matflow.css?v=20260923a">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
+<link rel="stylesheet" href="matflow.css?v=20260923b">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
 </head>
 <body>
 
@@ -264,10 +264,7 @@
 </header>
 
 <main>
-  <!-- 第 1 步：選顏色（段 F；R6-15「選料在選圖之前」、R6-16「只列量過的料」）。內容由 matflow.js 畫。
-       橫跨三欄放在最上面（matflow.css grid-column:1/-1），不塞進左欄：塞左欄會把原圖卡往下推，
-       破掉 0918 版面 A「原圖與列印模擬兩張圖頂端對齊」（Eric 裁；並排比對不要上下跳）。 -->
-  <section class="panel" id="matPanel"></section>
+  <!-- 第 1 步「選顏色」住在右欄「列印設定」卡片最上面（見那張卡），不在這裡。 -->
   <!-- 左欄＝原圖＋款式（同一個 grid item，見 .colstack 註解） -->
   <div class="colstack">
   <!-- 原圖 -->
@@ -368,6 +365,13 @@
          「產生並載入列印板」＋進度＋訊息 2026-09-18 已搬到頂列右上（見 header 註解）。 -->
     <h2>列印設定 <span class="hint">改任何值即時重算</span></h2>
     <div class="pad">
+      <!-- 第 1 步：選顏色（段 F；R6-15「選料在選圖之前」、R6-16「只列量過的料」）。內容由 matflow.js 畫。
+           2026-09-23 Eric 裁（牌 c-0923-ACC-25；原話「Q1 Q2 Q3照建議」）：從「頂端橫跨三欄」搬進本卡最上面、色階數上方。
+           理由＝他的原話「點選開啟和收合時，下面的圖片會整個往下推動，而且這自己形成一個新的區塊不太好」：
+           放在這裡，展開／收起只推本卡下面的設定，原圖與列印模擬兩張圖不動（0918 版面 A 兩圖頂端對齊照舊成立），
+           也不再多一個區塊；色階數上限跟著選的那組料走，放一起最順。
+           ⛔ 不要搬回左欄：左欄會把原圖卡往下推，一樣破掉兩圖頂端對齊。 -->
+      <div id="matPanel"></div>
       <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值）；段 F：選的那組料跨幅不夠時 ptMatApply 再往下壓（R6-7 附款） -->
         <span class="sub warn" id="levelsCap"></span>

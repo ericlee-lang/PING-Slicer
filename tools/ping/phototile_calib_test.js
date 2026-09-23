@@ -808,6 +808,17 @@ function fakeImg(){
     assert(/id="matPanel"/.test(idxHtml), '沒有第 1 步「選顏色」的位置——那就是默默生效');
     assert(!/calibTable && slotCount===2/.test(idxHtml), '舊的「只給雙料」條件還在');
   });
+  /* 🆕 2026-09-23 Eric 裁（牌 c-0923-ACC-25，原話「Q1 Q2 Q3照建議」）：「選顏色」住在右欄「列印設定」卡片最上面、色階數上方。
+     起因＝放在頂端橫跨三欄時，展開／收起會把原圖與列印模擬兩張圖整個往下推，而且自成一個新區塊。 */
+  await check('🔴 第 1 步「選顏色」在右欄「列印設定」卡片裡、色階數上方——不在頂端跨欄、不在左欄', () => {
+    const ctrlAt = idxHtml.indexOf('<section class="panel ctrl">');
+    const matAt = idxHtml.indexOf('id="matPanel"'), lvAt = idxHtml.indexOf('id="levelsRow"');
+    assert(ctrlAt > 0 && matAt > ctrlAt && lvAt > matAt, '#matPanel 不在「列印設定」卡片裡、或不在色階數上方');
+    const nextSection = idxHtml.indexOf('<section', ctrlAt + 1);
+    assert(nextSection < 0 || matAt < nextSection, '#matPanel 跑出「列印設定」卡片了');
+    assert(!/<section class="panel" id="matPanel">/.test(idxHtml), '還是頂端那張獨立的卡（會推動兩張圖）');
+    assert(!/#matPanel\{grid-column:1\/-1;/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), 'matflow.css 還在讓它橫跨三欄');
+  });
 
   /* ================= 車 2 段 E（牌 c-0923-ACC-21）：四料也「把圖的明暗壓進可印範圍再分階」（R6-16 推論③） =================
      兩端＝候選色（實測內插）的 L* 全域最小／最大；映射用雙料那一支 toneStretch()（不寫第二份）。 */
