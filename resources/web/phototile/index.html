@@ -785,7 +785,7 @@ function matlibRecord(tbl, mats, at){
   try{
     const n=Array.isArray(tbl.pairs)?4:2;
     const ids=(Array.isArray(mats)&&mats.length===n) ? mats.map(m=>({type:m.type||null, label:m.label})) : [];
-    at=at||new Date().toISOString().slice(0,10);
+    at=at||(window.PhotoTileMatFlow?PhotoTileMatFlow.today():new Date().toISOString().slice(0,10));   // 本地日期（UTC 在台灣早上 8 點前是前一天）
     const pairs=n===4
       ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:ids, measuredAt:at})
       : [PhotoTileMatLib.pairFromDual(tbl, {materials:ids, measuredAt:at})];
@@ -2070,8 +2070,9 @@ function ptSourceTitle(kind){
       +'<span class="hint" id="aiSaveStat"></span>'
     : '';
   /* 2026-09-08 Eric 打叉「原照片仍保留…」那句（說明不太有用）⇒ 拿掉；標題只說來源是什麼。 */
-  /* 9-5：AI 圖壓平後左邊仍是 AI 原圖（不再貼回壓平結果）⇒ 標題說來源是 AI 原圖、壓平只在右邊。 */
-  if(kind==='style')   el.innerHTML=(ptAiHasImage && ptStyleFromAi ? '來源（AI 生成）<span class="hint">右邊照這組料壓成平色階</span>' : '來源（已風格化）')+save;
+  /* 9-5：AI 圖壓平後左邊仍是 AI 原圖（不再貼回壓平結果）⇒ 標題就說「AI 生成」；左右差在哪寫在款式區那一行（ptStyleStat），
+     不塞進標題——1366 寬實量：標題多一句提示就換行，原圖被推低、破掉兩圖頂端對齊（0918 版面 A）。 */
+  if(kind==='style')   el.innerHTML=(ptAiHasImage && ptStyleFromAi ? '來源（AI 生成）' : '來源（已風格化）')+save;
   else if(kind==='ai') el.innerHTML='來源（AI 生成）'+save;
   else                 el.innerHTML='原圖 '+hint;
 }

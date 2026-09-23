@@ -270,7 +270,9 @@ function mode(){ return page ? page.mode() : 'dual'; }
 function lib(){ return (page && page.lib()) || M().emptyLib(); }
 function types(){ return typeList(page && page.materialTypes ? page.materialTypes() : null); }
 function save(){ if (page && page.save) page.save(); }
-function today(){ return new Date().toISOString().slice(0, 10); }
+/* 🔴 本地日期：toISOString() 是 UTC——台灣早上 8 點前會記成前一天（瀏覽器實走抓到：9/24 早上記成 9/23），
+   畫面上的「9/23 量的」就錯一天、新舊版本的先後也跟著錯。 */
+function today(){ const t = new Date(); return new Date(t.getTime() - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 function whenText(d){ const m = mdate(d); return m ? m + ' 量的' : '舊表、沒記日期'; }
 
 /* 目前這個料數（或指定料數）生效中的那組；庫變了（指定料種、重量測）就重算，不成立就退回預設。 */
@@ -605,15 +607,22 @@ function partnerText(lb, m){
   const p = M().partnersOf(lb, m)[0];
   return p ? whenText(p.pair.measuredAt) + '，和「' + p.other.label + '」一組' : '';
 }
+/* 🔴 別的對話框開著時要等它關掉——但它關掉的那一刻沒有任何事件通知這裡（瀏覽器實走抓到：開圖時的「主角是？」
+   把這一問擋掉之後就再也沒出現），而頁面的對話框程式還會把 .cfmBack **全部**拿掉（連這一問一起）。
+   ⇒ 只在「還有舊資料沒問」的期間每秒看一次：被擋就等、被拿掉就重開；問過（legacyAskedAt）或沒有舊資料就停。 */
+let askTimer = null;
+function askLater(){ if (!askTimer) askTimer = root.setTimeout(() => { askTimer = null; maybeAskLegacy(); }, 1000); }
 function maybeAskLegacy(){
-  if (dlg && !dlg.back.isConnected) dlg = null;      // 頁面別的對話框會把 .cfmBack 全部拿掉——被拿掉就當這次沒問
+  if (dlg && !dlg.back.isConnected) dlg = null;      // 頁面別的對話框會把 .cfmBack 全部拿掉——被拿掉就當這次沒問、等下重開
   const doc = root.document, lb = lib();
-  if (!doc || dlg || flow !== 'gen' || lb.legacyAskedAt) return;
-  if (page && ((page.loading && page.loading()) || (page.typesReady && !page.typesReady()))) return;   // 庫與料種清單都到了才問
-  if (doc.querySelector('.cfmBack')) return;         // 別的對話框開著：不疊上去，下次 refresh 再問
+  if (!doc || lb.legacyAskedAt) return;
   const leg = M().listMaterials(lb).filter(m => M().needsSpec(m));
   if (!leg.length) return;
-  openDlg({ title: '舊版留下的校正資料——它們是什麼料？（只問這一次）',
+  if (dlg){ if (dlg.o.legacy) askLater(); return; }  // 這一問開著：繼續看它有沒有被別人拿掉
+  if (flow !== 'gen') return;                        // 在校正流程裡不問；回產圖流程時 setFlow 會再叫一次
+  if (page && ((page.loading && page.loading()) || (page.typesReady && !page.typesReady()))) return;   // 庫與料種清單都到了才問（到的時候 refresh 會叫）
+  if (doc.querySelector('.cfmBack')){ askLater(); return; }   // 別的對話框開著：不疊上去，等它關
+  openDlg({ legacy: true, title: '舊版留下的校正資料——它們是什麼料？（只問這一次）',
     body: '<p>新版用「<b>料種＋顏色名</b>」認一支料（量到的色號只當紀錄）。下面這 ' + leg.length + ' 支是舊版存的，只記了色號或線材名。'
       + '<b>不確定的空著就好</b>——之後在清單上按「指定…」再補。</p>'
       + leg.map((m, i) => mpHtml({ i, k: m.key, title: m.label, titleSub: declName(m), hex: m.hex, type: types()[0], name: '',
@@ -839,7 +848,7 @@ function refresh(){
 return {
   NEED, LEVELS_MAX, SEL_KEY, TYPES_FALLBACK,
   pairVerdict, usable, choices, toggle, assignSlots, setInfo, setCheck, validSets, defaultKeys, calibRequestFor, aiPaletteLine,
-  typeList, namesOf, nameHint, dupIn, knownMat, mdate, dateFromName,
+  typeList, namesOf, nameHint, dupIn, knownMat, mdate, dateFromName, today,
   mount, refresh, ready, info, openPicker, calibRequest, setFlow, calColors, calNames, calLabelHtml, calMaterials, onCalibrated, goCal, importTable,
   flow: () => flow, calStep: () => calStep,
 };

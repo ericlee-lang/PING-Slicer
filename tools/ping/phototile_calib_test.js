@@ -1183,7 +1183,9 @@ function fakeImg(){
     const body = MF_SRC.slice(i0, MF_SRC.indexOf('\nfunction ', i0 + 10));
     assert(/lb\.legacyAskedAt\) return;/.test(body), '問過了還會再問（不是一次性）');
     assert(/page\.loading && page\.loading\(\)\) \|\| \(page\.typesReady && !page\.typesReady\(\)\)/.test(body), '庫或料種清單還沒到就問（App 那一份是非同步的）');
-    assert(/doc\.querySelector\('\.cfmBack'\)\) return;/.test(body), '別的對話框開著也疊上去');
+    assert(/doc\.querySelector\('\.cfmBack'\)\)\{ askLater\(\); return; \}/.test(body), '別的對話框開著也疊上去、或擋掉之後就不再問');
+    assert(/if \(dlg && !dlg\.back\.isConnected\) dlg = null;/.test(body) && /if \(dlg\.o\.legacy\) askLater\(\);/.test(body),
+      '這一問被頁面別的對話框拿掉（它會清掉全部 .cfmBack）之後不會重開');
     assert.strictEqual((body.match(/lb\.legacyAskedAt = today\(\); save\(\);/g) || []).length, 2, '「確定」與「先跳過」兩條路沒有都記下「問過了」');
     assert(/M\(\)\.specifyConflicts\(lb, map\)/.test(body) && /remapKeys\(M\(\)\.specifyMaterials\(lb, map\)\)/.test(body),
       '指定前沒擋同組同名、或指定後沒把生效中的那組換成新鍵');
