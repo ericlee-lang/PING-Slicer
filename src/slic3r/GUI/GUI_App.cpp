@@ -5825,6 +5825,169 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     }
                 }
             }
+            /* 【段 B・車 2（牌 c-0923-ACC-21）】照片磚「材料庫」的家＝App 設定資料夾
+               （規格 R6-14 子題 2 裁 B：庫落 data_dir——使用者備份得到、清瀏覽器資料也不會不見）。
+               檔案＝<data_dir>/phototile/material_library.json。宿主**不解讀內容**（schema／正規化住頁面 matlib.js），
+               只負責「完整地存、完整地讀」。
+               🔴 收件四項驗證照活著的 phototile_image_* 抄：①連號 ②塊數 ③總長度 ④上限（另加壞 base64 一道）。
+                  參考模型＝matlib.js 的 createSaveAssembler()；**改規則兩邊一起改**
+                  （tools/ping/phototile_protocol_test.js §8 會比對這裡的上限值與四個訊息名）。
+               🔴 一次存檔只回一次結果（在 end）：中途壞掉就記下原因、後面的塊一律不收、到 end 才回報——
+                  不回報兩次，也絕不半套落檔（半套＝使用者的校正資料被截斷，而且不報錯）。
+               🔴 原子寫：先寫 .tmp、確認寫滿才換上（Slic3r::rename_file＝原子取代）；換上前把舊檔複製成 .bak。
+               ⚠ 系統錯誤訊息（ec.message()）只進 log、不進畫面：Windows 會給本機字碼頁的字串，不是 UTF-8。 */
+            else if (command_str.compare("phototile_matlib_load") == 0) {
+                constexpr size_t max_matlib_bytes = 524288;   // 512 KB——同值住 matlib.js HOST_MAX_BYTES
+                const boost::filesystem::path lib_path =
+                    boost::filesystem::path(data_dir()) / "phototile" / "material_library.json";
+                std::string reply;
+                boost::system::error_code ec;
+                if (!boost::filesystem::exists(lib_path, ec)) {
+                    reply = "{ok:true,exists:false}";
+                } else {
+                    const boost::uintmax_t size = boost::filesystem::file_size(lib_path, ec);
+                    if (ec || size == 0 || size > max_matlib_bytes) {
+                        BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：不載入 " << lib_path.string() << " size=" << size
+                                                   << (ec ? (" err=" + ec.message()) : std::string());
+                        reply = std::string("{ok:false,message:\"") +
+                                ping_js_escape("材料庫檔案是空的、讀不到大小、或超過 512 KB，這次沒有載入（原檔未動）。") + "\"}";
+                    } else {
+                        std::vector<unsigned char> bytes(static_cast<size_t>(size));
+                        boost::nowide::ifstream input(lib_path.string(), std::ios::binary);
+                        if (!input || !input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()))) {
+                            reply = std::string("{ok:false,message:\"") + ping_js_escape("材料庫檔案讀取失敗（原檔未動）。") + "\"}";
+                        } else {
+                            std::string encoded(boost::beast::detail::base64::encoded_size(bytes.size()), '\0');
+                            encoded.resize(boost::beast::detail::base64::encode(&encoded[0], bytes.data(), bytes.size()));
+                            reply = "{ok:true,exists:true,size:" + std::to_string(bytes.size()) + ",base64:\"" + encoded + "\"}";
+                        }
+                    }
+                }
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 材料庫：讀取 " << lib_path.string() << " → " << reply.substr(0, 32);
+                photo_tile_page_script("window.PINGPhotoTile && window.PINGPhotoTile.matlibLoaded && "
+                                       "window.PINGPhotoTile.matlibLoaded(" + reply + ");");
+            }
+            else if (command_str.compare("phototile_matlib_save_begin") == 0) {
+                constexpr size_t max_matlib_bytes  = 524288;   // 同上
+                constexpr size_t max_matlib_chunks = 4096;     // 同值住 matlib.js HOST_MAX_CHUNKS
+                const size_t expected_size   = root.get<size_t>("data.size", 0);
+                const size_t expected_chunks = root.get<size_t>("data.chunks", 0);
+                m_photo_tile_matlib_buffer.clear();
+                m_photo_tile_matlib_expected_size   = 0;
+                m_photo_tile_matlib_expected_chunks = 0;
+                m_photo_tile_matlib_next_chunk      = 0;
+                m_photo_tile_matlib_fail.clear();
+                if (expected_size == 0 || expected_size > max_matlib_bytes ||                          // ④上限
+                    expected_chunks == 0 || expected_chunks > max_matlib_chunks || expected_chunks > expected_size) {
+                    m_photo_tile_matlib_state = 2;
+                    m_photo_tile_matlib_fail  = "材料庫大小或分塊數不合法（上限 512 KB），這次沒有存檔。";
+                    BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：拒收 size=" << expected_size << ", chunks=" << expected_chunks;
+                } else {
+                    m_photo_tile_matlib_buffer.reserve(expected_size);
+                    m_photo_tile_matlib_expected_size   = expected_size;
+                    m_photo_tile_matlib_expected_chunks = expected_chunks;
+                    m_photo_tile_matlib_state           = 1;
+                }
+            }
+            else if (command_str.compare("phototile_matlib_save_chunk") == 0) {
+                if (m_photo_tile_matlib_state != 1)
+                    return "";                                  // 閒置或已作廢：不收（原因等 end 一次回報）
+                const size_t index = root.get<size_t>("data.index", size_t(-1));
+                const std::string encoded = root.get<std::string>("data.base64", "");
+                const auto fail = [this](const char* why) {
+                    m_photo_tile_matlib_state = 2;
+                    m_photo_tile_matlib_fail  = why;
+                    m_photo_tile_matlib_buffer.clear();
+                };
+                if (index != m_photo_tile_matlib_next_chunk || encoded.empty()) {                       // ①連號
+                    fail("材料庫存檔的分塊亂序或遺失，這次沒有存檔。");
+                    return "";
+                }
+                std::vector<unsigned char> decoded(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto dr = boost::beast::detail::base64::decode(decoded.data(), encoded.data(), encoded.size());
+                decoded.resize(dr.first);
+                /* 壞 base64 一律擋（同 matlib.js b64ToBytes）：beast 遇到非法字元會「停下來」而不是報錯，
+                   不驗就會靜默收下一段較短的資料。合法＝長度是 4 的倍數、停下來之後只剩最多兩個 '='。 */
+                size_t pad = 0;
+                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                    if (encoded[k] == '=') ++pad; else { pad = 99; break; }
+                }
+                if (encoded.size() % 4 != 0 || pad > 2 || decoded.empty()) {
+                    fail("材料庫存檔的分塊內容解不開，這次沒有存檔。");
+                    return "";
+                }
+                if (m_photo_tile_matlib_buffer.size() + decoded.size() > m_photo_tile_matlib_expected_size) {   // ③總長度
+                    fail("材料庫存檔的長度超過宣告，這次沒有存檔。");
+                    return "";
+                }
+                m_photo_tile_matlib_buffer.insert(m_photo_tile_matlib_buffer.end(), decoded.begin(), decoded.end());
+                ++m_photo_tile_matlib_next_chunk;
+            }
+            else if (command_str.compare("phototile_matlib_save_end") == 0) {
+                const auto saved = [this](bool ok, const std::string& message, const std::string& path) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.matlibSaved && "
+                        "window.PINGPhotoTile.matlibSaved({ok:") + (ok ? "true" : "false") + ",message:\"" +
+                        ping_js_escape(message) + "\",path:\"" + ping_js_escape(path) + "\"});");
+                };
+                const int         state       = m_photo_tile_matlib_state;
+                const std::string fail_reason = m_photo_tile_matlib_fail;
+                const bool        count_ok    = m_photo_tile_matlib_next_chunk == m_photo_tile_matlib_expected_chunks;   // ②塊數
+                const size_t      want_size   = m_photo_tile_matlib_expected_size;
+                std::vector<unsigned char> bytes;
+                bytes.swap(m_photo_tile_matlib_buffer);
+                m_photo_tile_matlib_state = 0;
+                m_photo_tile_matlib_fail.clear();
+                m_photo_tile_matlib_expected_size   = 0;
+                m_photo_tile_matlib_expected_chunks = 0;
+                m_photo_tile_matlib_next_chunk      = 0;
+                if (state == 2) { saved(false, fail_reason, ""); return ""; }
+                if (state != 1) { saved(false, "沒有進行中的材料庫存檔。", ""); return ""; }
+                if (!count_ok)  { saved(false, "材料庫存檔的分塊數不符，這次沒有存檔。", ""); return ""; }
+                if (bytes.size() != want_size) { saved(false, "材料庫存檔的總長度不符，這次沒有存檔。", ""); return ""; }   // ③總長度
+
+                const boost::filesystem::path dir      = boost::filesystem::path(data_dir()) / "phototile";
+                const boost::filesystem::path lib_path = dir / "material_library.json";
+                const boost::filesystem::path tmp_path = dir / "material_library.json.tmp";
+                const boost::filesystem::path bak_path = dir / "material_library.json.bak";
+                boost::system::error_code ec;
+                boost::filesystem::create_directories(dir, ec);
+                if (ec) {
+                    BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：建資料夾失敗 " << dir.string() << " err=" << ec.message();
+                    saved(false, "建不了材料庫的資料夾，這次沒有存檔（原檔未動）。", "");
+                    return "";
+                }
+                bool write_ok = false;
+                {
+                    boost::nowide::ofstream output(tmp_path.string(), std::ios::binary | std::ios::trunc);
+                    output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                    output.close();
+                    write_ok = output.good();
+                }
+                /* 寫滿才換上：讀回大小對不上＝不換（就地覆寫失敗會留下 0 byte 檔，SOP_單檔編譯檢查 §6-6 付過的學費） */
+                if (write_ok) {
+                    const boost::uintmax_t written = boost::filesystem::file_size(tmp_path, ec);
+                    write_ok = !ec && written == bytes.size();
+                }
+                if (!write_ok) {
+                    boost::filesystem::remove(tmp_path, ec);
+                    BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：暫存檔寫入失敗 " << tmp_path.string();
+                    saved(false, "材料庫暫存檔寫入失敗，這次沒有存檔（原檔未動）。", "");
+                    return "";
+                }
+                if (boost::filesystem::exists(lib_path, ec)) {
+                    boost::filesystem::copy_file(lib_path, bak_path, boost::filesystem::copy_options::overwrite_existing, ec);
+                    if (ec)   // 備份失敗不擋存檔（只記 log）：擋下來＝使用者這一次的校正資料反而沒地方放
+                        BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：備份舊檔失敗 " << bak_path.string() << " err=" << ec.message();
+                }
+                if (const std::error_code rc = Slic3r::rename_file(tmp_path.string(), lib_path.string())) {
+                    boost::filesystem::remove(tmp_path, ec);
+                    BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫：換上新檔失敗 " << lib_path.string() << " err=" << rc.message();
+                    saved(false, "材料庫換上新檔失敗，這次沒有存檔（原檔未動）。", "");
+                    return "";
+                }
+                BOOST_LOG_TRIVIAL(info) << "PhotoTile 材料庫：已存 " << bytes.size() << " bytes → " << lib_path.string();
+                saved(true, "", lib_path.string());
+            }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
                     if (mainframe->m_webview) {

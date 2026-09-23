@@ -29,7 +29,8 @@
    儲存轉接層：頁面本來就跑在兩種環境——產品是 WebView（庫要落 `data_dir`，段 B 的 C++ 通道）、
    開發時是一般瀏覽器（`localStorage`）。**這不是預留後路**，既有碼已經是這個形狀
    （`calibTable.persisted` 存不進去時畫面誠實標示）。🔴 存不進去時照樣講出來，不靜默。
-   ⚠ 段 B（C++ 通道）**不在車 1 範圍**；這裡先只有 localStorage 與 memory 兩個實作。
+   🆕 段 B（車 2，牌 `c-0923-ACC-21`）：產品路徑改落 **App 設定資料夾**（`hostStorage()`，見下方〈庫的家〉一節）；
+      瀏覽器直開（開發）仍用 localStorage；兩種都存不進去才是 none（照樣講出來）。
    ===================================================================== */
 (function (root, factory) {
   const api = factory(root);
@@ -273,8 +274,9 @@ function migrateLegacy(lib, tbl, opt){
 
 /* 這一格要不要請使用者認領？＝兩端至少有一端還沒有 filament_id。
    舊表遷進來的那一格一定落在這裡（R6-14 子題 2 附款）；
-   ⚙ 在段 B（C++ 通道）接上之前，**頁面根本拿不到 filament_id**（index.html grep 零命中）
-   ⇒ 這段期間新量的表也沒有 fid，同樣該認領。把判準放在「有沒有 fid」而不是「出身是不是舊表」，
+   ⚙ 段 B（車 2）之後頁面拿得到「機上裝了哪幾支線材」（capability 的 filaments），但**校正片的哪一端是哪一支**
+     仍要人指定（校正流程第一步／認領，車 3），程式不從目前的擠出機去猜——猜錯＝整筆資料掛錯身分，而且沒人會發現。
+   ⇒ 所以匯入的表仍然沒有 fid，同樣該認領。把判準放在「有沒有 fid」而不是「出身是不是舊表」，
    才不會讓那些新量的表靜默地永遠只能靠 hex 比對。 */
 function needsClaim(pair){
   return !!(pair && (!pair.a.fid || !pair.b.fid));
@@ -296,6 +298,154 @@ function claimPair(lib, id, aMat, bMat, opt){
   };
   lib.pairs = lib.pairs.filter(p => p.id !== id);
   return upsertPair(lib, next);
+}
+
+/* ---- 庫的家＝App 設定資料夾（段 B；R6-14 子題 2 裁 B：庫落 data_dir） ------------------
+   產品路徑：頁面 ↔ C++ 走 `phototile_matlib_*` 四支訊息，檔案落
+   `<data_dir>/phototile/material_library.json`（原子寫：.tmp 寫完才換上；換上前把舊檔留一份 .bak）。
+   🔴 照**活著的** `phototile_image_begin|chunk|end` 抄四項驗證：①連號 ②塊數 ③總長度 ④上限。
+      （`phototile_export_*` 別抄——它現在只剩校正片 3MF 在用，形狀是舊的。）
+   🔴 `createSaveAssembler()` ＝ C++ 收件口的**參考模型**：規則只寫這一份，GUI_App.cpp 逐條鏡像；
+      單元測的反向案例（亂序／少塊／長度竄改／超上限／壞 base64）打的就是它。
+      **一次存檔只回一次結果**（在 end 那一刻）：中途壞掉就記下原因、後面的塊一律不收，到 end 才回報。
+   ℹ️ 測試版有獨立 data root ⇒ 測試版與出貨版的材料庫各自一份（版本治理的必然結果，不是缺陷）。 */
+/* 上限 512 KB 的由來：一對雙料 8 點約 350 bytes、一張四料 48 格（6 對）約 2 KB ⇒ 512 KB 約可放一千五百對，
+   遠超過實際會用到的量；而讀檔回程是**一次** RunScript 注入（不分塊），上限壓小就不必再做一套分塊回程。
+   超過時送出端先擋、並把原因講出來（不是默默存不進去）。 */
+const HOST_MAX_BYTES   = 524288;            // 🔴 同值住 GUI_App.cpp（max_matlib_bytes）；改要一起改
+const HOST_MAX_CHUNKS  = 4096;              // 🔴 同上
+const HOST_CHUNK_BYTES = 48 * 1024;         // 可被 3 整除 ⇒ 每一塊的 base64 中段不會有 padding
+const CMD = { LOAD: 'phototile_matlib_load',
+              SAVE_BEGIN: 'phototile_matlib_save_begin',
+              SAVE_CHUNK: 'phototile_matlib_save_chunk',
+              SAVE_END:   'phototile_matlib_save_end' };
+
+function utf8Encode(s){
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(String(s));
+  return Uint8Array.from(Buffer.from(String(s), 'utf8'));
+}
+/* fatal：壞掉的 UTF-8 直接丟例外，不要靜默換成 U+FFFD（那會把壞檔當成好檔再存回去）。 */
+function utf8Decode(u8){ return new TextDecoder('utf-8', { fatal: true }).decode(u8); }
+function bytesToB64(u8){
+  if (typeof Buffer !== 'undefined') return Buffer.from(u8).toString('base64');
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+/* 壞掉的 base64 一律丟例外——不可以靜默解成一段比較短的資料（長度驗證就是靠它才抓得到）。 */
+function b64ToBytes(b64){
+  if (typeof b64 !== 'string' || b64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(b64))
+    throw new Error('base64 格式不合');
+  if (typeof Buffer !== 'undefined') return Uint8Array.from(Buffer.from(b64, 'base64'));
+  const s = atob(b64); const u8 = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+  return u8;
+}
+
+/* 頁面 → App：把整份庫（JSON 字串）切成 begin／chunk…／end。超過上限在這裡就擋、並講出來。 */
+function buildSaveMessages(text, chunkBytes){
+  const bytes = utf8Encode(text);
+  if (!bytes.length) throw new Error('材料庫內容是空的');
+  if (bytes.length > HOST_MAX_BYTES)
+    throw new Error('材料庫超過 ' + (HOST_MAX_BYTES / 1024) + ' KB 上限（' + bytes.length + ' bytes）');
+  const cb = chunkBytes || HOST_CHUNK_BYTES;
+  const chunks = Math.ceil(bytes.length / cb);
+  const out = [{ command: CMD.SAVE_BEGIN, data: { size: bytes.length, chunks } }];
+  for (let i = 0; i < chunks; i++)
+    out.push({ command: CMD.SAVE_CHUNK,
+               data: { index: i, base64: bytesToB64(bytes.subarray(i * cb, Math.min(bytes.length, (i + 1) * cb))) } });
+  out.push({ command: CMD.SAVE_END, data: { size: bytes.length, chunks } });
+  return out;
+}
+
+/* C++ 收件口的參考模型。accept(msg) 回傳：
+     {ok:true, done:false}              收下這一步
+     {ok:true, done:true, bytes}        收齊，可以落檔
+     {ok:false, code, why, report}      這一步不收；report:true＝這一刻要回報頁面（只有 end 會是 true）
+   code：limit（④上限）／order（①連號）／decode（壞 base64）／length（③總長度）／count（②塊數）／idle（沒有 begin）。
+   🔴 中途壞掉＝整批作廢、緩衝丟掉，**絕不半套落檔**（半套＝使用者的校正資料被截斷，而且不報錯）。 */
+function createSaveAssembler(maxBytes, maxChunks){
+  const cap = maxBytes || HOST_MAX_BYTES, capN = maxChunks || HOST_MAX_CHUNKS;
+  let state = 'idle', size = 0, chunks = 0, next = 0, parts = [], got = 0, failCode = '', failWhy = '';
+  const clear = () => { size = 0; chunks = 0; next = 0; parts = []; got = 0; };
+  const fail = (code, why) => { clear(); state = 'failed'; failCode = code; failWhy = why;
+                                return { ok: false, code, why, report: false }; };
+  return {
+    accept(m){
+      const cmd = m && m.command, d = (m && m.data) || {};
+      if (cmd === CMD.SAVE_BEGIN){
+        clear(); state = 'idle'; failCode = ''; failWhy = '';
+        const s = Number(d.size), c = Number(d.chunks);
+        if (!Number.isInteger(s) || s <= 0 || s > cap) return fail('limit', '材料庫大小不合法或超過上限（' + d.size + '）');
+        if (!Number.isInteger(c) || c <= 0 || c > capN || c > s) return fail('limit', '分塊數不合法（' + d.chunks + '）');
+        state = 'active'; size = s; chunks = c;
+        return { ok: true, done: false };
+      }
+      if (cmd === CMD.SAVE_CHUNK){
+        if (state !== 'active') return { ok: false, code: state === 'failed' ? failCode : 'idle', why: '這一批已作廢或沒有開始', report: false };
+        if (Number(d.index) !== next || typeof d.base64 !== 'string' || !d.base64)
+          return fail('order', '分塊亂序或是空的（期望第 ' + next + ' 塊，收到 ' + d.index + '）');
+        let u8;
+        try { u8 = b64ToBytes(d.base64); } catch (e) { return fail('decode', '分塊內容解不開'); }
+        if (!u8.length || got + u8.length > size) return fail('length', '累計長度超過宣告的 ' + size + ' bytes');
+        parts.push(u8); got += u8.length; next++;
+        return { ok: true, done: false };
+      }
+      if (cmd === CMD.SAVE_END){
+        if (state === 'failed'){ const r = { ok: false, code: failCode, why: failWhy, report: true }; state = 'idle'; return r; }
+        if (state !== 'active') return { ok: false, code: 'idle', why: '沒有進行中的存檔', report: true };
+        if (next !== chunks){ const r = fail('count', '分塊數不符（收到 ' + next + '／宣告 ' + chunks + '）'); state = 'idle'; r.report = true; return r; }
+        if (got !== size){ const r = fail('length', '總長度不符（收到 ' + got + '／宣告 ' + size + '）'); state = 'idle'; r.report = true; return r; }
+        const bytes = new Uint8Array(size); let o = 0;
+        for (const p of parts){ bytes.set(p, o); o += p.length; }
+        clear(); state = 'idle';
+        return { ok: true, done: true, bytes };
+      }
+      return { ok: false, code: 'unknown', why: '不認得的訊息：' + cmd, report: false };
+    }
+  };
+}
+
+/* 讀進來的原文 → 庫。和 load() 的差別：**讀不懂要講出來**（ok:false＋why），不靜默當成空庫——
+   App 那一份若被手改壞，呼叫端要知道「不能拿空庫去蓋它」。原文是 null／空字串＝還沒有庫（ok:true）。 */
+function parseLib(raw){
+  if (raw == null || raw === '') return { ok: true, lib: emptyLib(), why: '' };
+  let obj;
+  try { obj = JSON.parse(raw); } catch (e) { return { ok: false, lib: emptyLib(), why: '材料庫檔案不是合法的 JSON' }; }
+  if (!obj || typeof obj !== 'object' || obj.schema !== SCHEMA)
+    return { ok: false, lib: emptyLib(), why: '材料庫檔案的版本不認得（schema ' + (obj && obj.schema) + '）' };
+  return { ok: true, lib: normalize(obj), why: '' };
+}
+/* 把 from 裡、into 還沒有的 pair 併進 into。🔴 **不覆蓋**已有的那一筆（into 那筆可能是後來重新量的）。
+   用途：①App 讀檔回來之前使用者先匯入的表 ②車 1 期間存在瀏覽器儲存區的庫——都要併進 App 那一份。 */
+function mergeLib(into, from){
+  let added = 0;
+  for (const p of (from && from.pairs) || []){
+    if (getPair(into, p.id)) continue;
+    upsertPair(into, p); added++;
+  }
+  return added;
+}
+
+/* App 那一份的儲存實作。send(command, data)＝頁面的 sendSlicerMessage；
+   ls＝瀏覽器儲存區，**只為了讀舊資料**（舊鍵、車 1 期間的庫），兩者都要併進 App 那一份，只讀不刪。
+   寫入是非同步的：writeLib 回 'pending'，結果由 App 回推 matlibSaved({ok, message})。 */
+function hostStorage(send, ls){
+  let buf = null;
+  const lsGet = k => { try { return ls ? ls.getItem(k) : null; } catch (e) { return null; } };
+  return { name: 'App 設定資料夾', isHost: true,
+    readLib: () => buf,
+    writeLib: s => { const msgs = buildSaveMessages(s); msgs.forEach(m => send(m.command, m.data)); buf = s; return 'pending'; },
+    readLegacy: () => lsGet(LEGACY_KEY),
+    readBrowserLib: () => lsGet(LIB_KEY),
+    requestLoad: () => send(CMD.LOAD, {}),
+    /* App 回來的讀檔結果 {ok, exists, base64, message} → 放進緩衝；回傳 {ok, why}。 */
+    acceptLoad: msg => {
+      if (!msg || msg.ok !== true) return { ok: false, why: (msg && msg.message) || 'App 讀不到材料庫' };
+      if (!msg.exists){ buf = null; return { ok: true, why: '' }; }
+      try { buf = utf8Decode(b64ToBytes(String(msg.base64 || ''))); return { ok: true, why: '' }; }
+      catch (e) { buf = null; return { ok: false, why: '材料庫檔案讀回來是壞的（' + (e && e.message || e) + '）' }; }
+    } };
 }
 
 /* ---- 儲存轉接層 ----------------------------------------------------- */
@@ -341,10 +491,15 @@ function load(){
   if (!raw) return emptyLib();
   try { return normalize(JSON.parse(raw)); } catch (e) { return emptyLib(); }
 }
+/* 回傳 {persisted, why}（車 1 的形狀，一個字不動——phototile_calib_test.js 釘住了它）；
+   只有 App 那條會多一個 pending:true＝已送給 App、結果還沒回來（App 會回推 matlibSaved）。
+   呼叫端**不可把 pending 當成失敗**，也不可把它當成已存好。 */
 function save(lib){
   const st = getStorage();
-  try { st.writeLib(JSON.stringify({ schema: SCHEMA, pairs: (lib && lib.pairs) || [] })); }
+  let r;
+  try { r = st.writeLib(JSON.stringify({ schema: SCHEMA, pairs: (lib && lib.pairs) || [] })); }
   catch (e) { return { persisted: false, why: '存不進' + st.name + '：' + (e && e.message || e) }; }
+  if (r === 'pending') return { persisted: false, pending: true, why: '' };
   return { persisted: true, why: '' };
 }
 /* 🔴 只讀，**不刪**。舊鍵留著＝rollback 的唯一退路；庫存在之後不再寫它（見檔頭規則④）。 */
@@ -365,5 +520,8 @@ return {
   migrateLegacy, needsClaim, claimPair,
   memoryStorage, nullStorage, detectStorage, getStorage, setStorage,
   load, save, readLegacyRaw,
+  HOST_MAX_BYTES, HOST_MAX_CHUNKS, HOST_CHUNK_BYTES, CMD,
+  buildSaveMessages, createSaveAssembler, hostStorage, parseLib, mergeLib,
+  utf8Encode, utf8Decode, bytesToB64, b64ToBytes,
 };
 });

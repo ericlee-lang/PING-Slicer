@@ -259,5 +259,169 @@ check('巢狀欄位差異也抓得到', () => {
   assert(!P.checkFresh(a, b).fresh, '巢狀值不同應丟棄');
 });
 
+/* =====================================================================
+   §8 材料庫存取通道（段 B，牌 c-0923-ACC-21）
+   受測＝resources/web/phototile/matlib.js 的 buildSaveMessages（頁面送出端）＋
+   createSaveAssembler（C++ 收件口 phototile_matlib_save_* 的參考模型，GUI_App.cpp 逐條鏡像）。
+   紀律同上：四項驗證（連號／塊數／總長度／上限）＋壞 base64，每一項都要有「動手腳就必須紅」的案例。
+   ===================================================================== */
+const ML = require(path.join(__dirname, '..', '..', 'resources', 'web', 'phototile', 'matlib.js'));
+const fs = require('fs');
+const GUI_APP_CPP = path.join(__dirname, '..', '..', 'src', 'slic3r', 'GUI', 'GUI_App.cpp');
+/* 餵一整串訊息給組裝器，回傳 [每一步的結果]。 */
+function feedML(msgs, asm){
+  const a = asm || ML.createSaveAssembler();
+  return msgs.map(m => a.accept(m));
+}
+const libText = JSON.stringify({ schema: 1, pairs: [{ a: { fid: 'GPINGPLA', label: '白', hex: '#F2F0EB' },
+  b: { fid: 'GPINGPLA', label: '深灰', hex: '#707279' }, pts: [{ S: 1, hex: '#F2F0EB' }, { S: 0, hex: '#707279' }] }] });
+
+console.log('\n§8 材料庫存取通道（段 B：頁面 ↔ App 設定資料夾）');
+check('正向：單塊往返，位元組逐一相同（含中文標籤＝UTF-8 多位元組）', () => {
+  const msgs = ML.buildSaveMessages(libText);
+  assertEq(msgs.length, 3, 'begin＋1 塊＋end');
+  const r = feedML(msgs);
+  const last = r[r.length - 1];
+  assert(last.ok && last.done, 'end 應收齊：' + JSON.stringify(last));
+  assertEq(ML.utf8Decode(last.bytes), libText, '內容往返');
+});
+check('正向：多塊往返（每塊 7 bytes ⇒ 切成很多塊），位元組逐一相同', () => {
+  const msgs = ML.buildSaveMessages(libText, 7);
+  assert(msgs.length > 10, '應切成多塊（實得 ' + msgs.length + '）');
+  const r = feedML(msgs);
+  const last = r[r.length - 1];
+  assert(last.ok && last.done, 'end 應收齊');
+  assertEq(ML.utf8Decode(last.bytes), libText, '內容往返');
+  assert(r.slice(0, -1).every(x => x.ok && !x.done), '中間每一步都應收下');
+});
+check('反向①連號：兩塊對調 ⇒ 作廢，end 回報 order', () => {
+  const msgs = ML.buildSaveMessages(libText, 7);
+  const sw = msgs.slice(); const t = sw[2]; sw[2] = sw[3]; sw[3] = t;
+  const r = feedML(sw);
+  const last = r[r.length - 1];
+  assert(!last.ok && last.report, 'end 必須回報失敗');
+  assertEq(last.code, 'order', '失敗原因');
+});
+check('反向②塊數：少送最後一塊 ⇒ end 回報 count', () => {
+  const msgs = ML.buildSaveMessages(libText, 7);
+  const cut = msgs.slice(0, -2).concat([msgs[msgs.length - 1]]);
+  const last = feedML(cut).pop();
+  assert(!last.ok && last.report, 'end 必須回報失敗');
+  assertEq(last.code, 'count', '失敗原因');
+});
+check('反向③總長度：begin 宣告多 1 byte ⇒ end 回報 length', () => {
+  const msgs = ML.buildSaveMessages(libText);
+  msgs[0] = { command: msgs[0].command, data: { size: msgs[0].data.size + 1, chunks: msgs[0].data.chunks } };
+  const last = feedML(msgs).pop();
+  assert(!last.ok && last.report, 'end 必須回報失敗');
+  assertEq(last.code, 'length', '失敗原因');
+});
+check('反向③總長度：begin 宣告少 1 byte ⇒ 超量的那一塊當場作廢（不等到 end）', () => {
+  const msgs = ML.buildSaveMessages(libText);
+  msgs[0] = { command: msgs[0].command, data: { size: msgs[0].data.size - 1, chunks: msgs[0].data.chunks } };
+  const r = feedML(msgs);
+  assert(!r[1].ok && r[1].code === 'length', 'chunk 那一步就該判 length：' + JSON.stringify(r[1]));
+  assert(!r[2].ok && r[2].report && r[2].code === 'length', 'end 回報同一個原因');
+});
+check('反向④上限：宣告超過上限（512 KB）⇒ begin 就擋（limit），送出端也先擋', () => {
+  const r = feedML([{ command: ML.CMD.SAVE_BEGIN, data: { size: ML.HOST_MAX_BYTES + 1, chunks: 1 } },
+                    { command: ML.CMD.SAVE_END, data: {} }]);
+  assertEq(r[0].code, 'limit', 'begin 判 limit');
+  assert(!r[1].ok && r[1].report && r[1].code === 'limit', 'end 回報 limit');
+  let threw = false;
+  try { ML.buildSaveMessages('x'.repeat(ML.HOST_MAX_BYTES + 1)); } catch (e) { threw = true; }
+  assert(threw, '送出端超過上限必須丟例外（不可送出一個注定被擋的存檔）');
+});
+check('反向④上限：塊數大於位元組數（每塊至少 1 byte）⇒ limit', () => {
+  const r = feedML([{ command: ML.CMD.SAVE_BEGIN, data: { size: 3, chunks: 4 } }]);
+  assertEq(r[0].code, 'limit', 'chunks>size 應判 limit');
+});
+check('反向：壞掉的 base64 ⇒ decode（不可靜默解成較短的資料）', () => {
+  const msgs = ML.buildSaveMessages(libText);
+  msgs[1] = { command: msgs[1].command, data: { index: 0, base64: msgs[1].data.base64.slice(0, -1) + '!' } };
+  const last = feedML(msgs).pop();
+  assertEq(last.code, 'decode', '失敗原因');
+});
+check('作廢之後：後面的塊一律不收、end 只回報一次、下一次 begin 能正常重來', () => {
+  const a = ML.createSaveAssembler();
+  const bad = ML.buildSaveMessages(libText, 7);
+  const sw = bad.slice(); const t = sw[1]; sw[1] = sw[2]; sw[2] = t;
+  const r = feedML(sw, a);
+  const reports = r.filter(x => x.report);
+  assertEq(reports.length, 1, '一次存檔只回一次結果');
+  assert(r.slice(2, -1).every(x => !x.ok && !x.report), '作廢後的塊都不收、也不回報');
+  const again = feedML(ML.buildSaveMessages(libText), a).pop();
+  assert(again.ok && again.done, '作廢不可卡死後面的存檔');
+});
+check('沒有 begin 就送 end ⇒ idle（回報一次）', () => {
+  const r = feedML([{ command: ML.CMD.SAVE_END, data: {} }]);
+  assert(!r[0].ok && r[0].report && r[0].code === 'idle', JSON.stringify(r[0]));
+});
+check('hostStorage：寫入＝依序送出 begin／chunk／end、回 pending；讀檔結果三種形狀都處理', () => {
+  const sent = [];
+  const st = ML.hostStorage((c, d) => sent.push({ command: c, data: d }), null);
+  assertEq(st.writeLib(libText), 'pending', 'writeLib 回 pending');
+  assertEq(sent[0].command, ML.CMD.SAVE_BEGIN, '第一則 begin');
+  assertEq(sent[sent.length - 1].command, ML.CMD.SAVE_END, '最後一則 end');
+  const done = feedML(sent).pop();
+  assert(done.ok && done.done, '送出的那串本身要能被收件口收齊');
+  st.requestLoad();
+  assertEq(sent[sent.length - 1].command, ML.CMD.LOAD, 'requestLoad 送 phototile_matlib_load');
+  assert(st.acceptLoad({ ok: true, exists: false }).ok && st.readLib() === null, '沒有檔＝還沒有庫');
+  const b64 = ML.bytesToB64(ML.utf8Encode(libText));
+  assert(st.acceptLoad({ ok: true, exists: true, base64: b64 }).ok, '正常讀回');
+  assertEq(st.readLib(), libText, '讀回內容');
+  assert(!st.acceptLoad({ ok: true, exists: true, base64: b64.slice(0, -2) + '*=' }).ok, '壞 base64 要回 ok:false');
+  const bad = st.acceptLoad({ ok: false, message: '讀檔失敗（測試）' });
+  assert(!bad.ok && bad.why === '讀檔失敗（測試）', 'App 回失敗要把原因帶出來');
+  let bom = false;
+  try { ML.utf8Decode(new Uint8Array([0xE4, 0xB8])); } catch (e) { bom = true; }
+  assert(bom, '截斷的 UTF-8 必須丟例外（不可靜默換成替代字元再存回去）');
+});
+check('parseLib：讀不懂要講出來（不靜默當成空庫）；空原文＝還沒有庫', () => {
+  assert(ML.parseLib(null).ok && ML.parseLib('').ok, '空原文 ok');
+  const j = ML.parseLib('{壞');
+  assert(!j.ok && /JSON/.test(j.why), '壞 JSON 要 ok:false');
+  const v = ML.parseLib(JSON.stringify({ schema: 99, pairs: [] }));
+  assert(!v.ok && /版本/.test(v.why), '不認得的 schema 要 ok:false');
+  const g = ML.parseLib(libText);
+  assert(g.ok && g.lib.pairs.length === 1, '正常庫');
+});
+check('mergeLib：只加 into 沒有的、不覆蓋已有的（那筆可能是後來重新量的）', () => {
+  const into = ML.parseLib(libText).lib;
+  const newer = into.pairs[0].pts[1].hex;
+  const from = ML.parseLib(libText).lib;
+  from.pairs[0].pts[1].hex = '#000000';
+  from.pairs.push(Object.assign({}, from.pairs[0], { id: undefined,
+    a: { fid: 'GPINGABS', label: '白', hex: '#FFFFFF' }, b: { fid: 'GPINGABS', label: '黑', hex: '#111111' } }));
+  const added = ML.mergeLib(into, from);
+  assertEq(added, 1, '只加新的那一對');
+  assertEq(into.pairs.length, 2, '合併後兩對');
+  assertEq(into.pairs[0].pts[1].hex, newer, '既有那筆不得被覆蓋');
+});
+check('save()：App 那條回 pending（不是失敗、也不是已存好）；存不進去要講原因', () => {
+  const lib = ML.parseLib(libText).lib;
+  ML.setStorage(ML.hostStorage(() => {}, null));
+  const h = ML.save(lib);
+  assert(h.pending === true && h.persisted === false, JSON.stringify(h));
+  ML.setStorage(ML.memoryStorage());
+  const m = ML.save(lib);
+  assert(m.persisted === true && !m.pending, JSON.stringify(m));
+  assertEq(JSON.stringify(m), JSON.stringify({ persisted: true, why: '' }), '同步那條的回傳形狀與車 1 逐字相同');
+  ML.setStorage(ML.nullStorage('測試：沒有儲存區'));
+  const n = ML.save(lib);
+  assert(n.persisted === false && !n.pending && /沒有儲存區/.test(n.why), JSON.stringify(n));
+  ML.setStorage(null);
+});
+check('C++ 鏡像：四支訊息名與兩個上限值，GUI_App.cpp 都有而且同值', () => {
+  const src = fs.readFileSync(GUI_APP_CPP, 'utf8');
+  for (const k of Object.keys(ML.CMD))
+    assert(src.includes('command_str.compare("' + ML.CMD[k] + '")'), 'GUI_App.cpp 沒有收件口：' + ML.CMD[k]);
+  const mb = /max_matlib_bytes\s*=\s*(\d+)/.exec(src), mc = /max_matlib_chunks\s*=\s*(\d+)/.exec(src);
+  assert(mb && mc, 'GUI_App.cpp 找不到 max_matlib_bytes／max_matlib_chunks');
+  assertEq(Number(mb[1]), ML.HOST_MAX_BYTES, '上限（bytes）兩邊同值');
+  assertEq(Number(mc[1]), ML.HOST_MAX_CHUNKS, '上限（塊數）兩邊同值');
+});
+
 console.log(`\n=== 結果：${pass} 過／${fail} 失敗 ===\n`);
 process.exit(fail === 0 ? 0 : 1);

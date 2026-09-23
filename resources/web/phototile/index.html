@@ -482,7 +482,7 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="matlib.js?v=20260922"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載 -->
+<script src="matlib.js?v=20260923b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
 <script src="engine.js?v=20260922q"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
@@ -783,21 +783,99 @@ function calibSetTable(tbl, persist){
    本段只做**資料通道**：開庫、遷移舊鍵、把收到的表寫進庫。
    ⚙ 產圖流程要怎麼「從庫裡選一組料」、未校正的料怎麼呈現（硬闸門），是**段 F**（車 3）的事，這裡不碰版面。
    🔴 舊鍵 CALIB_LS_KEY **不刪**（rollback 的唯一退路）；雙料那條路線一行未動⇒ 舊行為逐位元不變。 */
+/* 🆕 段 B（車 2，牌 c-0923-ACC-21）：在 App 裡開（產品路徑）＝庫住 **App 設定資料夾**，讀寫都走 C++
+   （phototile_matlib_*）；瀏覽器直開（開發）仍用瀏覽器儲存區。
+   App 那一份的讀檔是**非同步**的：開頁時先用空庫接住，讀檔回來（matlibLoaded）再把
+   ①這段期間收到的表 ②車 1 期間存在瀏覽器儲存區的庫 ③舊鍵那一格，一起併進去——
+   全部「只加沒有的、不覆蓋已有的」；瀏覽器那兩份**只讀不刪**（rollback 的退路）。
+   🔴 讀檔回來之前**不得存檔**：那時手上只有剛匯入的那幾筆，一存就把 App 裡整份庫蓋成只剩這幾筆。
+   🔴 App 讀不到／讀不懂那份檔 ⇒ **不拿空庫去蓋它**，這一輪改成只活在工作階段，並把原因講出來。
+   ⚙ matLibNote 目前還沒有畫面位置（選料／校正的畫面是段 F＝車 3）；狀態同步寫在 window.__matlibState 供自驗。 */
 let matLib=null, matLibNote='';
+let matLibHost=false, matLibLoading=false, matLibLoadTimer=null;
+const MATLIB_HOST_TIMEOUT_MS=8000;
 function matlibReady(){ return !!(window.PhotoTileMatLib && window.PhotoTileEngine); }
+/* 瀏覽器儲存區那條（開發、或 App 沒回應時的退路）＝車 1 原本的開庫＋遷移舊鍵，邏輯一行沒改。 */
+function matlibBootBrowser(){
+  matLib=PhotoTileMatLib.load();
+  /* 遷移：舊鍵還在就包成一個 pair 放進庫（不要求使用者重印，R6-14 子題 2 附款）。
+     migrateLegacy 自己是冪等的，而且不覆蓋庫裡已有的那一筆。 */
+  const old=PhotoTileMatLib.readLegacyRaw();
+  if(old){
+    const r=PhotoTileMatLib.migrateLegacy(matLib, PhotoTileEngine.calibParseTable(old), {});
+    if(r.added){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted) matLibNote=w.why; }
+  }
+}
+function matlibAfterLoad(){
+  window.__matlibState={ host:matLibHost, loading:matLibLoading, pairs:(matLib&&matLib.pairs.length)||0,
+                         storage:(window.PhotoTileMatLib&&PhotoTileMatLib.getStorage().name)||'', note:matLibNote };
+}
 (function matlibBoot(){
   if(!matlibReady()) return;
   try{
-    matLib=PhotoTileMatLib.load();
-    /* 遷移：舊鍵還在就包成一個 pair 放進庫（不要求使用者重印，R6-14 子題 2 附款）。
-       migrateLegacy 自己是冪等的，而且不覆蓋庫裡已有的那一筆。 */
-    const old=PhotoTileMatLib.readLegacyRaw();
-    if(old){
-      const r=PhotoTileMatLib.migrateLegacy(matLib, PhotoTileEngine.calibParseTable(old), {});
-      if(r.added){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted) matLibNote=w.why; }
+    if(slicerBridgeReady()){
+      let ls=null; try{ ls=window.localStorage; }catch(e){ ls=null; }
+      PhotoTileMatLib.setStorage(PhotoTileMatLib.hostStorage((c,d)=>sendSlicerMessage(c,d), ls));
+      matLibHost=true; matLibLoading=true;
+      matLib=PhotoTileMatLib.emptyLib();      // 讀檔回來之前先接住（使用者這時匯入的表不會丟）
+      matlibAfterLoad();
+      return;                                  // 讀檔要求在「頁面開口問料數」的同一個點發（見 phototile_query_capability）
     }
+    matlibBootBrowser();
   }catch(e){ matLib=PhotoTileMatLib.emptyLib(); matLibNote='材料庫讀不起來：'+(e&&e.message||e); }
+  matlibAfterLoad();
 })();
+function matlibRequestHostLoad(){
+  if(!matLibHost || !matLibLoading) return;
+  try{ PhotoTileMatLib.getStorage().requestLoad(); }
+  catch(e){ matlibHostFallback('送不出材料庫讀取要求（'+(e&&e.message||e)+'）'); return; }
+  matLibLoadTimer=setTimeout(()=>matlibHostFallback('App 沒有回應材料庫讀取（可能是還沒有這個功能的舊版主程式）'),
+                             MATLIB_HOST_TIMEOUT_MS);
+}
+/* App 沒回應／送不出去 ⇒ 退回瀏覽器儲存區，把這段期間收到的表併進去；講出來、不靜默。 */
+function matlibHostFallback(why){
+  if(!matLibHost) return;
+  clearTimeout(matLibLoadTimer); matLibLoadTimer=null;
+  const pending=matLib;
+  matLibHost=false; matLibLoading=false;
+  PhotoTileMatLib.setStorage(null);            // 重新偵測＝瀏覽器儲存區（無痕等不可寫時是 none，照樣講）
+  matLibNote='';
+  try{
+    matlibBootBrowser();
+    if(PhotoTileMatLib.mergeLib(matLib, pending)){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted) matLibNote=w.why; }
+  }catch(e){ matLib=pending||PhotoTileMatLib.emptyLib(); }
+  matLibNote=why+'——這次的材料庫先存在瀏覽器儲存區。'+(matLibNote?('（'+matLibNote+'）'):'');
+  matlibAfterLoad();
+}
+function matlibOnHostLoaded(msg){
+  if(!matLibHost || !matLibLoading) return;    // 已退回瀏覽器那條＝遲到的回覆不理
+  clearTimeout(matLibLoadTimer); matLibLoadTimer=null;
+  matLibLoading=false;
+  const st=PhotoTileMatLib.getStorage();
+  const pending=matLib;
+  const r=st.acceptLoad(msg);
+  const parsed=r.ok ? PhotoTileMatLib.parseLib(st.readLib()) : {ok:false, why:r.why};
+  if(!parsed.ok){
+    matLibNote=parsed.why+'——為了不蓋掉原檔，這次的校正資料只會留到關掉工作室為止。';
+    PhotoTileMatLib.setStorage(PhotoTileMatLib.nullStorage(matLibNote));
+    matLib=pending; matlibAfterLoad(); return;
+  }
+  matLib=parsed.lib;
+  let added=PhotoTileMatLib.mergeLib(matLib, pending);                          // ①讀檔回來之前收到的表
+  const b=PhotoTileMatLib.parseLib(st.readBrowserLib());
+  if(b.ok) added+=PhotoTileMatLib.mergeLib(matLib, b.lib);                        // ②車 1 期間存在瀏覽器儲存區的庫
+  const old=PhotoTileMatLib.readLegacyRaw();                                      // ③舊鍵那一格（R6-14 子題 2 附款）
+  if(old){ try{ if(PhotoTileMatLib.migrateLegacy(matLib, PhotoTileEngine.calibParseTable(old), {}).added) added++; }catch(e){} }
+  if(added){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted && !w.pending) matLibNote=w.why; }
+  matlibAfterLoad();
+}
+function matlibOnHostSaved(msg){
+  matLibNote=(msg && msg.ok) ? '' : ('材料庫沒存進 App 設定資料夾：'+((msg&&msg.message)||'原因不明')+'（這次的資料只留到關掉工作室為止）');
+  matlibAfterLoad();
+}
+/* 段 B（車 2）：機上裝了哪幾支線材（capability 的 filaments；料 N＝擠出機 N）。車 3 的選料／認領拿它當選項。
+   🔴 只當選項清單：不拿它去猜「校正片的哪一端是哪一支」——猜錯＝整筆資料掛錯身分，而且沒人會發現。 */
+function hostFilamentList(){ return (machineCap && Array.isArray(machineCap.filaments)) ? machineCap.filaments : []; }
 /* 把一張已解析的校正表寫進庫。回傳 {added, persisted, why}；失敗不影響匯入本身，但**要講出來**。
    ⚙ 頁面拿不到 filament_id（那是 C++ 那邊的東西，段 B）⇒ 這裡寫進去的料 fid 是 null、
    標籤先帶量到的色碼；之後要請使用者認領（needsClaim 會標出來）。 */
@@ -810,9 +888,12 @@ function matlibRecord(tbl){
       ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:mats, measuredAt:at})
       : [PhotoTileMatLib.pairFromDual(tbl, {materials:mats, measuredAt:at})];
     pairs.forEach(p=>PhotoTileMatLib.upsertPair(matLib, p));
+    /* 🔴 App 那一份還沒讀回來 ⇒ 先不存（一存就把整份庫蓋成只剩這幾筆）；讀檔回來時會併進去一起存。 */
+    if(matLibLoading){ matlibAfterLoad(); return {added:pairs.length, persisted:false, pending:true, why:''}; }
     const w=PhotoTileMatLib.save(matLib);
-    matLibNote=w.persisted?'':w.why;
-    return {added:pairs.length, persisted:w.persisted, why:w.why};
+    matLibNote=(w.persisted||w.pending)?'':w.why;
+    matlibAfterLoad();
+    return {added:pairs.length, persisted:w.persisted, pending:!!w.pending, why:w.why};
   }catch(e){ return {added:0, persisted:false, why:String(e&&e.message||e)}; }
 }
 function calibShowError(err){
@@ -838,7 +919,7 @@ function calibAcceptRaw(raw){
         const el=document.getElementById('calibTableStat');
         if(el) el.innerHTML=r.added
           ? `✅ 已收下四料校正表（${tbl.pairs.length} 對）並存進<b>材料庫</b>。`
-            + (r.persisted?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`)
+            + ((r.persisted||r.pending)?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`)
             + '<br><span class="sub">⚠ 四料的套用還沒接上畫面，這次不會改變模擬與列印結果。</span>'
           : `⚠ 這張四料表沒存進材料庫：${r.why}`;
         return true;
@@ -1512,7 +1593,11 @@ window.PINGPhotoTile={
     lastEngineStatus=s||null;
     if(s&&s.status==='unavailable')          // 覆審 I-1 頁面半邊：生成中也要顯示原因，別吞掉唯一線索
       genStatline('warn','照片磚引擎不可用：'+(s.detail||''));
-  }
+  },
+  /* ── 段 B（車 2，牌 c-0923-ACC-21）：材料庫讀寫的回程（C++ phototile_matlib_* 回推）──
+     讀：{ok, exists, base64, message}；寫：{ok, message, path}——一次存檔只回一次。 */
+  matlibLoaded(msg){ matlibOnHostLoaded(msg); },
+  matlibSaved(msg){ matlibOnHostSaved(msg); }
 };
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault(); dz.classList.add('drag');});
@@ -2113,8 +2198,10 @@ document.getElementById('btnBack').onclick=()=>{
    原本宿主在頁面載入完成時 RunScript 呼叫 setMachineCapability，但實測
    machineCap 一直是 null——`window.PINGPhotoTile && …` 的短路會**靜默無效**，
    時序對不上完全看不出來。頁面自己開口時一定已經 ready，不必猜。 */
-if(embeddedMode && window.wx && typeof window.wx.postMessage==='function')
+if(embeddedMode && window.wx && typeof window.wx.postMessage==='function'){
   sendSlicerMessage('phototile_query_capability');
+  matlibRequestHostLoad();                   // 段 B：材料庫讀檔跟料數同一個開口時機（頁面開口時一定已經 ready）
+}
 /* ================= 款式（AI 風格化 P3 階段 A） =================
    規格＝規格_照片磚AI風格化_20260815.html v0.3｜動線＝動線原型v2_照片磚.html
    （Eric 2026-08-17 實走後回「動線 OK」）。🔴 執行期讀的是本檔內嵌的 `ptStyleLib`；同目錄的 `款式庫_照片磚.json` 是必須保持一致的鏡像（守衛＝tools/ping/phototile_stylelib_test.js）。 */
