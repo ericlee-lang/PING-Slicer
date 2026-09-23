@@ -354,7 +354,7 @@
       <div class="row" style="gap:8px; align-items:center; margin-top:2px">
         <label style="min-width:0; font-weight:400"><input type="checkbox" id="aspectLock" checked> 鎖定原圖比例</label>
         <span style="margin-left:8px">厚</span> <input type="number" id="tIn" value="10" min="2" max="30" step="0.5" style="width:64px"> mm
-        <span style="margin-left:12px">雜訊濾除 ≤</span> <input type="number" id="noiseIn" value="2.0" min="0" max="20" step="0.1" style="width:64px"> mm
+        <span style="margin-left:12px">雜訊濾除 ≤</span> <input type="number" id="noiseIn" value="1.0" min="0" max="20" step="0.1" style="width:64px"> mm
       </div>
       <div class="sub" id="sizeInfo"></div>
       <div class="sub" id="noiseStat">平滑小點、細橋、毛刺與小孔，再合併小色塊；0＝關閉</div>
@@ -540,7 +540,7 @@ const AUTO_CELL_MM=0.05;                           // 內部自動高精度＝0.
 let params = { klevels:8,                        // 2026-09-07 平躺（疊色）移除：lh／layers／base／map／inv／orient 一併拆掉，工作室只有垂直混色
                nozzle:0.4,                        // 噴嘴口徑（mm）：水平最小色塊寬＝2×口徑（Eric 2026-07-19 定，縫隙根因）
                width:100, height:75, thick:10,    // 垂直模式實體尺寸（mm）｜厚度＝換色清料空間（Eric 0815 裁 6→10）
-               noiseMm:2.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
+               noiseMm:1.0,                       // 灰階平滑視窗＋小色塊門檻；0＝關閉
                pillar:true, pillarXY:20,          // 洗料柱（Eric 2026-07-06：取代換料塔，全料同出；只設 XY——層高歸切片器）。🆕 2026-08-22 Eric 令預設 25→15：柱越粗越浪費料，實走後他直接在框裡打 15。⚠ 洗料量與截面積成正比，15²/25²＝36% ⇒ 換色殘料清得比以前少，若出現前一色帶到下一色，第一個要調回去的就是這個值。
                cycle:true, cycleLaps:null,        // WT 線 2026-09-08：每層循環洗料塔（預設開，取代洗料柱）；laps null＝依模式預設 dual 1／3、quad 深色 2／白 4（Eric 0910 兩段制，牌 c-0910-WT-10）
                teeth:false,                       // 交錯齒已於 2026-07-07 實印否決；保留為實驗選項但預設關閉

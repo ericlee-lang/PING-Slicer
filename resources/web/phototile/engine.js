@@ -100,7 +100,7 @@ function normalizeRequest(req){
        （K48 比 K12 慢 3.3 倍、零色數收益；ksweep_result_20260802.json）。
        同值另住 index.html 的輸入框 max 與 clamp——改要一起改。 */
     klevels: Math.round(clamp('klevels', req.klevels, 2, 8, 8)),
-    noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 2.0),                     // index.html:1017-1025
+    noiseMm: clamp('noiseMm', req.noiseMm, 0, 20, 1.0),                     // index.html:1017-1025
     pillar:  req.pillar ? !!req.pillar.enabled : true,
     pillarXY: Math.round(clamp('pillarXY', req.pillar && req.pillar.xyMm, 5, 60, 20)), // 同值住 index.html 的 params.pillarXY（2026-08-22 Eric 令 25→15）
     /* WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔_20260908_01a07fef）。缺席＝關（3MF 與舊輸出位元組全等）；
@@ -239,7 +239,7 @@ function filterLabels(labels, img, P, paletteSize, strategy){
      （水平向已由 enforceMinHorizontalWidth 處理，這一步接手垂直與斜向）。
      ⚠ **順序很重要：必須放在 filterSmallComponents 之後。**
         放前面會這樣壞事——開運算切斷「眼睛↔眉毛」之間的細橋後，眼睛變成孤立連通塊，
-        而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣 ⇒ 被當雜訊清掉。
+        而杜賓的眼睛約 2.1×1.95 mm、剛好卡在 noiseMm 2.0 mm 門檻邊緣（2.0＝當時的預設；2026-09-22 起預設 1.0，順序規則不變） ⇒ 被當雜訊清掉。
         實錄：先放前面時杜賓兩隻眼睛整個消失（前後差異圖量到兩塊 41×39 格的移除）。
         放後面則雜訊濾除看到的是原本的連通性，眼睛保得住，開運算再去修細橋與毛刺。 */
   const opened=root.PhotoTileMesh.openLabelsMinWidth(result.labels,img.w,img.h,minCells,minCellsV);
