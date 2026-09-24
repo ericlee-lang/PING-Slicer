@@ -33,6 +33,11 @@
       （同一組重新量、或兩張舊表指到同一組時，新的當目前、舊的留一份——〈材料庫管理〉Q9；還原的畫面在 T062）
       ③庫多 `legacyAskedAt`。**讀得進 1 與 2、寫一律 2** ⇒ T060 以前的舊版讀到 2 會明講「版本不認得」而**不蓋檔**
       （index.html matlibOnHostLoaded 那道）——比「欄位被舊版默默丟掉」好：那會讓料種指定靜默消失。
+   🆕 **T062 那一列（〈九〉9-6 分車表「T062」，牌 c-0924-ACC-30）：schema 不抬、仍是 2**——庫多一欄**選填**的 `archived`（封存名單）。
+      為什麼不抬（照 9-7 #4 同一把尺比代價）：T061／T062 讀到這份檔會**忽略** `archived`、其餘照讀 ⇒ 代價只是
+      「在舊版裡，封存的料看得到；在舊版裡存過一次庫，封存名單會被洗掉、回新版要再封存一次」，**量測一筆都不會少**。
+      抬到 3 的代價是舊版**整份讀不到**（明講「版本不認得」、不蓋檔）＝退回舊版時所有校正過的料都選不到。
+      `type` 當年要抬，是因為丟掉它＝料種指定靜默消失（身分跟著變）；封存名單丟了只是「藏起來的又看得到」。
 
    🔴 **本檔不做色彩數學**。pts 只存「量到的 hex ＋ 那一格的配方 S」，要餵給引擎時用
    `toCalibTable()` 吐回**校正表原本的形狀**（料數／料／量測），讓 `engine.js` 的 `calibParseTable()`
@@ -105,7 +110,7 @@ function pairId(a, b){
 }
 
 /* ---- 庫本體 --------------------------------------------------------- */
-function emptyLib(){ return { schema: SCHEMA, pairs: [], legacyAskedAt: null }; }
+function emptyLib(){ return { schema: SCHEMA, pairs: [], legacyAskedAt: null, archived: [] }; }
 
 /* 一份量測（pts＋何時量的＋種類＋出身）。pair 本身就是「目前那一份」；prev 是被取代的上一份（schema 2）。 */
 function normPts(arr){
@@ -148,6 +153,15 @@ function normalize(obj){
       claimedAt: typeof p.claimedAt === 'string' ? p.claimedAt : null,   // schema 1「認領」留下的紀錄（只保留，不再用）
       prev: normVersion(p.prev),
     });
+  }
+  /* 🆕 T062：封存名單（身分，不含色）。庫裡已經沒有這支料（沒有任何一組量測）的就不留——名單只是「藏哪幾支」。 */
+  const ends = new Set();
+  lib.pairs.forEach(p => { ends.add(matKey(p.a)); ends.add(matKey(p.b)); });
+  for (const x of Array.isArray(obj.archived) ? obj.archived : []){
+    let m;
+    try { m = makeMaterial(Object.assign({}, x, { hex: null })); } catch (e) { continue; }
+    const k = matKey(m);
+    if (ends.has(k) && !lib.archived.some(y => matKey(y) === k)) lib.archived.push(m);
   }
   return lib;
 }
@@ -207,7 +221,30 @@ function dropMaterial(lib, m){
     else { kept.push(p.id); next.push(p); }
   }
   lib.pairs = next;
+  lib.archived = ((lib && lib.archived) || []).filter(x => matKey(x) !== k);
   return { removed, kept };
+}
+
+/* ---- 封存（〈材料庫管理〉Q3 甲；T062，牌 c-0924-ACC-30）----------------------------------
+   封存＝從選料清單藏起來、資料保留可復原；**封存料的配對一起藏**。存在庫的 `archived`＝料的身分（料種＋顏色名，
+   舊資料＝fid＋標籤；**不存色**——身分不含色，R6-14 子題 1）。料是從 pair 端點推出來的，所以封存只是一張「藏哪幾支」的表，
+   不動任何一筆量測。schema 為什麼不抬見檔頭〈schema 2〉的 T062 補註。 */
+function idOf(m){ return m.type ? { type: m.type, label: m.label } : { fid: m.fid || null, label: m.label }; }
+function archivedKeys(lib){ return new Set(((lib && lib.archived) || []).map(matKey)); }
+function isArchived(lib, m){ return archivedKeys(lib).has(matKey(m)); }
+/* 回傳有沒有改到（已經是那個狀態＝false）。 */
+function setArchived(lib, m, on){
+  const k = matKey(m), list = ((lib && lib.archived) || []).filter(x => matKey(x) !== k);
+  const had = list.length !== ((lib && lib.archived) || []).length;
+  if (on) list.push(makeMaterial(Object.assign(idOf(m), { hex: null })));
+  lib.archived = list;
+  return had !== !!on;
+}
+/* 選料用的那一份：含封存料的 pair 全部拿掉（Q3「封存料的配對一起藏」）。沒有封存＝原樣回傳（行為與 T062 以前逐字相同）。 */
+function withoutArchived(lib){
+  const ak = archivedKeys(lib);
+  if (!ak.size) return lib;
+  return Object.assign({}, lib, { pairs: lib.pairs.filter(p => !ak.has(matKey(p.a)) && !ak.has(matKey(p.b))) });
 }
 
 /* ---- 從「校正表」建 pair ------------------------------------------- */
@@ -365,6 +402,7 @@ function specifyConflicts(lib, map){
 }
 function specifyMaterials(lib, map){
   if (specifyConflicts(lib, map).length) throw new Error('同一組的兩支被指成同一支料');
+  const before = new Set(listMaterials(lib).map(m => m.key)), arch = archivedKeys(lib);
   const renamed = new Map();
   map.forEach((v, k) => renamed.set(k, matKey(makeMaterial({ type: v.type, label: v.label }))));
   const next = [];
@@ -375,15 +413,30 @@ function specifyMaterials(lib, map){
     if (j < 0) next.push(q); else next[j] = mergeVersions(next[j], q);
   }
   lib.pairs = next;
+  /* 🆕 T062：封存名單跟著身分走。合成一支時**全部來源都封存著**才算封存——有一支在用，合起來那支就在用
+     （例：舊資料指定成「白」，而庫裡的「白」封存著 ⇒ 叫回來，同原型 designate）。 */
+  if (arch.size){
+    const groups = new Map();                            // 新 key → 合進來的舊 key（連同庫裡原本就叫這個名字的那支）
+    renamed.forEach((nk, ok) => {
+      if (!groups.has(nk)) groups.set(nk, { srcs: before.has(nk) ? [nk] : [], id: map.get(ok) });
+      groups.get(nk).srcs.push(ok);
+    });
+    const list = (lib.archived || []).filter(x => !renamed.has(matKey(x)) && !groups.has(matKey(x)));
+    groups.forEach((g, nk) => { if (g.srcs.every(k => arch.has(k))) list.push(makeMaterial({ type: g.id.type, label: g.id.label })); });
+    lib.archived = list;
+  }
   return renamed;
 }
 /* 同一組（同 id）的兩筆合成一筆：四份量測（兩筆各自的目前＋prev）照日期排，最新的當目前、次新的當 prev。
    y 的 a/b 順序可能跟 x 相反 ⇒ 把 y 的 S 翻成「x.a 的佔比」再比（不翻＝曲線頭尾顛倒，同 toDualCalibTable 的理由）。
    沒記日期的排在最後（舊表）；同日期保留 x 的（庫裡較早的那筆，清單不跳動）。 */
+/* 一份量測的 S 翻成另一端的佔比（pair 在兩處的 a/b 順序相反時用；不翻＝曲線頭尾顛倒，同 toDualCalibTable 的理由）。 */
+function flipVersion(v){
+  return !v ? null : Object.assign({}, v, { pts: v.pts.map(t => ({ S: Math.round((1 - t.S) * 100) / 100, hex: t.hex })).sort((m, n) => n.S - m.S) });
+}
 function mergeVersions(x, y){
   const flip = matKey(x.a) !== matKey(y.a);
-  const turn = v => !v ? null : Object.assign({}, v, { pts: flip
-    ? v.pts.map(t => ({ S: Math.round((1 - t.S) * 100) / 100, hex: t.hex })).sort((m, n) => n.S - m.S) : v.pts });
+  const turn = v => flip ? flipVersion(v) : v;
   const ends = v => ({ ha: v.pts[0].hex, hb: v.pts[v.pts.length - 1].hex });
   const vs = [Object.assign(normVersion(x), { ha: x.a.hex, hb: x.b.hex }),
               x.prev && Object.assign(normVersion(x.prev), ends(x.prev)),
@@ -396,6 +449,80 @@ function mergeVersions(x, y){
     pts: cur.pts, measuredAt: cur.measuredAt, kind: cur.kind, source: cur.source,
     prev: prev ? normVersion(prev) : null,
   });
+}
+
+/* ---- 還原上一版／用匯入的那一份（〈材料庫管理〉Q9、Q11；T062，牌 c-0924-ACC-30）-------------------
+   把 v 升成這一組「目前那一份」、原本那份退成 prev。同一支做兩件事：
+   ①還原（Q9「舊的留一份可還原」）＝ v 就是 prev ⇒ 兩份對調，還原完還能再換回來（原型細節 2）；
+   ②匯入撞同一組選「用匯入的」（Q11）＝ v 是匯進來那份（已翻成本機這組的 a/b 方向）⇒ 本機那份留作上一版（原型細節 2）。
+   料的色（這組量到的兩端）跟著 v 走：有給 ends 用 ends（匯進來那份宣告的料色），沒給取 pts 兩端（同 mergeVersions）。 */
+function promote(lib, id, v, ends){
+  const i = ((lib && lib.pairs) || []).findIndex(p => p.id === id);
+  const nv = normVersion(v);
+  if (i < 0 || !nv) return null;
+  const p = lib.pairs[i];
+  const ha = (ends && upHex(ends.ha)) || nv.pts[0].hex, hb = (ends && upHex(ends.hb)) || nv.pts[nv.pts.length - 1].hex;
+  const q = Object.assign({}, p, { a: Object.assign({}, p.a, { hex: ha }), b: Object.assign({}, p.b, { hex: hb }),
+    pts: nv.pts, measuredAt: nv.measuredAt, kind: nv.kind, source: nv.source, prev: normVersion(p) });
+  lib.pairs[i] = q;
+  return q;
+}
+function restorePrev(lib, id){ const p = getPair(lib, id); return p && p.prev ? promote(lib, id, p.prev) : null; }
+
+/* ---- 匯入時分類：新的／一模一樣／撞到同一組（Q11 丙＝撞到的逐組問）--------------------------
+   本支只分類、不動庫；照使用者的選擇套用在 applyLibImport。incoming 的每一筆都已正規化（有 id）。
+   conflict 的 theirs＝匯進來那份、**已翻成本機這組的 a/b 方向**（id 與順序無關，兩台量的時候誰在前面不一定）。
+   opt.byContent：id 對不上、但同一次量測已經在本機（任何身分，含上一版）＝一模一樣——同 mergeLib byContent 的理由：
+   同一次量測在兩台電腦上可能是不同身分（一台指定過料種、一台還沒），只比 id 會讓清單多一組同樣量測的重複項。 */
+function classifyPairs(local, pairs, opt){
+  const sigs = opt && opt.byContent ? contentSigs(local) : null;
+  const add = [], same = [], conflict = [];
+  for (const p of pairs || []){
+    const mine = getPair(local, p.id);
+    if (!mine){
+      if (sigs && (sigs.has(ptsSig(p)) || sigs.has(ptsSig(flipVersion(normVersion(p)))))) same.push(p);
+      else add.push(p);
+      continue;
+    }
+    const flip = matKey(mine.a) !== matKey(p.a);
+    const theirs = flip ? flipVersion(normVersion(p)) : normVersion(p);
+    if (ptsSig(theirs) === ptsSig(mine)) { same.push(p); continue; }
+    conflict.push({ id: mine.id, mine, theirs, ends: { ha: (flip ? p.b : p.a).hex, hb: (flip ? p.a : p.b).hex } });
+  }
+  return { add, same, conflict };
+}
+/* 材料庫檔（別台「匯出材料庫…」存的）→ 匯入計畫。新進來的料照對方的封存狀態（搬電腦時封存的不該又冒出來）；
+   本機已經有的料照本機的（Q11：本機是使用者自己的決定）。legacyAskedAt 不帶（那是這一台問過沒有，不是資料）。 */
+function libImportPlan(local, incoming){
+  const plan = classifyPairs(local, (incoming && incoming.pairs) || [], { byContent: true });
+  const known = new Set(listMaterials(local).map(m => m.key)), ends = new Set();
+  plan.add.forEach(p => { ends.add(matKey(p.a)); ends.add(matKey(p.b)); });
+  plan.archiveNew = ((incoming && incoming.archived) || []).filter(m => !known.has(matKey(m)) && ends.has(matKey(m)));
+  return plan;
+}
+/* choices[i]＝'theirs'（用匯入的）或其他（保留本機的）；對應 plan.conflict[i]。回傳各類幾組。 */
+function applyLibImport(local, plan, choices){
+  plan.add.forEach(p => upsertPair(local, p));
+  let took = 0;
+  plan.conflict.forEach((c, i) => { if ((choices || [])[i] === 'theirs' && promote(local, c.id, c.theirs, c.ends)) took++; });
+  (plan.archiveNew || []).forEach(m => setArchived(local, m, true));
+  return { added: plan.add.length, same: plan.same.length, took, kept: plan.conflict.length - took, archived: (plan.archiveNew || []).length };
+}
+
+/* ---- 「匯入…」一顆鈕自動分辨（Q4 甲）、「匯出材料庫…」（Q4／Q10）-------------------------------
+   材料庫檔＝有 schema＋pairs（本版「匯出材料庫…」存的，也吃 App 設定資料夾裡那份 material_library.json）；
+   其餘交給引擎的校正表解析器判（本檔不寫第二把尺）。版本比這一版新的材料庫檔＝講明白、不猜格式。 */
+function fileKind(obj){
+  if (!obj || typeof obj !== 'object' || !Array.isArray(obj.pairs) || !('schema' in obj)) return 'other';
+  return SCHEMAS_READ.indexOf(obj.schema) >= 0 ? 'lib' : 'lib-unknown';
+}
+const EXPORT_FORMAT = 'PING 照片磚材料庫';
+/* 整庫一個檔、含封存的（Q4）。不帶 legacyAskedAt（那是這一台問過沒有）；pair 不帶 id／claimedAt（id 讀進來會重算）。 */
+function exportText(lib, exportedAt){
+  const pairs = ((lib && lib.pairs) || []).map(p => ({ a: p.a, b: p.b, kind: p.kind, pts: p.pts, measuredAt: p.measuredAt,
+                                                        source: p.source, prev: p.prev || null }));
+  return JSON.stringify({ 格式: EXPORT_FORMAT, exportedAt: exportedAt || null, schema: SCHEMA,
+                          archived: ((lib && lib.archived) || []).map(idOf), pairs });
 }
 
 /* ---- 庫的家＝App 設定資料夾（段 B；R6-14 子題 2 裁 B：庫落 data_dir） ------------------
@@ -420,7 +547,8 @@ const HOST_CHUNK_BYTES = 48 * 1024;         // 可被 3 整除 ⇒ 每一塊的 
 const CMD = { LOAD: 'phototile_matlib_load',
               SAVE_BEGIN: 'phototile_matlib_save_begin',
               SAVE_CHUNK: 'phototile_matlib_save_chunk',
-              SAVE_END:   'phototile_matlib_save_end' };
+              SAVE_END:   'phototile_matlib_save_end',
+              EXPORT:     'phototile_matlib_export' };   // 🆕 T062：「匯出材料庫…」（App 開存檔視窗寫到使用者選的位置）
 
 function utf8Encode(s){
   if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(String(s));
@@ -458,6 +586,17 @@ function buildSaveMessages(text, chunkBytes){
                data: { index: i, base64: bytesToB64(bytes.subarray(i * cb, Math.min(bytes.length, (i + 1) * cb))) } });
   out.push({ command: CMD.SAVE_END, data: { size: bytes.length, chunks } });
   return out;
+}
+
+/* 🆕 T062「匯出材料庫…」：頁面 → App 一則訊息（內容由頁面組＝畫面上看到的那一份；App 開存檔視窗、完整地寫，不解讀）。
+   為什麼不分塊：上限同存檔（512 KB），一則訊息裝得下；為什麼要 App：嵌入式 WebView 的下載沒有存檔視窗（mac 版甚至不會動），
+   「另存 AI 圖…」也是同一條路。上限／壞 base64 的擋法 C++ 照 phototile_matlib_save_* 抄。 */
+function buildExportMessage(text, name){
+  const bytes = utf8Encode(text);
+  if (!bytes.length) throw new Error('材料庫內容是空的');
+  if (bytes.length > HOST_MAX_BYTES)
+    throw new Error('材料庫超過 ' + (HOST_MAX_BYTES / 1024) + ' KB 上限（' + bytes.length + ' bytes）');
+  return { command: CMD.EXPORT, data: { name: String(name || ''), size: bytes.length, base64: bytesToB64(bytes) } };
 }
 
 /* C++ 收件口的參考模型。accept(msg) 回傳：
@@ -556,6 +695,8 @@ function hostStorage(send, ls){
     readLegacy: () => lsGet(LEGACY_KEY),
     readBrowserLib: () => lsGet(LIB_KEY),
     requestLoad: () => send(CMD.LOAD, {}),
+    /* 🆕 T062：匯出＝結果由 App 回推 matlibExported({ok, path, message})。 */
+    exportLib: (text, name) => { const m = buildExportMessage(text, name); send(m.command, m.data); return 'pending'; },
     /* App 回來的讀檔結果 {ok, exists, base64, message} → 放進緩衝；回傳 {ok, why}。 */
     acceptLoad: msg => {
       if (!msg || msg.ok !== true) return { ok: false, why: (msg && msg.message) || 'App 讀不到材料庫' };
@@ -615,6 +756,7 @@ function save(lib){
   const st = getStorage();
   let r;
   try { r = st.writeLib(JSON.stringify({ schema: SCHEMA, legacyAskedAt: (lib && lib.legacyAskedAt) || null,
+                                         archived: ((lib && lib.archived) || []).map(idOf),   // 🆕 T062（選填；schema 不抬，見檔頭）
                                          pairs: (lib && lib.pairs) || [] })); }
   catch (e) { return { persisted: false, why: '存不進' + st.name + '：' + (e && e.message || e) }; }
   if (r === 'pending') return { persisted: false, pending: true, why: '' };
@@ -636,6 +778,8 @@ return {
   listMaterials, partnersOf, dropMaterial,
   pairFromDual, pairsFromQuad, toCalibTable, toDualCalibTable, toQuadCalibTable,
   migrateLegacy, specifyConflicts, specifyMaterials, ptsSig, contentSigs,
+  archivedKeys, isArchived, setArchived, withoutArchived, flipVersion, promote, restorePrev,
+  classifyPairs, libImportPlan, applyLibImport, fileKind, EXPORT_FORMAT, exportText, buildExportMessage,
   memoryStorage, nullStorage, detectStorage, getStorage, setStorage,
   load, save, readLegacyRaw,
   HOST_MAX_BYTES, HOST_MAX_CHUNKS, HOST_CHUNK_BYTES, CMD,

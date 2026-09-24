@@ -24,7 +24,14 @@
      ⑤ 右欄這一塊：收起時只寫「擠出機 1 ■白　擠出機 2 ■深灰」＋「換一組…」、**不放步驟號**；展開＝「選顏色」＋料單，
         料單右上「新增或更新：去校正一組料／匯入校正表…」＝跟選料**平行**（Eric：「選擇材料跟校正其實是平行的，它沒有先後順序」）。
         擠出機顏色**只寫這一處**（列印模擬標題列的色塊 chipsHtml 退場：「資訊好像重疊了，是否留一個就好了呢？」）。
-     ⛔ 封存、匯出、統一匯入（自動分辨材料庫檔）、還原上一版、匯入撞同一組逐組問＝T062，不在這裡。
+     （T061 那時：封存、匯出、統一匯入、還原上一版、匯入撞同一組逐組問＝T062——下面⑥補上。）
+   🆕 T062 那一列（〈九〉9-6 分車表「T062」，牌 c-0924-ACC-30；動線與長相正本同上一份原型）：
+     ⑥ **封存**（Q3 甲）：料單每支料旁「封存」、料單底下「已封存 N 支」可叫回；封存料的配對一起藏；**正在用的那組不能封存**
+        （原型細節 4：「先換一組，再封存它」）；封存不跳確認窗、訊息旁一顆「復原」（原型細節 5，照 FLOW-37 可反悔＝就地）；
+        舊資料那一問把「封存」勾選加回來（9-7 #1）；校正或匯入校正表時打出封存料的名字＝完成後自動叫回（原型細節 6）。
+        **一顆「匯入…」自動分辨**校正表／材料庫檔（Q4 甲，開檔視窗只列 .json＝9-6⑥）；料單底下「**匯出材料庫…**」＝整庫一個檔、
+        含封存的（Q4／Q10）；**匯入撞到同一組＝逐組問**（Q11 丙，預設「保留本機的」＝原型細節 3；校正表也問＝原型細節 1）；
+        展開後「這組 9/14 量的（上一版 9/10）［改用 9/10 那一版］」＝**還原上一版**（Q9；還原＝兩份對調，換回來也行）。
    ===================================================================== */
 (function (root, factory) {
   const api = factory(root);
@@ -63,20 +70,24 @@ function pairVerdict(lib, a, b){
    列的順序**固定照庫**（不把選不到的搬到後面）：點一下就重排＝使用者每點一次都要重新找一遍。 */
 function choices(lib, mode, picked){
   const need = NEED[mode] || 2;
-  const mats = M().listMaterials(lib);
+  /* 🆕 T062：封存的料不列；封存料的配對一起藏（Q3）＝判「選得到嗎」一律看拿掉封存之後的那一份（view）。 */
+  const ak = M().archivedKeys(lib), view = M().withoutArchived(lib);
+  const live = new Set(M().listMaterials(view).map(m => m.key));
+  const mats = M().listMaterials(lib).filter(m => !ak.has(m.key));
   const byKey = new Map(mats.map(m => [m.key, m]));
-  const pk = (picked || []).filter(k => byKey.has(k)).slice(0, need);
+  const pk = (picked || []).filter(k => byKey.has(k) && live.has(k)).slice(0, need);
   const keep = (pk.length >= need ? [] : pk).map(k => byKey.get(k));
   const rows = mats.map(m => {
     const i = pk.indexOf(m.key);
     if (i >= 0) return { mat: m, state: 'picked', order: i, why: '' };
+    if (!live.has(m.key)) return { mat: m, state: 'no', why: '它的配對都封存了' };   // 原型 rowsFor 同一句
     for (const q of keep){
-      const v = pairVerdict(lib, m, q);
+      const v = pairVerdict(view, m, q);
       if (!usable(mode, v)) return { mat: m, state: 'no', why: v.kind === 'missing'
         ? ('沒和「' + q.label + '」一起校正過' + (mode === 'quad' ? '（四料要六對都一起量過）' : ''))
         : ('和「' + q.label + '」這一對不能用：' + v.why) };
     }
-    if (!keep.length && !M().partnersOf(lib, m).some(x => usable(mode, pairVerdict(lib, m, x.other))))
+    if (!keep.length && !M().partnersOf(view, m).some(x => usable(mode, pairVerdict(view, m, x.other))))
       return { mat: m, state: 'no', why: '它量過的組合都不能用（到校正流程重新校正）' };
     return { mat: m, state: 'ok', why: '' };
   });
@@ -112,6 +123,13 @@ function setInfo(lib, mode, keys){ return setCheck(lib, mode, keys).info; }
 /* 同上，但不成立時講得出為什麼（第 1 步點齊最後一支卻不成立時要講：FBK-11）。 */
 function setCheck(lib, mode, keys){
   const need = NEED[mode] || 2;
+  /* 🆕 T062：含封存料的組不成立（封存料的配對一起藏）；講得出是哪一支封存了。 */
+  const ak = M().archivedKeys(lib);
+  const arch = (keys || []).filter(k => ak.has(k));
+  if (arch.length){
+    const all = new Map(M().listMaterials(lib).map(m => [m.key, m]));
+    return { info: null, why: arch.map(k => '「' + ((all.get(k) || {}).label || '') + '」').join('') + '封存了' };
+  }
   const byKey = new Map(M().listMaterials(lib).map(m => [m.key, m]));
   const ms = (keys || []).map(k => byKey.get(k));
   if (ms.length !== need || ms.some(x => !x)) return { info: null, why: '還沒選齊' };
@@ -147,6 +165,7 @@ function setCheck(lib, mode, keys){
 
 /* 庫裡所有成立的組（選齊、每一對都能用）。預設選擇用：上次選的那組不在了，就用最近量的那組。 */
 function validSets(lib, mode){
+  lib = M().withoutArchived(lib);                  // 🆕 T062：只是剪枝（不去組封存料）；擋住含封存料的組的是 setCheck
   const need = NEED[mode] || 2, mats = M().listMaterials(lib);
   const okId = new Set();
   for (const p of (lib && lib.pairs) || []) if (usable(mode, pairVerdict(lib, p.a, p.b))) okId.add(p.id);
@@ -215,7 +234,8 @@ function nameHint(lb, type, name){
   name = String(name == null ? '' : name).trim();
   if (!name) return { kind: '', name: '', near: [] };
   const names = namesOf(lb, type);
-  if (names.indexOf(name) >= 0) return { kind: 'same', name, near: [] };
+  /* 🆕 T062：同一支料目前封存著＝講一句「完成後會自動叫回來」（原型細節 6）。 */
+  if (names.indexOf(name) >= 0) return { kind: 'same', name, near: [], archived: M().isArchived(lb, { type, label: name }) };
   const near = names.filter(n => n.indexOf(name) >= 0 || name.indexOf(n) >= 0)
     .sort((a, b) => Math.abs(a.length - name.length) - Math.abs(b.length - name.length)).slice(0, 3);
   return { kind: near.length ? 'near' : 'new', name, near };
@@ -243,6 +263,27 @@ function dateFromName(fn){
   return m[1] + '-' + m[2] + '-' + m[3];
 }
 
+/* ---- T062 的純邏輯（node 測得到）---- */
+/* 正在用的那組不能封存（原型細節 4：「先換一組，再封存它」——免得產圖流程突然沒有料）。回原因，可以封存＝''。 */
+function archiveBlock(inf, key){ return inf && inf.keys.indexOf(key) >= 0 ? '正在用（目前這組）——先換一組，再封存它。' : ''; }
+/* 匯出的預設檔名（原型：照片磚材料庫_20260923.json）。 */
+function exportName(d){ return '照片磚材料庫_' + String(d || '').replace(/-/g, '') + '.json'; }
+/* 匯入材料庫檔的結果講一句（原型 openLibImport 的訊息）。r＝matlib.applyLibImport 的回傳。 */
+function libImportText(r, src){
+  const n = r.took + r.kept;
+  return '匯入完成（' + src + '）：' + (r.added ? '新增 ' + r.added + ' 組' : '沒有新增')
+    + (r.same ? '、' + r.same + ' 組跟本機一模一樣略過' : '')
+    + (n ? '、撞到的 ' + n + ' 組照你選的（用匯入的 ' + r.took + '、保留本機的 ' + r.kept + '）' : '')
+    + (r.archived ? '；其中 ' + r.archived + ' 支料在匯出的那台是封存的，這裡也先封存' : '') + '。';
+}
+/* 「這組 9/14 量的（上一版 9/10）」（Q9）：一組裡有上一版的那幾對、上一版的日期、上一版是不是反而比較新（還原過）。 */
+function verOf(inf){
+  if (!inf) return null;
+  const ps = inf.pairs.map(v => v.pair).filter(p => p && p.prev);
+  const prevAt = ps.map(p => p.prev.measuredAt || '').sort().pop() || null;
+  return { at: inf.at, pairs: ps, prevAt, newer: !!ps.length && (prevAt || '') > (inf.at || '') };
+}
+
 /* ================= 畫面（只在瀏覽器） ================= */
 
 let page = null;              // index.html 交進來的轉接物件（見 mount）
@@ -257,6 +298,8 @@ let calStep = 1, calIds = null, calDoneInfo = null, calErr = '', calMiss = [];
 let importFrom = 'cal';       // 這次匯入校正表是從哪裡按的：gen＝右欄料單（收下後留在產圖流程）｜cal＝校正第 4 步
 let genAccepting = false;     // 右欄匯入「放進材料庫」那一下（同步呼叫 acceptTable 期間）——onCalibrated 據此留在產圖流程講結果。
                               // 🔴 不拿 importFrom 判：開檔視窗按取消不會有任何事件，旗標會一直停在 gen，之後校正流程收表就走錯路
+let genNote = '';             // 🆕 T062：同一段期間，撞到同一組選了什麼（onCalibrated 放在訊息最前面）
+let showArch = false;         // 🆕 T062：料單底下「已封存 N 支」展開了沒
 
 function loadRemembered(){
   try { const s = JSON.parse(root.localStorage.getItem(SEL_KEY) || 'null');
@@ -308,8 +351,13 @@ function remapKeys(renamed){
 /* ---- 右欄「選顏色」這一塊 ---- */
 function flashHtml(){
   if (!flash) return '';
-  return '<div class="mfFlash ' + (flash.kind === 'ok' ? 'ok' : 'warn') + '">' + esc(flash.text)
-    + (flash.cal ? '<button type="button" class="btn ghost" data-mf="tocal">去校正一組料</button>' : '') + '</div>';
+  /* kind：ok＝做完了（綠）｜warn＝要注意（黃）｜info＝中性（灰；例：自己按了取消）。title＝滑過才看的細節（例：存到哪個路徑——Eric 0908：回饋留一個詞，路徑放 tooltip）。
+     btn＝訊息旁的出口（例：封存之後的「復原」＝原型細節 5）。 */
+  const b = flash.btn || (flash.cal ? { mf: 'tocal', label: '去校正一組料' } : null);
+  return '<div class="mfFlash ' + (flash.kind === 'ok' || flash.kind === 'info' ? flash.kind : 'warn') + '"'
+    + (flash.title ? ' title="' + esc(flash.title) + '"' : '') + '>' + esc(flash.text)
+    + (b ? '<button type="button" class="btn ghost" data-mf="' + b.mf + '"' + (b.k ? ' data-k="' + esc(b.k) + '"' : '')
+         + (b.undo ? ' data-undo="1"' : '') + '>' + esc(b.label) + '</button>' : '') + '</div>';
 }
 /* 料單上的名字：已指定＝顏色名＋料種小標；舊資料＝原本的標籤＋「未指定料種」＋「指定…」（Q12 跳過之後隨時補）。 */
 function nameCell(m){
@@ -332,9 +380,9 @@ function renderPanel(){
   }
   if (!mats.length){
     box.innerHTML = head() + '<div class="mfEmpty"><b>還沒有校正過的顏色。</b><br>沒量過的料，系統不知道它印出來是什麼顏色，所以這裡選不到。'
-      + '先校正一組料（印一片校正片、拍一張照），它就會出現在這裡。'
+      + '先校正一組料（印一片校正片、拍一張照），它就會出現在這裡；有別台電腦匯出的材料庫檔，也可以直接匯入。'
       + '<div class="mfActs"><button type="button" class="btn primary" data-mf="tocal">去校正一組料</button>'
-      + '<button type="button" class="btn ghost" data-mf="import">匯入校正表…</button></div></div>' + flashHtml() + noteHtml;
+      + '<button type="button" class="btn ghost" data-mf="import">匯入…</button></div></div>' + flashHtml() + noteHtml;
     return;
   }
   if (!open && inf){
@@ -361,26 +409,57 @@ function renderPanel(){
      ②「我今天想要更換材料，就只有第一個『換一組』，這是第一步。所以第二步是去選擇材料，或是沒有材料的時候要去校正。
         因此選擇材料跟校正其實是平行的，它沒有先後順序」③「校正跟匯入是不是同一組？也就是對於下面的清單會增加或者修正」
      ⇒ 往清單加料／更新的兩條路（校正、匯入）併成一組放料單右上；標題列只剩標題＋收起；不掛步驟號；
-       原本最底下「沒有想要的顏色？」那一行拿掉（跟選料平行的入口已經在上面）。匯出與已封存＝T062。 */
+       原本最底下「沒有想要的顏色？」那一行拿掉（跟選料平行的入口已經在上面）。
+     🆕 T062：「匯入…」一顆自動分辨校正表／材料庫檔（Q4 甲）；料單底下＝左「已封存 N 支」、右「匯出材料庫…」（9-6⑧：
+       「匯出的話，是不是針對清單提出來」＝把整份清單連封存的一起拿出去；「匯入」「匯出」不並排，兩個字長得像、並排容易按錯）。 */
   let h = head('<span class="hint">' + (md === 'dual' ? '雙料，挑 2 支' : '四料，挑 4 支') + '</span><span class="mfSp"></span>'
         + (inf ? '<button type="button" class="btn ghost" data-mf="close">收起</button>' : ''))
         + '<div class="sub">清單只有校正過的料——沒量過的料，系統不知道它印出來是什麼顏色，所以選不到。</div>'
         + '<div class="mfLibBar"><span class="mfLibT">材料庫</span><span class="sub">新增或更新：</span>'
         + '<button type="button" class="btn ghost" data-mf="tocal">去校正一組料</button>'
-        + '<button type="button" class="btn ghost" data-mf="import">匯入校正表…</button></div>'
-        + '<table class="mfTable"><thead><tr><th>選</th><th>材料</th><th>料色</th></tr></thead><tbody>';
+        + '<button type="button" class="btn ghost" data-mf="import">匯入…</button></div>'
+        + '<table class="mfTable"><thead><tr><th>選</th><th>材料</th><th>料色</th><th></th></tr></thead><tbody>';
   ch.rows.forEach(r => {
     const m = r.mat;
     h += '<tr class="mfRow ' + r.state + '" data-key="' + esc(m.key) + '">'
        + '<td><span class="mfPick' + (r.state === 'picked' ? ' on' : '') + '">' + (r.state === 'picked' ? (r.order + 1) : (r.state === 'no' ? '🔒' : '')) + '</span></td>'
        + '<td>' + nameCell(m) + (r.state === 'no' ? '<div class="mfWhy">' + esc(r.why) + '</div>' : '') + '</td>'
-       + '<td><span class="mfSw" style="background:' + esc(m.hex) + '"></span> <code>' + esc(m.hex) + '</code></td></tr>';
+       + '<td class="c"><span class="mfSw" style="background:' + esc(m.hex) + '"></span> <code>' + esc(m.hex) + '</code></td>'
+       + '<td class="act"><button type="button" class="btn ghost mfXs" data-mf="arch" data-k="' + esc(m.key) + '">封存</button></td></tr>';
   });
+  if (!ch.rows.length) h += '<tr><td colspan="4" class="sub">清單是空的：料都封存了——從下面「已封存」叫回來，或去校正一組料。</td></tr>';
   h += '</tbody></table>';
-  const miss = need - ch.picked.length;
-  h += '<div class="sub mfNow">' + (ch.picked.length ? '已點：' + ch.picked.map(k => esc((ch.rows.find(r => r.mat.key === k) || {}).mat.label)).join('、') : '還沒點')
-     + (miss > 0 ? '（還缺 ' + miss + ' 支；選齊就生效——最淺的那支自動放擠出機 1，其餘照你點的順序）' : '') + '</div>';
-  box.innerHTML = h + flashHtml() + noteHtml;
+  if (inf && ch.ready && ch.picked.join('\u0000') === inf.keys.join('\u0000')) h += verHtml(inf);
+  else {
+    const miss = need - ch.picked.length;
+    h += '<div class="sub mfNow">' + (ch.picked.length ? '已點：' + ch.picked.map(k => esc((ch.rows.find(r => r.mat.key === k) || {}).mat.label)).join('、') : '還沒點')
+       + (miss > 0 ? '（還缺 ' + miss + ' 支；選齊就生效——最淺的那支自動放擠出機 1，其餘照你點的順序）' : '') + '</div>';
+  }
+  box.innerHTML = h + flashHtml() + noteHtml + footHtml(lb);
+}
+/* Q9：「這組 9/14 量的（上一版 9/10）［改用 9/10 那一版］」。還原＝兩份對調，所以留著的那一份可能比較新——照日期講，不一律叫「上一版」（原型同）。 */
+function verHtml(inf){
+  const v = verOf(inf);
+  let h = '<div class="mfVer"><span>這組 <b>' + esc(whenText(v.at)) + '</b></span>';
+  if (v.pairs.length){
+    const d = mdate(v.prevAt);
+    h += '<span class="sub">（' + (v.newer ? '比較新的一版 ' : '上一版 ') + (d || '舊表、沒記日期') + (inf.mode === 'quad' ? '，' + v.pairs.length + ' 對' : '') + '）</span>'
+       + '<button type="button" class="btn ghost" data-mf="restore">' + (d ? '改用 ' + d + ' 那一版' : '改用舊表那一版') + '</button>';
+  }
+  return h + '</div>';
+}
+/* 料單的底：左「已封存 N 支」（點開＝清單＋叫回）、右「匯出材料庫…」。 */
+function footHtml(lb){
+  const ak = M().archivedKeys(lb), arch = M().listMaterials(lb).filter(m => ak.has(m.key));
+  let h = '<div class="mfFoot">' + (arch.length
+      ? '<button type="button" class="mfLnk" data-mf="toggleArch" aria-expanded="' + showArch + '">已封存 ' + arch.length + ' 支 ' + (showArch ? '▾' : '▸') + '</button>'
+      : '<span class="sub">沒有封存的料</span>')
+    + '<span class="mfSp"></span><button type="button" class="btn ghost" data-mf="export">匯出材料庫…</button></div>';
+  if (arch.length && showArch) h += '<ul class="mfArchList">' + arch.map(m => '<li><span class="mfSw" style="background:' + esc(m.hex) + '"></span>'
+      + '<span class="mfNm">' + esc(m.label) + '</span>' + (M().needsSpec(m) ? '<span class="mfTagW">未指定料種</span>' : '<span class="mfTagT">' + esc(m.type) + '</span>')
+      + '<span class="sub">連同 ' + M().partnersOf(lb, m).length + ' 組配對</span>'
+      + '<button type="button" class="btn ghost" data-mf="unarch" data-k="' + esc(m.key) + '">叫回</button></li>').join('') + '</ul>';
+  return h;
 }
 function capLine(inf){
   if (!inf) return '';
@@ -396,8 +475,13 @@ function onPanelClick(e){
   if (act === 'open'){ open = true; draft = null; flash = null; renderPanel(); scrollPanel(); return; }
   if (act === 'close'){ open = false; draft = null; flash = null; renderPanel(); return; }
   if (act === 'tocal'){ flash = null; setFlow('cal'); return; }
-  if (act === 'import'){ pickTableFile(); return; }
+  if (act === 'import'){ pickImportFile(); return; }
   if (act === 'spec'){ openSpecOne(t.getAttribute('data-k')); return; }
+  if (act === 'arch'){ onArchive(t.getAttribute('data-k')); return; }
+  if (act === 'unarch'){ onUnarchive(t.getAttribute('data-k'), t.hasAttribute('data-undo')); return; }
+  if (act === 'toggleArch'){ showArch = !showArch; renderPanel(); return; }
+  if (act === 'restore'){ onRestore(); return; }
+  if (act === 'export'){ openExport(); return; }
   const key = t.getAttribute('data-key');
   if (!key) return;
   const md = mode(), inf = current();
@@ -417,6 +501,43 @@ function onPanelClick(e){
   renderPanel();
 }
 function scrollPanel(){ const b = $('matPanel'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest' }); }
+
+/* ---- T062：封存／叫回／還原上一版（都可反悔 ⇒ 就地做、不跳確認窗：FLOW-37 ①；原型細節 5）---- */
+function matByKey(key){ return M().listMaterials(lib()).find(x => x.key === key) || null; }
+function onArchive(key){
+  const lb = lib(), m = matByKey(key);
+  if (!m) return;
+  const why = archiveBlock(current(), key);
+  if (why){ flash = { kind: 'warn', text: '「' + m.label + '」' + why }; renderPanel(); return; }
+  M().setArchived(lb, m, true);
+  if (draft) draft = { mode: draft.mode, picked: draft.picked.filter(k => k !== key) };
+  flash = { kind: 'ok', text: '已封存「' + m.label + '」（連同 ' + M().partnersOf(lb, m).length + ' 組配對一起收起來，資料都還在）。',
+            btn: { mf: 'unarch', k: key, undo: true, label: '復原' } };
+  save(); changed();
+}
+function onUnarchive(key, undo){
+  const lb = lib(), m = matByKey(key);
+  if (!m) return;
+  M().setArchived(lb, m, false);
+  if (!M().archivedKeys(lb).size) showArch = false;
+  flash = { kind: 'ok', text: (undo ? '已復原' : '已叫回') + '「' + m.label + '」。' };
+  save(); changed();
+}
+function onRestore(){
+  const inf = current(), v = verOf(inf);
+  if (!v || !v.pairs.length) return;
+  const lb = lib(), was = v.at;
+  /* 先在副本上換一次：那一版量的資料讓這組不成立（例：跨幅太小）就不換——換了這組就選不到，也就再也按不到「換回來」。 */
+  const trial = Object.assign({}, lb, { pairs: lb.pairs.slice() });
+  v.pairs.forEach(p => M().restorePrev(trial, p.id));
+  const chk = setCheck(trial, inf.mode, inf.keys);
+  if (!chk.info){ flash = { kind: 'warn', text: '沒有換：用那一版量的資料，這組料不能用（' + chk.why + '）。' }; renderPanel(); return; }
+  v.pairs.forEach(p => M().restorePrev(lb, p.id));
+  save();
+  const now = current();
+  flash = { kind: 'ok', text: '已改用 ' + whenText(now && now.at) + '那一版；' + (mdate(was) || '原本') + ' 那一版留著，可以再換回來。' };
+  changed();
+}
 
 /* 選的那組變了 ⇒ 交回頁面（寫料槽、壓色階上限、重算）。只在真的變了才交：頁面收到之後會重畫料槽、
    又呼叫回 refresh()——用簽章擋住，不會繞圈。庫讀回來（App 是非同步）、收下新表、指定料種，都走這一支。 */
@@ -442,7 +563,8 @@ function mpHtml(o){
   const hex = o.hex || (known ? known.hex : null);
   return '<div class="mp' + (o.miss ? ' miss' : '') + '" data-i="' + o.i + '"' + (o.k ? ' data-k="' + esc(o.k) + '"' : '')
     + (o.hex ? ' data-hex="' + esc(o.hex) + '"' : '') + '>'
-    + '<div class="mpT">' + esc(o.title) + (o.titleSub ? '<span class="sub">' + esc(o.titleSub) + '</span>' : '') + '</div>'
+    + '<div class="mpT">' + esc(o.title) + (o.titleSub ? '<span class="sub">' + esc(o.titleSub) + '</span>' : '')
+    + (o.arch ? '<label class="mpArch"><input type="checkbox" data-f="arch"> 封存（這支已經不用了）</label>' : '') + '</div>'
     + '<div class="mpRow"><span class="mpSw' + (hex ? '' : ' none') + '"' + (hex ? ' style="background:' + esc(hex) + '"' : '') + '></span>'
     + '<label>料種 <select data-f="type">' + T.map(t => '<option' + (t === type ? ' selected' : '') + '>' + esc(t) + '</option>').join('') + '</select></label>'
     + '<label>顏色名 <input type="text" data-f="name" list="mfNames' + T.indexOf(type) + '" value="' + esc(o.name || '') + '" placeholder="例：白、深灰" autocomplete="off"></label></div>'
@@ -459,7 +581,8 @@ function hintHtml(type, name, dupWith){
   const h = nameHint(lib(), type, name);
   if (!h.kind) return '';
   if (dupWith) return '<div class="mpInfo">跟' + esc(dupWith) + '同名＝會當成同一支料。</div>';
-  if (h.kind === 'same') return '<div class="mpInfo">＝庫裡已有的「' + esc(h.name) + '」（同一支料）。</div>';
+  if (h.kind === 'same') return '<div class="mpInfo">＝庫裡已有的「' + esc(h.name) + '」（同一支料）'
+    + (h.archived ? '；它目前封存著，完成後會自動叫回來' : '') + '。</div>';
   if (h.kind === 'near') return '<div class="mpInfo">新的一支料「' + esc(h.name) + '」。庫裡有相近的：'
     + h.near.map(n => '<button type="button" class="nmChip" data-use="' + esc(n) + '">' + esc(n) + '</button>').join('')
     + '——是同一支就點它，不點就當新的。</div>';
@@ -474,14 +597,18 @@ function renderNames(){
     + namesOf(lib(), t).map(n => '<option value="' + esc(n) + '">').join('') + '</datalist>').join('');
 }
 function mpRead(box){
-  return Array.prototype.map.call(box.querySelectorAll('.mp'), el => ({ el, i: +el.getAttribute('data-i'), k: el.getAttribute('data-k'),
-    type: el.querySelector('[data-f=type]').value, name: el.querySelector('[data-f=name]').value.trim() }));
+  return Array.prototype.map.call(box.querySelectorAll('.mp'), el => { const a = el.querySelector('[data-f=arch]');
+    return { el, i: +el.getAttribute('data-i'), k: el.getAttribute('data-k'), arch: !!(a && a.checked),
+             type: el.querySelector('[data-f=type]').value, name: el.querySelector('[data-f=name]').value.trim() }; });
 }
-/* 打字就重畫提示；同一組裡撞名要講（唯一擋的情形在確認那一下擋，這裡先提示）。 */
+/* 打字就重畫提示；同一組裡撞名要講（唯一擋的情形在確認那一下擋，這裡先提示）。
+   🆕 T062：勾了「封存」的那支淡掉、不提示名字、不算撞名（原型 refreshMp 同）。 */
 function mpRefresh(box){
   const rows = mpRead(box);
   rows.forEach((r, j) => {
-    const other = r.name ? rows.find((o, k) => k !== j && o.name === r.name && o.type === r.type) : null;
+    r.el.classList.toggle('arch', r.arch);
+    if (r.arch){ r.el.querySelector('.mpHint').innerHTML = ''; r.el.classList.remove('miss'); return; }
+    const other = r.name ? rows.find((o, k) => k !== j && !o.arch && o.name === r.name && o.type === r.type) : null;
     r.el.querySelector('.mpHint').innerHTML = hintHtml(r.type, r.name, other ? '「' + other.el.querySelector('.mpT').firstChild.textContent + '」' : '');
     r.el.querySelector('[data-f=name]').setAttribute('list', 'mfNames' + types().indexOf(r.type));
     if (r.name) r.el.classList.remove('miss');
@@ -539,8 +666,10 @@ function mpCheck(box, rows){
 /* ---- 匯入校正表（〈九〉Q5：匯入不再跳過確認）----
    T060 的「匯入校正表…」會跳過校正第 1 步，料的身分取自擠出機目前的線材設定——Eric 看到「白×黑」就是這樣來的（〈九〉起因②）。
    ⇒ 一律先問「這張表是哪幾支料」（同一個「指定材料」元件，色塊＝表上量到的色、表上寫的名字只當提示），確認才收。
-   從校正第 4 步匯入＝剛量的那組：先帶第 1 步填的名字，確認一次就好。 */
-function pickTableFile(){
+   從校正第 4 步匯入＝剛量的那組：先帶第 1 步填的名字，確認一次就好。
+   🆕 T062：右欄只剩**一顆「匯入…」**，選到的檔自己分辨（Q4 甲）：材料庫檔 → importLibFile；校正表 → importTable；
+   都不是＝講明白。開檔視窗只列 .json（9-6⑥：Eric「濾除非 JSON 檔的就好了」）。 */
+function pickImportFile(){
   let f = $('mfTableFile');
   if (!f){
     f = root.document.createElement('input'); f.type = 'file'; f.id = 'mfTableFile'; f.accept = '.json,application/json'; f.hidden = true;
@@ -548,13 +677,23 @@ function pickTableFile(){
       const file = f.files && f.files[0]; f.value = '';
       if (!file) return;
       const rd = new root.FileReader();
-      rd.onload = () => { let raw; try { raw = JSON.parse(rd.result); } catch (e) { importFrom = 'gen'; importFail('這個檔匯不進來：不是合法的 JSON。'); return; }
-                          importTable(raw, file.name, 'gen'); };
+      rd.onload = () => importFile(rd.result, file.name);
       rd.readAsText(file);
     });
     root.document.body.appendChild(f);
   }
   f.click();
+}
+/* 選到的檔（原文）→ 分辨是哪一種、交給對的那條路。 */
+function importFile(text, fname){
+  let raw;
+  importFrom = 'gen';
+  try { raw = JSON.parse(text); } catch (e) { importFail('這個檔匯不進來：不是合法的 JSON。'); return; }
+  const kind = M().fileKind(raw);
+  if (kind === 'lib') importLibFile(raw, fname);
+  else if (kind === 'lib-unknown') importFail('這個材料庫檔是比較新的版本存的（schema ' + raw.schema + '），這一版讀不懂——請用新版的 PING Slicer 匯入。');
+  else if (!raw || typeof raw !== 'object' || !('料數' in raw || '量測' in raw)) importFail('這個檔匯不進來：它不是校正表，也不是材料庫檔。');
+  else importTable(raw, fname, 'gen');
 }
 function importFail(text){
   if (importFrom === 'gen'){ flash = { kind: 'warn', text }; renderPanel(); }
@@ -581,20 +720,140 @@ function importTable(raw, fname, from){
       if (c !== 'yes'){ importFrom = 'cal'; return true; }
       const rows = mpRead(box);
       if (!mpCheck(box, rows)) return false;
-      genAccepting = importFrom === 'gen';
-      let r = null;
-      try { r = page && page.acceptTable ? page.acceptTable(raw, rows.map(x => ({ type: x.type, label: x.name })), at) : null; }
-      finally { genAccepting = false; }
+      /* 🆕 T062：右欄匯入＝別處量的表 ⇒ 撞到本機同一組先問（原型細節 1）；校正第 4 步匯入＝剛量的那組 ⇒ 照舊直接取代、舊的留一份（Q9）。 */
+      if (importFrom === 'gen') return genTable(raw, tbl, rows.map(x => ({ type: x.type, label: x.name })), at);
+      const r = page && page.acceptTable ? page.acceptTable(raw, rows.map(x => ({ type: x.type, label: x.name })), at) : null;
       if (!r || !r.added) importFail('沒放進材料庫：' + ((r && r.why) || '材料庫未載入') + '。');
       else importFrom = 'cal';
       return true;
     } });
 }
+/* 右欄匯入的校正表：新的一組直接收；跟本機一模一樣＝不用再放；撞到同一組而量測不一樣＝逐組問（Q11 丙；預設「保留本機的」）。
+   收下（或保留本機）之後這組直接成為產圖選的那組（原型細節 11）。回傳給 openDlg：開了下一個窗就回 false（別把新窗關掉）。 */
+function genTable(raw, tbl, mats, at){
+  const md = Array.isArray(tbl.pairs) ? 'quad' : 'dual', when = at || today();
+  let pairs;
+  try { pairs = md === 'quad' ? M().pairsFromQuad(tbl, { materials: mats, measuredAt: when })
+                              : [M().pairFromDual(tbl, { materials: mats, measuredAt: when })]; }
+  catch (e){ importFail('沒放進材料庫：' + ((e && e.message) || e) + '。'); return true; }
+  const plan = M().classifyPairs(lib(), pairs);
+  const names = mats.map(m => m.label).join(' × ');
+  const commit = ch => {
+    const skip = new Set(plan.same.map(p => p.id)), took = [];
+    plan.conflict.forEach((c, i) => { if (ch[i] === 'theirs') took.push(c); else skip.add(c.id); });
+    const nc = plan.conflict.length, nt = took.length;
+    const note = (nc === 1 && nt === 1 ? '已改用匯入的（' + whenText(took[0].theirs.measuredAt) + '）；本機那份（' + (mdate(took[0].mine.measuredAt) || '舊表') + '）留作上一版。'
+               : nc ? '撞到的 ' + nc + ' 組：用匯入的 ' + nt + '、保留本機的 ' + (nc - nt) + '。' : '')
+      + (plan.same.length ? '另外 ' + plan.same.length + ' 組跟本機一模一樣，不用再放。' : '');
+    if (plan.add.length + took.length){
+      genAccepting = true; genNote = note;
+      let r = null;
+      try { r = page && page.acceptTable ? page.acceptTable(raw, mats, at, skip) : null; }
+      finally { genAccepting = false; genNote = ''; }
+      if (!r || !r.added) importFail('沒放進材料庫：' + ((r && r.why) || '材料庫未載入') + '。');
+      else importFrom = 'cal';
+      return;
+    }
+    /* 一筆都不用寫（全都一模一樣，或撞到的全選「保留本機的」）：封存著的叫回來、這組直接選上。 */
+    const lb = lib(), revived = mats.map(m => M().makeMaterial(m)).filter(m => M().setArchived(lb, m, false)).map(m => m.label);
+    if (revived.length) save();
+    const lead = plan.conflict.length ? '保留本機的（' + whenText(plan.conflict[0].mine.measuredAt) + '）；匯入的那份沒放進來。'
+                                      : '這組跟本機的一模一樣（同一次量測），不用再放一次；';
+    genResult(md, mats, useKeys(md, mats.map(m => M().matKey(M().makeMaterial(m)))), lead, revivedText(revived));
+    importFrom = 'cal';
+  };
+  if (!plan.conflict.length){ commit([]); return true; }
+  openCollision({ head: '<div class="mfDetect">✓ 這張表的「' + esc(names) + '」本機已經有了' + (plan.conflict.length > 1 ? '（' + plan.conflict.length + ' 組量測不一樣）' : '') + '。</div>',
+    items: plan.conflict, onDone: commit,
+    onCancel(){ importFrom = 'cal'; flash = { kind: 'info', text: '已取消匯入，材料庫沒有任何改變。' }; renderPanel(); } });
+  return false;
+}
+function revivedText(names){ return names && names.length ? '「' + names.join('」「') + '」原本封存著，已經叫回來。' : ''; }
+
+/* ---- 匯入材料庫檔（Q4／Q10／Q11；T062）----
+   沒有的直接加、一模一樣的略過、撞到同一組的逐組問；**不動你現在選的那組**（原型細節 11：匯入很多組 ≠ 要換料）。
+   新進來的料照匯出那台的封存狀態（搬電腦時封存的不該又冒出來）。 */
+function importLibFile(raw, fname){
+  importFrom = 'gen';
+  const incoming = M().normalize(raw);
+  if (!incoming.pairs.length){ importFail('這個材料庫檔裡沒有可用的量測（0 組），沒有匯入。'); return; }
+  const plan = M().libImportPlan(lib(), incoming);
+  const src = '「' + fname + '」' + (mdate(raw.exportedAt) ? '，' + mdate(raw.exportedAt) + ' 匯出' : '');
+  const finish = ch => {
+    const r = M().applyLibImport(lib(), plan, ch);
+    save();
+    open = true; draft = null; importFrom = 'cal';
+    flash = { kind: 'ok', text: libImportText(r, src) };
+    changed();
+  };
+  if (!plan.conflict.length){ finish([]); return; }
+  const others = [plan.add.length ? plan.add.length + ' 組是新的，會直接加進來' : '', plan.same.length ? plan.same.length + ' 組跟本機一模一樣，略過' : ''].filter(Boolean).join('；');
+  openCollision({ head: '<div class="mfDetect">✓ 認出來了：這是一個<b>材料庫檔</b>（' + esc(src) + '：' + M().listMaterials(incoming).length + ' 支料、'
+      + incoming.pairs.length + ' 組量測）。</div><p>其中 <b>' + plan.conflict.length + ' 組</b>跟你本機的是同一組、但量測不一樣——每一組要留哪一份？'
+      + (others ? '<span class="sub">（另外 ' + esc(others) + '）</span>' : '') + '</p>',
+    items: plan.conflict, onDone: finish,
+    onCancel(){ importFrom = 'cal'; flash = { kind: 'info', text: '已取消匯入，材料庫沒有任何改變。' }; renderPanel(); } });
+}
+/* 撞到同一組＝逐組問（Q11 丙）：每組兩個選項，附兩邊的量測日期與色塊；**預設「保留本機的」**（原型細節 3：單選一律有預設、放第一個）。
+   items＝classifyPairs 的 conflict（theirs 已翻成本機這組的方向，兩條色階才對得起來）。 */
+function openCollision(o){
+  const ladder = v => '<span class="mfMini">' + v.pts.map(p => '<i style="background:' + esc(p.hex) + '"></i>').join('') + '</span>';
+  const opt = (i, val, label, v, on) => '<label class="mfCollOpt"><input type="radio" name="mfc' + i + '" value="' + val + '"' + (on ? ' checked' : '') + '>'
+    + '<span class="mfCollL">' + label + '</span><span class="mfCollD">' + esc(whenText(v.measuredAt)) + '</span>' + ladder(v) + '</label>';
+  openDlg({ title: '匯進來的跟本機的是同一組——要留哪一份？',
+    body: o.head + o.items.map((it, i) => '<div class="mfColl"><div class="mfCollT">' + esc(it.mine.a.label + ' × ' + it.mine.b.label) + '</div>'
+        + opt(i, 'local', '保留本機的', it.mine, true) + opt(i, 'theirs', '用匯入的', it.theirs, false) + '</div>').join('')
+      + '<div class="sub">選「用匯入的」，本機那一份會留作「上一版」，之後在「選顏色」展開後還可以換回來。</div>',
+    buttons: [{ c: 'yes', label: '確定', primary: true }, { c: 'no', label: '取消匯入' }], esc: 'no',
+    on(c, box){
+      if (c !== 'yes'){ o.onCancel(); return true; }
+      o.onDone(o.items.map((_, i) => { const r = box.querySelector('input[name=mfc' + i + ']:checked'); return r ? r.value : 'local'; }));
+      return true;
+    } });
+}
+
+/* ---- 匯出材料庫…（Q4／Q10：整庫一個檔、含封存的）----
+   App 裡＝交給 App 開存檔視窗（嵌入式 WebView 的下載沒有存檔視窗；同「另存 AI 圖…」）；瀏覽器直開（開發）＝下載。
+   原型窗裡的「檔名」欄拿掉：真的存檔視窗自己就有檔名欄（跟「匯入…」＝Windows 開檔視窗同理，9-6⑥）。 */
+function openExport(){
+  const lb = lib(), mats = M().listMaterials(lb), ak = M().archivedKeys(lb);
+  const na = mats.filter(m => ak.has(m.key)).length, nl = mats.filter(m => M().needsSpec(m)).length;
+  const host = !!(M().getStorage() && M().getStorage().exportLib), name = exportName(today());
+  openDlg({ title: '匯出材料庫',
+    body: '<p>整個材料庫存成<b>一個檔</b>：搬到別台電腦、或給同事，對方按「匯入…」選這個檔就好。</p>'
+      + '<div class="mfExpSum">' + mats.length + ' 支料' + (na ? '（其中 ' + na + ' 支封存，也會一起帶走）' : '') + '、' + lb.pairs.length + ' 組量測'
+      + (nl ? '；' + nl + ' 支還沒指定料種' : '') + '</div>'
+      + '<div class="sub">' + (host ? '按「存檔…」會開存檔視窗，預設檔名「' : '這裡是瀏覽器，按「存檔…」會下載成「') + esc(name) + '」。</div>',
+    buttons: [{ c: 'yes', label: '存檔…', primary: true }, { c: 'no', label: '取消' }], esc: 'no',
+    on(c){ if (c === 'yes') doExport(name, host); return true; } });
+}
+function doExport(name, host){
+  let text;
+  try { text = M().exportText(lib(), today()); } catch (e){ flash = { kind: 'warn', text: '沒匯出：' + ((e && e.message) || e) }; renderPanel(); return; }
+  if (host){
+    try { M().getStorage().exportLib(text, name); flash = { kind: 'info', text: '選擇存檔位置…' }; }
+    catch (e){ flash = { kind: 'warn', text: '沒匯出：' + ((e && e.message) || e) }; }
+    renderPanel(); return;
+  }
+  const doc = root.document, a = doc.createElement('a');
+  a.href = root.URL.createObjectURL(new root.Blob([text], { type: 'application/json' })); a.download = name;
+  doc.body.appendChild(a); a.click(); a.remove();
+  flash = { kind: 'ok', text: '已匯出「' + name + '」（瀏覽器的下載資料夾）。給同事時，他按「匯入…」選這個檔就好。' };
+  renderPanel();
+}
+/* App 回推（phototile_matlib_export 的結果）：ok＝存到哪（路徑放 tooltip：Eric 0908「回饋留一個詞，路徑放 tooltip」）；否則是取消／失敗的原因。 */
+function onExported(msg){
+  const path = String((msg && msg.path) || ''), file = path.split(/[\\/]/).pop();
+  if (msg && msg.ok) flash = { kind: 'ok', text: '已匯出「' + file + '」。給同事時，他按「匯入…」選這個檔就好。', title: path };
+  else flash = { kind: /取消/.test((msg && msg.message) || '') ? 'info' : 'warn', text: (msg && msg.message) || '沒有匯出（原因不明）。' };
+  renderPanel();
+}
 
 /* ---- 舊資料第一次開時問一次（R6-14 子題 2 附款的附款＝〈九〉Q12「照建議」；取代「第一次在產圖流程選到時認領」）----
    舊版存的料只記了色號或線材名、沒有料種 ⇒ 開新版時用同一個「指定材料」元件一次問完。問過就記在庫（legacyAskedAt），
    跳過的料清單上標「未指定料種」、旁邊「指定…」隨時補——**不會每次開都再問**。
-   ⚙ 原型那一問每支旁邊還有「封存」＝T062（封存還沒做）；本版改成**空著＝先不指定**（講在窗裡），不逼人亂填。
+   ⚙ 原型那一問每支旁邊還有「封存」——T061 封存還沒做，改成**空著＝先不指定**（講在窗裡），不逼人亂填；
+     🆕 T062 把「封存」勾選加回來（9-7 #1），空著＝先不指定照舊。
    兩支舊料指到同一支料＝合成一支；同一組量過兩次＝新的當目前、舊的留一份（matlib.specifyMaterials）。 */
 function declName(m){
   /* 舊鍵那張表遷進來時標籤是色號，但表上原本寫了名字（例：第二支寫「紅」）——給人認得出是哪一張。只讀、不改。 */
@@ -616,7 +875,7 @@ function maybeAskLegacy(){
   if (dlg && !dlg.back.isConnected) dlg = null;      // 頁面別的對話框會把 .cfmBack 全部拿掉——被拿掉就當這次沒問、等下重開
   const doc = root.document, lb = lib();
   if (!doc || lb.legacyAskedAt) return;
-  const leg = M().listMaterials(lb).filter(m => M().needsSpec(m));
+  const ak = M().archivedKeys(lb), leg = M().listMaterials(lb).filter(m => M().needsSpec(m) && !ak.has(m.key));   // 封存了的不問
   if (!leg.length) return;
   if (dlg){ if (dlg.o.legacy) askLater(); return; }  // 這一問開著：繼續看它有沒有被別人拿掉
   if (flow !== 'gen') return;                        // 在校正流程裡不問；回產圖流程時 setFlow 會再叫一次
@@ -624,9 +883,9 @@ function maybeAskLegacy(){
   if (doc.querySelector('.cfmBack')){ askLater(); return; }   // 別的對話框開著：不疊上去，等它關
   openDlg({ legacy: true, title: '舊版留下的校正資料——它們是什麼料？（只問這一次）',
     body: '<p>新版用「<b>料種＋顏色名</b>」認一支料（量到的色號只當紀錄）。下面這 ' + leg.length + ' 支是舊版存的，只記了色號或線材名。'
-      + '<b>不確定的空著就好</b>——之後在清單上按「指定…」再補。</p>'
+      + '<b>不確定的空著就好</b>——之後在清單上按「指定…」再補；<b>已經不用的直接勾「封存」</b>，之後在「已封存」裡還叫得回來。</p>'
       + leg.map((m, i) => mpHtml({ i, k: m.key, title: m.label, titleSub: declName(m), hex: m.hex, type: types()[0], name: '',
-          sub: partnerText(lb, m) })).join(''),
+          sub: partnerText(lb, m), arch: true })).join(''),
     buttons: [{ c: 'yes', label: '確定', primary: true }, { c: 'no', label: '先跳過' }], esc: 'no',
     on(c, box){
       if (c !== 'yes'){
@@ -634,15 +893,17 @@ function maybeAskLegacy(){
         open = true; flash = { kind: 'warn', text: '先跳過了。還沒指定料種的料在清單上標「未指定料種」，旁邊「指定…」隨時可以補；不會每次開都再問。' };
         renderPanel(); return true;
       }
-      const rows = mpRead(box), filled = rows.filter(r => r.name);
+      /* 🆕 T062：勾了「封存」的那支＝封存（名字不看）；其餘照 T061：填了＝指定、空著＝先不指定（9-7 #1 把勾選加回來）。 */
+      const rows = mpRead(box), archd = rows.filter(r => r.arch), filled = rows.filter(r => !r.arch && r.name);
       const map = new Map(filled.map(r => [r.k, { type: r.type, label: r.name }]));
       const conf = M().specifyConflicts(lb, map);
       if (conf.length){ dlgErr(box, '「' + conf[0].label + '」和同一組的另一支同名——同一組的兩支不能是同一支料。'); return false; }
+      archd.forEach(r => { const m = leg.find(x => x.key === r.k); if (m) M().setArchived(lb, m, true); });
       if (map.size) remapKeys(M().specifyMaterials(lb, map));
       lb.legacyAskedAt = today(); save();
-      const left = rows.length - filled.length;
+      const left = rows.length - filled.length - archd.length, done = [filled.length ? '指定 ' + filled.length + ' 支' : '', archd.length ? '封存 ' + archd.length + ' 支' : ''].filter(Boolean);
       if (left) open = true;
-      flash = { kind: filled.length ? 'ok' : 'warn', text: (filled.length ? '舊資料整理好了：指定 ' + filled.length + ' 支。' : '都空著＝先跳過了。')
+      flash = { kind: done.length ? 'ok' : 'warn', text: (done.length ? '舊資料整理好了：' + done.join('、') + '。' : '都空著＝先跳過了。')
         + (left ? left + ' 支先不指定（清單上標「未指定料種」，旁邊「指定…」隨時補）。' : '') };
       renderPanel(); notify(); return true;
     } });
@@ -773,23 +1034,27 @@ function calNext(){
 }
 /* 校正表收下之後（calibAcceptRaw 成功）。新量的那組直接成為產圖流程的選擇（四料的表在雙料時收下＝進庫、切到四料時選得到）。
    從右欄料單匯入的留在產圖流程講結果；校正流程裡的進第 5 步。 */
-function onCalibrated(md, mats){
+function onCalibrated(md, mats, revived){
   const keys = mats.map(m => M().matKey(M().makeMaterial(m)));
   const ok = useKeys(md, keys);
-  const names = mats.map(m => m.label).join(' × ');
-  if (genAccepting){
-    open = false; draft = null;
-    flash = ok && md === mode() ? { kind: 'ok', text: '已放進材料庫，產圖改用這組（' + names + '）。' }
-      : { kind: ok ? 'ok' : 'warn', text: '已放進材料庫（' + names + '）' + (md !== mode() ? '——這是' + (md === 'quad' ? '四料' : '雙料') + '的一組，切到' + (md === 'quad' ? '四料' : '雙料') + '時選得到。'
-          : '，但這組有一對不能用，產圖維持原本那組。') };
-    renderPanel(); notify(); return;
-  }
+  const rv = revivedText(revived);                     // 🆕 T062：封存著的料，校正／匯入之後自動叫回來（原型細節 6）
+  if (genAccepting){ genResult(md, mats, ok, genNote, rv); return; }
   const p = md === 'dual' && mats.length === 2 ? M().findPair(lib(), M().makeMaterial(mats[0]), M().makeMaterial(mats[1])) : null;
-  calDoneInfo = { mode: md, mats, used: ok, replaced: p && p.prev ? (p.prev.measuredAt || '') : null,
+  calDoneInfo = { mode: md, mats, used: ok, replaced: p && p.prev ? (p.prev.measuredAt || '') : null, revived: rv,
                   why: ok ? '' : '這組量到的資料有一對不能用（看上面第 4 步的訊息），產圖流程維持原本那組。' };
   goCal(5);
   renderPanel();
   notify();
+}
+/* 右欄匯入的結果留在產圖流程講（lead＝撞到同一組時選了什麼，放最前面）。 */
+function genResult(md, mats, ok, lead, rv){
+  const names = mats.map(m => m.label).join(' × ');
+  open = false; draft = null;
+  const other = md === 'quad' ? '四料' : '雙料';
+  flash = ok && md === mode() ? { kind: 'ok', text: (lead || '已放進材料庫，') + '產圖改用這組（' + names + '）。' + (rv || '') }
+    : { kind: ok ? 'ok' : 'warn', text: (lead || '已放進材料庫（' + names + '）') + (md !== mode() ? '——這是' + other + '的一組，切到' + other + '時選得到。'
+        : '——但這組有一對不能用，產圖維持原本那組。') + (rv || '') };
+  renderPanel(); notify();
 }
 function renderCalDone(){
   const box = $('calDone'); if (!box) return;
@@ -798,7 +1063,9 @@ function renderCalDone(){
   box.innerHTML = '<div class="d">這組顏色已經存進材料庫' + (note ? '（⚠ ' + esc(note) + '）' : '') + '。</div>'
     + '<div class="mfTags">' + R.mats.map(m => '<span class="mfTag"><span class="mfSw" style="background:' + esc(m.hex) + '"></span>'
       + esc(m.type ? m.type + ' ' + m.label : m.label) + ' 已校正</span>').join('') + '</div>'
-    + (R.replaced !== null ? '<div class="calNote">這組以前量過' + (mdate(R.replaced) ? '（' + mdate(R.replaced) + '）' : '') + '，產圖改用今天這份。</div>' : '')
+    + (R.replaced !== null ? '<div class="calNote">這組以前量過' + (mdate(R.replaced) ? '（' + mdate(R.replaced) + '）' : '') + '，產圖改用今天這份；'
+      + (mdate(R.replaced) || '舊的') + ' 那份留作上一版，在「選顏色」展開後可以換回來。</div>' : '')
+    + (R.revived ? '<div class="calNote">' + esc(R.revived) + '</div>' : '')
     + '<div class="sub">' + (R.used ? '產圖流程已改用這組；之後在「選顏色」清單裡也選得到它們。' : esc(R.why)) + '</div>'
     + '<div class="calActs"><button type="button" class="btn primary" data-flow-go="gen">去產圖</button>'
     + '<button type="button" class="btn ghost" data-cal-go="1">再校正另一組</button></div>';
@@ -817,7 +1084,8 @@ function onCalClick(e){
 
 /* index.html 交進來的轉接物件：
    { lib(), note(), save(), mode(), params(), filaments(), slotColors(), materialTypes(), typesReady(), loading(),
-     statusLine(), applied(info), renderCalSteps(), acceptTable(raw, mats, measuredAt) } */
+     statusLine(), applied(info), renderCalSteps(), acceptTable(raw, mats, measuredAt, skip) }
+   🆕 T062：acceptTable 的 skip＝這次不寫的 pair id（撞到同一組選「保留本機的」、或一模一樣）；App 的匯出結果回推 onExported(msg)。 */
 function mount(p){
   page = p;
   remembered = loadRemembered();
@@ -849,7 +1117,8 @@ return {
   NEED, LEVELS_MAX, SEL_KEY, TYPES_FALLBACK,
   pairVerdict, usable, choices, toggle, assignSlots, setInfo, setCheck, validSets, defaultKeys, calibRequestFor, aiPaletteLine,
   typeList, namesOf, nameHint, dupIn, knownMat, mdate, dateFromName, today,
-  mount, refresh, ready, info, openPicker, calibRequest, setFlow, calColors, calNames, calLabelHtml, calMaterials, onCalibrated, goCal, importTable,
+  archiveBlock, exportName, libImportText, verOf, onExported,
+  mount, refresh, ready, info, openPicker, calibRequest, setFlow, calColors, calNames, calLabelHtml, calMaterials, onCalibrated, goCal, importTable, importFile,
   flow: () => flow, calStep: () => calStep,
 };
 });
