@@ -360,12 +360,15 @@ function fakeImg(){
   const mkPair = (a, b) => ({ a, b, kind: M.KINDS.DUAL, pts: mkPts(8), source: 'readback', measuredAt: '2026-09-14' });
 
   await check('matlib 匯出齊全（schema／讀寫／遷移／轉接層）', () => {
+    /* T061（牌 c-0924-ACC-27）：needsClaim／claimPair（schema 1 的「認領」）退場，換成 needsSpec／specifyMaterials（料種＋顏色名）。 */
     for (const k of ['matKey','pairId','emptyLib','normalize','upsertPair','findPair','listMaterials',
                      'partnersOf','dropMaterial','pairFromDual','pairsFromQuad','toCalibTable',
-                     'toQuadCalibTable','migrateLegacy','needsClaim','claimPair','load','save',
+                     'toQuadCalibTable','migrateLegacy','needsSpec','specifyConflicts','specifyMaterials','load','save',
                      'readLegacyRaw','setStorage','memoryStorage','nullStorage'])
       assert(typeof M[k] === 'function', k + ' 缺');
-    assert.strictEqual(M.SCHEMA, 1);
+    assert(!('needsClaim' in M) && !('claimPair' in M), '認領那一對函式還在（它的角色已由指定料種取代，留著＝第二條改身分的路）');
+    assert.strictEqual(M.SCHEMA, 2, '寫出去的版本不是 2');
+    assert.deepStrictEqual(M.SCHEMAS_READ, [1, 2], '讀不進 schema 1（T058～T060 存的庫會變成「版本不認得」）');
     assert.strictEqual(M.LEGACY_KEY, 'ping_phototile_calib_dual_v1');
   });
 
@@ -423,7 +426,7 @@ function fakeImg(){
     assert.strictEqual(p.measuredAt, '2026-09-14');
     assert.deepStrictEqual(p.pts.map(x => x.S), tbl.pts.map(x => x.S));
     assert.deepStrictEqual(p.pts.map(x => x.hex), tbl.pts.map(x => x.hex));
-    assert.strictEqual(M.needsClaim(p), true, '遷進來的那一格要請使用者認領（子題 2 附款）');
+    assert(M.needsSpec(p.a) && M.needsSpec(p.b), '遷進來的那一格沒有料種＝要問一次（子題 2 附款的附款；取代舊的「認領」）');
   });
   await check('遷移是冪等的，而且**不覆蓋**庫裡已有的那一筆（否則把後來重量的資料丟了）', () => {
     const lib = M.emptyLib();
@@ -440,18 +443,121 @@ function fakeImg(){
     assert(!/removeItem\s*\(\s*LEGACY_KEY/.test(ML_SRC), 'matlib 裡有刪舊鍵的碼');
     assert(!/writeLegacy|setItem\s*\(\s*LEGACY_KEY/.test(ML_SRC), '庫存在之後不該再寫舊鍵');
   });
-  await check('認領：身分換了 ⇒ id 跟著換，量測點與出身（legacy-hex）保留', () => {
+  /* T061：原本這條守「認領」（schema 1：fid＋標籤）。身分改成料種＋顏色名之後，改身分的路只剩 specifyMaterials——
+     **有意識地改成**守它：id 跟著換、量測點與出身保留（同一個不變式，換一支函式）。 */
+  const specOf = (lib, pairs) => new Map(pairs.map(([k, type, label]) => [k, { type, label }]));
+  await check('指定料種（取代認領）：身分換了 ⇒ id 跟著換，量測點與出身（legacy-hex）保留', () => {
     const lib = M.emptyLib();
     M.migrateLegacy(lib, E.calibParseTable(TABLE_BLUE), {});
     const before = lib.pairs[0];
     const pts0 = before.pts.slice();
-    const after = M.claimPair(lib, before.id, { fid:'GPINGPLA', label:'白 210' }, { fid:'GPINGPLA', label:'淡藍 210' }, { claimedAt:'2026-09-22' });
-    assert.strictEqual(lib.pairs.length, 1, '認領完變成兩筆');
+    const ren = M.specifyMaterials(lib, specOf(lib, [[M.matKey(before.a), 'PLA', '白'], [M.matKey(before.b), 'PLA', '淡藍']]));
+    const after = lib.pairs[0];
+    assert.strictEqual(lib.pairs.length, 1, '指定完變成兩筆');
     assert.notStrictEqual(after.id, before.id, 'id 沒跟著身分改');
+    assert.strictEqual(ren.get(M.matKey(before.a)), M.matKey({ type: 'PLA', label: '白' }), '回傳的新舊鍵對照不對（生效中的那組會選不回來）');
     assert.deepStrictEqual(after.pts, pts0, '量測點被動到了');
-    assert.strictEqual(after.source, 'legacy-hex', '出身要可追溯，不因為認領就變乾淨');
-    assert.strictEqual(after.claimedAt, '2026-09-22');
-    assert.strictEqual(M.needsClaim(after), false);
+    assert.strictEqual(after.source, 'legacy-hex', '出身要可追溯，不因為指定料種就變乾淨');
+    assert(!M.needsSpec(after.a) && !M.needsSpec(after.b));
+    assert.strictEqual(after.a.hex, '#F2F0EB', '量到的色被動到了（hex 只當紀錄，但不能丟）');
+  });
+  /* ═══ T061（牌 c-0924-ACC-27）：schema 2＝身分改料種＋顏色名、pair 留上一版、庫記「舊資料問過了」 ═══ */
+  await check('🔴 T061 身分＝料種＋顏色名：同料種同名＝同一支（hex 不進鍵、前後空白不算）；料種或名字不同＝別支；舊資料的鍵一個字都不變', () => {
+    const W = M.makeMaterial({ type: 'PLA', label: '白', hex: '#F2F0EB' });
+    assert.strictEqual(M.matKey(W), M.matKey({ type: 'PLA', label: '白', hex: '#EEEEEE' }));
+    assert.strictEqual(M.matKey(W), M.matKey(M.makeMaterial({ type: 'PLA', label: ' 白 ' })), '前後空白讓同一個名字變成兩支料');
+    assert.notStrictEqual(M.matKey(W), M.matKey({ type: 'PETG', label: '白' }));
+    assert.notStrictEqual(M.matKey(W), M.matKey({ type: 'PLA', label: 'PING白' }), 'Eric：PING 的白、eSUN 的白是兩支料');
+    assert.throws(() => M.makeMaterial({ type: 'PLA', label: '  ' }), /顏色名/, '指定了料種卻沒有顏色名也收了');
+    /* 舊資料（schema 1）的鍵照舊＝fid＋分隔字元＋標籤——瀏覽器儲存區那份、舊鍵那一格要靠它認出是同一筆 */
+    assert.strictEqual(M.matKey({ fid: 'GPINGPLA', label: '白 210' }), 'GPINGPLA\u001f白 210');
+    /* 兩種鍵永遠不撞：就算舊資料的 fid 剛好叫 PLA、標籤叫白 */
+    assert.notStrictEqual(M.matKey(W), M.matKey({ fid: 'PLA', label: '白' }));
+    assert(M.needsSpec({ fid: 'GPLA', label: '白' }) && !M.needsSpec(W));
+  });
+  await check('🔴 T061 schema 1 的庫讀得進來（料＝未指定料種、id 不變）；寫出去一律 schema 2；不認得的版本明講、不當空庫', () => {
+    const s1 = { schema: 1, pairs: [{ a: { fid: 'GPLA', label: '白', hex: '#F2F0EB' }, b: { fid: 'GPLA', label: '深灰', hex: '#707279' },
+                                      pts: mkPts(8), kind: M.KINDS.DUAL, measuredAt: '2026-09-14', source: 'readback' }] };
+    const r = M.parseLib(JSON.stringify(s1));
+    assert(r.ok, r.why);
+    const p = r.lib.pairs[0];
+    assert.strictEqual(p.id, M.pairId({ fid: 'GPLA', label: '白' }, { fid: 'GPLA', label: '深灰' }), '舊資料讀進來 id 變了（瀏覽器那份會以新的一組冒出來）');
+    assert(M.needsSpec(p.a) && M.needsSpec(p.b), '舊資料被當成已指定料種');
+    const st = M.memoryStorage(); M.setStorage(st);
+    M.save(r.lib);
+    assert.strictEqual(JSON.parse(st.readLib()).schema, 2, '寫出去不是 schema 2');
+    const bad = M.parseLib(JSON.stringify({ schema: 3, pairs: [] }));
+    assert(!bad.ok && /版本不認得/.test(bad.why), '不認得的版本被靜默當成空庫（呼叫端會拿空庫去蓋它）');
+    M.setStorage(M.memoryStorage());
+  });
+  await check('🔴 T061 同一組重新量＝新的取代、舊的留一份當 prev（〈材料庫管理〉Q9 的資料那一半）；同一次量測重收不動 prev；存回檔還在', () => {
+    const lib = M.emptyLib();
+    const A = { type: 'PLA', label: '白', hex: '#F2F0EB' }, B = { type: 'PLA', label: '深灰', hex: '#707279' };
+    M.upsertPair(lib, { a: A, b: B, kind: M.KINDS.DUAL, pts: mkPts(8), measuredAt: '2026-09-14', source: 'readback' });
+    const newer = { a: A, b: B, kind: M.KINDS.DUAL, pts: mkPts(5), measuredAt: '2026-09-23', source: 'readback' };
+    M.upsertPair(lib, newer);
+    const p = lib.pairs[0];
+    assert.strictEqual(lib.pairs.length, 1);
+    assert.strictEqual(p.measuredAt, '2026-09-23', '新的沒當目前（產圖一律用最新）');
+    assert(p.prev && p.prev.measuredAt === '2026-09-14' && p.prev.pts.length === 8, '被取代的那一份沒留下來');
+    M.upsertPair(lib, Object.assign({}, newer, { measuredAt: '2026-09-24' }));   // 同一次量測（內容一樣）再收一次
+    assert.strictEqual(lib.pairs[0].prev.measuredAt, '2026-09-14', '同一份量測重收把上一版洗掉了');
+    const back = M.parseLib(JSON.stringify({ schema: 2, pairs: lib.pairs })).lib;
+    assert.strictEqual(back.pairs[0].prev.pts.length, 8, '上一版存回檔就不見了');
+  });
+  await check('🔴 T061 兩張舊表指到同一組＝合成一筆：新的當目前、舊的留作上一版（方向相反也翻對）；同一組兩支指成同一支＝整批不做', () => {
+    const lib = M.emptyLib();
+    const L1 = { fid: null, label: '甲', hex: '#F2F0EB' }, L2 = { fid: null, label: '乙', hex: '#707279' };
+    const L3 = { fid: null, label: '丙', hex: '#717380' }, L4 = { fid: null, label: '丁', hex: '#F0EEEA' };
+    M.upsertPair(lib, { a: L1, b: L2, kind: M.KINDS.DUAL, pts: [{ S: 1, hex: '#F2F0EB' }, { S: 0.5, hex: '#B0B0B0' }, { S: 0, hex: '#707279' }],
+                        measuredAt: '2026-09-14', source: 'legacy-hex' });
+    /* 第二張：同一對料、量測時擠出機順序相反（a＝深灰），而且比較新 */
+    M.upsertPair(lib, { a: L3, b: L4, kind: M.KINDS.DUAL, pts: [{ S: 1, hex: '#717380' }, { S: 0.3, hex: '#A0A0A0' }, { S: 0, hex: '#F0EEEA' }],
+                        measuredAt: '2026-09-23', source: 'readback' });
+    const map = specOf(lib, [[M.matKey(L1), 'PLA', '白'], [M.matKey(L2), 'PLA', '深灰'], [M.matKey(L3), 'PLA', '深灰'], [M.matKey(L4), 'PLA', '白']]);
+    assert.deepStrictEqual(M.specifyConflicts(lib, map), []);
+    M.specifyMaterials(lib, map);
+    assert.strictEqual(lib.pairs.length, 1, '兩張舊表指到同一組卻沒合成一筆');
+    const p = lib.pairs[0];
+    assert.strictEqual(p.measuredAt, '2026-09-23', '比較新的那份沒當目前');
+    assert(p.prev && p.prev.measuredAt === '2026-09-14', '比較舊的那份沒留作上一版');
+    const white = p.a.label === '白';
+    assert.strictEqual(p.pts[0].S, 1);
+    assert.strictEqual(p.pts[0].hex, white ? '#F0EEEA' : '#717380', 'S 沒翻回「a 的佔比」＝整條曲線頭尾顛倒（靜默錯表）');
+    assert.strictEqual(p.a.hex, white ? '#F0EEEA' : '#717380', '端點色沒跟著換成目前那一份的');
+    assert.strictEqual(p.prev.pts[0].hex, white ? '#F2F0EB' : '#707279', '上一版的方向錯了');
+    // 衝突：同一組的兩支指成同一支料＝拿一支料跟自己校正
+    const lib2 = M.emptyLib();
+    M.upsertPair(lib2, { a: L1, b: L2, kind: '', pts: mkPts(3), measuredAt: null, source: 'legacy-hex' });
+    const bad = specOf(lib2, [[M.matKey(L1), 'PLA', '白'], [M.matKey(L2), 'PLA', '白']]);
+    assert.strictEqual(M.specifyConflicts(lib2, bad).length, 1, '同一組兩支同名沒被抓到');
+    assert.throws(() => M.specifyMaterials(lib2, bad));
+    assert(M.needsSpec(lib2.pairs[0].a), '整批不做卻改了一半');
+  });
+  await check('🔴 T061 退成上一版的那份量測，下次開機也不能以新的一組冒出來（遷移、併瀏覽器庫都要看 prev）', () => {
+    const lib = M.emptyLib();
+    const legacyTbl = E.calibParseTable(tableGray);
+    M.migrateLegacy(lib, legacyTbl, {});
+    const k0 = M.listMaterials(lib).map(m => m.key);
+    M.specifyMaterials(lib, specOf(lib, [[k0[0], 'PLA', '白'], [k0[1], 'PLA', '深灰']]));
+    M.upsertPair(lib, { a: { type: 'PLA', label: '白', hex: '#F2F0EB' }, b: { type: 'PLA', label: '深灰', hex: '#707279' },
+                        kind: M.KINDS.DUAL, pts: mkPts(8), measuredAt: '2026-09-24', source: 'readback' });
+    assert(lib.pairs.length === 1 && lib.pairs[0].prev, '前提不成立：舊表那份沒退成上一版');
+    assert.strictEqual(M.migrateLegacy(lib, legacyTbl, {}).added, false, '退成上一版的舊表又被遷進來一次');
+    const browser = M.emptyLib(); M.migrateLegacy(browser, legacyTbl, {});
+    assert.strictEqual(M.mergeLib(lib, browser, { byContent: true }), 0, '瀏覽器那份（舊表）又以新的一組併進來');
+    assert.strictEqual(lib.pairs.length, 1);
+    // 陽性對照：只比目前那份（舊版 mergeLib 的寫法）就會再冒一次
+    const onlyCur = new Set(lib.pairs.map(M.ptsSig));
+    assert(!onlyCur.has(M.ptsSig(browser.pairs[0])), '陽性對照前提不成立');
+  });
+  await check('T061 「舊資料那一問問過了」（legacyAskedAt）存回檔再讀回來還在——不會每次開都再問', () => {
+    const lib = M.emptyLib();
+    assert.strictEqual(lib.legacyAskedAt, null);
+    lib.legacyAskedAt = '2026-09-24';
+    const st = M.memoryStorage(); M.setStorage(st); M.save(lib);
+    assert.strictEqual(M.parseLib(st.readLib()).lib.legacyAskedAt, '2026-09-24');
+    M.setStorage(M.memoryStorage());
   });
 
   await check('儲存轉接層：暫存往返，而且 normalize 會丟掉壞筆、不整份作廢', () => {
@@ -771,7 +877,7 @@ function fakeImg(){
      （計畫 §四段 A「庫存在之後就不再寫它」；照寫會讓下次開機再遷進來一次、清單多一組以色碼命名的重複項）
      ⇒ **有意識地改成**更強的守衛：整頁沒有任何地方寫舊鍵，收下的表一律只進材料庫。 */
   await check('🔴 收下的表一律只進材料庫、整頁沒有任何地方寫舊鍵（四料不會蓋掉雙料表，雙料也不會在下次開機變成重複項）', () => {
-    const i0 = idxHtml.indexOf('function calibAcceptRaw(raw){');
+    const i0 = idxHtml.indexOf('function calibAcceptRaw(raw, mats, at){');   // T061：身分與量測日期由匯入那一問帶進來
     assert(i0 > 0, '找不到 calibAcceptRaw');
     const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0));
     assert(/matlibRecord\(tbl[,)]/.test(body), '收下的表沒寫進材料庫');
@@ -780,18 +886,35 @@ function fakeImg(){
     // 陽性對照：把車 2 那行寫舊鍵放回去，守衛必須抓到
     assert(writesLegacy(idxHtml + "\ntry{ localStorage.setItem(CALIB_LS_KEY, JSON.stringify(tbl.raw)); }catch(e){}"), '守衛抓不到寫舊鍵');
   });
-  await check('🔴 遷移看內容：舊鍵那張表認領過（身分換了、id 變了）之後重開，不會再遷進來一次', () => {
+  await check('🔴 遷移看內容：舊鍵那張表指定過料種（身分換了、id 變了）之後重開，不會再遷進來一次', () => {
     const lb = M.emptyLib();
     const legacy = E.calibParseTable(tableGray);
     assert.strictEqual(M.migrateLegacy(lb, legacy, {}).added, true);
     const p = lb.pairs[0];
-    M.claimPair(lb, p.id, { fid: 'GPLA', label: '白' }, { fid: 'GPLA', label: '深灰' }, { claimedAt: '2026-09-23' });
+    M.specifyMaterials(lb, specOf(lb, [[M.matKey(p.a), 'PLA', '白'], [M.matKey(p.b), 'PLA', '深灰']]));   // T061：認領退場，改身分的路只剩這支
     const again = M.migrateLegacy(lb, legacy, {});
-    assert.strictEqual(again.added, false, '認領過的舊表又被遷進來一次（清單多一組以色碼命名的重複項）');
+    assert.strictEqual(again.added, false, '指定過料種的舊表又被遷進來一次（清單多一組以色碼命名的重複項）');
     assert.strictEqual(lb.pairs.length, 1);
     // 陽性對照：量測點不同的另一張舊表照樣遷得進來（不是一律擋）
     const other = E.calibParseTable(TABLE_BLUE);
     assert.strictEqual(M.migrateLegacy(lb, other, {}).added, true, '內容不同的舊表被擋掉了');
+  });
+  /* 🆕 T060 跟車實走抓到（牌 c-0923-ACC-25）：上一條只修了「舊鍵」那條路；「車 1 期間存在瀏覽器儲存區的庫」那條
+     （index.html 讀檔回來時的 ②）還是只比 id ⇒ 認領過的那組重開就以「未認領」再冒出來（真 App：2 組→重開 3 組）。 */
+  await check('🔴 併車 1 瀏覽器庫也看內容：指定過料種（id 變了）的那組重開不會以「未指定」再冒出來', () => {
+    const app = M.emptyLib();
+    M.migrateLegacy(app, E.calibParseTable(tableGray), {});
+    const browser = JSON.parse(JSON.stringify(app));                  // 瀏覽器儲存區那份（照設計只讀不刪，id 停在認領前）
+    M.specifyMaterials(app, specOf(app, [[M.matKey(app.pairs[0].a), 'PLA', '白'], [M.matKey(app.pairs[0].b), 'PLA', '深灰']]));
+    assert.strictEqual(M.mergeLib(app, browser, { byContent: true }), 0, '指定過料種的那組又以未指定的身分併回來了');
+    assert.strictEqual(app.pairs.length, 1);
+    // 陽性對照①：不帶 byContent＝舊行為，會再加一次（證明上面那條不是空守衛）
+    assert.strictEqual(M.mergeLib(JSON.parse(JSON.stringify(app)), browser), 1, '對照組沒重現舊行為');
+    // 陽性對照②：量測不同的一組照樣併得進來（不是一律擋）
+    const other = M.emptyLib(); M.migrateLegacy(other, E.calibParseTable(TABLE_BLUE), {});
+    assert.strictEqual(M.mergeLib(app, other, { byContent: true }), 1, '內容不同的一組被擋掉了');
+    // 頁面讀檔回來的 ② 那一行真的帶了 byContent
+    assert(/mergeLib\(matLib, b\.lib, \{byContent:true\}\)/.test(idxHtml), 'index.html 併車 1 瀏覽器庫那一行沒帶 byContent');
   });
   await check('🔴 四料開校正覆蓋層要帶四個料色，校正頁也要吃得下（不帶＝表宣告了四個無關的顏色且不報錯）', () => {
     assert(/slotCount===4\)\{[\s\S]{0,400}&a=\$\{hx\[0\]\}&b=\$\{hx\[1\]\}&c=\$\{hx\[2\]\}&d=\$\{hx\[3\]\}/.test(idxHtml),
@@ -807,6 +930,17 @@ function fakeImg(){
     assert(!/四料的套用還沒接上畫面/.test(idxHtml), '「四料的套用還沒接上畫面」這句半狀態的說明還在（現在是假話）');
     assert(/id="matPanel"/.test(idxHtml), '沒有第 1 步「選顏色」的位置——那就是默默生效');
     assert(!/calibTable && slotCount===2/.test(idxHtml), '舊的「只給雙料」條件還在');
+  });
+  /* 🆕 2026-09-23 Eric 裁（牌 c-0923-ACC-25，原話「Q1 Q2 Q3照建議」）：「選顏色」住在右欄「列印設定」卡片最上面、色階數上方。
+     起因＝放在頂端橫跨三欄時，展開／收起會把原圖與列印模擬兩張圖整個往下推，而且自成一個新區塊。 */
+  await check('🔴 第 1 步「選顏色」在右欄「列印設定」卡片裡、色階數上方——不在頂端跨欄、不在左欄', () => {
+    const ctrlAt = idxHtml.indexOf('<section class="panel ctrl">');
+    const matAt = idxHtml.indexOf('id="matPanel"'), lvAt = idxHtml.indexOf('id="levelsRow"');
+    assert(ctrlAt > 0 && matAt > ctrlAt && lvAt > matAt, '#matPanel 不在「列印設定」卡片裡、或不在色階數上方');
+    const nextSection = idxHtml.indexOf('<section', ctrlAt + 1);
+    assert(nextSection < 0 || matAt < nextSection, '#matPanel 跑出「列印設定」卡片了');
+    assert(!/<section class="panel" id="matPanel">/.test(idxHtml), '還是頂端那張獨立的卡（會推動兩張圖）');
+    assert(!/#matPanel\{grid-column:1\/-1;/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), 'matflow.css 還在讓它橫跨三欄');
   });
 
   /* ================= 車 2 段 E（牌 c-0923-ACC-21）：四料也「把圖的明暗壓進可印範圍再分階」（R6-16 推論③） =================
@@ -1035,21 +1169,52 @@ function fakeImg(){
     assert(iTone > 0 && iPal > iTone, '色盤那一行沒接在 toneRules 後面（放上面會被它讓位）');
     assert(/if\(!calibOwnsSlots\(\)\)\{/.test(body), '沒選料也照樣產圖（R6-15：先有顏色）');
   });
-  await check('🔴 認領（R6-14 子題 2 附款）：沒有 filament_id 的那組選到時要認領；認領後出身保留；跳過要記住（一次性）', () => {
+  /* T061（牌 c-0924-ACC-27）：這裡原本守「認領」（選到沒 filament_id 的那組時問一次，R6-14 子題 2 附款）。
+     〈九〉Q12 把它改成「第一次開新版時問一次料種＋顏色名」（子題 2 附款的附款）⇒ **有意識地改成**守新的形狀：
+     setInfo 不再帶 claim、matflow 沒有認領框，舊資料那一問看庫的 legacyAskedAt、問過就不再問。 */
+  await check('🔴 T061 Q12：認領退場，改成「舊資料第一次開問一次」——問過記在庫、跳過也記；庫還沒讀回來／料種還沒到／別的窗開著都不問', () => {
     const lb = M.emptyLib();
     M.migrateLegacy(lb, E.calibParseTable(tableGray), {});
     const inf = F.setInfo(lb, 'dual', M.listMaterials(lb).map(m => m.key));
-    assert.strictEqual(inf.claim.length, 1, '舊表那組沒被標成要認領');
-    const map = new Map([[inf.mats[0].key, { fid: 'GPLA', label: '白' }], [inf.mats[1].key, { fid: 'GPLA', label: '深灰' }]]);
-    const ren = F.claimMaterials(lb, map, '2026-09-23');
-    assert.strictEqual(lb.pairs.length, 1);
-    assert.strictEqual(lb.pairs[0].source, 'legacy-hex', '認領把出身洗掉了（要可追溯）');
-    const after = F.setInfo(lb, 'dual', inf.keys.map(k => ren.get(k)));
-    assert(after && after.claim.length === 0, '認領之後還要再問');
-    const lb2 = M.emptyLib(); M.migrateLegacy(lb2, E.calibParseTable(tableGray), {});
-    lb2.pairs[0].claimSkippedAt = '2026-09-23';
-    const again = M.parseLib(JSON.stringify(lb2)).lib;          // 存回檔、再讀回來
-    assert.strictEqual(F.setInfo(again, 'dual', M.listMaterials(again).map(m => m.key)).claim.length, 0, '跳過存回檔就忘了＝不是一次性');
+    assert(inf && !('claim' in inf), 'setInfo 還在算「要不要認領」');
+    assert(!/function maybeClaim|claimMaterials|mfClaim/.test(MF_SRC), '認領框還在 matflow.js');
+    const i0 = MF_SRC.indexOf('function maybeAskLegacy(){');
+    assert(i0 > 0, '沒有舊資料那一問');
+    const body = MF_SRC.slice(i0, MF_SRC.indexOf('\nfunction ', i0 + 10));
+    assert(/lb\.legacyAskedAt\) return;/.test(body), '問過了還會再問（不是一次性）');
+    assert(/page\.loading && page\.loading\(\)\) \|\| \(page\.typesReady && !page\.typesReady\(\)\)/.test(body), '庫或料種清單還沒到就問（App 那一份是非同步的）');
+    assert(/doc\.querySelector\('\.cfmBack'\)\)\{ askLater\(\); return; \}/.test(body), '別的對話框開著也疊上去、或擋掉之後就不再問');
+    assert(/if \(dlg && !dlg\.back\.isConnected\) dlg = null;/.test(body) && /if \(dlg\.o\.legacy\) askLater\(\);/.test(body),
+      '這一問被頁面別的對話框拿掉（它會清掉全部 .cfmBack）之後不會重開');
+    assert.strictEqual((body.match(/lb\.legacyAskedAt = today\(\); save\(\);/g) || []).length, 2, '「確定」與「先跳過」兩條路沒有都記下「問過了」');
+    assert(/M\(\)\.specifyConflicts\(lb, map\)/.test(body) && /remapKeys\(M\(\)\.specifyMaterials\(lb, map\)\)/.test(body),
+      '指定前沒擋同組同名、或指定後沒把生效中的那組換成新鍵');
+    assert(/filter\(m => M\(\)\.needsSpec\(m\)\)/.test(body), '問的不是「沒有料種」的那幾支');
+  });
+  await check('T061「指定材料」元件的純邏輯：名字只提示不擋（same／near／new）、同組撞名才擋、料種清單沒給退回 PLA、檔名日期', () => {
+    const lb = M.emptyLib();
+    const put = (a, b) => M.upsertPair(lb, { a, b, kind: M.KINDS.DUAL, pts: mkPts(3), measuredAt: '2026-09-14', source: 'readback' });
+    put({ type: 'PLA', label: '白', hex: '#F2F0EB' }, { type: 'PLA', label: '深灰', hex: '#707279' });
+    put({ fid: null, label: '#AFAFAA', hex: '#AFAFAA' }, { fid: null, label: '#242D39', hex: '#242D39' });
+    assert.deepStrictEqual(F.namesOf(lb, 'PLA'), ['白', '深灰'], '下拉提示混進了舊資料的色號標籤');
+    assert.strictEqual(F.nameHint(lb, 'PLA', '白').kind, 'same');
+    const near = F.nameHint(lb, 'PLA', 'PING白');
+    assert.strictEqual(near.kind, 'near'); assert.deepStrictEqual(near.near, ['白']);
+    assert.strictEqual(F.nameHint(lb, 'PLA', '黃').kind, 'new');
+    assert.strictEqual(F.nameHint(lb, 'PETG', '白').kind, 'new', '別的料種的同名被當成同一支');
+    assert.strictEqual(F.nameHint(lb, 'PLA', '  ').kind, '');
+    assert.deepStrictEqual(F.dupIn([{ type: 'PLA', label: '白' }, { type: 'PLA', label: ' 白' }]), [0, 1], '同組同名沒擋（拿一支料跟自己校正）');
+    assert.strictEqual(F.dupIn([{ type: 'PLA', label: '白' }, { type: 'PETG', label: '白' }]), null);
+    assert.strictEqual(F.dupIn([{ type: 'PLA', label: '' }, { type: 'PLA', label: '' }]), null, '空名字算撞名（應該講「沒填」）');
+    assert.deepStrictEqual(F.typeList(undefined), ['PLA']);
+    assert.deepStrictEqual(F.typeList(['PLA', ' PETG ', 'PLA', '']), ['PLA', 'PETG']);
+    assert.strictEqual(F.knownMat(lb, 'PLA', '白').hex, '#F2F0EB', '打的名字庫裡有，色塊帶不出上次量到的');
+    assert.strictEqual(F.knownMat(lb, 'PLA', '黃'), null);
+    assert.strictEqual(F.dateFromName('20260914_雙料_白x深灰_v2c直立條.json'), '2026-09-14');
+    assert.strictEqual(F.dateFromName('20261399_x.json'), null, '不存在的日期被收了');
+    assert.strictEqual(F.dateFromName('色彩校正表.json'), null);
+    assert.strictEqual(F.setInfo(lb, 'dual', [M.matKey({ type: 'PLA', label: '白' }), M.matKey({ type: 'PLA', label: '深灰' })]).at, '2026-09-14',
+      '收起時「9/14 量的」拿不到日期');
   });
   await check('R8-5 實跑：quantizeQuad 用到的每一個零件色都在 quadCandidates 的候選裡、跨幅同一個數（預覽與生成同一把尺）', async () => {
     const slots = QSLOTS(); slots[0].calib = { table: quadTable(), apply: true, toneMap: 'stretch' };
@@ -1067,24 +1232,45 @@ function fakeImg(){
     assert(!/mixLin/.test(body), '預覽還有自己的一份理論候選（mixLin）');
     assert(/const qc = quadCandidates\(slots, K, calib\);/.test(fs.readFileSync(path.join(WEB, 'engine.js'), 'utf8')), 'quantizeQuad 沒走 quadCandidates');
   });
-  await check('🔴 R6-16：料槽不再是取色器（任意改色＝可以設一個沒量過的顏色）；小色塊點了打開第 1 步', () => {
+  /* T061：這條原本守「料槽換成列印模擬標題列的小色塊（chipsHtml），點了打開第 1 步」。Eric 2026-09-23 看原型裁
+     「這邊資訊好像重疊了，是否留一個就好了呢？」⇒ 照建議留右欄那一處 ⇒ **有意識地改成**守：沒有取色器、標題列沒有色塊、
+     擠出機裝什麼只寫在右欄收起時那一行（「擠出機 1 ■白」）、那一行不放步驟號，「換一組…」仍打得開。 */
+  await check('🔴 R6-16＋9-6③④：料槽不是取色器；擠出機顏色只寫右欄一處（標題列色塊退場）；收起時不放步驟號、「換一組…」打得開', () => {
     const i0 = idxHtml.indexOf('function renderSlots(){');
     const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0));
     assert(!/type="color"/.test(body), 'renderSlots 還在畫取色器');
-    assert(/PhotoTileMatFlow\.chipsHtml\(slotCount\)/.test(body), '料槽不是材料庫那組的小色塊');
-    assert(/data-mf="open"/.test(MF_SRC) && /openPicker\(\)/.test(MF_SRC), '小色塊點了打不開第 1 步');
+    assert(!/chipsHtml/.test(body) && !/function chipsHtml/.test(MF_SRC), '列印模擬標題列的擠出機色塊還在（資訊重疊）');
+    assert(!/id="slotList"/.test(idxHtml) && !/getElementById\('slotList'\)/.test(idxHtml), '#slotList 還在');
+    const r0 = MF_SRC.indexOf('function renderPanel(){');
+    const rp = MF_SRC.slice(r0, MF_SRC.indexOf('\nfunction ', r0 + 10));
+    assert(/'<span class="mfExt"><span class="k">擠出機 ' \+ \(i \+ 1\)/.test(rp), '收起時沒寫「擠出機 N」裝什麼');
+    assert(!/\bmfNo\b/.test(MF_SRC) && !/\.mfNo\b/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), '步驟號（①）還在');
+    assert(/\bmfNo\b/.test("'<span class=\"mfNo\">1</span>'"), '陽性對照：守衛認不出步驟號的寫法');
+    assert(/data-mf="open">換一組…/.test(rp) && /act === 'open'/.test(MF_SRC), '「換一組…」打不開');
+    /* 9-6⑦：選料與校正平行——料單右上就有「去校正一組料」「匯入校正表…」，最底下「沒有想要的顏色？」那一行拿掉 */
+    assert(/class="mfLibBar"[\s\S]{0,200}data-mf="tocal"[\s\S]{0,120}data-mf="import"/.test(rp), '料單右上沒有「新增或更新」那一組（校正／匯入）');
+    assert(!/mfExit|沒有想要的顏色/.test(MF_SRC.replace(/\/\*[\s\S]*?\*\//g, '')), '最底下「沒有想要的顏色？」那一行還在（註解裡提到不算）');
   });
-  await check('🔴 R6-15 附款＋LAY-21：色彩校正不再常駐右欄、搬進「校正流程」五步；兩個開關降級到「進階」', () => {
+  await check('🔴 R6-15 附款＋LAY-21：色彩校正搬進「校正流程」五步；🆕 9-6②「進階／實驗選項」與「換料清單」整塊拿掉、四個開關固定在預設', () => {
     assert(!/id="calibDetails"/.test(idxHtml), '右欄還有色彩校正段');
     const s0 = idxHtml.indexOf('<section id="calFlow"');
     assert(s0 > 0, '沒有校正流程');
     const cf = idxHtml.slice(s0, idxHtml.indexOf('</section>', s0));
     assert.strictEqual((cf.match(/class="calStep" data-step="/g) || []).length, 5, '校正流程不是五步');
     ['btnCalib', 'btnCalibOverlay', 'calibFile'].forEach(id => assert(cf.includes('id="' + id + '"'), id + ' 不在校正流程裡'));
-    const a0 = idxHtml.indexOf('<details id="advDetails">');
-    const adv = idxHtml.slice(a0, idxHtml.indexOf('</details>', a0));
-    assert(adv.includes('id="calibGenChk"') && adv.includes('id="calibStretchChk"'), '兩個開關沒降級到「進階」');
     assert(/id="flowSeg"/.test(idxHtml), '沒有兩條流程的切換');
+    /* 🔴 只刪 HTML 不刪 JS＝載入時 getElementById(...) 回 null、onchange／textContent 丟 TypeError、整頁壞掉（上一棒 handoff §三 3）。 */
+    const GONE = ['advDetails', 'teethOn', 'p2aOn', 'calibGenChk', 'calibStretchChk', 'swapDetails', 'swapList'];
+    const leftovers = src => GONE.filter(id => src.includes('id="' + id + '"') || src.includes("getElementById('" + id + "')"));
+    assert.deepStrictEqual(leftovers(idxHtml), [], '拿掉的元件還有殘留（HTML 或 getElementById）');
+    // 陽性對照：把一支 onchange 放回去，守衛必須抓到
+    assert.deepStrictEqual(leftovers(idxHtml + "\ndocument.getElementById('teethOn').onchange=e=>{};"), ['teethOn'], '守衛抓不到放回去的 onchange');
+    const p0 = idxHtml.indexOf('let params = {');
+    assert(p0 > 0, '找不到 params 的預設值');
+    const pr = idxHtml.slice(p0, idxHtml.indexOf('};', p0));
+    for (const [k, v] of [['teeth', 'false'], ['p2aBlock', 'true'], ['calibGen', 'true'], ['calibStretch', 'true']])
+      assert(new RegExp('\\b' + k + ':' + v + '\\b').test(pr), '開關 ' + k + ' 的預設不是 ' + v + '（拿掉開關＝固定在預設，預設不能跟著變）');
+    assert(!/已關閉「用實測顏色決定色階」/.test(idxHtml), '狀態行還在講「進階」的開關（走不到了）');
   });
   await check('🔴 FBK-11：還沒選顏色 ⇒「產生」講缺什麼並給一顆去選的鈕；模擬不拿理論色頂上', () => {
     const i0 = idxHtml.indexOf("document.getElementById('btnExport').onclick=async()=>{");
@@ -1098,7 +1284,75 @@ function fakeImg(){
     const body = idxHtml.slice(i0, idxHtml.indexOf('\nfunction ', i0 + 10));
     assert(/btns\.appendChild\(yes\); btns\.appendChild\(no\);/.test(body), '鈕序不是肯定在左、取消在右');
     assert(/no\.focus\(\)/.test(body), '預設焦點不在取消');
-    assert(/data-c="yes">指定<\/button>'\s*\+ '<button type="button" class="btn" data-c="no">/.test(MF_SRC), '認領窗的鈕序不是肯定在左');
+    /* T061：認領窗退場，matflow 的三個窗（匯入校正表／舊資料那一問／指定…）一律「肯定在前、取消（跳過）在最後」 */
+    const btns = MF_SRC.match(/buttons: \[[^\]]*\]/g) || [];
+    assert.strictEqual(btns.length, 3, 'matflow 的對話框數量變了（' + btns.length + '），這條要跟著看');
+    btns.forEach(b => assert(/^buttons: \[\{ c: 'yes'[^\]]*\}, \{ c: 'no'[^\]]*\}\]$/.test(b), '鈕序不是肯定在左、取消在右：' + b));
+    assert(/if \(b && o\.on\(/.test(MF_SRC), '點背景就關窗（FBK-10：點背景不關）');
+  });
+
+  /* ================= T061（牌 c-0924-ACC-27）：料種清單、匯入先問、AI 原圖留左邊 ================= */
+  console.log('\nT061｜料種清單（C++）、匯入不再跳過確認（Q5）、AI 原圖留左邊（9-5）');
+  const CPP = rel => fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'slic3r', 'GUI', rel), 'utf8');
+  await check('🔴 Q1：App 多送「照片磚印得出來的料種」（materialTypes）；只認明寫了相容條件的系統線材', () => {
+    const wv = CPP('WebViewDialog.cpp');
+    const f0 = wv.indexOf('void WebViewPanel::SendPhotoTileMachineCapability()');
+    const fn = wv.slice(f0, wv.indexOf('\nvoid ', f0 + 10));
+    assert(/\+ ",\\"materialTypes\\":" \+ types_json \+ "\}"/.test(fn), 'capability 沒帶 materialTypes');
+    assert(/if \(!f\.is_system \|\| f\.is_default\)/.test(fn), '沒限系統線材');
+    assert(/\(list == nullptr \|\| list->values\.empty\(\)\) && f\.compatible_printers_condition\(\)\.empty\(\)/.test(fn),
+      '沒排除「沒寫相容條件」的線材（Orca 內建庫那一批會把 ABS／PETG／TPU…整批列進去）');
+    assert(/p\.is_system && photo_tile_capability_of\(p\)\.is_photo_tile/.test(fn), '照片磚機不是用單一能力判定挑的');
+    assert(/is_compatible_with_printer\(PresetWithVendorProfile\(f, f\.vendor\), PresetWithVendorProfile\(\*p, p->vendor\)\)/.test(fn), '相容性不是走切片器自己那一支判定');
+    const ix = idxHtml.indexOf('PhotoTileMatFlow.mount({');
+    assert(/materialTypes:\(\)=>machineCap&&machineCap\.materialTypes/.test(idxHtml.slice(ix, ix + 900)), '頁面沒把 materialTypes 交給 matflow');
+  });
+  await check('Q1 判準拿真參數檔跑一次：PING＋Orca 內建庫裡，照片磚機印得出來的料種今天只有 PLA（〈九〉9-3）', () => {
+    /* 🔴 用的是跟 C++ 同一個判準（明寫相容條件＋對得上照片磚機），但只模擬「明寫清單」那半——
+       條件式（printer_notes!~/.*PHOTOTILE.*\/）這裡只驗它確實排除照片磚機，不重寫一個運算式求值器。
+       ⚠ 將來加了照片磚用的 PETG 參數，這裡會變成 ['PETG','PLA']——那是對的，改期望值即可。 */
+    const PROF = path.join(__dirname, '..', '..', 'resources', 'profiles');
+    const rd = f => JSON.parse(fs.readFileSync(f, 'utf8'));
+    const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : (e.name.endsWith('.json') ? [path.join(d, e.name)] : []));
+    const tiles = new Set(fs.readdirSync(path.join(PROF, 'PING', 'machine')).filter(n => n.endsWith('.json'))
+      .map(n => rd(path.join(PROF, 'PING', 'machine', n))).filter(m => m.instantiation === 'true' && /同進照片磚/.test(m.name || '')).map(m => m.name));
+    assert(tiles.size >= 5, '照片磚機只找到 ' + tiles.size + ' 台');
+    const types = new Set(); let condHits = 0, noDecl = 0;
+    for (const f of walk(path.join(PROF, 'PING', 'filament')).concat(walk(path.join(PROF, 'OrcaFilamentLibrary', 'filament')))){
+      const j = rd(f);
+      if (j.instantiation !== 'true') continue;
+      const list = Array.isArray(j.compatible_printers) ? j.compatible_printers : [], cond = j.compatible_printers_condition || '';
+      if (!list.length && !cond){ noDecl++; continue; }
+      if (list.length){ if (list.some(n => tiles.has(n))) types.add((j.filament_type || [''])[0]); continue; }
+      assert(/printer_notes!~\/\.\*PHOTOTILE\.\*\//.test(cond), '有一支條件式線材沒排除照片磚機（C++ 會把它算進去）：' + path.basename(f));
+      condHits++;
+    }
+    assert.deepStrictEqual([...types].sort(), ['PLA'], '照片磚印得出來的料種變了：' + [...types].join(','));
+    assert(noDecl > 100, '「沒寫相容條件」的線材只有 ' + noDecl + ' 支——Orca 內建庫沒被算到，這條沒在測東西');
+    assert(condHits > 10, '條件式線材只有 ' + condHits + ' 支');
+  });
+  await check('🔴 Q5：匯入校正表一律先問是哪幾支料（右欄與校正第 4 步都走 importTable），確認才收；收表仍只有 calibAcceptRaw 一個入口', () => {
+    assert(/PhotoTileMatFlow\.importTable\(raw, f\.name, 'cal'\)/.test(idxHtml), '校正第 4 步的匯入沒先問（直接收＝跳過確認）');
+    assert(/acceptTable:calibAcceptRaw,/.test(idxHtml), '確認之後不是走 calibAcceptRaw（第二個收表入口）');
+    const i0 = MF_SRC.indexOf('function importTable(raw, fname, from){');
+    const body = MF_SRC.slice(i0, MF_SRC.indexOf('\nfunction ', i0 + 10));
+    assert(/if \(!mpCheck\(box, rows\)\) return false;/.test(body), '名字沒填或同組撞名也收了');
+    assert(/page\.acceptTable\(raw, rows\.map\(x => \(\{ type: x\.type, label: x\.name \}\)\), at\)/.test(body), '收進去的身分不是那一問填的料種＋顏色名');
+    assert(!/filaments\(\)/.test(body), '匯入又從擠出機的線材設定拿身分（T060 白×黑的成因）');
+    assert(/function matlibRecord\(tbl, mats, at\)\{/.test(idxHtml) && /mats\.map\(m=>\(\{type:m\.type\|\|null, label:m\.label\}\)\)/.test(idxHtml),
+      '寫庫時沒用料種＋顏色名');
+  });
+  await check('🔴 9-5：AI 圖壓平後左邊留 AI 原圖、色差跟 AI 原圖比；壓平（含「依料重算」重壓）的輸入是 AI 原圖', () => {
+    assert(/srcBitmap=bmp; srcShow=bmp; buildGrid\(\);/.test(idxHtml), 'AI 圖回來時沒記住要顯示的原圖');
+    assert(/srcBitmap=bmp; if\(!ptStyleFromAi\) srcShow=null; buildGrid\(\);/.test(idxHtml), '壓平後把左邊換成壓平圖了');
+    assert(/function loadBitmap\(bmp, label\)\{\s*srcBitmap=bmp; srcShow=null;/.test(idxHtml), '換一張圖時沒清掉上一張的顯示圖');
+    const g0 = idxHtml.indexOf('function buildGrid(){');
+    const bg = idxHtml.slice(g0, idxHtml.indexOf('\nfunction ', g0 + 10));
+    assert(/c\.drawImage\(srcShow,0,0,gw,gh\)/.test(bg) && /srcCtx\.putImageData\(show,0,0\)/.test(bg) && /img\.refLab=ref;/.test(bg), '左邊顯示與色差參考沒分開（srcBitmap 還是兩用）');
+    assert.strictEqual((idxHtml.match(/const R=img\.refLab\|\|img\.lab;/g) || []).length, 2, '兩條模擬的色差不是都跟左邊那張比');
+    const gui = CPP('GUI_App.cpp');
+    assert(/sp\.src_path = has_ai \? m_photo_tile_ai_path : m_photo_tile_source_path;/.test(gui),
+      'C++ 的 current 沒優先取 AI 原圖（換料後重壓會吃到上一次的壓平結果）');
   });
   await check('matflow.js／matflow.css 有掛上而且帶版本字串；matflow 在 engine 之後載；🔴 index.html 不再往讀取上限長', () => {
     assert(/<script src="matflow\.js\?v=/.test(idxHtml) && /href="matflow\.css\?v=/.test(idxHtml), '沒掛或沒帶版本字串（WebView 快取教訓）');

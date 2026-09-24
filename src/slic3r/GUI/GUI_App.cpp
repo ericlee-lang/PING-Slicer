@@ -5612,11 +5612,17 @@ std::string GUI_App::handle_web_request(std::string cmd)
                    ・current＝目前的來源影像，也就是**剛回來的 AI 圖**（丙案，Eric 2026-09-02 裁「甲」）。
                      AI 圖不壓平就直接分箱的話，它那片主色會騎在色階門檻上——實測同款式同照片
                      連生三次，身體中位 L* ＝69.8／71.4／72.6 而門檻在 71.1 ⇒ 乾淨／爆白斑／
-                     整片消失三種結局。壓平後每一區的 L* 等於某一階的 L*，離門檻最遠。 */
+                     整片消失三種結局。壓平後每一區的 L* 等於某一階的 L*，離門檻最遠。
+                   🆕 T061（牌 c-0924-ACC-27；發包單〈九〉9-5「壓平的輸入仍是 AI 原圖」）：current 優先取 **AI 原圖**
+                     （m_photo_tile_ai_path）。壓平成功後 m_photo_tile_source_path 會被換成壓平圖（見下面 styled_path）
+                     ⇒ 換一組料之後按「依料重算圖面顏色」再壓一次，原本吃到的是**上一次壓平的結果**（K 個平色塊），
+                     不是 AI 原圖——色階數一變，那張圖就分不出新的 K 階。沒有 AI 圖時照舊取目前來源。 */
                 const std::string style_input = root.get<std::string>("data.input", "origin");
                 PhotoStylizeParams sp;
                 if (style_input == "current") {
-                    sp.src_path = m_photo_tile_source_path;
+                    const bool has_ai = !m_photo_tile_ai_path.empty() &&
+                                        boost::filesystem::exists(boost::filesystem::path(m_photo_tile_ai_path));
+                    sp.src_path = has_ai ? m_photo_tile_ai_path : m_photo_tile_source_path;
                 } else {
                     if (m_photo_tile_origin_path.empty())
                         m_photo_tile_origin_path = m_photo_tile_source_path;
