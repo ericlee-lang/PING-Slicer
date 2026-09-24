@@ -198,7 +198,7 @@
            font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:60;}
   .pttoast.on{opacity:1;}
 </style>
-<link rel="stylesheet" href="matflow.css?v=20260924a">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
+<link rel="stylesheet" href="matflow.css?v=20260924b">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
 </head>
 <body>
 
@@ -440,9 +440,9 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="matlib.js?v=20260924a"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
+<script src="matlib.js?v=20260924b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
 <script src="engine.js?v=20260923f"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
-<script src="matflow.js?v=20260924a"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
+<script src="matflow.js?v=20260924b"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -779,8 +779,9 @@ function hostFilamentList(){ return (machineCap && Array.isArray(machineCap.fila
 /* 把一張已解析的校正表寫進庫。mats＝人確認的身分（T061：料種＋顏色名；校正第 1 步或匯入時那一問），照槽位順序；
    沒給（長度不對）＝沒有料種、標籤帶量到的色碼＝清單上「未指定料種」，旁邊「指定…」補（不猜）。
    量到的色一律用表裡的（hex 只當顯示與防呆，不當鍵：R6-14 子題 1）。at＝量測日期（匯入時從檔名抓；沒有＝今天）。
-   回傳 {added, persisted, pending, why, mats}；失敗不影響匯入本身，但**要講出來**。 */
-function matlibRecord(tbl, mats, at){
+   回傳 {added, persisted, pending, why, mats}；失敗不影響匯入本身，但**要講出來**。
+   🆕 T062：skip＝這次不寫的 pair id（右欄匯入撞到同一組選「保留本機的」）；收下的料若封存著＝叫回來（原型細節 6），名字回 revived。 */
+function matlibRecord(tbl, mats, at, skip){
   if(!matlibReady() || !matLib) return {added:0, persisted:false, why:'材料庫未載入'};
   try{
     const n=Array.isArray(tbl.pairs)?4:2;
@@ -789,14 +790,16 @@ function matlibRecord(tbl, mats, at){
     const pairs=n===4
       ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:ids, measuredAt:at})
       : [PhotoTileMatLib.pairFromDual(tbl, {materials:ids, measuredAt:at})];
-    pairs.forEach(p=>PhotoTileMatLib.upsertPair(matLib, p));
+    const put=pairs.filter(p=>!(skip&&skip.has(p.id)));
+    put.forEach(p=>PhotoTileMatLib.upsertPair(matLib, p));
     const outMats=(tbl.slots||[]).slice(0,n).map((h,i)=>PhotoTileMatLib.makeMaterial(Object.assign({hex:h}, ids[i]||{})));
+    const revived=outMats.filter(m=>PhotoTileMatLib.setArchived(matLib, m, false)).map(m=>m.label);
     /* 🔴 App 那一份還沒讀回來 ⇒ 先不存（一存就把整份庫蓋成只剩這幾筆）；讀檔回來時會併進去一起存。 */
-    if(matLibLoading){ matlibAfterLoad(); return {added:pairs.length, persisted:false, pending:true, why:'', mats:outMats}; }
+    if(matLibLoading){ matlibAfterLoad(); return {added:put.length, persisted:false, pending:true, why:'', mats:outMats, revived}; }
     const w=PhotoTileMatLib.save(matLib);
     matLibNote=(w.persisted||w.pending)?'':w.why;
     matlibAfterLoad();
-    return {added:pairs.length, persisted:w.persisted, pending:!!w.pending, why:w.why, mats:outMats};
+    return {added:put.length, persisted:w.persisted, pending:!!w.pending, why:w.why, mats:outMats, revived};
   }catch(e){ return {added:0, persisted:false, why:String(e&&e.message||e)}; }
 }
 /* 段 F：指定料種、舊資料那一問改了庫之後存一次（matflow.js 呼叫）。 */
@@ -815,19 +818,19 @@ function calibRecordShow(r, quad, what){
   if(!r.added){ if(el) el.innerHTML=`⚠ 這張${kind}表沒存進材料庫：${r.why}`; return; }
   if(el) el.innerHTML=`✅ 已收下${kind}校正表（${what}）並存進<b>材料庫</b>。`
     + ((r.persisted||r.pending)?'':`<br><span class="sub">⚠ ${r.why}，關掉工作室後要重新匯入。</span>`);
-  if(window.PhotoTileMatFlow) PhotoTileMatFlow.onCalibrated(quad?'quad':'dual', r.mats);
+  if(window.PhotoTileMatFlow) PhotoTileMatFlow.onCalibrated(quad?'quad':'dual', r.mats, r.revived);
 }
 /* 🔴 **單一入口**（2026-09-15，牌 c-0915-PTI-06）：檔案匯入與「工作室內覆蓋層直接帶回來」
    走的是這同一支（這條線已經被兩份實作咬過三次）。
    🔴 段 F（車 3）：**不再在這裡改料槽**——0914 那段「匯入時把料 A／B 改成表的料色」的角色，
    換成「新量的那組直接成為產圖流程的選擇」（matflow.onCalibrated）；料槽只由 ptMatApply() 從選的那組寫。
    🆕 T061：mats／at 由匯入那一問帶進來（〈九〉Q5「匯入不再跳過確認」）；覆蓋層帶回＝校正第 1 步填的那組。回傳收表結果（讀不到＝false）。 */
-function calibAcceptRaw(raw, mats, at){
+function calibAcceptRaw(raw, mats, at, skip){
     try{
       const tbl=PhotoTileEngine.calibParseTable(raw);
       /* 雙料、四料都只進材料庫（**不碰舊鍵**——車 1 為四料加的那道「不寫舊鍵」分流，段 F 起雙料也一樣）。 */
       const quad=Array.isArray(tbl.pairs);
-      const r=matlibRecord(tbl, mats||calMatsFor(quad?4:2), at);
+      const r=matlibRecord(tbl, mats||calMatsFor(quad?4:2), at, skip);
       calibRecordShow(r, quad, quad ? tbl.pairs.length+' 對' : tbl.pts.length+' 點');
       return r;
     }catch(err){ calibShowError(err); return false; }
@@ -1481,7 +1484,9 @@ window.PINGPhotoTile={
   /* ── 段 B（車 2，牌 c-0923-ACC-21）：材料庫讀寫的回程（C++ phototile_matlib_* 回推）──
      讀：{ok, exists, base64, message}；寫：{ok, message, path}——一次存檔只回一次。 */
   matlibLoaded(msg){ matlibOnHostLoaded(msg); },
-  matlibSaved(msg){ matlibOnHostSaved(msg); }
+  matlibSaved(msg){ matlibOnHostSaved(msg); },
+  /* 🆕 T062「匯出材料庫…」的結果（C++ phototile_matlib_export 回推）：{ok, path, message}。 */
+  matlibExported(msg){ if(window.PhotoTileMatFlow) PhotoTileMatFlow.onExported(msg); }
 };
 const dz=document.getElementById('dropZone');
 dz.addEventListener('dragover',e=>{e.preventDefault(); dz.classList.add('drag');});

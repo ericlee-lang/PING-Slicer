@@ -6192,6 +6192,73 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 BOOST_LOG_TRIVIAL(info) << "PhotoTile 材料庫：已存 " << bytes.size() << " bytes → " << lib_path.string();
                 saved(true, "", lib_path.string());
             }
+            /* 【〈九〉9-6 分車表「T062」那一列（牌 c-0924-ACC-30）】照片磚「匯出材料庫…」＝整庫（含封存的）一個檔，
+               搬電腦或給同事，對方按「匯入…」選這個檔（〈材料庫管理〉Q4／Q10）。
+               內容由頁面組（matlib.js exportText＝畫面上看到的那一份）；宿主照舊**不解讀**，只負責開存檔視窗、完整地寫。
+               為什麼走宿主：嵌入式 WebView 的下載沒有存檔視窗（mac 版甚至不會動）——同「另存 AI 圖…」那條路。
+               一則訊息、不分塊：上限同存檔（512 KB）；上限與壞 base64 的擋法照 phototile_matlib_save_* 抄
+               （tools/ping/phototile_protocol_test.js §8 比對這裡的訊息名）。
+               🔴 先寫 .tmp、寫滿才換上：使用者選了覆寫既有檔時，寫到一半失敗不能把原檔弄成 0 byte。 */
+            else if (command_str.compare("phototile_matlib_export") == 0) {
+                constexpr size_t max_matlib_bytes = 524288;   // 同值住 matlib.js HOST_MAX_BYTES
+                const auto exported = [this](bool ok, const std::string& path, const std::string& message) {
+                    photo_tile_page_script(std::string("window.PINGPhotoTile && window.PINGPhotoTile.matlibExported && "
+                        "window.PINGPhotoTile.matlibExported({ok:") + (ok ? "true" : "false") + ",path:\"" +
+                        ping_js_escape(path) + "\",message:\"" + ping_js_escape(message) + "\"});");
+                };
+                const size_t      want    = root.get<size_t>("data.size", 0);
+                const std::string encoded = root.get<std::string>("data.base64", "");
+                std::string       name    = root.get<std::string>("data.name", "");
+                std::vector<unsigned char> bytes(boost::beast::detail::base64::decoded_size(encoded.size()));
+                const auto dr = boost::beast::detail::base64::decode(bytes.data(), encoded.data(), encoded.size());
+                bytes.resize(dr.first);
+                size_t pad = 0;   // 壞 base64 一律擋（判法同 phototile_matlib_save_chunk：beast 遇到非法字元只會停下來、不報錯）
+                for (size_t k = dr.second; k < encoded.size(); ++k) {
+                    if (encoded[k] == '=') ++pad; else { pad = 99; break; }
+                }
+                if (want == 0 || want > max_matlib_bytes || encoded.size() % 4 != 0 || pad > 2 || bytes.size() != want) {
+                    BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫匯出：拒收 size=" << want << ", decoded=" << bytes.size();
+                    exported(false, "", "材料庫內容不完整或超過 512 KB，沒有匯出。");
+                    return "";
+                }
+                if (name.empty()) name = "照片磚材料庫.json";
+                CallAfter([this, bytes, name, exported]() {
+                    wxFileDialog dialog(GetTopWindow(), from_u8("匯出材料庫"),
+                        from_u8(app_config->get_last_output_dir(app_config->get_last_dir())), from_u8(name),
+                        "JSON (*.json)|*.json", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+                    if (dialog.ShowModal() != wxID_OK) {
+                        exported(false, "", "已取消，沒有匯出。");
+                        return;
+                    }
+                    wxFileName out(dialog.GetPath());
+                    out.SetExt("json");
+                    const boost::filesystem::path out_path(into_u8(out.GetFullPath()));
+                    const boost::filesystem::path tmp_path(out_path.string() + ".tmp");
+                    boost::system::error_code ec;
+                    bool write_ok = false;
+                    {
+                        boost::nowide::ofstream output(tmp_path.string(), std::ios::binary | std::ios::trunc);
+                        output.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+                        output.close();
+                        write_ok = output.good();
+                    }
+                    if (write_ok) {
+                        const boost::uintmax_t written = boost::filesystem::file_size(tmp_path, ec);
+                        write_ok = !ec && written == bytes.size();
+                    }
+                    if (write_ok)
+                        write_ok = !Slic3r::rename_file(tmp_path.string(), out_path.string());
+                    if (!write_ok) {
+                        boost::filesystem::remove(tmp_path, ec);
+                        BOOST_LOG_TRIVIAL(warning) << "PhotoTile 材料庫匯出：寫入失敗 " << out_path.string();
+                        exported(false, "", "寫入失敗，請改用有寫入權限的位置（原本的檔沒有動）。");
+                        return;
+                    }
+                    app_config->update_last_output_dir(into_u8(out.GetPath()));
+                    BOOST_LOG_TRIVIAL(info) << "PhotoTile 材料庫匯出：" << bytes.size() << " bytes → " << out_path.string();
+                    exported(true, out_path.string(), "");
+                });
+            }
             else if (command_str.compare("get_recent_projects") == 0) {
                 if (mainframe) {
                     if (mainframe->m_webview) {
