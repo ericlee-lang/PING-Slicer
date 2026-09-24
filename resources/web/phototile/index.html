@@ -24,17 +24,20 @@
   .backbtn:hover{color:#c63f10; border-color:var(--orange);}
   h1{font-family:"Source Han Serif TC","Noto Serif TC",serif; font-size:20px; font-weight:700;}
   .sub{font-size:12.5px; color:#777;}
-  .sub.warn{color:var(--orange); font-weight:700;}
+  /* CIS 2026-08-24〈橘色語意收斂〉：橘只代表「你在這裡」——警示訊息＝黃（tokens.json color.warning.fg，
+     同 matflow.css 的 .mfFlash.warn／.mfDlgErr），主要行動＝炭黑底白字（color.action.primary.bg；橘底白字只有 3.75:1）。
+     Eric 2026-09-25 裁「Q2 要」只改這兩處（.sub.warn 與同色的 .panel h2 .hint.warn、.btn.primary），工作室其他橘色另照〈橘色三問〉判。 */
+  .sub.warn{color:#946310; font-weight:700;}
   header .grow{flex:1;}
   .btn{display:inline-block; border:1px solid #bbb; background:#fff; color:var(--black);
        padding:6px 14px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600;}
   .btn:hover{border-color:var(--black);}
-  .btn.primary{background:var(--orange); border-color:var(--orange); color:#fff;}
+  .btn.primary{background:var(--black); border-color:var(--black); color:#fff;}
   .btn.ghost{border-color:#ccc; padding:6px 12px; font-size:13px;}
   .btn.ghost:hover{border-color:var(--black);}
   /* 標題列裡的小按鈕（「另存 AI 圖…」）：靠右、比標題小一號，讓標題仍是第一眼（HIE） */
   .panel h2 .btn.mini{padding:2px 9px; font-size:12px; font-weight:600; margin-left:auto; font-family:inherit;}
-  .panel h2 .hint.warn{color:var(--orange);}
+  .panel h2 .hint.warn{color:#946310;}
   /* 生圖／壓平中的款式卡：淡化＋等待游標＋不吃點擊（Eric 2026-09-03） */
   .stylegrid.busy .scard{opacity:.55; cursor:wait; pointer-events:none;}
   /* C-2 A 案（Eric 0804 裁「就地轉換」）：生成中按鈕原位變進度＋取消，零版面位移 */
@@ -442,7 +445,7 @@
 <script src="engine_protocol.js?v=20260804"></script>
 <script src="matlib.js?v=20260924b"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
 <script src="engine.js?v=20260923f"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
-<script src="matflow.js?v=20260924b"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
+<script src="matflow.js?v=20260924c"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
