@@ -877,7 +877,7 @@ function fakeImg(){
      （計畫 §四段 A「庫存在之後就不再寫它」；照寫會讓下次開機再遷進來一次、清單多一組以色碼命名的重複項）
      ⇒ **有意識地改成**更強的守衛：整頁沒有任何地方寫舊鍵，收下的表一律只進材料庫。 */
   await check('🔴 收下的表一律只進材料庫、整頁沒有任何地方寫舊鍵（四料不會蓋掉雙料表，雙料也不會在下次開機變成重複項）', () => {
-    const i0 = idxHtml.indexOf('function calibAcceptRaw(raw, mats, at){');   // T061：身分與量測日期由匯入那一問帶進來
+    const i0 = idxHtml.indexOf('function calibAcceptRaw(raw, mats, at, skip){');   // T061：身分與量測日期由匯入那一問帶進來；T062：skip＝撞到同一組選「保留本機的」
     assert(i0 > 0, '找不到 calibAcceptRaw');
     const body = idxHtml.slice(i0, idxHtml.indexOf('\n}', i0));
     assert(/matlibRecord\(tbl[,)]/.test(body), '收下的表沒寫進材料庫');
@@ -1189,7 +1189,8 @@ function fakeImg(){
     assert.strictEqual((body.match(/lb\.legacyAskedAt = today\(\); save\(\);/g) || []).length, 2, '「確定」與「先跳過」兩條路沒有都記下「問過了」');
     assert(/M\(\)\.specifyConflicts\(lb, map\)/.test(body) && /remapKeys\(M\(\)\.specifyMaterials\(lb, map\)\)/.test(body),
       '指定前沒擋同組同名、或指定後沒把生效中的那組換成新鍵');
-    assert(/filter\(m => M\(\)\.needsSpec\(m\)\)/.test(body), '問的不是「沒有料種」的那幾支');
+    /* T062 有意識地改寫：問的是「沒有料種、而且沒封存」的那幾支（封存了＝使用者已經決定不用，不必再問）。 */
+    assert(/filter\(m => M\(\)\.needsSpec\(m\) && !ak\.has\(m\.key\)\)/.test(body), '問的不是「沒有料種、沒封存」的那幾支');
   });
   await check('T061「指定材料」元件的純邏輯：名字只提示不擋（same／near／new）、同組撞名才擋、料種清單沒給退回 PLA、檔名日期', () => {
     const lb = M.emptyLib();
@@ -1286,7 +1287,8 @@ function fakeImg(){
     assert(/no\.focus\(\)/.test(body), '預設焦點不在取消');
     /* T061：認領窗退場，matflow 的三個窗（匯入校正表／舊資料那一問／指定…）一律「肯定在前、取消（跳過）在最後」 */
     const btns = MF_SRC.match(/buttons: \[[^\]]*\]/g) || [];
-    assert.strictEqual(btns.length, 3, 'matflow 的對話框數量變了（' + btns.length + '），這條要跟著看');
+    /* T062：多兩個窗（匯入撞到同一組逐組問、匯出材料庫）＝五個，一樣「肯定在前、取消在最後」。 */
+    assert.strictEqual(btns.length, 5, 'matflow 的對話框數量變了（' + btns.length + '），這條要跟著看');
     btns.forEach(b => assert(/^buttons: \[\{ c: 'yes'[^\]]*\}, \{ c: 'no'[^\]]*\}\]$/.test(b), '鈕序不是肯定在左、取消在右：' + b));
     assert(/if \(b && o\.on\(/.test(MF_SRC), '點背景就關窗（FBK-10：點背景不關）');
   });
@@ -1339,7 +1341,7 @@ function fakeImg(){
     assert(/if \(!mpCheck\(box, rows\)\) return false;/.test(body), '名字沒填或同組撞名也收了');
     assert(/page\.acceptTable\(raw, rows\.map\(x => \(\{ type: x\.type, label: x\.name \}\)\), at\)/.test(body), '收進去的身分不是那一問填的料種＋顏色名');
     assert(!/filaments\(\)/.test(body), '匯入又從擠出機的線材設定拿身分（T060 白×黑的成因）');
-    assert(/function matlibRecord\(tbl, mats, at\)\{/.test(idxHtml) && /mats\.map\(m=>\(\{type:m\.type\|\|null, label:m\.label\}\)\)/.test(idxHtml),
+    assert(/function matlibRecord\(tbl, mats, at, skip\)\{/.test(idxHtml) && /mats\.map\(m=>\(\{type:m\.type\|\|null, label:m\.label\}\)\)/.test(idxHtml),
       '寫庫時沒用料種＋顏色名');
   });
   await check('🔴 9-5：AI 圖壓平後左邊留 AI 原圖、色差跟 AI 原圖比；壓平（含「依料重算」重壓）的輸入是 AI 原圖', () => {
@@ -1361,6 +1363,257 @@ function fakeImg(){
     assert(bytes < 0.92 * 262144, 'index.html ' + bytes + ' B 超過讀取上限的 92%——新碼請放獨立檔（Read 到上限會讀一半就停、不報錯）');
   });
 
+
+  /* ================= 〈九〉9-6 分車表「T062」那一列（牌 c-0924-ACC-30）：封存、匯出匯入、還原上一版、匯入撞組逐組問 =================
+     資料層（matlib）與選料邏輯（matflow）直接跑；頁面與 C++ 接線做結構守衛，能配陽性對照的都配。 */
+  console.log('\n〈九〉9-6「T062」那一列｜封存（Q3）、匯出匯入（Q4／Q10）、還原上一版（Q9）、匯入撞組逐組問（Q11）');
+  const PLA = l => ({ type: 'PLA', label: l });
+  const libT = () => {
+    const lb = M.emptyLib();
+    const put = (raw, a, b, at) => M.upsertPair(lb, M.pairFromDual(E.calibParseTable(raw), { materials: [PLA(a), PLA(b)], measuredAt: at }));
+    put(tableGray, '白', '深灰', '2026-09-14'); put(TABLE_BLUE, '白', '淺藍', '2026-08-22'); put(TABLE_YELLOW, '白', '黃', '2026-08-22');
+    return lb;
+  };
+  const kOf = l => M.matKey(M.makeMaterial(PLA(l)));
+  await check('🔴 Q3 封存：藏起來、資料一筆不少；存檔帶封存名單、讀回來還在；名單只收庫裡有的料；schema 不抬（仍是 2）', () => {
+    const lb = libT(), n0 = lb.pairs.length;
+    assert.strictEqual(M.SCHEMA, 2, 'schema 被抬了——T061／T062 會整份讀不到（代價寫在 matlib.js 檔頭）');
+    assert.deepStrictEqual(M.emptyLib().archived, [], '空庫沒有封存名單欄');
+    assert.strictEqual(M.setArchived(lb, PLA('淺藍'), true), true, '第一次封存要回「有改到」');
+    assert.strictEqual(M.setArchived(lb, PLA('淺藍'), true), false, '封存兩次不該變兩筆');
+    assert.strictEqual(lb.archived.length, 1);
+    assert.strictEqual(lb.pairs.length, n0, '封存把量測刪掉了');
+    assert(M.isArchived(lb, PLA('淺藍')) && !M.isArchived(lb, PLA('白')));
+    assert.strictEqual(M.withoutArchived(lb).pairs.length, 2, '封存料的配對沒有一起藏（Q3）');
+    const lb0 = libT();
+    assert.strictEqual(M.withoutArchived(lb0), lb0, '沒有封存時要原樣回傳（行為跟 T062 以前逐字相同）');
+    // 存檔 → 讀回
+    M.setStorage(M.memoryStorage());
+    assert(M.save(lb).persisted);
+    const raw = JSON.parse(M.getStorage().readLib());
+    assert.deepStrictEqual(raw.archived, [{ type: 'PLA', label: '淺藍' }], '存檔的封存名單不是身分（料種＋顏色名、不含色）');
+    assert.strictEqual(raw.schema, 2);
+    const back = M.load();
+    assert(M.isArchived(back, PLA('淺藍')) && back.pairs.length === n0, '讀回來封存名單不見了');
+    // 手改壞的名單：不存在的料、重複、壞的 → 丟掉，不整份作廢
+    raw.archived.push({ type: 'PLA', label: '沒這支' }, { type: 'PLA', label: '淺藍' }, { type: 'PLA', label: '' }, null, 7);
+    const nl = M.normalize(raw);
+    assert.deepStrictEqual(nl.archived.map(m => m.label), ['淺藍'], '封存名單沒過濾（不存在／重複／壞的）');
+    assert.strictEqual(nl.pairs.length, n0);
+    // 舊版讀到新檔＝忽略這欄、其餘照讀（T061／T062 的 normalize 不認 archived——這裡用「拿掉這欄」模擬）
+    const old = JSON.parse(JSON.stringify(raw)); delete old.archived;
+    assert.strictEqual(M.normalize(old).pairs.length, n0, '拿掉封存名單之後量測讀不全');
+    M.setStorage(null);
+  });
+  await check('🔴 Q3＋原型細節 4：封存的料與它的配對不在選料清單；配對全封存的料列上寫原因；正在用的那組不能封存', () => {
+    const lb = libT();
+    M.setArchived(lb, PLA('淺藍'), true);
+    const ch = F.choices(lb, 'dual', []);
+    assert.deepStrictEqual(ch.rows.map(r => r.mat.label).sort(), ['深灰', '白', '黃'].sort(), '封存的料還在選料清單上');
+    // 白 的配對只剩 深灰／黃；把兩支都封存 ⇒ 白 還在清單上、但選不到、原因寫出來
+    M.setArchived(lb, PLA('深灰'), true); M.setArchived(lb, PLA('黃'), true);
+    const w = F.choices(lb, 'dual', []).rows.find(r => r.mat.label === '白');
+    assert(w && w.state === 'no' && /配對都封存了/.test(w.why), '配對全封存的料沒講原因：' + JSON.stringify(w));
+    assert.deepStrictEqual(F.validSets(lb, 'dual'), [], '封存料的組還被當成預設選擇');
+    // 已點的鍵是封存料 ⇒ 不算已點
+    assert.deepStrictEqual(F.choices(lb, 'dual', [kOf('淺藍')]).picked, [], '封存的料還留在已點');
+    const sc = F.setCheck(lb, 'dual', [kOf('白'), kOf('淺藍')]);
+    assert(!sc.info && /淺藍/.test(sc.why) && /封存/.test(sc.why), '含封存料的組沒擋、或沒講是哪一支：' + sc.why);
+    // 正在用的不能封存
+    const lb2 = libT(), inf = F.setInfo(lb2, 'dual', [kOf('白'), kOf('深灰')]);
+    assert(inf, '白×深灰 應該選得到');
+    assert(/先換一組/.test(F.archiveBlock(inf, kOf('深灰'))), '正在用的那組可以封存（產圖流程會突然沒有料）');
+    assert.strictEqual(F.archiveBlock(inf, kOf('黃')), '', '沒在用的料不能封存');
+    assert.strictEqual(F.archiveBlock(null, kOf('黃')), '');
+  });
+  await check('🔴 封存名單跟著身分走：舊資料指定成庫裡「封存著」的名字＝叫回來；勾封存的舊資料照原鍵留在名單', () => {
+    const lb = M.emptyLib();
+    const put = (a, b, hexes, at) => M.upsertPair(lb, { a, b, kind: M.KINDS.DUAL, measuredAt: at, source: 'readback',
+      pts: [{ S: 1, hex: hexes[0] }, { S: 0.5, hex: hexes[1] }, { S: 0, hex: hexes[2] }] });
+    put(PLA('白'), PLA('紅'), ['#F2F0EB', '#D08080', '#B8322A'], '2026-09-01');
+    put({ fid: null, label: '#AFAFAA' }, { fid: null, label: '#242D39' }, ['#AFAFAA', '#707070', '#242D39'], null);
+    put({ fid: null, label: '#EEEEEE' }, { fid: null, label: '#111111' }, ['#EEEEEE', '#888888', '#111111'], null);
+    M.setArchived(lb, PLA('紅'), true);
+    M.setArchived(lb, { fid: null, label: '#EEEEEE' }, true);
+    const map = new Map([[M.matKey({ fid: null, label: '#AFAFAA' }), PLA('紅')]]);   // 舊資料指定成「紅」（庫裡的紅封存著）
+    M.specifyMaterials(lb, map);
+    assert(!M.isArchived(lb, PLA('紅')), '指定成封存料的名字之後沒叫回來（有一支在用＝合起來那支在用）');
+    assert(M.isArchived(lb, { fid: null, label: '#EEEEEE' }), '沒動到的封存舊資料掉出名單了');
+    // 兩支都封存著的合在一起＝仍封存（名單換成新身分）
+    const lb2 = M.emptyLib();
+    M.upsertPair(lb2, { a: { fid: null, label: '#101010' }, b: PLA('白'), kind: M.KINDS.DUAL, measuredAt: null, source: 'readback',
+      pts: [{ S: 1, hex: '#101010' }, { S: 0, hex: '#F0F0F0' }] });
+    M.upsertPair(lb2, { a: PLA('黑'), b: PLA('黃'), kind: M.KINDS.DUAL, measuredAt: null, source: 'readback',
+      pts: [{ S: 1, hex: '#111111' }, { S: 0, hex: '#F7E350' }] });
+    M.setArchived(lb2, { fid: null, label: '#101010' }, true); M.setArchived(lb2, PLA('黑'), true);
+    M.specifyMaterials(lb2, new Map([[M.matKey({ fid: null, label: '#101010' }), PLA('黑')]]));
+    assert(M.isArchived(lb2, PLA('黑')), '兩支都封存著、合起來卻被叫回來了');
+    assert.strictEqual(lb2.archived.length, 1, '合起來之後舊鍵還留在封存名單：' + JSON.stringify(lb2.archived));
+  });
+  await check('🔴 Q9 還原上一版＝兩份對調（換回來也行）；料色跟著那一份走；沒有上一版不動；先試換、不成立就不換', () => {
+    const lb = libT();
+    const id = M.findPair(lb, M.makeMaterial(PLA('白')), M.makeMaterial(PLA('深灰'))).id;
+    const again = M.pairFromDual(E.calibParseTable(TABLE_BLUE), { materials: [PLA('白'), PLA('深灰')], measuredAt: '2026-09-23' });
+    M.upsertPair(lb, again);                                         // 同一組重新量＝新的當目前、舊的留一份
+    const p1 = M.getPair(lb, id);
+    assert.strictEqual(p1.measuredAt, '2026-09-23'); assert.strictEqual(p1.prev.measuredAt, '2026-09-14');
+    const sig1 = M.ptsSig(p1), sig0 = M.ptsSig(p1.prev);
+    M.restorePrev(lb, id);
+    const p2 = M.getPair(lb, id);
+    assert.strictEqual(p2.measuredAt, '2026-09-14', '還原之後目前那份不是上一版');
+    assert.strictEqual(p2.prev.measuredAt, '2026-09-23', '還原之後被換下來的那份沒留著（換不回來）');
+    assert.strictEqual(M.ptsSig(p2), sig0);
+    assert.strictEqual(p2.b.hex, p2.pts[p2.pts.length - 1].hex, '料色沒跟著那一份走（引擎比料色會對不上）');
+    M.restorePrev(lb, id);
+    assert.strictEqual(M.ptsSig(M.getPair(lb, id)), sig1, '還原兩次沒回到原樣');
+    const lone = M.getPair(lb, M.findPair(lb, M.makeMaterial(PLA('白')), M.makeMaterial(PLA('黃'))).id);
+    assert.strictEqual(M.restorePrev(lb, lone.id), null, '沒有上一版也換了');
+    // 畫面那一行：目前 9/23、上一版 9/14；還原後上一版反而比較新
+    const inf = F.setInfo(lb, 'dual', [kOf('白'), kOf('深灰')]);
+    const v = F.verOf(inf);
+    assert.strictEqual(v.pairs.length, 1); assert.strictEqual(v.prevAt, '2026-09-14'); assert.strictEqual(v.newer, false);
+    M.restorePrev(lb, id);
+    const v2 = F.verOf(F.setInfo(lb, 'dual', [kOf('白'), kOf('深灰')]));
+    assert.strictEqual(v2.newer, true, '還原之後留著的那份比較新，畫面要講「比較新的一版」不講「上一版」');
+    const body = MF_SRC.slice(MF_SRC.indexOf('function onRestore(){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function onRestore(){') + 10));
+    assert(/setCheck\(trial, inf\.mode, inf\.keys\)/.test(body) && body.indexOf('setCheck(trial') < body.indexOf('M().restorePrev(lb'),
+      '還原沒有先在副本上試：那一版讓這組不成立時，換下去就再也按不到「換回來」');
+  });
+  await check('🔴 Q11 匯入撞同一組：分新的／一模一樣／撞到的；a/b 方向相反也認得出同一次量測；撞到的逐組問、選哪個照哪個', () => {
+    const local = libT();
+    const inc = M.emptyLib();
+    const put = (lb, raw, a, b, at) => M.upsertPair(lb, M.pairFromDual(E.calibParseTable(raw), { materials: [PLA(a), PLA(b)], measuredAt: at }));
+    const g = M.findPair(local, M.makeMaterial(PLA('白')), M.makeMaterial(PLA('深灰')));   // 同一次量測，但 a/b 反過來存（兩台誰在前面不一定）
+    M.upsertPair(inc, Object.assign({}, M.flipVersion(M.normalize({ schema: 2, pairs: [g] }).pairs[0]), { a: g.b, b: g.a }));
+    put(inc, TABLE_YELLOW, '白', '淺藍', '2026-09-20');              // 同一組（白×淺藍）量測不一樣＝撞到
+    /* 本機沒有＝新的。🔴 要用一張本機沒有的量測：拿本機已有的表換個名字＝同一次量測（byContent 會把它當一模一樣，那是對的）。 */
+    const TABLE_GREEN = mkTable('#F2F0EB', '#3E8E4E', [[1,'#F2F0EB'],[0.86,'#D9E5DA'],[0.71,'#BFD9C2'],[0.57,'#A5CCAA'],[0.43,'#8ABF92'],[0.29,'#70B27A'],[0.14,'#56A062'],[0,'#3E8E4E']]);
+    put(inc, TABLE_GREEN, '白', '綠', '2026-09-19');
+    M.setArchived(inc, PLA('綠'), true);                            // 對方封存的新料 ⇒ 進來也先封存
+    M.setArchived(inc, PLA('白'), true);                            // 對方封存、但本機在用 ⇒ 照本機
+    inc.legacyAskedAt = '2026-09-01';
+    const plan = M.libImportPlan(local, M.normalize(JSON.parse(M.exportText(inc, '2026-09-20'))));
+    assert.deepStrictEqual([plan.add.length, plan.same.length, plan.conflict.length], [1, 1, 1], '分類錯：' + [plan.add.length, plan.same.length, plan.conflict.length]);
+    assert.deepStrictEqual(plan.archiveNew.map(m => m.label), ['綠'], '封存狀態：新料要照對方、本機已有的料要照本機');
+    const c = plan.conflict[0];
+    // theirs 已翻成本機的方向：S=1 那一端＝本機 a 那支料
+    const mineA = c.mine.a.label;
+    assert.strictEqual(c.theirs.pts[0].S, 1);
+    assert.strictEqual(c.ends.ha, (mineA === '白' ? '#F2F0EB' : '#FBE534'), '匯進來那份的料色沒對到本機的 a/b');
+    // 選「保留本機的」＝不動
+    const keep = JSON.parse(JSON.stringify(local.pairs));
+    const r0 = M.applyLibImport(JSON.parse(JSON.stringify(local)), plan, ['local']);
+    assert.deepStrictEqual([r0.added, r0.same, r0.took, r0.kept, r0.archived], [1, 1, 0, 1, 1]);
+    // 選「用匯入的」＝本機那份退成上一版
+    const lb = libT();
+    const r1 = M.applyLibImport(lb, M.libImportPlan(lb, M.normalize(JSON.parse(M.exportText(inc, '2026-09-20')))), ['theirs']);
+    assert.strictEqual(r1.took, 1);
+    const hit = M.findPair(lb, M.makeMaterial(PLA('白')), M.makeMaterial(PLA('淺藍')));
+    assert.strictEqual(hit.measuredAt, '2026-09-20', '選了用匯入的，目前那份不是匯入的');
+    assert.strictEqual(hit.prev.measuredAt, '2026-08-22', '本機那份沒留作上一版（Q9 同一條規則）');
+    assert(M.isArchived(lb, PLA('綠')) && !M.isArchived(lb, PLA('白')), '封存狀態套錯');
+    assert.strictEqual(lb.legacyAskedAt, null, '把對方那台「問過沒有」帶進來了');
+    assert.deepStrictEqual(local.pairs, keep, 'libImportPlan 動到了本機的庫（它只該分類）');
+    // 同一次量測、不同身分（本機還沒指定料種）＝一模一樣，不另加一組重複項
+    const legacy = M.emptyLib();
+    M.upsertPair(legacy, M.pairFromDual(E.calibParseTable(tableGray), { materials: [{ fid: null, label: '#X1' }, { fid: null, label: '#X2' }] }));
+    const pl2 = M.libImportPlan(legacy, M.normalize(JSON.parse(M.exportText(inc, null))));
+    assert.strictEqual(pl2.same.length, 1, '同一次量測換了身分就被當成新的一組（清單會多一組重複項）');
+  });
+  await check('🔴 Q4／Q10：「匯入…」自動分辨材料庫檔；匯出＝整庫一個檔、含封存的、不帶 legacyAskedAt；App 那條訊息有上限', () => {
+    const lb = libT();
+    M.setArchived(lb, PLA('黃'), true); lb.legacyAskedAt = '2026-09-24';
+    const txt = M.exportText(lb, '2026-09-24'), obj = JSON.parse(txt);
+    assert.strictEqual(obj['格式'], M.EXPORT_FORMAT); assert.strictEqual(obj.exportedAt, '2026-09-24'); assert.strictEqual(obj.schema, 2);
+    assert(!('legacyAskedAt' in obj), '匯出帶了「這一台問過沒有」');
+    assert(obj.pairs.every(p => !('id' in p) && !('claimedAt' in p)), '匯出帶了 id／claimedAt');
+    assert.deepStrictEqual(obj.archived, [{ type: 'PLA', label: '黃' }], '匯出沒帶封存的（Q4：含封存的）');
+    const back = M.normalize(obj);
+    assert.deepStrictEqual(back.pairs.map(p => M.ptsSig(p)), lb.pairs.map(p => M.ptsSig(p)), '匯出再讀回來量測不一樣');
+    assert.strictEqual(M.fileKind(obj), 'lib');
+    assert.strictEqual(M.fileKind(Object.assign({}, obj, { schema: 3 })), 'lib-unknown', '比較新的版本存的材料庫檔沒認出來');
+    assert.strictEqual(M.fileKind(TABLE_BLUE), 'other', '校正表被當成材料庫檔');
+    assert.strictEqual(M.fileKind({ schema: 1, pairs: [] }), 'lib', 'App 設定資料夾那份 material_library.json（schema 1）也要吃');
+    assert.strictEqual(M.fileKind(null), 'other');
+    const msg = M.buildExportMessage(txt, '照片磚材料庫_20260924.json');
+    assert.strictEqual(msg.command, M.CMD.EXPORT); assert.strictEqual(msg.command, 'phototile_matlib_export');
+    assert.strictEqual(M.utf8Decode(M.b64ToBytes(msg.data.base64)), txt, '送給 App 的內容解回來不一樣');
+    assert.strictEqual(msg.data.size, M.utf8Encode(txt).length);
+    assert.throws(() => M.buildExportMessage('x'.repeat(M.HOST_MAX_BYTES + 1), 'a.json'), /上限/, '超過上限沒在送出端擋');
+    const sent = [];
+    const hs = M.hostStorage((c, d) => sent.push({ c, d }), null);
+    assert.strictEqual(hs.exportLib(txt, 'a.json'), 'pending');
+    assert.strictEqual(sent.length, 1); assert.strictEqual(sent[0].c, 'phototile_matlib_export'); assert.strictEqual(sent[0].d.name, 'a.json');
+    assert.strictEqual(F.exportName('2026-09-24'), '照片磚材料庫_20260924.json');
+    assert.strictEqual(F.libImportText({ added: 1, same: 1, took: 1, kept: 1, archived: 1 }, '「x.json」'),
+      '匯入完成（「x.json」）：新增 1 組、1 組跟本機一模一樣略過、撞到的 2 組照你選的（用匯入的 1、保留本機的 1）；其中 1 支料在匯出的那台是封存的，這裡也先封存。');
+  });
+  await check('🔴 四料也一樣：封存的料不列、含封存料的四料組不成立；重量一次六對都留上一版、還原那一行數得出幾對', () => {
+    const ids = QNAME.map(n => PLA(n));
+    const lb = M.emptyLib();
+    const load = (tbl, at) => M.pairsFromQuad(E.calibParseTable(tbl), { materials: ids, measuredAt: at }).forEach(p => M.upsertPair(lb, p));
+    load(quadTable(), '2026-09-23');
+    const ks = QNAME.map(n => kOf(n));
+    assert(F.setInfo(lb, 'quad', ks), '四料組應該選得到');
+    M.setArchived(lb, PLA(QNAME[2]), true);
+    assert(!F.setInfo(lb, 'quad', ks), '含封存料的四料組還成立');
+    assert(F.choices(lb, 'quad', []).rows.every(r => r.mat.label !== QNAME[2]), '四料清單還列封存的料');
+    M.setArchived(lb, PLA(QNAME[2]), false);
+    const t2 = quadTable();
+    const bump = h => '#' + [1, 3, 5].map(i => Math.min(255, parseInt(h.substr(i, 2), 16) + 2).toString(16).padStart(2, '0')).join('').toUpperCase();
+    t2['量測'].forEach(r => { r['量到色'] = bump(r['量到色']); });
+    load(t2, '2026-09-24');
+    const v = F.verOf(F.setInfo(lb, 'quad', ks));
+    assert.strictEqual(v.pairs.length, 6, '四料重量一次，六對沒有都留上一版：' + v.pairs.length);
+    assert.strictEqual(v.prevAt, '2026-09-23');
+  });
+  await check('🔴 頁面接線：一顆「匯入…」自動分辨（只列 .json）、料單每支「封存」、底下「已封存 N 支」＋「匯出材料庫…」、舊資料那一問有封存勾選', () => {
+    const r0 = MF_SRC.indexOf('function renderPanel(){');
+    const rp = MF_SRC.slice(r0, MF_SRC.indexOf('\nfunction ', r0 + 10));
+    assert(/data-mf="import">匯入…</.test(rp) && !/匯入校正表…/.test(rp), '右欄還是「匯入校正表…」（Q4：一顆「匯入…」自動分辨）');
+    assert(/data-mf="arch" data-k="/.test(rp) && />封存<\/button>/.test(rp), '料單上沒有「封存」');
+    assert(/footHtml\(lb\)/.test(rp), '料單底下（已封存＋匯出）沒掛上');
+    const fh = MF_SRC.slice(MF_SRC.indexOf('function footHtml(lb){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function footHtml(lb){') + 10));
+    assert(/已封存 ' \+ arch\.length \+ ' 支/.test(fh) && /data-mf="export">匯出材料庫…/.test(fh) && /data-mf="unarch"/.test(fh), '底下缺「已封存 N 支」／「匯出材料庫…」／「叫回」');
+    assert(fh.indexOf('已封存') < fh.indexOf('匯出材料庫…'), '「已封存」應在左、「匯出」在右');
+    const pk = MF_SRC.slice(MF_SRC.indexOf('function pickImportFile(){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function pickImportFile(){') + 10));
+    assert(/f\.accept = '\.json,application\/json'/.test(pk), '開檔視窗不是只列 .json（9-6⑥）');
+    assert(/rd\.onload = \(\) => importFile\(rd\.result, file\.name\);/.test(pk), '選到的檔沒交給 importFile 分辨');
+    const ifb = MF_SRC.slice(MF_SRC.indexOf('function importFile(text, fname){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function importFile(text, fname){') + 10));
+    assert(/M\(\)\.fileKind\(raw\)/.test(ifb) && /importLibFile\(raw, fname\)/.test(ifb) && /importTable\(raw, fname, 'gen'\)/.test(ifb), '「匯入…」沒有自動分辨');
+    assert(!/pickTableFile/.test(MF_SRC), '舊的「只吃校正表」入口還在');
+    const ml = MF_SRC.slice(MF_SRC.indexOf('function maybeAskLegacy(){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function maybeAskLegacy(){') + 10));
+    assert(/arch: true/.test(ml) && /M\(\)\.setArchived\(lb, m, true\)/.test(ml), '舊資料那一問沒有「封存」（9-7 #1：T062 要加回來）');
+    assert(/filled = rows\.filter\(r => !r\.arch && r\.name\)/.test(ml), '勾了封存的那支還被拿去指定料種');
+    assert(/data-f="arch"/.test(MF_SRC) && /\.mp\.arch/.test(fs.readFileSync(path.join(WEB, 'matflow.css'), 'utf8')), '封存勾選沒有淡掉那一支');
+    // 撞到同一組：預設「保留本機的」（原型細節 3）
+    assert(/opt\(i, 'local', '保留本機的', it\.mine, true\) \+ opt\(i, 'theirs', '用匯入的', it\.theirs, false\)/.test(MF_SRC), '逐組問的預設不是「保留本機的」、或不是放第一個');
+    // 右欄匯入撞到同一組才問；校正第 4 步（剛量的）照舊直接取代
+    const it = MF_SRC.slice(MF_SRC.indexOf('function importTable(raw, fname, from){'), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function importTable(raw, fname, from){') + 10));
+    assert(/if \(importFrom === 'gen'\) return genTable\(raw, tbl, rows\.map\(x => \(\{ type: x\.type, label: x\.name \}\)\), at\);/.test(it), '右欄匯入沒走「撞到同一組先問」');
+    const gt = MF_SRC.slice(MF_SRC.indexOf('function genTable('), MF_SRC.indexOf('\nfunction ', MF_SRC.indexOf('function genTable(') + 10));
+    assert(/page\.acceptTable\(raw, mats, at, skip\)/.test(gt) && !/filaments\(\)/.test(gt), '收表沒帶 skip、或身分又從擠出機拿');
+    assert(/M\(\)\.setArchived\(lb, m, false\)/.test(gt), '一筆都不用寫時，封存著的料沒叫回來（這組選不上）');
+  });
+  await check('🔴 index.html／C++ 接線：收表帶 skip＋封存料叫回來；App 回推匯出結果；C++ 收件口開存檔視窗、先寫 .tmp 才換上', () => {
+    const mr = idxHtml.slice(idxHtml.indexOf('function matlibRecord(tbl, mats, at, skip){'), idxHtml.indexOf('\nfunction ', idxHtml.indexOf('function matlibRecord(tbl, mats, at, skip){') + 10));
+    assert(/const put=pairs\.filter\(p=>!\(skip&&skip\.has\(p\.id\)\)\);/.test(mr) && /put\.forEach\(p=>PhotoTileMatLib\.upsertPair\(matLib, p\)\);/.test(mr), '收表沒照 skip 跳過');
+    assert(/PhotoTileMatLib\.setArchived\(matLib, m, false\)/.test(mr) && /revived\}/.test(mr), '收下的封存料沒叫回來、或沒把名字交回去');
+    assert(/const r=matlibRecord\(tbl, mats\|\|calMatsFor\(quad\?4:2\), at, skip\);/.test(idxHtml), 'calibAcceptRaw 沒把 skip 傳下去');
+    assert(/PhotoTileMatFlow\.onCalibrated\(quad\?'quad':'dual', r\.mats, r\.revived\)/.test(idxHtml), '叫回來的名字沒交給 matflow 講');
+    assert(/matlibExported\(msg\)\{ if\(window\.PhotoTileMatFlow\) PhotoTileMatFlow\.onExported\(msg\); \}/.test(idxHtml), 'App 回推的匯出結果沒接上');
+    const gui = CPP('GUI_App.cpp');
+    const h0 = gui.indexOf('command_str.compare("phototile_matlib_export")');
+    assert(h0 > 0, 'C++ 沒有匯出的收件口');
+    const hb = gui.slice(h0, gui.indexOf('else if (command_str.compare(', h0 + 10));
+    assert(/constexpr size_t max_matlib_bytes = 524288;/.test(hb), '匯出的上限跟 matlib.js HOST_MAX_BYTES 不同值');
+    assert(/wxFD_SAVE \| wxFD_OVERWRITE_PROMPT/.test(hb) && /PINGPhotoTile\.matlibExported\(\{ok:/.test(hb), '沒開存檔視窗、或沒回推結果');
+    assert(/tmp_path\(out_path\.string\(\) \+ "\.tmp"\)/.test(hb) && /Slic3r::rename_file\(tmp_path\.string\(\), out_path\.string\(\)\)/.test(hb),
+      '沒先寫 .tmp 再換上（覆寫既有檔時寫到一半失敗會留 0 byte 檔）');
+    assert(/pad > 2/.test(hb) && /bytes\.size\(\) != want/.test(hb), '壞 base64／長度不符沒擋');
+    // 陽性對照：拿掉 .tmp 那一步，守衛必須抓到
+    assert(!/tmp_path\(out_path\.string\(\) \+ "\.tmp"\)/.test(hb.replace('tmp_path(out_path.string() + ".tmp")', 'tmp_path(out_path)')), '守衛抓不到拿掉 .tmp 的寫法');
+  });
   console.log(`\n${pass} 通過、${fail} 失敗`);
   process.exit(fail ? 1 : 0);
 })();

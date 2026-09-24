@@ -38,7 +38,9 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 .mfTable th{color:#777; font-weight:700; font-size:12px; text-align:left; padding:4px 6px; border-bottom:1px solid var(--black);}
 .mfTable td{padding:6px; border-bottom:1px solid var(--gray); vertical-align:middle;}
 .mfTable td:first-child{width:38px;}
-.mfTable td:last-child{width:88px; white-space:nowrap;}
+.mfTable td.c{width:88px; white-space:nowrap;}
+.mfTable td.act{width:1%; white-space:nowrap; text-align:right; padding-left:2px;}   /* 「封存」不換行（400px 右欄實截：固定 50px 會擠成兩行） */
+#matPanel .mfTable td.act .btn.mfXs{margin-left:0; white-space:nowrap;}
 .mfTable td code{font-family:Consolas,monospace; font-size:12px; color:#555;}
 .mfRow{cursor:pointer;}
 .mfRow:hover{background:#FAFAFA;}
@@ -60,7 +62,18 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 .mfFlash{margin-top:8px; padding:7px 10px; font-size:13px; line-height:1.7; border-radius:0 4px 4px 0;}
 .mfFlash.warn{background:#FFF6DF; border-left:4px solid #946310;}
 .mfFlash.ok{background:#F3FAF3; border-left:4px solid #2E7D32;}
+.mfFlash.info{background:#F5F6F7; border-left:4px solid #9A9A9A;}   /* 中性（例：自己按了取消）——不是警示，不用黃 */
 .mfFlash .btn{margin-left:6px;}
+/* 🆕 T062（牌 c-0924-ACC-30）：還原上一版那一行、料單的底（已封存 N 支＋匯出）、已封存清單——照原型 mfVer／mfFoot／mfArchList。 */
+.mfVer{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:7px; font-size:12.5px;}
+.mfFoot{display:flex; align-items:center; gap:8px; margin-top:8px;}
+.mfLnk{border:0; background:none; padding:0; font-size:12.5px; font-weight:600; color:var(--black); cursor:pointer;
+       text-decoration:underline; text-decoration-style:dotted; text-underline-offset:3px;}
+.mfLnk:hover{text-decoration-style:solid;}
+.mfArchList{list-style:none; margin:4px 0 0; padding:0; border:1px solid var(--gray); border-radius:6px;}
+.mfArchList li{display:flex; align-items:center; gap:6px; padding:5px 8px; font-size:13px; border-bottom:1px solid var(--gray);}
+.mfArchList li:last-child{border-bottom:0;}
+.mfArchList .btn{margin-left:auto;}
 
 /* ---- 「指定材料」元件（〈九〉Q5：校正第 1 步／匯入校正表之後／舊資料第一次開，同一個長相）---- */
 .mp{border:1px solid #DCDCDC; border-radius:7px; padding:9px 11px; margin:0 0 8px; background:#fff; font-size:13px; line-height:1.6;}
@@ -79,14 +92,31 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 .mpInfo{font-size:12.5px; margin-top:6px; color:#555; line-height:1.9;}
 .nmChip{border:1px solid #bbb; background:#fff; border-radius:12px; padding:0 9px; margin:0 3px; font-size:12.5px; font-weight:600; cursor:pointer; color:var(--black);}
 .nmChip:hover{border-color:var(--black);}
+/* 🆕 T062：舊資料那一問每支的「封存」勾選（9-7 #1）；勾了的那支淡掉（原型 .mp.arch）。 */
+.mpArch{display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:600; margin-left:auto; cursor:pointer;}
+.mpArch input{accent-color:var(--orange);}
+.mp.arch{background:#FAFAFA;}
+.mp.arch .mpRow label, .mp.arch .mpSw, .mp.arch .mpHint, .mp.arch .mpSub{opacity:.45;}
 
 /* ---- 對話框：沿用頁面的 .cfmBack／.cfmBox（同一套長相），這裡只放寬、讓內文不照原文斷行 ---- */
 .cfmBox.mfDlg{max-width:640px; max-height:calc(100vh - 40px); overflow:auto;}
+.cfmBox.mfDlg:focus{outline:none;}   /* 焦點給窗本體（FBK-10 增補①）；本體不畫焦點框（原型 .dlg 同），按鈕與輸入框的照舊 */
 .mfDlg .cfmBody{white-space:normal; font-size:13.5px;}
 .mfDlg .cfmBody > p{margin:4px 0 10px;}
 .mfDetect{padding:6px 10px; margin:4px 0 10px; background:#F3FAF3; border:1px solid #BEE0BF; border-radius:5px; font-size:13px;}
 .mfDlgErr{color:#946310; font-weight:700; font-size:13px; line-height:1.6; margin:0 0 8px;}
 .mfDlgErr:empty{display:none;}
+/* 🆕 T062：匯入撞到同一組＝逐組問（原型 .coll）、匯出摘要（原型 .expSum）。 */
+.mfColl{border:1px solid #DCDCDC; border-radius:7px; padding:8px 11px; margin:0 0 10px;}
+.mfCollT{font-weight:700; font-size:14px; margin-bottom:4px;}
+.mfCollOpt{display:flex; align-items:center; gap:10px; padding:5px 6px; border-radius:5px; cursor:pointer; flex-wrap:wrap;}
+.mfCollOpt:hover{background:#FAFAFA;}
+.mfCollOpt input{accent-color:var(--orange);}
+.mfCollL{font-weight:600; min-width:6.5em;}
+.mfCollD{font-size:12.5px; color:#666; min-width:6.5em;}
+.mfMini{display:inline-flex; height:24px; border:1px solid #ccc; border-radius:4px; overflow:hidden;}
+.mfMini i{display:block; width:26px;}
+.mfExpSum{margin:8px 0; padding:7px 10px; background:#F5F6F7; border-radius:5px;}
 /* LAY-15：肯定在左、取消（跳過）恆在最右——.cfmBtns 靠右排，DOM 順序就是左到右。 */
 
 /* ---- 校正流程（五步；原型 v3 的步驟樣式）---- */
