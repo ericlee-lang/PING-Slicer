@@ -2587,10 +2587,196 @@ void GUI_App::init_webview_runtime()
 }
 #endif
 
+/* PING 2026-09-24（Eric 裁，版本治理第 4 件「測試版獨立設定資料夾」；牌 c-0924-DR-01，PM 卡 x-0923-PM-08）
+   規則正本＝~/.claude/version-governance.md D-07：**所有測試版共用一個** PINGSlicer-Internal，只跟正式版分開；
+   測試版不得預設讀寫正式版的資料夾。測試版＝PING_TEST_BUILD 非空（出貨線 T0xx、開發線 DEV 都算；出貨版為空字串）。
+   做法＝測試版改 SetAppName(SLIC3R_APP_KEY "-Internal")：wxStandardPaths 的 GetUserDataDir（設定資料夾）與
+   GetUserLocalDataDir（wxWebViewEdge 的 EBWebView＝首頁／工作室的網頁儲存區）都跟著 app 名走
+   ⇒ 一處改動、兩個資料夾一起分開、三平台同一套。exe 旁有 data_dir 夾（開發線試用包／跟車驗收）照舊優先用它。
+   🔴 分開之前（≤T060）網頁儲存區連 data_dir 夾都隔不開（SOP_工作室端到端GUI自動化 §27-2），這裡一起解。
+   第一次（這台還沒有 Internal 夾）從正式資料夾**只讀**複製一次（Eric 裁 Q3 A）；正式資料夾全程不寫。
+   已知代價（Eric 裁 Q2 B 的有意識取捨）：退回舊 T 會讀到新 T 改過的資料——T 與 T 之間不在本條防護範圍。 */
+static bool ping_is_test_build() { return PING_TEST_BUILD[0] != '\0'; }
+
+// 初始化早於 log 檔建立 ⇒ 複製結果先收在這裡，log 開好後再寫進去（init_app_config 內）。
+static std::vector<std::string>& ping_seed_messages()
+{
+    static std::vector<std::string> msgs;
+    return msgs;
+}
+
+using PingSkipFn = bool (*)(const std::string& lower_name, int depth);
+
+// 設定資料夾最上層不抄的：記錄／快取／OTA 暫存（會重建）、各種人工備份（.bak／bak-／user_backup，
+// 只是體積）、照片磚隱形宿主自己的 WebView 設定檔。user／system／printers／phototile 等整夾照抄
+// （DL1016 本機注入在 system 裡，要帶）。
+static bool ping_skip_data_entry(const std::string& n, int depth)
+{
+    if (depth != 0)
+        return false;
+    return n == "log" || n == "cache" || n == "ota" || n == "webview2_phototile" ||
+           n.find(".bak") != std::string::npos || boost::starts_with(n, "bak-") || boost::starts_with(n, "user_backup");
+}
+
+// 網頁儲存區只抄 Local Storage／IndexedDB 兩夾（見 ping_seed_test_webview_storage）；夾內不抄鎖檔
+// （leveldb 的 LOCK：正式版開著時被鎖、也不該帶過去，leveldb 會自己重建）。
+static bool ping_skip_webview_entry(const std::string& n, int /*depth*/) { return n == "lock"; }
+
+struct PingCopyStats
+{
+    size_t    files = 0, skipped = 0, failed = 0;
+    uintmax_t bytes = 0;
+};
+
+// src → dst 遞迴複製（只讀 src）。只抄一般檔與資料夾、不跟符號連結；逐項失敗只記數、不中斷。
+static void ping_copy_tree(const boost::filesystem::path& src, const boost::filesystem::path& dst, int depth, PingSkipFn skip,
+                           PingCopyStats& st)
+{
+    namespace fs = boost::filesystem;
+    boost::system::error_code ec;
+    fs::create_directories(dst, ec);
+    if (ec) {
+        ++st.failed;
+        return;
+    }
+    fs::directory_iterator it(src, ec), end;
+    if (ec) {
+        ++st.failed;
+        return;
+    }
+    for (; it != end; it.increment(ec)) {
+        if (ec) {
+            ++st.failed;
+            break;
+        }
+        const fs::path    p    = it->path();
+        const std::string name = boost::algorithm::to_lower_copy(p.filename().string());
+        if (skip(name, depth)) {
+            ++st.skipped;
+            continue;
+        }
+        const fs::file_status s = fs::symlink_status(p, ec);
+        if (ec) {
+            ++st.failed;
+            continue;
+        }
+        if (fs::is_directory(s)) {
+            ping_copy_tree(p, dst / p.filename(), depth + 1, skip, st);
+        } else if (fs::is_regular_file(s)) {
+            fs::copy_file(p, dst / p.filename(), fs::copy_options::none, ec);
+            if (ec) {
+                ++st.failed;
+            } else {
+                ++st.files;
+                st.bytes += fs::file_size(p, ec);
+            }
+        } else {
+            ++st.skipped;   // 符號連結等：不跟
+        }
+    }
+}
+
+// 把 official 抄成 target（target 不存在時才做）。先抄進旁邊的 *.seeding 暫存夾，全部抄完才改名 ⇒
+// 中途被關掉不會留下半套，下次開再重來。only 非空＝只抄這幾個相對子路徑（其餘讓程式自己重建）。回傳是否抄了。
+static bool ping_seed_once(const boost::filesystem::path& official, const boost::filesystem::path& target, PingSkipFn skip,
+                           const char* what, const std::vector<std::string>& only = {})
+{
+    namespace fs = boost::filesystem;
+    boost::system::error_code ec;
+    // 防呆：target 與 official 同一處（app 名沒換成功）⇒ 什麼都不做，絕不在正式資料夾上動作。
+    if (fs::path(target).make_preferred() == fs::path(official).make_preferred())
+        return false;
+    // ⚠ 不能寫 `exists(target, ec) || ec`：Windows 上「不存在」本身也會設 ec（2026-09-24 harness 實抓——
+    //    那樣寫等於「永遠不抄、連一行 log 都沒有」）。以 file_status 的型別判：不存在＝可以抄；其他讀不到＝不動。
+    const fs::file_status ts = fs::status(target, ec);
+    if (fs::exists(ts))
+        return false;                                   // 已有測試版的那一份 ⇒ 永遠不再抄
+    if (ec && ts.type() != fs::file_not_found) {
+        ping_seed_messages().push_back(std::string("PING 測試版資料夾：") + what + " 判斷不了 " + target.string() + " 在不在（" + ec.message() + "），不複製");
+        return false;
+    }
+    if (!fs::is_directory(official, ec)) {
+        ping_seed_messages().push_back(std::string("PING 測試版資料夾：") + what + " 沒有正式版可複製（" + official.string() + "），從空白開始");
+        return false;
+    }
+    fs::path tmp = target;
+    tmp += ".seeding";
+    fs::remove_all(tmp, ec);                            // 上次抄到一半留下的暫存（在 Internal 旁邊，不是正式資料夾）
+    PingCopyStats st;
+    if (only.empty()) {
+        ping_copy_tree(official, tmp, 0, skip, st);
+    } else {
+        fs::create_directories(tmp, ec);
+        for (const std::string& sub : only)
+            if (fs::is_directory(official / sub, ec))
+                ping_copy_tree(official / sub, tmp / sub, 1, skip, st);
+    }
+    fs::rename(tmp, target, ec);
+    if (ec) {
+        boost::system::error_code ec2;
+        fs::remove_all(tmp, ec2);
+        ping_seed_messages().push_back(std::string("PING 測試版資料夾：") + what + " 複製後改名失敗（" + ec.message() + "），從空白開始");
+        return false;
+    }
+    ping_seed_messages().push_back((boost::format("PING 測試版資料夾：%1% 已從正式版只讀複製一次：%2% → %3%（檔 %4%／%5% bytes／略過 %6%／失敗 %7%）") %
+                                    what % official.string() % target.string() % st.files % st.bytes % st.skipped % st.failed)
+                                       .str());
+    return true;
+}
+
+// 設定資料夾：<使用者資料根>/PINGSlicer-Internal ← <使用者資料根>/PINGSlicer（只在這台還沒有 Internal 夾時）。
+// 🔴 兩支 seed 都包 try：複製只是方便，任何例外都只記下來、從空白開始，**絕不能讓測試版開不起來**。
+static void ping_seed_test_data_dir(const boost::filesystem::path& internal_dir)
+{
+    if (!ping_is_test_build())
+        return;
+    try {
+        const boost::filesystem::path official = internal_dir.parent_path() / SLIC3R_APP_KEY;
+        if (ping_seed_once(official, internal_dir, ping_skip_data_entry, "設定資料夾")) {
+            // 讓人在檔案總管裡一眼看得出這是什麼夾（寫在測試版這一份裡，正式資料夾不寫）
+            // 檔名刻意用 ASCII：path::string() 的窄字元轉換不必賭語系設定
+            boost::nowide::ofstream f((internal_dir / "_PING_TEST_DATA_ROOT_README.txt").string());
+            f << "這是 PING Slicer 廠內測試版（標題列帶 Beta 的版本）共用的設定資料夾，與正式版的 "
+              << official.string() << " 分開。\n"
+              << "第一次開測試版（" << PING_TEST_BUILD << "）時從正式版只讀複製一次；之後兩邊各自獨立，正式版不會被測試版改到。\n"
+              << "規則：版本治理 D-07（Eric 2026-09-24 裁：所有測試版共用這一個）。\n";
+        }
+    } catch (const std::exception& e) {
+        ping_seed_messages().push_back(std::string("PING 測試版資料夾：設定資料夾複製例外（") + e.what() + "），從空白開始");
+    } catch (...) {
+        ping_seed_messages().push_back("PING 測試版資料夾：設定資料夾複製發生未知例外，從空白開始");
+    }
+}
+
+// 網頁儲存區（首頁／工作室的 WebView2）：%LOCALAPPDATA%\PINGSlicer-Internal\EBWebView ← %LOCALAPPDATA%\PINGSlicer\EBWebView。
+// exe 旁有 data_dir 夾的試用包也走這條（它們的網頁儲存區原本同樣跟正式版共用）。
+// **只抄 Default\Local Storage 與 Default\IndexedDB**＝照片磚「我的圖」、舊校正表等頁面資料（2026-09-24 本機實量：
+// EBWebView 169 MB，Local Storage 只 817 KB）；其餘是瀏覽器快取、歷程、WebView 自己存的登入資料——不該帶也不必帶，
+// WebView2 開起來會自己把缺的補齊。
+static void ping_seed_test_webview_storage()
+{
+#ifdef _WIN32
+    if (!ping_is_test_build())
+        return;
+    namespace fs = boost::filesystem;
+    try {
+        const fs::path internal_local = fs::path(wxStandardPaths::Get().GetUserLocalDataDir().ToUTF8().data());
+        const fs::path official_local = internal_local.parent_path() / SLIC3R_APP_KEY;
+        ping_seed_once(official_local / "EBWebView", internal_local / "EBWebView", ping_skip_webview_entry, "網頁儲存區",
+                       {"Default/Local Storage", "Default/IndexedDB"});
+    } catch (const std::exception& e) {
+        ping_seed_messages().push_back(std::string("PING 測試版資料夾：網頁儲存區複製例外（") + e.what() + "），從空白開始");
+    } catch (...) {
+        ping_seed_messages().push_back("PING 測試版資料夾：網頁儲存區複製發生未知例外，從空白開始");
+    }
+#endif
+}
+
 void GUI_App::init_app_config()
 {
 	// Profiles for the alpha are stored into the PrusaSlicer-alpha directory to not mix with the current release.
-    SetAppName(SLIC3R_APP_KEY);
+    // PING：測試版改用 "<APP_KEY>-Internal"（見上方 ping_is_test_build 註解）；出貨版維持原名。
+    SetAppName(ping_is_test_build() ? SLIC3R_APP_KEY "-Internal" : SLIC3R_APP_KEY);
 //	SetAppName(SLIC3R_APP_KEY "-alpha");
 //  SetAppName(SLIC3R_APP_KEY "-beta");
 //	SetAppDisplayName(SLIC3R_APP_NAME);
@@ -2622,6 +2808,7 @@ void GUI_App::init_app_config()
                 std::string data_dir = wxStandardPaths::Get().GetUserDataDir().ToUTF8().data();
                 //BBS create folder if not exists
                 data_dir_path = boost::filesystem::path(data_dir);
+                ping_seed_test_data_dir(data_dir_path);   // PING：測試版第一次開＝從正式版只讀複製一次；出貨版不做事
                 set_data_dir(data_dir);
             #else
                 // Since version 2.3, config dir on Linux is in ${XDG_CONFIG_HOME}.
@@ -2630,6 +2817,7 @@ void GUI_App::init_app_config()
                 if (! wxGetEnv(wxS("XDG_CONFIG_HOME"), &dir) || dir.empty() )
                     dir = wxFileName::GetHomeDir() + wxS("/.config");
                 data_dir_path = boost::filesystem::path((dir + "/" + GetAppName()).ToUTF8().data());
+                ping_seed_test_data_dir(data_dir_path);   // PING：同上（放在 flatpak 遷移之前）
                 migrate_flatpak_legacy_datadir(data_dir_path);
                 set_data_dir(data_dir_path.string());
             #endif
@@ -2650,6 +2838,10 @@ void GUI_App::init_app_config()
         m_datadir_redefined = true;
     }
 
+    // PING：網頁儲存區跟設定資料夾分開走（試用包的 data_dir 夾管不到它），測試版第一次開也從正式版只讀複製一次。
+    //       必須早於任何 WebView 建立——之後 WebView2 會自己建出 EBWebView，就再也不會抄了。
+    ping_seed_test_webview_storage();
+
     // start log here
     std::time_t       t        = std::time(0);
     std::tm *         now_time = std::localtime(&t);
@@ -2664,6 +2856,12 @@ void GUI_App::init_app_config()
 #endif
 
     BOOST_LOG_TRIVIAL(info) << boost::format("gui mode, Current OrcaSlicer Version %1% build %2%") % SoftFever_VERSION % GIT_COMMIT_HASH;
+    // PING：測試版資料夾的一次性複製結果（發生在 log 檔建立之前，這裡補寫；只有第一次開會有，用 warning 讓預設等級也看得到）
+    for (const std::string& m : ping_seed_messages())
+        BOOST_LOG_TRIVIAL(warning) << m;
+    ping_seed_messages().clear();
+    if (ping_is_test_build())
+        BOOST_LOG_TRIVIAL(info) << "PING 測試版（" << PING_TEST_BUILD << "）設定資料夾＝" << data_dir();
 
     //BBS: remove GCodeViewer as seperate APP logic
 	if (!app_config)
