@@ -1,34 +1,44 @@
 /* 照片磚「產圖流程 × 校正流程」（段 F，車 3；牌 c-0923-ACC-23）。版面與元件照原型 v3（原型_照片磚料與校正_v3_20260922.html）。
-   獨立成檔：index.html 已到工具讀取上限的 91%，新樣式不再往那裡塞。🔴 改了本檔要動 index.html 裡的版本字串（WebView 快取）。 */
+   獨立成檔：index.html 已到工具讀取上限的 91%，新樣式不再往那裡塞。🔴 改了本檔要動 index.html 裡的版本字串（WebView 快取）。
+   🆕 T061（牌 c-0924-ACC-27）：右欄這一塊、「指定材料」元件、對話框照 `原型_照片磚材料庫管理_20260923.html`（Eric「原型 OK」）。 */
 
 /* ---- 兩條流程的切換（標題旁；原型 v3 右上那組）---- */
 #flowSeg button{padding:6px 18px;}
 body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #exportStat{display:none !important;}
 
-/* ---- 產圖流程第 1 步「選顏色」----
-   收起時只剩一行（第一眼看得到「用的是哪組料、最多幾階」）；選的時候就地展開（同圖庫 R11-1：要選才打開，選完就收）。
-   橫跨三欄（index.html 的 main 是三欄 grid）：放在左欄會把原圖卡往下推、破掉 0918「兩張圖頂端對齊」。
-   展開時內容收在 880 px 內——表格拉滿 1900 px 寬，眼睛要從左掃到右才對得上一列。 */
-#matPanel{grid-column:1/-1;}
-#matPanel > .pad{max-width:880px;}
-.mfNo{flex:0 0 22px; height:22px; border-radius:50%; background:var(--orange); color:#fff; font:700 12.5px/22px Inter,Arial,sans-serif;
-      text-align:center;}
-/* 鈕緊貼在摘要後面，不推到最右（這一列橫跨三欄，推到最右＝離它所指的那組料一千多 px：七律#3 標籤緊貼所指物） */
-#matPanel h2 .btn{margin-left:10px; flex:0 0 auto; padding:3px 10px; font-size:12.5px; font-family:inherit;}
-#matPanel h2 .hint{margin-left:2px;}
-.mfSum{display:inline-flex; align-items:center; gap:6px; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
-       font:600 13.5px/1.4 "Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
-.mfX{color:#999; font-weight:400;}
+/* ---- 右欄「列印設定」最上面的「選顏色」這一塊 ----
+   2026-09-23 Eric 裁（牌 c-0923-ACC-25）：住在右欄最上面、色階數上方——原本橫跨三欄放在頂端，展開／收起會把兩張圖整個往下推。
+   它是卡片裡的一個小節，不是第二張卡：跟下面的設定之間用一條分隔線隔開。
+   T061：收起時不放步驟號與標題，只寫「擠出機幾號裝什麼」＋「換一組…」（Eric：「那個『1』顏色顯得怪怪的，刪除它」）。 */
+#matPanel{margin:0 0 10px; padding:0 0 10px; border-bottom:1px solid var(--gray);}
+#matPanel .btn{padding:3px 10px; font-size:12.5px;}
+.mfH{display:flex; align-items:center; gap:8px; flex-wrap:wrap; row-gap:4px; margin-bottom:2px;
+     font:700 15px/1.5 "Source Han Serif TC","Noto Serif TC",serif;}
+.mfH .hint, .mfH .btn{font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+.mfH .hint{font-size:12px; color:#999; font-weight:400;}
+.mfSp{flex:1 1 auto;}
+.mfTop{display:flex; align-items:flex-start; gap:8px;}
+.mfTop .btn{flex:0 0 auto; margin-left:auto;}
+.mfExts{display:flex; flex-wrap:wrap; gap:4px 18px; flex:1 1 auto; min-width:0; padding-top:2px; font-size:13.5px;}
+.mfExt{display:inline-flex; align-items:center; gap:6px; min-width:0; max-width:100%;}
+.mfExt .k{color:#666; font-size:12.5px; white-space:nowrap;}
+.mfExt .v{font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+.mfExt .mfSw{width:16px; height:16px;}
 .mfSw{display:inline-block; width:14px; height:14px; border-radius:3px; border:1px solid #bbb; vertical-align:-2px; flex:0 0 auto;}
 .mfSw.none{background:repeating-linear-gradient(45deg,#fff 0 3px,#ddd 3px 6px);}
-.mfMeta{padding-top:6px; padding-bottom:8px;}
-.mfMeta .sub + .sub{margin-top:2px;}
-.mfEmpty{border:1px dashed #ccc; border-radius:8px; padding:14px; font-size:13.5px; line-height:1.8; color:#444;}
+.mfMeta{font-size:12.5px; color:#666; margin-top:3px;}
+#matPanel > .sub{margin-top:3px;}
+#mfStatus:empty{display:none;}
+.mfEmpty{border:1px dashed #ccc; border-radius:8px; padding:12px; font-size:13.5px; line-height:1.8; color:#444; margin-top:6px;}
 .mfActs{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+/* 料單的頭：往清單「加料／更新」的兩條路（校正、匯入）＝跟選料平行（Eric 2026-09-23 三則，見 matflow.js renderPanel）。 */
+.mfLibBar{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:10px;}
+.mfLibT{font-weight:700; font-size:13px; margin-right:auto;}
 .mfTable{border-collapse:collapse; width:100%; font-size:13.5px; margin-top:6px;}
 .mfTable th{color:#777; font-weight:700; font-size:12px; text-align:left; padding:4px 6px; border-bottom:1px solid var(--black);}
 .mfTable td{padding:6px; border-bottom:1px solid var(--gray); vertical-align:middle;}
 .mfTable td:first-child{width:38px;}
+.mfTable td:last-child{width:88px; white-space:nowrap;}
 .mfTable td code{font-family:Consolas,monospace; font-size:12px; color:#555;}
 .mfRow{cursor:pointer;}
 .mfRow:hover{background:#FAFAFA;}
@@ -41,24 +51,42 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
         border:1px solid #bbb; font-size:12px; color:#777; background:#fff;}
 .mfPick.on{background:var(--orange); border-color:var(--orange); color:#fff; font-weight:700;}
 .mfRow.no .mfPick{border-style:dashed; font-size:11px;}
+.mfNm{font-weight:600;}
+.mfTagT{display:inline-block; font:600 11px/1.3 Inter,Arial,sans-serif; color:#555; border:1px solid #ccc; border-radius:3px; padding:0 4px; margin-left:4px; vertical-align:1px;}
+.mfTagW{display:inline-block; font-size:11px; line-height:1.4; color:#946310; background:#FFF6DF; border:1px solid #EBD7A8; border-radius:3px; padding:0 5px; margin-left:4px;}
+#matPanel .btn.mfXs{padding:0 7px; font-size:12px; font-weight:500; margin-left:6px;}
 .mfNow{margin-top:6px;}
-.mfFlash{margin-top:8px; padding:8px 10px; background:#FFF6DF; border-left:4px solid #946310; font-size:13px; line-height:1.7;}
-.mfFlash .btn{margin-left:6px; padding:2px 9px; font-size:12.5px;}
-.mfExit{margin-top:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13px;}
-.mfExit .btn{padding:3px 10px; font-size:12.5px;}
+/* 訊息只講事實：警示＝黃（ping-cis：警示訊息用黃，橘只代表「你在這裡」）、做完了＝綠。 */
+.mfFlash{margin-top:8px; padding:7px 10px; font-size:13px; line-height:1.7; border-radius:0 4px 4px 0;}
+.mfFlash.warn{background:#FFF6DF; border-left:4px solid #946310;}
+.mfFlash.ok{background:#F3FAF3; border-left:4px solid #2E7D32;}
+.mfFlash .btn{margin-left:6px;}
 
-/* ---- 列印模擬標題列：擠出機小色塊（Eric 0919：看模擬圖的同時知道哪一支裝什麼顏色）----
-   原本是取色器（任意改色＝可以設一個沒量過的顏色，R6-16 擋的正是這件事）；改成按鈕，點了打開第 1 步換一組。 */
-#slotList button.ext{border:1px solid #ccc; border-radius:6px; background:#fff; padding:2px 8px 2px 4px; font-family:inherit;}
-#slotList button.ext:hover{border-color:var(--black);}
-#slotList .ext .mfSw{width:22px; height:18px;}
-@container (max-width:450px){ #slotList .ext .mfSw{width:18px;} }
+/* ---- 「指定材料」元件（〈九〉Q5：校正第 1 步／匯入校正表之後／舊資料第一次開，同一個長相）---- */
+.mp{border:1px solid #DCDCDC; border-radius:7px; padding:9px 11px; margin:0 0 8px; background:#fff; font-size:13px; line-height:1.6;}
+.mpT{font-weight:700; font-size:13.5px; margin-bottom:6px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; word-break:break-all;}
+.mpT .sub{font-weight:400;}
+.mpRow{display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.mpSw{width:30px; height:30px; border-radius:6px; border:1px solid #bbb; flex:0 0 auto;}
+.mpSw.none{background:repeating-linear-gradient(45deg,#fff 0 4px,#e4e4e4 4px 8px);}
+.mpRow label{display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600;}
+.mpRow select{padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:14px; background:#fff;}
+.mpRow input[type=text]{width:128px; padding:5px 7px; border:1px solid #bbb; border-radius:5px; font-size:14px;}
+.mp.miss input[data-f=name]{border-color:#946310; background:#FFF6DF;}
+.mpSub{font-size:12px; color:#666; margin-top:5px;}
+.mpSub code{font-family:Consolas,monospace; font-size:12px; color:#555;}
+/* 名字提示只講事實、不警告（Eric 2026-09-23：名字任取、不擋，只提示是否重複）⇒ 中性灰字，不用黃底。 */
+.mpInfo{font-size:12.5px; margin-top:6px; color:#555; line-height:1.9;}
+.nmChip{border:1px solid #bbb; background:#fff; border-radius:12px; padding:0 9px; margin:0 3px; font-size:12.5px; font-weight:600; cursor:pointer; color:var(--black);}
+.nmChip:hover{border-color:var(--black);}
 
-/* ---- 認領（R6-14 子題 2 附款）---- */
-.mfClaim{max-width:520px;}
-.mfClaimRow{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 10px; font-size:13px;}
-.mfClaimRow select{flex:1 1 auto; min-width:0;}   /* 選項是「擠出機 N：料名　色碼」，窄了色碼會被截掉 */
-.mfClaimRow input[type=text]{flex:1 1 140px; padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:13px;}
+/* ---- 對話框：沿用頁面的 .cfmBack／.cfmBox（同一套長相），這裡只放寬、讓內文不照原文斷行 ---- */
+.cfmBox.mfDlg{max-width:640px; max-height:calc(100vh - 40px); overflow:auto;}
+.mfDlg .cfmBody{white-space:normal; font-size:13.5px;}
+.mfDlg .cfmBody > p{margin:4px 0 10px;}
+.mfDetect{padding:6px 10px; margin:4px 0 10px; background:#F3FAF3; border:1px solid #BEE0BF; border-radius:5px; font-size:13px;}
+.mfDlgErr{color:#946310; font-weight:700; font-size:13px; line-height:1.6; margin:0 0 8px;}
+.mfDlgErr:empty{display:none;}
 /* LAY-15：肯定在左、取消（跳過）恆在最右——.cfmBtns 靠右排，DOM 順序就是左到右。 */
 
 /* ---- 校正流程（五步；原型 v3 的步驟樣式）---- */
@@ -80,15 +108,12 @@ body.flowCal main, body.flowCal #genBox, body.flowCal #btnDemo, body.flowCal #ex
 /* 還沒走到、已經走過的步驟只留標題（一次只做這一步：七律#2）。 */
 .calStep:not(.now) .body > :not(.t){display:none;}
 .calActs{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;}
-.calMats{display:grid; gap:10px; margin-top:8px; grid-template-columns:repeat(2,minmax(220px,1fr)); max-width:720px;}
-.calMat{border:1px solid var(--gray); border-radius:6px; padding:8px 10px; display:flex; flex-direction:column; gap:6px; font-size:13px;}
-.calMatT{font-weight:700;}
-.calMat label{display:flex; align-items:center; gap:6px;}
-.calMat label.lbl input{flex:1 1 auto; padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:13px;}
-.calMat select{max-width:100%; min-width:0; flex:1 1 auto;}
-#calMatsErr{color:var(--orange); font-weight:700; font-size:13px; margin-top:6px;}
+.calMatsGrid{display:grid; gap:10px; margin-top:8px; grid-template-columns:repeat(2,minmax(260px,1fr)); max-width:760px;}
+.calMatsGrid .mp{margin:0;}
+.calNote{font-size:13px; line-height:1.7; margin-top:8px; padding:6px 10px; background:#F5F6F7; border-radius:4px;}
+#calMatsErr{color:#946310; font-weight:700; font-size:13px; margin-top:6px;}
 #calMatsErr:empty{display:none;}
 .mfTags{display:flex; gap:6px; flex-wrap:wrap; margin:8px 0;}
 .mfTag{display:inline-flex; align-items:center; gap:5px; font-size:12px; padding:2px 8px; border-radius:10px;
        border:1px solid #BEE0BF; background:#F3FAF3; color:#2E7D32;}
-@media (max-width:700px){ .calMats{grid-template-columns:1fr;} }
+@media (max-width:700px){ .calMatsGrid{grid-template-columns:1fr;} }

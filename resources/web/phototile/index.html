@@ -79,30 +79,16 @@
   select{padding:4px 6px; border:1px solid #bbb; border-radius:5px; font-size:14px; background:#fff;}
   input[type=range]{flex:1; accent-color:var(--orange); min-width:90px;}
   input[type=color]{width:40px; height:30px; border:1px solid #bbb; border-radius:5px; padding:1px; background:#fff; cursor:pointer;}
-  /* 2026-09-19（Eric；牌 c-0919-UI-01）：料色從右欄搬到「列印模擬」標題列，標成「擠出機 N」——
-     看模擬圖的同時就看得到「機上哪一支要裝什麼顏色」，不必再去右欄找。
-     🔴 標題列高度必須跟左邊原圖卡一樣（0918 版面 A：兩張圖頂端對齊）⇒ 右側按鈕同用 .btn.ghost、色塊高 24 不超過按鈕。
-     放不下時先收窄：「擠出機 1 · 擠出機 2…」→「擠出機 1 2 3 4」（字首只寫一次），再窄連按鈕字也縮成「建議配色」。
-     實測門檻（本棒 DOM 量）：1536 寬（1920 筆電 125% 縮放）四料原樣會換行、把右圖推低 32px。
-     最後一道保底才是換行（寧可兩圖差一行，也不要把色塊擠出卡片外看不到）。 */
+  /* 🔴 標題列高度必須跟左邊原圖卡一樣（0918 版面 A：兩張圖頂端對齊）⇒ 右側按鈕同用 .btn.ghost；窄了連按鈕字也縮。
+     T061（牌 c-0924-ACC-27）：標題列的擠出機色塊拿掉——擠出機顏色只寫右欄「選顏色」那一處
+     （Eric 2026-09-23 看原型：「這邊資訊好像重疊了，是否留一個就好了呢？」）。 */
   #simPanel{container-type:inline-size;}
   #simTitle{flex-wrap:wrap; row-gap:6px;}
-  #slotList{display:inline-flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:6px;
-            font-family:"Source Han Sans HW TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
-  #slotList .ext{display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:600;
-                 color:var(--black); cursor:pointer; white-space:nowrap;}
-  #slotList .ext input[type=color]{width:30px; height:24px;}
-  #slotList .extPre{display:none; font-size:13px; font-weight:600;}
   #btnSuggest{margin-left:auto; flex:0 0 auto;}
-  /* ⚠ 收窄規則必須寫在上面基底規則「之後」：同權重，寫在前面會被蓋掉（本棒實撞：gap／色塊寬沒縮）。 */
-  @container (max-width:660px){ #slotList.n4 .extW{display:none;} #slotList.n4 .extPre{display:inline;} }
-  @container (max-width:450px){ #slotList .extW{display:none;} #slotList .extPre{display:inline;} #btnSuggest .bsL{display:none;}
-                                #slotList{gap:8px;} #slotList .ext input[type=color]{width:24px;} }   /* 1366 寬四料實測：不縮這兩樣就換行 */
+  @container (max-width:450px){ #btnSuggest .bsL{display:none;} }
   .corebox{padding:8px 14px 12px;}
   .corebox canvas{width:100%; height:36px; border:1px solid var(--gray); border-radius:5px; display:block;}
   .corelabel{display:flex; justify-content:space-between; font-size:11.5px; color:#888;}
-  pre#swapList{background:#fafafa; border:1px solid var(--gray); border-radius:6px; padding:9px 12px;
-               font-size:13px; font-family:Consolas,monospace; white-space:pre-wrap; line-height:1.55;}
   .metric{font-size:14px; padding:7px 14px; border-top:1px solid var(--gray);}
   .metric b{color:var(--orange); font-family:Inter,Arial,sans-serif;}
   .disclaim{font-size:12px; color:#999; padding:10px 14px 4px;}
@@ -212,7 +198,7 @@
            font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .18s; z-index:60;}
   .pttoast.on{opacity:1;}
 </style>
-<link rel="stylesheet" href="matflow.css?v=20260923a">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
+<link rel="stylesheet" href="matflow.css?v=20260924a">   <!-- 段 F（車 3）兩條流程的樣式；🔴 改了 matflow.css 就要動版本字串 -->
 </head>
 <body>
 
@@ -264,10 +250,7 @@
 </header>
 
 <main>
-  <!-- 第 1 步：選顏色（段 F；R6-15「選料在選圖之前」、R6-16「只列量過的料」）。內容由 matflow.js 畫。
-       橫跨三欄放在最上面（matflow.css grid-column:1/-1），不塞進左欄：塞左欄會把原圖卡往下推，
-       破掉 0918 版面 A「原圖與列印模擬兩張圖頂端對齊」（Eric 裁；並排比對不要上下跳）。 -->
-  <section class="panel" id="matPanel"></section>
+  <!-- 第 1 步「選顏色」住在右欄「列印設定」卡片最上面（見那張卡），不在這裡。 -->
   <!-- 左欄＝原圖＋款式（同一個 grid item，見 .colstack 註解） -->
   <div class="colstack">
   <!-- 原圖 -->
@@ -319,13 +302,12 @@
   <!-- 模擬 -->
   <section class="panel" id="simPanel">
     <!-- 2026-09-19（Eric；牌 c-0919-UI-01）：
-         ①料色（原右欄「料與層」的料 1／料 2）搬進本卡標題列、標成「擠出機 N」——Eric：「這樣我也知道擠出機 1 跟擠出機 2 我要放什麼料」。
-           id 仍是 slotList／btnSuggest ⇒ 既有監聽（改色即重算、收回「已套用」）一個不用動。
+         ①料色曾搬進本卡標題列、標成「擠出機 N」（#slotList）——🆕 T061（牌 c-0924-ACC-27）拿掉：擠出機顏色只寫右欄「選顏色」那一處
+           （Eric 2026-09-23 看原型：「這邊資訊好像重疊了，是否留一個就好了呢？」）。
          ②「顏色｜層數」切換拿掉：「層數」是平躺（疊色）時代的高度圖，平躺 2026-09-07 拆掉後只剩「把色階編號畫成灰階」，
            雙料一深一淺時跟「顏色」幾乎一模一樣——Eric 實走：「點上面顏色跟層數好像沒有什麼作用」。
          ③按鈕字去掉「與換層」：垂直混色的建議只換料色、不動色階數（suggest() 不寫 klevels），「換層」同樣是平躺殘留。 -->
     <h2 id="simTitle">列印模擬
-      <span id="slotList"></span>
       <!-- 🔴 2026-09-23 車 2 段 D（R6-16，Eric 2026-09-22 裁 Q3）：這顆鈕的方向翻過來——不再「依圖挑料」，改成「依料重算圖面顏色」。
            id 維持 btnSuggest（窄版 CSS 與既有監聽都掛在這個 id 上）。 -->
       <button class="btn ghost" id="btnSuggest" type="button" title="照目前這組料的顏色，把圖重新分階、重新上色；不會改動料色（規格 R6-16：由材料顏色決定圖片）"><span class="bsL">依料</span>重算圖面顏色</button>
@@ -368,6 +350,13 @@
          「產生並載入列印板」＋進度＋訊息 2026-09-18 已搬到頂列右上（見 header 註解）。 -->
     <h2>列印設定 <span class="hint">改任何值即時重算</span></h2>
     <div class="pad">
+      <!-- 第 1 步：選顏色（段 F；R6-15「選料在選圖之前」、R6-16「只列量過的料」）。內容由 matflow.js 畫。
+           2026-09-23 Eric 裁（牌 c-0923-ACC-25；原話「Q1 Q2 Q3照建議」）：從「頂端橫跨三欄」搬進本卡最上面、色階數上方。
+           理由＝他的原話「點選開啟和收合時，下面的圖片會整個往下推動，而且這自己形成一個新的區塊不太好」：
+           放在這裡，展開／收起只推本卡下面的設定，原圖與列印模擬兩張圖不動（0918 版面 A 兩圖頂端對齊照舊成立），
+           也不再多一個區塊；色階數上限跟著選的那組料走，放一起最順。
+           ⛔ 不要搬回左欄：左欄會把原圖卡往下推，一樣破掉兩圖頂端對齊。 -->
+      <div id="matPanel"></div>
       <div class="row" id="levelsRow"><label>色階數</label>
         <input type="number" id="levelsIn" value="8" min="2" max="8" step="1"><!-- 上限 8＝Eric 2026-08-02 裁 B（引擎 clamp 同值）；段 F：選的那組料跨幅不夠時 ptMatApply 再往下壓（R6-7 附款） -->
         <span class="sub warn" id="levelsCap"></span>
@@ -384,24 +373,9 @@
       <!-- 尺寸（寬／高／鎖定比例／厚）與雜訊濾除 2026-09-03 移進中欄「尺寸」卡片（#sizeBar）——
            Eric 令「右邊的設置移到這卡片裡面，因為它是相關的」：拉桿拉到看得順眼的位置後想把數字改成整數，
            調整的欄位就該在拉桿旁邊，不是在另一欄。輸入框的 id 一字未改，JS 不用動。 -->
-      <!-- 兩個實驗選項（都預設關閉）收進 details：一進來只做這次要做的事（七律#2）。 -->
-      <details id="advDetails">
-        <summary style="font-weight:700; cursor:pointer; margin:6px 0">進階／實驗選項</summary>
-      <div class="row" id="teethRow"><label>邊界</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="teethOn"> 實驗性交錯齒（預設關閉；會讓邊緣形成鋸齒）</label>
-      </div>
-      <div class="row" id="p2aRow"><label>縫遮罩</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="p2aOn" checked> 正/背面標禁縫區（blocker；Eric 2026-08-22 裁預設開，取消勾選＝退回舊行為供對照）</label>
-      </div>
-      <!-- 段 F（車 3，牌 c-0923-ACC-23；R6-16 推論③「勾選項留著當逃生門，預設開、位置降級」）：原本在右欄「色彩校正」段，
-           校正整段搬進校正流程之後，這兩個會改變列印內容的開關降級到這裡——料一定來自材料庫，平常不該有人去關它。 -->
-      <div class="row" id="calibGenRow"><label>校正值</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="calibGenChk" checked> 用實測顏色決定色階（預設開；關掉＝色階照理論推算，會改變列印內容）</label>
-      </div>
-      <div class="row" id="calibStretchRow"><label>明暗範圍</label>
-        <label style="min-width:0; font-weight:400"><input type="checkbox" id="calibStretchChk" checked> 把圖的明暗壓進這組料印得出來的範圍再分階（預設開）</label>
-      </div>
-      </details>
+      <!-- 🆕 T061（牌 c-0924-ACC-27）：「進階／實驗選項」整塊拿掉——Eric 2026-09-23 看原型：「右邊這兩個沒用到，可以不用放嗎？」→「產品也拿掉」。
+           四個開關固定在預設（params）：交錯齒 關（0707 實印否決）／正背面禁縫區 開（0822 裁）／用實測顏色決定色階 開／明暗壓進可印範圍 開。
+           引擎遇到可疑的校正資料本來就自動不套用（calibGenLadder 護欄），逃生門平常用不到。取代規格 R11-2 那張表的「收進進階」與發包單段 E「勾選項留著當逃生門」。 -->
       <!-- WT 線 2026-09-08：每層循環洗料塔（設計提案/照片磚循環洗料塔）。開啟＝舊洗料柱列收起（循環塔取代它）；
            圈數：雙料＝唯讀自動（＝色階數＋1，K=2 特例 4；§12 R12-5），四料＝深色（料2+3+4 同時擠）／白色兩欄手動（Eric 2026-09-10 兩段制）。 -->
       <div class="row" id="cycleRow"><label>循環洗料</label>
@@ -415,14 +389,7 @@
       </div>
       <hr style="border:0; border-top:1px solid var(--gray); margin:12px 0">
       <!-- 色彩校正整段 2026-09-23 搬進「校正流程」（段 F，車 3；R6-15 附款＋ping-ux LAY-21：常駐只留工作中真正要看的）。
-           原本在這裡的 0914 救回版（牌 c-0914-PTI-04）步驟、鈕與 id 原樣搬到 #calFlow；兩個開關降級到上面「進階」。 -->
-      <!-- 換料清單＝列印時要照著換料的**參考輸出**，不是控制項 ⇒ 依判例 R-01
-           （空間不夠先砍間距與裝飾、絕不砍可操作區）收成 details，功能一個沒少。
-           要用的時候在旁邊、平常不佔 262px。 -->
-      <details id="swapDetails">
-        <summary style="font-weight:700; cursor:pointer">換料清單（給列印用）</summary>
-        <pre id="swapList">—</pre>
-      </details>
+           🆕 T061：「換料清單（給列印用）」拿掉（同上一則 Eric「產品也拿掉」）——擠出機裝什麼寫在右欄「選顏色」、混料比例由 G-code 自動下。 -->
     </div>
     <div class="disclaim">
       <!-- 2026-09-08 Eric 打叉這段技術說明（不太有用）⇒ 只留第一句：那是 ping-ux 七律#6 的「誠實近似、明說侷限」 -->
@@ -442,7 +409,6 @@
     <div class="d" id="calMatsHint"></div>
     <div id="calMats"></div>
     <div id="calMatsErr"></div>
-    <div class="d">標籤是讓你之後在清單上認得出這捲料（例：白、深灰），可以改。</div>
     <div class="calActs"><button class="btn primary" type="button" data-cal-next>下一步</button></div>
   </div></div>
   <div class="calStep" data-step="2"><div class="num">2</div><div class="body">
@@ -474,9 +440,9 @@
 <script src="size_ratio.js?v=20260720b"></script>
 <!-- C-2：頁面自建 3MF 鏈（build3mf）退役，非 embedded 開發路徑改直接呼叫同一支引擎（B1 的解） -->
 <script src="engine_protocol.js?v=20260804"></script>
-<script src="matlib.js?v=20260923c"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
+<script src="matlib.js?v=20260924a"></script>   <!-- 材料庫（R6-14）；無依賴，要在 engine.js 之前載。🔴 改了 matlib.js 就要動版本字串（WebView 快取） -->
 <script src="engine.js?v=20260923f"></script>   <!-- 🔴 改了 engine.js 就要動這個版本字串（同 mesh_union.js 的教訓） -->
-<script src="matflow.js?v=20260923a"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
+<script src="matflow.js?v=20260924a"></script>   <!-- 段 F（車 3）產圖流程第 1 步＋校正流程；要在 matlib／engine 之後載。🔴 改了就要動版本字串 -->
 <!-- 款式庫（AI 風格化 P1）。🔴 **執行期讀的是本檔內嵌的這一份**（同目錄 `款式庫_照片磚.json` 是給人與工具讀的鏡像，兩份必須一致，由 tools/ping/phototile_stylelib_test.js 守著——2026-09-16 前那個檔掛名「正本」卻沒人讀，而且落後三個四料款式）；
      這裡是內嵌副本，因為產品用 file:// 載這頁（WebViewDialog.cpp:43）⇒ fetch 會被 CORS 擋死。
      兩者由 tools/ping/verify_phototile_stylelib.py 綁死語意相同——改 JSON 忘了同步會被閘門擋。 -->
@@ -579,7 +545,6 @@ let lastUsedColours = 0;
 let lastGenColours = 0;
 
 /* ================= UI 生成：料槽 ================= */
-const slotList = document.getElementById('slotList');
 /* WT 線：循環洗料塔 UI。圈數欄依料數渲染（雙料：彩料 E1／最淺 E0；四料：E3 E2 E1 E0）；
    開啟時舊洗料柱列收起（循環塔取代它）。長度不符（切換雙／四料）就回該模式預設。 */
 /* 四料 2 段（Eric 2026-09-10，牌 c-0910-WT-10）：料 2/3/4 三支深色**同時**擠出洗 2 圈 → 純白洗 4 圈。
@@ -636,14 +601,11 @@ function renderCycleUI(){
   const pr=document.getElementById('pillarRow'); if(pr) pr.style.display=on?'none':'';
 }
 function renderSlots(){
-  /* 2026-09-19（牌 c-0919-UI-01）：料色在「列印模擬」標題列、標成「擠出機 N」（＝料 N＝機上 E N，同號）。
-     🔴 段 F（車 3，牌 c-0923-ACC-23；R6-16）：原本是取色器——任意改色＝可以把一個沒量過的顏色設上去，
-     那正是 R6-16 要擋的事（Eric 0922：「他要怎麼樣把一個未校正的顏色設定在上面呢？」）。
-     改成材料庫選的那組的小色塊，點了打開第 1 步換一組（matflow.js）；料色只由 ptMatApply() 從選的那組寫進料槽。 */
+  /* 🔴 段 F（車 3，牌 c-0923-ACC-23；R6-16）：料槽原本是取色器——任意改色＝可以把一個沒量過的顏色設上去，
+     那正是 R6-16 要擋的事（Eric 0922：「他要怎麼樣把一個未校正的顏色設定在上面呢？」）。料色只由 ptMatApply() 從選的那組寫進料槽；
+     擠出機裝什麼只寫在右欄「選顏色」（T061：列印模擬標題列的小色塊拿掉，資訊不重複）。 */
   ptMatApply(window.PhotoTileMatFlow ? PhotoTileMatFlow.info() : null);
   if(typeof renderCycleUI==='function') renderCycleUI();   // 料數變＝圈數欄跟著變（放在 ptMatApply 後：它可能壓色階數）
-  slotList.className = 'n'+slotCount;   // 收窄門檻依料數（CSS @container）
-  slotList.innerHTML = window.PhotoTileMatFlow ? PhotoTileMatFlow.chipsHtml(slotCount) : '';
   if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   // 料數變了 ⇒ 第 1 步跟著換（雙料挑 2／四料挑 4）
   /* §11 R11-9：料數換了內建範例也要換（雙料灰階／四料彩色）。掛這裡＝四個 slotCount 切換點都會經過。 */
   if(typeof ptGalRender==='function') ptGalRender();
@@ -677,34 +639,35 @@ function calColors(){
 }
 function calibSpecText(){
   const cols=calColors(), eng=window.PhotoTileEngine;
+  /* T061：開頭寫料名（第 1 步填的顏色名），不寫色碼——新的料還沒量，名目色只是排 S 方向用的（不拿擠出機設定色充數）。 */
+  const who=window.PhotoTileMatFlow ? PhotoTileMatFlow.calLabelHtml() : cols.join(' · ');
   /* 幾何數字一律問引擎（CALIB_STRIP_GEO／CALIB_QUAD_GEO＝唯一來源）——頁面自己寫一份就是 v1／v2c 分叉的成因 */
   if(slotCount===4){
     const g=(eng&&eng.calibQuadGeo)?eng.calibQuadGeo():{cellMm:10,thickMm:10,levels:8,pillarMm:25};
-    return `${cols.join(' · ')}｜四料 48 格（六對 × ${g.levels} 階，${g.cellMm*g.levels}×${g.cellMm*6}×${g.thickMm} mm）＋${g.pillarMm} mm 洗料柱——<b>六對一次做到位</b>，不砍成只做白配其他三色。`;
+    return `${who}｜四料 48 格（六對 × ${g.levels} 階，${g.cellMm*g.levels}×${g.cellMm*6}×${g.thickMm} mm）＋${g.pillarMm} mm 洗料柱——<b>六對一次做到位</b>，不砍成只做白配其他三色。`;
   }
   const S=(eng&&eng.calibStripDefaultS)?eng.calibStripDefaultS(cols[0],cols[1]):[];
   const g=(eng&&eng.calibStripGeo)?eng.calibStripGeo():null;
   const geo=g?`${S.length} 階直立條 ${g.widthMm}×${g.thickMm}×${(S.length*g.bandMm)} mm（每階 ${g.bandMm} mm）＋洗料柱 ${g.purgeMm}×${g.purgeMm} mm`:`${S.length} 階直立條`;
-  return `${cols.join(' · ')}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`
+  return `${who}｜${geo}｜各階 S（由下往上）＝${S.map(v=>String(v)).join(',')}`
        + '<br>旁邊的<b>洗料柱隨階換比例</b>：每層先印柱、再印片，換比例的殘料吐在柱裡，片從每階第一層就是乾淨色（FD300 0.4 實印約 <b>12 分</b>）；印完整階都可以量，柱不用拍。';
 }
 /* 第 3 步拍照提示（Eric 2026-09-18 裁「②做」，牌 c-0918-CAL-02）：校正片最底階＝S 清單第一個＝1＝**全料 1**
    ——料 1 較暗時最底階是深色，照舊句「純白那階在最下面」會把照片轉反。四料＝最下面那排是料 1×料 2（校正頁 R1 在最下）。 */
 function calibShootHintHtml(){
   if(slotCount===4) return '正面照，照印出來的方向拍、不要轉（最下面那排是<b>料 1×料 2</b>，最左邊那欄是純色）；整塊入鏡、四個角都在畫面裡；順光，避免反光與陰影。';
-  const c=calColors()[0]||'';
-  const sw=/^#[0-9A-F]{6}$/.test(c)?`<span style="display:inline-block;width:10px;height:10px;border:1px solid #6F7773;vertical-align:-1px;background:${c}"></span> ${c}`:'';
-  return `直立拍（最下面那階是<b>料 1</b> 的純色 ${sw}；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。`;
+  /* T061：寫第 1 步填的名字、不畫色塊——新的料還沒量，那個顏色只是擠出機設定（原型細節 8：不拿它充數）。 */
+  const nm=window.PhotoTileMatFlow ? PhotoTileMatFlow.calLabelHtml(0) : '';
+  return `直立拍（最下面那階是<b>擠出機 1${nm}</b> 的純色；照印出來的方向拍，不要轉）、整條入鏡、四個角都在畫面裡；順光，避免反光與陰影。`;
 }
 /* 校正流程第 2、3 步的說明隨第 1 步的料走（matflow.js 畫完第 1 步後呼叫）。 */
 function calibRenderSteps(){
   const spec=document.getElementById('calibSpec'); if(spec) spec.innerHTML=calibSpecText();
   const shoot=document.getElementById('calibShootHint'); if(shoot) shoot.innerHTML=calibShootHintHtml();
 }
-/* 產圖流程第 1 步收起時的狀態行：只在「不是預設」的時候講——⛔ 不准只講好消息（R8-5）：
-   列印內容用的不是實測值（被關掉、或護欄擋下）時一定要看得到。 */
+/* 右欄「選顏色」收起時的狀態行：只在「不是預設」的時候講——⛔ 不准只講好消息（R8-5）：
+   列印內容用的不是實測值（護欄擋下）時一定要看得到。（T061：「進階」拿掉、開關固定開，「已關閉」那句走不到了，一併清掉。） */
 function ptMatStatusLine(){
-  if(!params.calibGen) return '⚠ 已關閉「用實測顏色決定色階」（右欄「進階」）：色階照理論推算。';
   const g = slotCount===4 ? window.__quadCalib : window.__calibGen;
   if(g && g.applied===false && g.why) return '⚠ 實測值這次沒套用：'+g.why;
   return '';
@@ -800,7 +763,7 @@ function matlibOnHostLoaded(msg){
   matLib=parsed.lib;
   let added=PhotoTileMatLib.mergeLib(matLib, pending);                          // ①讀檔回來之前收到的表
   const b=PhotoTileMatLib.parseLib(st.readBrowserLib());
-  if(b.ok) added+=PhotoTileMatLib.mergeLib(matLib, b.lib);                        // ②車 1 期間存在瀏覽器儲存區的庫
+  if(b.ok) added+=PhotoTileMatLib.mergeLib(matLib, b.lib, {byContent:true});      // ②車 1 期間存在瀏覽器儲存區的庫——🔴 要看內容：認領過（id 變了）的那組不能以未認領再冒出來（T060 跟車實走抓到）
   const old=PhotoTileMatLib.readLegacyRaw();                                      // ③舊鍵那一格（R6-14 子題 2 附款）
   if(old){ try{ if(PhotoTileMatLib.migrateLegacy(matLib, PhotoTileEngine.calibParseTable(old), {}).added) added++; }catch(e){} }
   if(added){ const w=PhotoTileMatLib.save(matLib); if(!w.persisted && !w.pending) matLibNote=w.why; }
@@ -810,19 +773,19 @@ function matlibOnHostSaved(msg){
   matLibNote=(msg && msg.ok) ? '' : ('材料庫沒存進 App 設定資料夾：'+((msg&&msg.message)||'原因不明')+'（這次的資料只留到關掉工作室為止）');
   matlibAfterLoad();
 }
-/* 段 B（車 2）：機上裝了哪幾支線材（capability 的 filaments；料 N＝擠出機 N）。車 3 的選料／認領拿它當選項。
-   🔴 只當選項清單：不拿它去猜「校正片的哪一端是哪一支」——猜錯＝整筆資料掛錯身分，而且沒人會發現。 */
+/* 段 B（車 2）：機上裝了哪幾支線材（capability 的 filaments；料 N＝擠出機 N）。T061 起只拿它的顏色當校正片名目色（新的料還沒量時）。
+   🔴 不拿它去猜「校正片的哪一端是哪一支」——猜錯＝整筆資料掛錯身分，而且沒人會發現。 */
 function hostFilamentList(){ return (machineCap && Array.isArray(machineCap.filaments)) ? machineCap.filaments : []; }
-/* 把一張已解析的校正表寫進庫。mats＝校正流程第 1 步確認的身分（filament_id＋標籤），照槽位順序；
-   沒給（長度不對）＝fid null、標籤帶量到的色碼，之後在產圖流程第一次選到時請使用者認領（needsClaim）。
-   量到的色一律用表裡的（hex 只當顯示與防呆，不當鍵：R6-14 子題 1）。
+/* 把一張已解析的校正表寫進庫。mats＝人確認的身分（T061：料種＋顏色名；校正第 1 步或匯入時那一問），照槽位順序；
+   沒給（長度不對）＝沒有料種、標籤帶量到的色碼＝清單上「未指定料種」，旁邊「指定…」補（不猜）。
+   量到的色一律用表裡的（hex 只當顯示與防呆，不當鍵：R6-14 子題 1）。at＝量測日期（匯入時從檔名抓；沒有＝今天）。
    回傳 {added, persisted, pending, why, mats}；失敗不影響匯入本身，但**要講出來**。 */
-function matlibRecord(tbl, mats){
+function matlibRecord(tbl, mats, at){
   if(!matlibReady() || !matLib) return {added:0, persisted:false, why:'材料庫未載入'};
   try{
     const n=Array.isArray(tbl.pairs)?4:2;
-    const ids=(Array.isArray(mats)&&mats.length===n) ? mats.map(m=>({fid:m.fid||null, label:m.label})) : [];
-    const at=new Date().toISOString().slice(0,10);
+    const ids=(Array.isArray(mats)&&mats.length===n) ? mats.map(m=>({type:m.type||null, label:m.label})) : [];
+    at=at||(window.PhotoTileMatFlow?PhotoTileMatFlow.today():new Date().toISOString().slice(0,10));   // 本地日期（UTC 在台灣早上 8 點前是前一天）
     const pairs=n===4
       ? PhotoTileMatLib.pairsFromQuad(tbl, {materials:ids, measuredAt:at})
       : [PhotoTileMatLib.pairFromDual(tbl, {materials:ids, measuredAt:at})];
@@ -836,7 +799,7 @@ function matlibRecord(tbl, mats){
     return {added:pairs.length, persisted:w.persisted, pending:!!w.pending, why:w.why, mats:outMats};
   }catch(e){ return {added:0, persisted:false, why:String(e&&e.message||e)}; }
 }
-/* 段 F：認領或跳過改了庫之後存一次（matflow.js 呼叫）。 */
+/* 段 F：指定料種、舊資料那一問改了庫之後存一次（matflow.js 呼叫）。 */
 function matlibSaveNow(){
   if(!matLib || matLibLoading || !matlibReady()) return;
   const w=PhotoTileMatLib.save(matLib); matLibNote=(w.persisted||w.pending)?'':w.why; matlibAfterLoad();
@@ -857,16 +820,19 @@ function calibRecordShow(r, quad, what){
 /* 🔴 **單一入口**（2026-09-15，牌 c-0915-PTI-06）：檔案匯入與「工作室內覆蓋層直接帶回來」
    走的是這同一支（這條線已經被兩份實作咬過三次）。
    🔴 段 F（車 3）：**不再在這裡改料槽**——0914 那段「匯入時把料 A／B 改成表的料色」的角色，
-   換成「新量的那組直接成為產圖流程的選擇」（matflow.onCalibrated）；料槽只由 ptMatApply() 從選的那組寫。 */
-function calibAcceptRaw(raw){
+   換成「新量的那組直接成為產圖流程的選擇」（matflow.onCalibrated）；料槽只由 ptMatApply() 從選的那組寫。
+   🆕 T061：mats／at 由匯入那一問帶進來（〈九〉Q5「匯入不再跳過確認」）；覆蓋層帶回＝校正第 1 步填的那組。回傳收表結果（讀不到＝false）。 */
+function calibAcceptRaw(raw, mats, at){
     try{
       const tbl=PhotoTileEngine.calibParseTable(raw);
       /* 雙料、四料都只進材料庫（**不碰舊鍵**——車 1 為四料加的那道「不寫舊鍵」分流，段 F 起雙料也一樣）。 */
       const quad=Array.isArray(tbl.pairs);
-      calibRecordShow(matlibRecord(tbl, calMatsFor(quad?4:2)), quad, quad ? tbl.pairs.length+' 對' : tbl.pts.length+' 點');
-      return true;
+      const r=matlibRecord(tbl, mats||calMatsFor(quad?4:2), at);
+      calibRecordShow(r, quad, quad ? tbl.pairs.length+' 對' : tbl.pts.length+' 點');
+      return r;
     }catch(err){ calibShowError(err); return false; }
 }
+/* 校正第 4 步的「匯入量好的校正表」：先問這張表是哪幾支料（帶第 1 步填的名字），確認才收（matflow.importTable）。 */
 document.getElementById('calibFile').onchange=e=>{
   const f=e.target.files && e.target.files[0];
   if(!f) return;
@@ -874,13 +840,11 @@ document.getElementById('calibFile').onchange=e=>{
   rd.onload=()=>{
     let raw;
     try{ raw=JSON.parse(rd.result); }catch(err){ calibShowError(err); return; }
-    calibAcceptRaw(raw);
+    if(window.PhotoTileMatFlow) PhotoTileMatFlow.importTable(raw, f.name, 'cal'); else calibAcceptRaw(raw);
   };
   rd.readAsText(f);
   e.target.value='';
 };
-document.getElementById('calibGenChk').onchange=e=>{ params.calibGen=e.target.checked; queue(); };
-document.getElementById('calibStretchChk').onchange=e=>{ params.calibStretch=e.target.checked; queue(); };
 /* 校正片＝引擎 buildCalibStrip（雙料：與 照片磚_色彩校正/make_calib_3mf.py --purge 同構的「直立條＋隨階換比例洗料柱」）
    ／buildCalibQuad（四料 48 格：與 make_calib_quad_3mf.py 同構，車 1 已用 sha256 釘住）；幾何都住引擎。
    產品路徑走 phototile_export_begin/chunk/end（end 帶 mode/nozzle ⇒ C++ photo_tile_deliver_3mf 先切對應的同進照片磚機再開檔）；
@@ -1041,28 +1005,14 @@ function simulateVerticalQuad(){
   for(let i=1;i<palette.length;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=
     `${palette.length} 色（6 條色階線 × ${K} 階＝${cands.length} 候選${dropped?`，超上限併掉 ${dropped}`:''}）`;
-  const lines=[];
-  lines.push(`模型拆分：照片變厚→按顏色分 ${palette.length} 種色塊零件（各自往後延伸），每零件一個混色比例`);
-  /* 【0805 規格 §2.2】這份清單是要拿去給現場換料的，**不可以寫死「白」**——
-     使用者可以把料A 改成任何顏色（規格明訂不阻擋），原本每一行都印「白N％」，
-     他換掉 A 之後現場會照著換錯料。改成印 A/B/C/D 並在抬頭列出各槽的實際色碼。 */
-  lines.push('調色盤＝兩兩色階線（A↔B/C/D＋B↔C/B↔D/C↔D），每格同時最多 2 支料在混');
-  lines.push('換色過渡藏在磚體後方（厚度＝清料空間）');
-  lines.push('本次料色：' + ['A','B','C','D'].map((k,i)=>
-    `${k}=${(slots[i]&&slots[i].color)||'—'}${i===0?'（機上 E1）':''}`).join('｜'));
-  palette.forEach((p,i)=>{
-    const r=p.w;
-    const pct = usageF? `（畫面佔 ${(usageF[i]/n*100).toFixed(1)}％）` : '';
-    lines.push(`零件色 ${i+1}：A${r[0]}％｜B${r[1]}％｜C${r[2]}％｜D${r[3]}％（M6052 A${r[0]} B${r[1]} C${r[2]} D${r[3]}）${pct}`);
-  });
-  document.getElementById('swapList').textContent=lines.join('\n');
+  /* T061：「換料清單（給列印用）」拿掉（Eric 2026-09-23「產品也拿掉」）——原本在這裡組 A/B/C/D 百分比清單。 */
   if(!img) return;
   const t0=performance.now();
   const out=simCtx.createImageData(img.w,img.h); const od=out.data;
-  let sumDE=0;
+  let sumDE=0; const R=img.refLab||img.lab;   // 9-5：色差跟左邊那張（AI 原圖）比，不跟壓平後的引擎輸入比
   for(let p=0;p<n;p++){
     const pi=labArr[p], c0=palette[pi];
-    const dl=img.lab[p*3]-c0.lab[0], da=img.lab[p*3+1]-c0.lab[1], db=img.lab[p*3+2]-c0.lab[2];
+    const dl=R[p*3]-c0.lab[0], da=R[p*3+1]-c0.lab[1], db=R[p*3+2]-c0.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
     const c = c0.rgb;
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
@@ -1070,7 +1020,7 @@ function simulateVerticalQuad(){
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
   const de=sumDE/n, ms=(performance.now()-t0).toFixed(0);
   lastDeltaE=de;
-  const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——在第 1 步換一組料試試（例如補上圖中缺的色系）';   // 段 F：料色不再能直接改，要換就換一組量過的
+  const verdict= de<10?'貼近':de<20?'尚可':'落差明顯——在右欄「選顏色」換一組料試試（例如補上圖中缺的色系）';   // 段 F：料色不再能直接改，要換就換一組量過的
   document.getElementById('metric').innerHTML =
     `模擬 vs 原圖 平均色差 <b>${de.toFixed(1)}</b>（越小越貼近；${verdict}）　<span class="sub">重算 ${ms} ms</span>`;
   /* 四料壓平（Eric 2026-09-03 裁③）：與 simulateVertical 尾端同一個掛鉤——這裡的 cands 就是
@@ -1122,7 +1072,6 @@ function simulateVertical(){
   coreCtx.strokeStyle='#fff'; coreCtx.lineWidth=2;
   for(let i=1;i<K;i++){ coreCtx.beginPath(); coreCtx.moveTo(i*bw,0); coreCtx.lineTo(i*bw,H); coreCtx.stroke(); }
   document.getElementById('coreRight').textContent=`${K} 色階（雙料混比）`;
-  listVertical(levels);
   if(!img){ lastUsedColours=0; lastGenColours=0; if(typeof renderCycleUI==='function') renderCycleUI(); updateNoiseStat(null); return; }
   const t0=performance.now();
   const out=simCtx.createImageData(img.w,img.h); const od=out.data; const n=img.w*img.h;
@@ -1144,13 +1093,13 @@ function simulateVertical(){
   lastUsedColours=new Set(labArr).size;
   lastGenColours=0;
   if(typeof renderCycleUI==='function') renderCycleUI();
-  let sumDE=0;
+  let sumDE=0; const R=img.refLab||img.lab;   // 9-5：色差跟左邊那張（AI 原圖）比
   for(let p=0;p<n;p++){
     const k=labArr[p];
     const lv=levels[k];
     const c = lv.rgb;
     od[p*4]=c[0]; od[p*4+1]=c[1]; od[p*4+2]=c[2]; od[p*4+3]=255;
-    const dl=img.lab[p*3]-lv.lab[0], da=img.lab[p*3+1]-lv.lab[1], db=img.lab[p*3+2]-lv.lab[2];
+    const dl=R[p*3]-lv.lab[0], da=R[p*3+1]-lv.lab[1], db=R[p*3+2]-lv.lab[2];
     sumDE+=Math.sqrt(dl*dl+da*da+db*db);
   }
   simCanvas.width=img.w; simCanvas.height=img.h; simCtx.putImageData(out,0,0);
@@ -1164,17 +1113,6 @@ function simulateVertical(){
      不必在別處再算一次（再算一次＝第三份梯子）。 */
   if(ptStylePending){ const job=ptStylePending; ptStylePending=null; ptStylizeSend(job, levels); }
 }
-function listVertical(levels){
-  const lines=[];
-  lines.push('垂直列印：照片立起來印、正面平整實色；色階邊界＝層線（銳利）');
-  lines.push('換色過渡全部藏在磚體後方（厚度＝換色清料空間）');
-  lines.push('S＝料A比例（機上 E1 裝料A）');
-  levels.forEach((lv,i)=>{
-    const a=Math.round((1-lv.t)*100);
-    lines.push(`階 ${i+1}：料A ${a}%／料B ${100-a}%（M6051 S${(Math.round((1-lv.t)*100)/100)}）`);
-  });
-  document.getElementById('swapList').textContent=lines.join('\n');
-}
 function simulate(){   // 2026-09-07 平躺（疊色）模擬、drawCore、listSwaps 整段拆除；工作室只剩垂直混色
   /* 🔴 段 F（R6-16 推論①）：還沒選顏色＝手上沒有量過的料 ⇒ 不拿理論色頂上，模擬區講清楚要先做什麼。 */
   if(!calibOwnsSlots()){ simulateBlank(); return; }
@@ -1184,15 +1122,15 @@ function simulateBlank(){
   simCanvas.width=4; simCanvas.height=4; simCtx.clearRect(0,0,4,4);
   coreCtx.clearRect(0,0,coreCanvas.width,coreCanvas.height);
   document.getElementById('coreRight').textContent='';
-  document.getElementById('swapList').textContent='—';
-  document.getElementById('metric').textContent='先在左邊「1 選顏色」選一組校正過的料，這裡才看得到列印模擬——沒量過的料，系統不知道它印出來是什麼顏色。';
+  document.getElementById('metric').textContent='先在右欄「選顏色」選一組校正過的料，這裡才看得到列印模擬——沒量過的料，系統不知道它印出來是什麼顏色。';
   lastDeltaE=null; lastUsedColours=0; lastGenColours=0;
   if(typeof renderCycleUI==='function') renderCycleUI();
 }
 
 /* ================= 圖片載入 ================= */
 const srcCanvas=document.getElementById('srcCanvas'), srcCtx=srcCanvas.getContext('2d');
-let srcBitmap=null, srcLabel='';    // 原始點陣圖，供改輸出尺寸時自動重取樣
+let srcBitmap=null, srcLabel='';    // 原始點陣圖（引擎輸入），供改輸出尺寸時自動重取樣
+let srcShow=null;                   // 9-5：左邊顯示的那張（AI 圖壓平後＝AI 原圖；null＝就是 srcBitmap）
 const GRID_MAX=3200;                // 長邊格數上限（防瀏覽器/3MF 爆量）；3200＝16cm 邊 @0.05mm 仍不觸頂（更大的磚自動放粗格點；座標仍在 Uint16 範圍）
 const SIZE_MIN_MM=20, SIZE_MAX_MM=800;   /* 2026-09-02 由 400 放寬到 800（Eric 令）。
    🔴 這個值有三份：本檔、engine.js 的同名常數、兩個 input 的 max 屬性——**三處都要改**。
@@ -1251,13 +1189,22 @@ function buildGrid(){
   const step=Math.max(1,Math.round(Math.sqrt(n/1500))), tl=[];
   for(let y=0;y<gh;y+=step) for(let x=0;x<gw;x+=step){ const p=y*gw+x; tl.push(lab[p*3],lab[p*3+1],lab[p*3+2]); }
   img={w:gw,h:gh,data:d.data,lab,lum,thumbLab:tl};
-  srcCanvas.width=gw; srcCanvas.height=gh; srcCtx.putImageData(d,0,0);
+  /* 9-5（T061；Eric 2026-09-23 Q13／Q14 甲）：AI 圖壓平之後，引擎吃壓平那張（上面的 img），
+     左邊顯示與「模擬 vs 原圖」色差用 **AI 原圖**（srcShow）——他想看出兩者的差異（「我想知道差異」）。 */
+  let show=d;
+  if(srcShow && srcShow!==bmp){
+    c.clearRect(0,0,gw,gh); c.drawImage(srcShow,0,0,gw,gh); show=c.getImageData(0,0,gw,gh);
+    const ref=new Float32Array(n*3);
+    for(let p=0;p<n;p++){ const L=lin2lab(s2l(show.data[p*4]),s2l(show.data[p*4+1]),s2l(show.data[p*4+2])); ref[p*3]=L[0]; ref[p*3+1]=L[1]; ref[p*3+2]=L[2]; }
+    img.refLab=ref;
+  }
+  srcCanvas.width=gw; srcCanvas.height=gh; srcCtx.putImageData(show,0,0);
   document.getElementById('srcStat').textContent=
     `${srcLabel}：${bmp.width}×${bmp.height} → 輸出 ${params.width}×${params.height} mm（系統自動高精度處理）`;
   updateSizeInfo();
 }
 function loadBitmap(bmp, label){
-  srcBitmap=bmp; srcLabel=label;
+  srcBitmap=bmp; srcShow=null; srcLabel=label;
   if(typeof ptAiForget==='function') ptAiForget();            // 換圖＝上一張 AI 圖作廢（另存按鈕收掉）
   if(typeof ptSourceTitle==='function') ptSourceTitle('');   // 換圖＝回到「原圖」
   ptLastStyleJob=null;                                        // 換圖＝上一張的壓平設定作廢（「依料重算」不會拿它去壓新圖）
@@ -1364,8 +1311,10 @@ window.PINGPhotoTile={
       /* 🔴 這裡刻意**不呼叫 loadBitmap()**：它會把來源當成一張新照片（清 AI 狀態、來源標題回「原圖」、
          清掉「依料重算」要用的壓平設定）。只換來源、重建格點、重算——尺寸與料色一律不動。
          （0923 以前它結尾還會跑 suggest() 改料色；車 2 段 D 拿掉之後，上面這些理由仍然成立。） */
-      srcBitmap=bmp; buildGrid(); simulate(); ptSourceTitle('style'); ptSourceBusy('');
-      ptStyleStat('已風格化（'+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——預覽與輸出用的是同一張。');
+      /* 9-5：AI 圖壓平＝只換引擎輸入，左邊留 AI 原圖（srcShow 在 aiEnd 設好）；本地款式照舊左右都換成風格化那張。 */
+      srcBitmap=bmp; if(!ptStyleFromAi) srcShow=null; buildGrid(); simulate(); ptSourceTitle('style'); ptSourceBusy('');
+      ptStyleStat((ptStyleFromAi ? '已把 AI 圖壓成平色階（' : '已風格化（')+meta.w+'×'+meta.h+'、'+(meta.ms||0)+' ms）——'
+        +(ptStyleFromAi ? '左邊是 AI 原圖，右邊的模擬與輸出用壓平後那張。' : '預覽與輸出用的是同一張。'));
     }catch(e){
       ptStyleStat('⚠ 風格化結果讀不進來，已維持未風格化的結果。');
     }
@@ -1438,7 +1387,7 @@ window.PINGPhotoTile={
       if(ptAiStyle && (slotCount===2 || slotCount===4))   // 四料也壓平（Eric 2026-09-03 裁③）
         ptStylePending={styleId:ptAiStyle.id, tones:ptAiStyle.tones, useCurrent:true};
       ptAiHasImage=true;                                   // 「另存 AI 圖」從這一刻起才有東西可存
-      srcBitmap=bmp; buildGrid();
+      srcBitmap=bmp; srcShow=bmp; buildGrid();             // 9-5：左邊從此一律放這張 AI 原圖（壓平只換引擎輸入）
       simulate();                                          // R6-16：照目前的料分階，不改料色（原本四料這裡會跑 suggest()）
       ptSourceTitle('ai');
       /* 圖已經是新的了 ⇒ 遮罩要嘛關掉、要嘛換成下一段（壓平）在做的事。 */
@@ -1503,7 +1452,7 @@ window.PINGPhotoTile={
     applyFixedModeFromHost();   /* 甲案（2026-09-08）：從同進機進來就照那台定料數 */
     applyNozzleFromHost();      /* 2026-09-08：口徑跟進來時機器的噴嘴（Eric：「口徑可否依照機器選擇的口徑自動變化」） */
     syncModeAvailability();
-    if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   /* 段 F：機上線材到了 ⇒ 校正第 1 步的預設、認領的選項才有 */
+    if(window.PhotoTileMatFlow) PhotoTileMatFlow.refresh();   /* 段 F：機上線材與料種清單到了 ⇒ 校正片名目色、「指定材料」的料種下拉、舊資料那一問才有 */
   },
   /* ── C-2：宿主生成鏈的回推入口（C++ RunScript 呼叫；欄位＝GUI_App 檔尾三支 handler）── */
   jobProgress(p){
@@ -1754,8 +1703,6 @@ noiseIn.onchange=e=>{
   params.noiseMm=Math.max(0,Math.min(20,parseFloat(e.target.value)||0));
   e.target.value=params.noiseMm.toFixed(1); queue();
 };
-document.getElementById('teethOn').onchange=e=>{ params.teeth=e.target.checked; };
-document.getElementById('p2aOn').onchange=e=>{ params.p2aBlock=e.target.checked; };
 /* 【0805 規格 §2.2】洗料柱與配色**完全無關**（它只影響調色盤上限 63/64，engine.js MAXP），
    原本勾一下就 suggest() ⇒ 使用者調好的四支料整組被洗掉。這是四條靜默覆寫裡最沒道理的一條。 */
 document.getElementById('pillarOn').onchange=e=>{ params.pillar=e.target.checked; updateSizeInfo(); simulate(); };
@@ -1948,7 +1895,7 @@ document.getElementById('btnGenCancel').onclick=genCancelClick;
 document.getElementById('btnExport').onclick=async()=>{
   if(genState) return;
   /* 段 F（R6-16 推論①＋FBK-11）：還沒選顏色＝手上沒有量過的料 ⇒ 不產生；講缺什麼、給一顆過去的按鈕。 */
-  if(!calibOwnsSlots()){ genStatline('warn','還沒選顏色——先在左邊「1 選顏色」選一組校正過的料。',{label:'去選顏色',fn:()=>PhotoTileMatFlow.openPicker()}); return; }
+  if(!calibOwnsSlots()){ genStatline('warn','還沒選顏色——先在右欄「選顏色」選一組校正過的料。',{label:'去選顏色',fn:()=>PhotoTileMatFlow.openPicker()}); return; }
   if(!img){ genStatline('warn','請先載入圖片'); return; }
   clearTimeout(tq); simulate();                    // 同舊行為：先套畫面上最新參數再生成
   const req=buildRequest();
@@ -2123,11 +2070,14 @@ function ptSourceTitle(kind){
       +'<span class="hint" id="aiSaveStat"></span>'
     : '';
   /* 2026-09-08 Eric 打叉「原照片仍保留…」那句（說明不太有用）⇒ 拿掉；標題只說來源是什麼。 */
-  if(kind==='style')   el.innerHTML=(ptAiHasImage ? '來源（AI 生成，已壓成平色階）' : '來源（已風格化）')+save;
+  /* 9-5：AI 圖壓平後左邊仍是 AI 原圖（不再貼回壓平結果）⇒ 標題就說「AI 生成」；左右差在哪寫在款式區那一行（ptStyleStat），
+     不塞進標題——1366 寬實量：標題多一句提示就換行，原圖被推低、破掉兩圖頂端對齊（0918 版面 A）。 */
+  if(kind==='style')   el.innerHTML=(ptAiHasImage && ptStyleFromAi ? '來源（AI 生成）' : '來源（已風格化）')+save;
   else if(kind==='ai') el.innerHTML='來源（AI 生成）'+save;
   else                 el.innerHTML='原圖 '+hint;
 }
 let ptAiHasImage=false;                 // 本張照片有沒有生過 AI 圖（決定「另存 AI 圖」按鈕出不出現）
+let ptStyleFromAi=false;                // 9-5：最近一次壓平的是 AI 圖（input current）⇒ 左邊留 AI 原圖；本地款式＝false
 function ptAiForget(){ ptAiHasImage=false; }   // 換照片＝作廢（C++ 端的 m_photo_tile_ai_path 同步清）
 function ptAiSave(){
   const st=document.getElementById('aiSaveStat');
@@ -2179,6 +2129,7 @@ function ptStylizeSend(job, levels, cands){
   }
   ptStyleJob='sty-'+Date.now();
   ptLastStyleJob={styleId:job.styleId, tones:job.tones, useCurrent:!!job.useCurrent};   // 「依料重算圖面顏色」照這一款重壓
+  ptStyleFromAi=!!job.useCurrent;       // 9-5：current＝AI 圖（C++ 端優先取 AI 原圖，T061 起重壓也不會吃到上一次的壓平結果）
   ptStyleChunks=null; ptStyleMeta=null;
   ptSyncBusy();                                          // 壓平中：款式卡鎖住
   ptStyleStat(job.useCurrent ? '正在把 AI 生成的圖壓成 '+job.tones+' 個平色階…（約 1~2 秒）'
@@ -2256,7 +2207,7 @@ function ptAiGenerate(s, tones){
   }
   /* R6-15（段 F）：先有顏色才產圖——AI 要照這組料印得出的顏色去畫，沒選料就沒有東西可以帶給它。 */
   if(!calibOwnsSlots()){
-    ptStyleStat('⚠ 先在上面「1 選顏色」選一組校正過的料——AI 產圖會照這組料印得出的顏色去畫。');
+    ptStyleStat('⚠ 先在右欄「選顏色」選一組校正過的料——AI 產圖會照這組料印得出的顏色去畫。');
     return;
   }
   const size=ptAiSize();
@@ -2630,6 +2581,8 @@ if(window.PhotoTileMatFlow) PhotoTileMatFlow.mount({
   lib:()=>matLib, note:()=>matLibNote, save:matlibSaveNow, loading:()=>matLibLoading,
   mode:()=>slotCount===4?'quad':'dual', params:()=>params,
   filaments:hostFilamentList, slotColors:()=>slots.slice(0,slotCount).map(s=>s.color),
+  materialTypes:()=>machineCap&&machineCap.materialTypes, typesReady:()=>!!machineCap||!slicerBridgeReady(),   // T061：照片磚印得出來的料種（App 給）
+  acceptTable:calibAcceptRaw,
   applied:ptMatAfterChange, statusLine:ptMatStatusLine, renderCalSteps:calibRenderSteps
 });
 ptSyncVisibility(); ptRender();

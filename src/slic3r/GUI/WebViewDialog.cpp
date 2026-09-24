@@ -23,6 +23,7 @@
 #include <wx/textdlg.h>
 #include <wx/url.h>
 
+#include <algorithm>
 #include <vector>
 
 #include <slic3r/GUI/Widgets/WebView.hpp>
@@ -387,7 +388,8 @@ void WebViewPanel::SendPhotoTileMachineCapability()
     std::string cur_nozzle_json = "null";
     if (cur.nozzle_mm > 0.0) { std::ostringstream os; os << cur.nozzle_mm; cur_nozzle_json = os.str(); }
     /* 段 B（車 2，牌 c-0923-ACC-21）：機上裝了哪幾支線材（專案的線材順序＝頁面的料槽順序：料 N＝擠出機 N）。
-       頁面拿它做「選料」與「認領」的選項（R6-14 子題 1：材料身分＝filament_id＋使用者標籤；名稱會改，不能當鍵）。
+       🆕 T061（牌 c-0924-ACC-27）：材料身分改成「料種＋顏色名」（R6-14 子題 1 附款）之後，頁面只拿它的 color
+       當校正片的**名目色**（新的料還沒量過時排 S 清單方向用），不再拿它當身分、也不再有「認領」框。
        🔴 只是**清單**：頁面不拿它去猜「校正片的哪一端是哪一支」——那要人指定（猜錯＝整筆資料掛錯身分，而且沒人會發現）。
        舊頁面不認得這個欄位＝照舊運作（additive）。 */
     std::string filaments_json = "[";
@@ -404,12 +406,50 @@ void WebViewPanel::SendPhotoTileMachineCapability()
         }
     }
     filaments_json += "]";
+    /* T061（牌 c-0924-ACC-27；R6-14 子題 1 附款、發包單〈九〉Q1 甲）：照片磚印得出來的**料種**清單。
+       頁面「指定材料」的料種下拉只列這一份（今天只有 PLA；將來有照片磚用的 PETG 參數會自動出現）。
+       存料種、不綁某一支線材參數——同一捲料在 FD 與 FF 照片磚機上的 filament_id 不同（〈九〉9-3）。
+       判準＝系統線材裡**明寫了相容條件**、而且條件對得上任一台照片磚機的那幾支，取 filament_type。
+       🔴 只認「明寫」：Orca 內建線材庫那一批完全沒寫相容條件（＝對所有機器都相容），算進來會把 ABS／PETG／TPU…
+          整批列進去——那不是替照片磚寫的參數，照片磚也沒有替它們調過（0924 實數：PING 34 支裡只有 3 支照片磚 PLA 會中）。
+       舊頁面不認得這個欄位＝照舊運作（additive）；頁面沒收到（瀏覽器直開）時自己退回只列 PLA。 */
+    std::string types_json = "[";
+    if (PresetBundle* bundle = wxGetApp().preset_bundle) {
+        std::vector<const Preset*> tile_printers;
+        for (const Preset& p : bundle->printers)
+            if (p.is_system && photo_tile_capability_of(p).is_photo_tile)
+                tile_printers.push_back(&p);
+        std::vector<std::string> types;
+        for (const Preset& f : bundle->filaments) {
+            if (!f.is_system || f.is_default)
+                continue;
+            const ConfigOptionStrings* list = f.config.option<ConfigOptionStrings>("compatible_printers");
+            if ((list == nullptr || list->values.empty()) && f.compatible_printers_condition().empty())
+                continue;                          // 沒寫相容條件＝對所有機器都相容，不是替照片磚寫的（見上）
+            const ConfigOptionStrings* ft = f.config.option<ConfigOptionStrings>("filament_type");
+            if (ft == nullptr || ft->values.empty() || ft->values.front().empty())
+                continue;
+            const std::string& type = ft->values.front();
+            if (std::find(types.begin(), types.end(), type) != types.end())
+                continue;
+            for (const Preset* p : tile_printers)
+                if (is_compatible_with_printer(PresetWithVendorProfile(f, f.vendor), PresetWithVendorProfile(*p, p->vendor))) {
+                    types.push_back(type);
+                    break;
+                }
+        }
+        std::sort(types.begin(), types.end());
+        for (size_t i = 0; i < types.size(); ++i)
+            types_json += (i > 0 ? "," : "") + json_str(types[i]);
+    }
+    types_json += "]";
     const std::string json = std::string("{\"hasDual\":") + (has_dual ? "true" : "false")
                            + ",\"hasQuad\":" + (has_quad ? "true" : "false")
                            + ",\"current\":" + cur_mode_json
                            + ",\"currentModel\":" + cur_model_json
                            + ",\"currentNozzle\":" + cur_nozzle_json
-                           + ",\"filaments\":" + filaments_json + "}";
+                           + ",\"filaments\":" + filaments_json
+                           + ",\"materialTypes\":" + types_json + "}";
     BOOST_LOG_TRIVIAL(info) << "PhotoTile 工作室：bundle 內可用的照片磚模式 " << json;
     RunScript(wxString("window.PINGPhotoTile && window.PINGPhotoTile.setMachineCapability(")
               + from_u8(json) + ");");
