@@ -781,7 +781,9 @@ function importLibFile(raw, fname){
   const src = '「' + fname + '」' + (mdate(raw.exportedAt) ? '，' + mdate(raw.exportedAt) + ' 匯出' : '');
   const finish = ch => {
     const r = M().applyLibImport(lib(), plan, ch);
-    save();
+    /* 一筆都不用寫（全都一模一樣、或撞到的全選「保留本機的」）＝不寫庫（9-8 #7）：App 那份每存一次就把前一份換成 .bak，
+       照樣存＝緊急備份被換成同一份內容。 */
+    if (r.added || r.took || r.archived) save();
     open = true; draft = null; importFrom = 'cal';
     flash = { kind: 'ok', text: libImportText(r, src) };
     changed();

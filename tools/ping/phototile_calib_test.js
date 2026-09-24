@@ -1614,6 +1614,54 @@ function fakeImg(){
     // 陽性對照：拿掉 .tmp 那一步，守衛必須抓到
     assert(!/tmp_path\(out_path\.string\(\) \+ "\.tmp"\)/.test(hb.replace('tmp_path(out_path.string() + ".tmp")', 'tmp_path(out_path)')), '守衛抓不到拿掉 .tmp 的寫法');
   });
+
+  /* ================= 〈九〉9-8 #7 補修（牌 c-0924-ACC-34；T063 跟車觀察項）：匯入材料庫檔一筆都不用寫＝不寫庫 =================
+     T063 的 importLibFile 不論有無改變都 save()：匯入一模一樣的檔也重寫一次庫——內容相同，但 App 那份的 .bak 被換成同一份＝少一層緊急備份。
+     這裡真的跑 matflow 的匯入那條路（假頁面數 save 次數；撞組那一問用最小的假 DOM 按「確定」），不只看原始碼長相。
+     🔴 放在最後：mount 會把假頁面留在 matflow 的模組狀態裡。 */
+  console.log('\n〈九〉9-8 #7 補修｜匯入材料庫檔：一筆都不用寫就不寫庫');
+  await check('🔴 9-8 #7：一模一樣／撞到的全選「保留本機的」＝不存；有新的一組／選了「用匯入的」＝存一次；訊息照舊', () => {
+    let cur = null, saves = 0, pick = null;
+    const appended = [];
+    const mkEl = () => ({ innerHTML: '', className: '', on: {},
+      addEventListener(t, f){ (this.on[t] = this.on[t] || []).push(f); },
+      querySelector(s){ return s === '.cfmBox' ? { focus(){} } : (pick && /^input\[name=mfc\d+\]:checked$/.test(s) ? { value: pick } : null); },
+      remove(){} });
+    const box = mkEl();
+    globalThis.document = { getElementById: id => (id === 'matPanel' ? box : null), createElement: mkEl,
+                            body: { appendChild: e => appended.push(e) }, addEventListener(){} };
+    try {
+      F.mount({ lib: () => cur, save: () => { saves++; }, mode: () => 'dual', note: () => '', loading: () => false,
+                statusLine: () => '', applied(){}, materialTypes: () => ['PLA'] });
+      const run = (inc, choice) => {
+        cur = libT(); saves = 0; pick = choice || null; appended.length = 0;
+        const before = JSON.stringify(cur);
+        F.importFile(M.exportText(inc, '2026-09-24'), '照片磚材料庫_20260924.json');
+        const dlg = appended.find(e => e.className === 'cfmBack');
+        if (dlg) dlg.on.click[0]({ target: { closest: s => (s === '[data-c]' ? { getAttribute: () => 'yes' } : null) } });
+        return { saves, same: JSON.stringify(cur) === before, asked: !!dlg, text: box.innerHTML };
+      };
+      const incB = libT();                                            // 白×淺藍 重量過＝撞到同一組；另兩組一模一樣
+      M.upsertPair(incB, M.pairFromDual(E.calibParseTable(TABLE_YELLOW), { materials: [PLA('白'), PLA('淺藍')], measuredAt: '2026-09-20' }));
+      const incD = libT();                                            // 多一組本機沒有的量測（換名字不算：byContent 會認成同一次量測）
+      const pts = TABLE_BLUE['量測'].map(r => [r['配方'].S, r['量到色']]); pts[3][1] = '#CDE9F5';
+      M.upsertPair(incD, M.pairFromDual(E.calibParseTable(mkTable('#F2F0EB', '#93D9FA', pts)), { materials: [PLA('白'), PLA('天藍')], measuredAt: '2026-09-20' }));
+
+      const a = run(libT());
+      assert.deepStrictEqual([a.saves, a.same, a.asked], [0, true, false], '匯入一模一樣的材料庫檔還是寫了庫（save ' + a.saves + ' 次）');
+      assert(/匯入完成（「照片磚材料庫_20260924\.json」，9\/24 匯出）：沒有新增、3 組跟本機一模一樣略過。/.test(a.text), '訊息沒照舊：' + a.text.slice(0, 200));
+      const b = run(incB);
+      assert.deepStrictEqual([b.saves, b.same, b.asked], [0, true, true], '撞到的全選「保留本機的」還是寫了庫（save ' + b.saves + ' 次）');
+      assert(/沒有新增、2 組跟本機一模一樣略過、撞到的 1 組照你選的（用匯入的 0、保留本機的 1）/.test(b.text), '訊息沒照舊：' + b.text.slice(0, 200));
+      // 陽性對照：真的有寫的兩種，一定要存（而且只存一次）
+      const c = run(incB, 'theirs');
+      assert.deepStrictEqual([c.saves, c.same], [1, false], '選了「用匯入的」沒存（save ' + c.saves + ' 次）');
+      assert(/用匯入的 1、保留本機的 0/.test(c.text), c.text.slice(0, 200));
+      const d = run(incD);
+      assert.deepStrictEqual([d.saves, d.same, d.asked], [1, false, false], '有新的一組沒存（save ' + d.saves + ' 次）');
+      assert(/新增 1 組、3 組跟本機一模一樣略過/.test(d.text), d.text.slice(0, 200));
+    } finally { delete globalThis.document; }
+  });
   console.log(`\n${pass} 通過、${fail} 失敗`);
   process.exit(fail ? 1 : 0);
 })();
