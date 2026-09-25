@@ -85,6 +85,24 @@ PHOTOTILE_PROCS = ["0.35mm @FF800 同進照片磚 (0.6)", "0.25mm @FF800 同進�
                    "0.5mm @FD600 Pro 同進照片磚 (1.0)",
                    "0.2mm @FD800 Pro 同進照片磚 (0.4)", "0.3mm @FD800 Pro 同進照片磚 (0.6)",
                    "0.5mm @FD800 Pro 同進照片磚 (1.0)"]
+# ★ 側欄縮圖的「各機專屬圖」（Eric 2026-09-01 令「小圖示跟 FP300 也一起換」，牌 c-0901-IMG-01；源頭修 c-0925-CAR-01）：
+#   這 7 台（13 個 model_id，變體共用本體那張）的 printer_preview 是型錄實拍去背後手工排版的 240x240
+#  （底對齊 y=226、置中 x=120、框 110x208），不是家族封面縮圖 ⇒ §4c-2 對它們逐位元組複製範本、不重畫。
+#   沒有這張表時，09-11 7c196099d3 的一次 regen 把 44a054b6dd 那 11 支靜默蓋回家族共用圖
+#  （Classic 四台變成 FP300 的照片、DUAL 300 變成 FD300 的），一路帶到 T064 與客戶版 V3.6.2。
+#   換圖＝換範本檔再 regen；新機型要專屬圖＝範本放進 base/printer_preview/ 並在這裡加一列。
+#   FD300 Pro 同進照片磚（09-07）與 FP300 關門（09-08）是 0901 之後才加的變體，照「變體跟本體同一張」
+#   跟本體（Eric 2026-09-25 照建議，決策 Q3）。
+PREVIEW_OWN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "base", "printer_preview")
+PREVIEW_OWN_ICON = {   # model_id → 範本檔名
+    "PING_EDU_200": "PING_EDU_200.png", "PING_PING_200": "PING_PING_200.png",
+    "PING_PING_270": "PING_PING_270.png", "PING_PING_300Plus": "PING_PING_300Plus.png",
+    "PING_FP300": "PING_FP300.png", "PING_FP300_關門": "PING_FP300.png",
+    "PING_FD300_Pro": "PING_FD300_Pro.png", "PING_FD300_Pro_同進": "PING_FD300_Pro.png",
+    "PING_FD300_Pro_單料頭": "PING_FD300_Pro.png", "PING_FD300_Pro_同進照片磚": "PING_FD300_Pro.png",
+    "PING_DUAL_300": "PING_DUAL_300.png", "PING_DUAL_300_同進": "PING_DUAL_300.png",
+    "PING_DUAL_300_單料頭": "PING_DUAL_300.png",
+}
 
 # ---------- 1. OrcaSlicer 權威 key 分類 ----------
 _src = open(PRESET_CPP, encoding="utf-8", errors="ignore").read()
@@ -3379,18 +3397,34 @@ def main(src_base):
             print("  cover: %s_cover.png <- %s" % (model, cover_src[key]))
 
     # 4c-2. 側欄印表機縮圖 printer_preview_{model_id}.png（Plater.cpp:3969；缺檔=黑方塊）
-    #       全部用「家族機器照」（模式變體同實機）；240x240 RGBA 同上游規格
+    #       預設用「家族機器照」重畫（模式變體同實機）；240x240 RGBA 同上游規格。
+    #       PREVIEW_OWN_ICON 列的機型例外：逐位元組複製範本、不重畫（理由見該表註解）。
     from PIL import Image
     img_dir = os.path.join(REPO, "resources", "images")
+    own_seen, n_own, n_drawn = set(), 0, 0
     for model in list(nozzles_of) + ff_models + pt_models:   # ff_models（同進/3in1）＋照片磚 側欄縮圖也要
         family_cover = cover_src[max((k for k in cover_src if model.startswith(k)), key=len)]
         mm_path = os.path.join(PINGDIR, "machine", "%s.json" % model)
         model_id = json.load(io.open(mm_path, encoding="utf-8"))["model_id"]
+        dst = os.path.join(img_dir, "printer_preview_%s.png" % model_id)
+        own = PREVIEW_OWN_ICON.get(model_id)
+        if own:
+            own_seen.add(model_id)
+            if os.path.isfile(os.path.join(PREVIEW_OWN, own)):
+                shutil.copyfile(os.path.join(PREVIEW_OWN, own), dst)
+                n_own += 1
+                continue
+            print("  ⚠ 側欄縮圖：%s 的專屬圖範本 base/printer_preview/%s 不見了，先用家族封面重畫——Eric 0901 選的圖會被蓋掉"
+                  % (model_id, own))
         im = Image.open(os.path.join(PINGDIR, family_cover)).convert("RGBA")
         im.thumbnail((240, 240), Image.LANCZOS)
         canvas = Image.new("RGBA", (240, 240), (0, 0, 0, 0))
         canvas.paste(im, ((240-im.width)//2, (240-im.height)//2), im)
-        canvas.save(os.path.join(img_dir, "printer_preview_%s.png" % model_id))
+        canvas.save(dst)
+        n_drawn += 1
+    print("  側欄縮圖：家族封面重畫 %d 支｜專屬圖範本複製 %d 支（對照表 %d 列）" % (n_drawn, n_own, len(PREVIEW_OWN_ICON)))
+    for mid in sorted(set(PREVIEW_OWN_ICON) - own_seen):   # 只提示不擋
+        print("  ⚠ 側欄縮圖對照表：%s 沒有對到任何機型（改名或下架？），這一列目前沒有作用" % mid)
 
     # 4d-0. LAY-11（ping-ux）：machine_model_list 同型號變體相鄰成組——
     # 家族依 FAMS 順序，家族內：基本款 → 同進 → 3in1 → 單料頭。
