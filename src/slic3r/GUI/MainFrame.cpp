@@ -2880,8 +2880,9 @@ static wxMenu* generate_help_menu()
             MessageDialog dlg(wxGetApp().mainframe, msg, wxString::FromUTF8("檢查更新"), wxYES_NO);
             dlg.SetButtonLabel(wxID_YES, wxString::FromUTF8("打開官網"));
             dlg.SetButtonLabel(wxID_NO, wxString::FromUTF8("關閉"));
+            // 指 V3.6 下載頁：原本的 /ping-slicer/ 是 2.1 舊頁（決策單 Q2，Eric 2026-09-25 照建議；牌 c-0925-CAR-01）
             if (dlg.ShowModal() == wxID_YES)
-                wxLaunchDefaultBrowser("https://ping3dp.com/software_and_tools/ping-slicer/",
+                wxLaunchDefaultBrowser("https://ping3dp.com/software_and_tools/ping-slicer-3-6/",
                                        wxBROWSER_NEW_WINDOW);
         }, "", nullptr, []() {
             return true;
@@ -3090,11 +3091,21 @@ void MainFrame::init_menubar_as_editor()
             [this](wxCommandEvent&) { if (m_plater != nullptr) m_plater->export_toolpaths_to_obj(); }, "menu_export_toolpaths", nullptr,
             [this]() {return can_export_toolpaths(); }, this);
 
-        // PING：產生報價包（給代印報價／CRM 系統的介面契約 v1.2）。
+        append_menu_item(
+            export_menu, wxID_ANY, _L("Export Preset Bundle") + dots /* + "\t" + ctrl + "E"*/, _L("Export current configuration to files"),
+            [this](wxCommandEvent &) { export_config(); },
+            "menu_export_config", nullptr,
+            []() { return true; }, this);
+
+        append_submenu(fileMenu, export_menu, wxID_ANY, _L("Export"), "");
+
+        // PING：匯出估價包（給代印報價／CRM 系統的介面契約 v1.2）。
+        // Eric 2026-08-27 P4 裁示：落點 B 案＝從「檔案 → 匯出」子選單提到「檔案」第一層、緊接「匯出」之後
+        // （受眾從內部業務換成客戶，子選單 11 項裡的第 10 項客戶找不到）；名稱「匯出估價包」。
+        // ⚠ 只改切片端這個選單標籤：副檔名 .pingquote、契約、封包欄位名都仍叫「報價」——改那些是跨線契約變更。
         // 自己會逐物件各切一次，所以不要求盤面已經切過——條件只看有沒有東西可切。
-        export_menu->AppendSeparator();
-        append_menu_item(export_menu, wxID_ANY,
-            wxString::FromUTF8("產生報價包") + dots,
+        append_menu_item(fileMenu, wxID_ANY,
+            wxString::FromUTF8("匯出估價包") + dots,
             wxString::FromUTF8("逐物件單獨切片，輸出重量／時間／尺寸給報價系統"),
             [this](wxCommandEvent&) {
                 PingQuoteOptions o;
@@ -3103,20 +3114,12 @@ void MainFrame::init_menubar_as_editor()
                    都回 false，直接呼叫等於把預設值硬寫死成「不含」——沒動過設定檔的
                    使用者（＝絕大多數，包含客戶）就永遠拿不到還原檔，而且不會有任何徵兆。
                    鍵不存在＝沿用結構裡的契約預設值；要關的人自己把鍵設成 0。
-                   對話框上的勾選等 UI 落點 P4 定案再做（Eric 0819 裁「落點之後再說」）。 */
+                   對話框上的勾選：P4 0827 定案只裁落點與名稱，沒有要這個勾選，所以仍未做。 */
                 if (wxGetApp().app_config->has("ping_quote_include_restore_3mf"))
                     o.include_restore_3mf = wxGetApp().app_config->get_bool("ping_quote_include_restore_3mf");
                 ping_quote_generate(m_plater, o);
             }, "", nullptr,
             [this]() { return can_export_model(); }, this);
-
-        append_menu_item(
-            export_menu, wxID_ANY, _L("Export Preset Bundle") + dots /* + "\t" + ctrl + "E"*/, _L("Export current configuration to files"),
-            [this](wxCommandEvent &) { export_config(); },
-            "menu_export_config", nullptr,
-            []() { return true; }, this);
-
-        append_submenu(fileMenu, export_menu, wxID_ANY, _L("Export"), "");
 
         fileMenu->AppendSeparator();
 

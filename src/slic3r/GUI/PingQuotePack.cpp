@@ -477,7 +477,7 @@ void PingQuotePackJob::process(Ctl &ctl)
         m_pack.objects.push_back(std::move(out));
     }
 
-    ctl.update_status(100, _u8L("報價資訊已產生"));
+    ctl.update_status(100, _u8L("估價資訊已產生"));
 }
 
 // 產一張「只有這個物件」的縮圖。**必須在主執行緒跑**（要 GL context）。
@@ -631,7 +631,7 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
     // 整輪吊死——照片磚線 2026-08-03 已經用一整輪作廢的數據換過這個教訓。
     auto report_fail = [this](const std::string &msg, long icon) {
         if (!m_opts.silent)
-            MessageDialog(wxGetApp().mainframe, from_u8(msg), _L("Generate quote pack"), icon | wxOK).ShowModal();
+            MessageDialog(wxGetApp().mainframe, from_u8(msg), wxString::FromUTF8("匯出估價包"), icon | wxOK).ShowModal();
         BOOST_LOG_TRIVIAL(error) << "ping-quote: " << msg;
         if (m_opts.on_done)
             m_opts.on_done(false, msg);
@@ -657,7 +657,7 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
         if (o.error.empty()) ++emitted;
 
     if (emitted == 0) {
-        std::string msg = _u8L("沒有任何物件切片成功，沒有可輸出的報價資訊。");
+        std::string msg = _u8L("沒有任何物件切片成功，沒有可輸出的估價資訊。");
         for (const auto &w : m_pack.warnings) msg += "\n" + w;
         report_fail(msg, wxICON_ERROR);
         return;
@@ -686,7 +686,7 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
             o.image = fname;
             images.emplace_back(fname, std::move(png));
         } else {
-            m_pack.warnings.push_back(o.name + "：" + _u8L("縮圖產生失敗（報價資訊仍然完整）"));
+            m_pack.warnings.push_back(o.name + "：" + _u8L("縮圖產生失敗（估價資訊仍然完整）"));
         }
 
         // 這一件有物件層級覆寫 ⇒ 另存一份「製程 preset ＋ 該件覆寫」的參數檔。
@@ -752,9 +752,9 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
 
     std::string path = m_opts.output_path;
     if (path.empty()) {
-        wxFileDialog dlg(wxGetApp().mainframe, _L("Save quote pack"),
+        wxFileDialog dlg(wxGetApp().mainframe, wxString::FromUTF8("匯出估價包"),
                          from_u8(wxGetApp().app_config->get_last_output_dir("")), default_name,
-                         wxString::FromUTF8("PING 報價包 (*.pingquote)|*.pingquote|ZIP (*.zip)|*.zip"),
+                         wxString::FromUTF8("PING 估價包 (*.pingquote)|*.pingquote|ZIP (*.zip)|*.zip"),
                          wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
         if (dlg.ShowModal() != wxID_OK) {
             if (m_opts.on_done)
@@ -777,19 +777,19 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
             zip.add_entry("restore.3mf", restore_3mf.data(), restore_3mf.size());
         zip.finalize();
     } catch (const std::exception &e) {
-        report_fail(std::string(_u8L("無法寫入報價包：")) + e.what(), wxICON_ERROR);
+        report_fail(std::string(_u8L("無法寫入估價包：")) + e.what(), wxICON_ERROR);
         return;
     }
 
     // 單物件才提供剪貼簿——剪貼簿放不了圖，多物件會讓使用者以為圖也一起帶走了。
     // silent 模式不碰剪貼簿：無人值守時搶使用者的剪貼簿是很沒禮貌的副作用。
-    std::string done = (boost::format(_u8L("已輸出 %1% 個物件的報價包。")) % emitted).str();
+    std::string done = (boost::format(_u8L("已輸出 %1% 個物件的估價包。")) % emitted).str();
     if (m_pack.objects_failed > 0)
-        done += "\n" + (boost::format(_u8L("⚠ 有 %1% 個物件切片失敗、未列入報價包，請確認是否要補報。")) % m_pack.objects_failed).str();
+        done += "\n" + (boost::format(_u8L("⚠ 有 %1% 個物件切片失敗、未列入估價包，請確認是否要補報。")) % m_pack.objects_failed).str();
     if (!m_opts.silent && emitted == 1 && wxTheClipboard->Open()) {
         wxTheClipboard->SetData(new wxTextDataObject(from_u8(txt)));
         wxTheClipboard->Close();
-        done += "\n" + _u8L("報價資訊也已複製到剪貼簿，可直接貼進報價系統（圖仍在檔案裡）。");
+        done += "\n" + _u8L("估價資訊也已複製到剪貼簿，可直接貼進報價系統（圖仍在檔案裡）。");
     }
     for (const auto &w : m_pack.warnings)
         done += "\n" + w;
@@ -797,7 +797,7 @@ void PingQuotePackJob::finalize(bool canceled, std::exception_ptr &eptr)
     BOOST_LOG_TRIVIAL(info) << "ping-quote: wrote " << path << " (" << emitted << " objects)";
     if (!m_opts.silent)
         MessageDialog(wxGetApp().mainframe,
-                      from_u8(done), _L("Generate quote pack"), wxICON_INFORMATION | wxOK).ShowModal();
+                      from_u8(done), wxString::FromUTF8("匯出估價包"), wxICON_INFORMATION | wxOK).ShowModal();
     if (m_opts.on_done)
         m_opts.on_done(true, done);
 }
