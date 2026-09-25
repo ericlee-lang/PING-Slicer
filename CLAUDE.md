@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **PING 的分支與參數入版規則不在本檔**：同目錄 `AGENTS.md` 開頭的〈兩線同源三句〉只有 Codex 會自動載入（本檔刻意不 `@AGENTS.md`，見該檔 `NO-CLAUDE-BRIDGE`）。**要 commit 任何改動、開分支、合併或動 `resources/profiles/PING.json` 前先讀那一段**——桌面 App 開的工作樹基底是 `main`，不是那兩條線。正本＝`../00治理文件/SOP_參數入版紀律.md` §V。
+
 ## Overview
 
 OrcaSlicer is an open-source 3D slicer application forked from Bambu Studio, built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.

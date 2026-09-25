@@ -1,4 +1,4 @@
-<!-- NO-CLAUDE-BRIDGE: 本檔是 OrcaSlicer 上游的通用 repo 指南（Build／Coding Style／Testing／Commit）。PING 的正本是同目錄 CLAUDE.md（10 KB）；本檔唯一的在地教訓（Windows 別加 --parallel／PCH 吃爆 C3859）該檔已收錄，橋接只會把 3.4 KB 重複塞進每個 session 的 context。（2026-08-20 Eric 裁，牌 x-0820-PM-05） -->
+<!-- NO-CLAUDE-BRIDGE: 本檔是 OrcaSlicer 上游的通用 repo 指南（Build／Coding Style／Testing／Commit）。PING 的正本是同目錄 CLAUDE.md（10 KB）；本檔在地內容：Windows 別加 --parallel 該檔已收錄、〈兩線同源三句〉該檔開頭指路（x-0925-PA-01），橋接只會把 5.4 KB 重複塞進每個 session。（2026-08-20 Eric 裁，牌 x-0820-PM-05） -->
 
 > 🔴 **跨專案鐵則不在這個檔裡，而 Codex 不會自動載入它**——它的專案文件預算走到 git repo 邊界就停，
 > 本 repo 是巢狀獨立 repo ⇒ 根 `D:/dev/2026claude/AGENTS.md` 不會出現在你的 context 裡。
