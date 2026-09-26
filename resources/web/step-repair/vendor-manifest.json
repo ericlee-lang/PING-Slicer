@@ -10,5 +10,5 @@
   "integrityManifest": "release-manifest.json",
   "runtimeDependencyOnSourceCheckout": false,
   "buildDependencyOnSourceCheckout": false,
-  "distributionScope": "internal-test"
+  "distributionScope": "customer-release"
 }
